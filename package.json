@@ -1,0 +1,27 @@
+{
+  "name": "jh-draft-league",
+  "version": "1.0.0",
+  "description": "JH Draft League",
+  "main": "index.js",
+  "scripts": {
+    "dev": "vite",
+    "build": "vite build",
+    "preview": "vite preview"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/Jonkins99/jh-draft-league.git"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "bugs": {
+    "url": "https://github.com/Jonkins99/jh-draft-league/issues"
+  },
+  "homepage": "https://github.com/Jonkins99/jh-draft-league#readme",
+  "devDependencies": {
+    "@tailwindcss/vite": "^4.3.1",
+    "tailwindcss": "^4.3.1",
+    "vite": "^8.0.16"
+  }
+}
