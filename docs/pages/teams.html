@@ -1,0 +1,202 @@
+<div x-data="teamsView">
+
+  <!-- ÜBERSICHT -->
+  <div x-show="!selectedTeam">
+    <header class="mb-8">
+      <p class="font-display text-xs font-semibold uppercase tracking-[0.3em] text-flame-400">Roster</p>
+      <h1 class="mt-1 font-display text-4xl font-bold tracking-wide text-ink md:text-5xl">Teams</h1>
+      <p class="mt-2 text-mist">Saison 1 · acht Teams. Tippe ein Team an für die Detailansicht.</p>
+    </header>
+
+    <div x-show="!loaded" class="py-12 text-center text-mist">Lade Teams…</div>
+
+    <div x-show="loaded" class="grid gap-5 sm:grid-cols-2 xl:grid-cols-3">
+      <template x-for="t in teams" :key="t.id">
+        <article @click="open(t.id)"
+                 class="cursor-pointer rounded-2xl border border-line bg-panel p-6 transition-colors hover:border-flame-500/40">
+          <div class="flex items-center gap-4">
+            <img :src="logoUrl(t.logo)" :alt="t.name" loading="lazy" class="size-16 shrink-0 rounded-xl object-contain" />
+            <div class="min-w-0">
+              <h2 class="truncate font-display text-xl font-bold tracking-wide text-ink" x-text="t.name" :title="t.name"></h2>
+              <span class="mt-1 inline-flex items-center rounded-full px-2.5 py-0.5 text-xs font-semibold"
+                    :style="`color:${playerColor(t.player)}; background:${playerColor(t.player)}1f`"
+                    x-text="t.player"></span>
+            </div>
+          </div>
+
+          <div class="mt-5 flex items-center justify-between border-t border-line pt-4">
+            <span class="font-display text-xs font-semibold uppercase tracking-wider text-mist">Roster</span>
+            <span class="font-display font-bold tabular-nums text-ink" x-text="`${(t.pokemon || []).length} / 10`"></span>
+          </div>
+
+          <div x-show="(t.pokemon || []).length" class="mt-3 grid grid-cols-5 gap-1.5">
+            <template x-for="p in (t.pokemon || [])" :key="p.name">
+              <div class="grid aspect-square place-items-center rounded-lg bg-elevated" :title="`${p.name} · Tier ${p.tier}`">
+                <img :src="p.image" :alt="p.name" loading="lazy" class="size-11 object-contain" />
+              </div>
+            </template>
+          </div>
+          <p x-show="!(t.pokemon || []).length" class="mt-3 text-sm text-mist">Roster wird im Draft gefüllt.</p>
+        </article>
+      </template>
+    </div>
+  </div>
+
+  <!-- DETAILANSICHT -->
+  <template x-if="selectedTeam">
+    <div>
+      <button type="button" @click="close()"
+              class="mb-6 inline-flex items-center gap-2 font-display text-sm font-semibold uppercase tracking-wider text-mist transition-colors hover:text-flame-400">
+        <svg viewBox="0 0 24 24" class="size-4" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M15 18l-6-6 6-6"/></svg>
+        Alle Teams
+      </button>
+
+      <section class="overflow-hidden rounded-2xl border border-flame-500/30 bg-gradient-to-br from-flame-500/10 to-panel p-6 md:p-8">
+        <div class="flex flex-wrap items-center gap-6">
+          <div class="relative shrink-0">
+            <div class="absolute inset-2 -z-10 rounded-full bg-flame-500/20 blur-2xl"></div>
+            <img :src="logoUrl(selectedTeam.logo)" :alt="selectedTeam.name" class="size-28 rounded-2xl object-contain" />
+          </div>
+          <div class="min-w-0">
+            <h1 class="font-display text-4xl font-bold tracking-wide text-ink md:text-5xl" x-text="selectedTeam.name"></h1>
+            <div class="mt-3 flex flex-wrap items-center gap-3">
+              <span class="inline-flex items-center rounded-full px-3 py-1 text-sm font-semibold"
+                    :style="`color:${playerColor(selectedTeam.player)}; background:${playerColor(selectedTeam.player)}1f`"
+                    x-text="selectedTeam.player"></span>
+              <span class="font-display text-sm font-semibold uppercase tracking-wider text-mist"
+                    x-text="`${(selectedTeam.pokemon || []).length} / 10 Pokémon`"></span>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <section class="mt-8">
+        <h2 class="mb-4 font-display text-xl font-bold uppercase tracking-wider text-ink">Kader</h2>
+
+        <div x-show="(selectedTeam.pokemon || []).length" class="grid grid-cols-2 gap-4 sm:grid-cols-3 lg:grid-cols-5">
+          <template x-for="p in rosterByTier(selectedTeam)" :key="p.name">
+            <div class="rounded-2xl border border-line bg-panel p-4">
+              <div class="relative grid aspect-square place-items-center rounded-xl bg-elevated/60">
+                <span class="absolute left-2 top-2 grid size-6 place-items-center rounded font-display text-xs font-bold"
+                      :style="`color:${tierColor(p.tier)}; background:${tierColor(p.tier)}26`" x-text="p.tier"></span>
+                <img :src="p.image" :alt="p.name" loading="lazy" class="h-4/5 w-4/5 object-contain" />
+              </div>
+              <p class="mt-3 truncate font-semibold text-ink" x-text="p.name" :title="p.name"></p>
+              <div class="mt-2 flex flex-wrap gap-1">
+                <template x-for="t in p.types" :key="t">
+                  <span class="rounded px-1.5 py-0.5 text-[10px] font-bold uppercase tracking-wide"
+                        :style="`color:${typeColor(t)}; background:${typeColor(t)}22`" x-text="t"></span>
+                </template>
+              </div>
+            </div>
+          </template>
+        </div>
+
+        <p x-show="!(selectedTeam.pokemon || []).length" class="rounded-xl border border-line bg-panel p-6 text-mist">
+          Dieses Team hat noch keine Pokémon gedraftet.
+        </p>
+      </section>
+
+      <!-- MODUL: Saison-Kontext (Platz, Ergebnisse, Verlauf) -->
+      <section class="mt-10">
+        <h2 class="mb-4 font-display text-xl font-bold uppercase tracking-wider text-ink">Saison</h2>
+        <div class="grid gap-6 lg:grid-cols-2">
+          <div class="rounded-2xl border border-line bg-panel p-6">
+            <p class="font-display text-xs font-semibold uppercase tracking-wider text-mist">Tabellenplatz</p>
+            <div class="mt-1 flex items-end gap-3">
+              <span class="font-display text-5xl font-bold text-ink" x-text="teamPlace ? `#${teamPlace}` : '—'"></span>
+              <span x-show="teamRow" class="pb-1.5 font-display text-lg font-semibold text-flame-400" x-text="teamRow ? `${teamRow.points} Pkt` : ''"></span>
+            </div>
+            <div x-show="teamRow" class="mt-4 grid grid-cols-3 gap-3 text-center">
+              <div class="rounded-xl bg-elevated p-3">
+                <div class="font-display text-lg font-bold tabular-nums text-ink" x-text="teamRow ? `${teamRow.won}-${teamRow.draw}-${teamRow.lost}` : ''"></div>
+                <div class="mt-0.5 text-xs text-mist">S-U-N</div>
+              </div>
+              <div class="rounded-xl bg-elevated p-3">
+                <div class="font-display text-lg font-bold tabular-nums text-ink" x-text="teamRow ? `${teamRow.kills}:${teamRow.deaths}` : ''"></div>
+                <div class="mt-0.5 text-xs text-mist">K:D</div>
+              </div>
+              <div class="rounded-xl bg-elevated p-3">
+                <div class="font-display text-lg font-bold tabular-nums text-ink" x-text="teamRow ? fmtDiff(teamRow.diff) : ''"></div>
+                <div class="mt-0.5 text-xs text-mist">Diff</div>
+              </div>
+            </div>
+          </div>
+
+          <div class="rounded-2xl border border-line bg-panel p-6">
+            <p class="font-display text-xs font-semibold uppercase tracking-wider text-mist">Platzierungsverlauf</p>
+            <div x-show="teamCurve.hasData" class="mt-3 overflow-x-auto" x-html="teamCurveSvg"></div>
+            <p x-show="!teamCurve.hasData" class="mt-3 py-8 text-center text-sm text-mist">Noch keine gespielten Spieltage.</p>
+          </div>
+        </div>
+
+        <div class="mt-6 rounded-2xl border border-line bg-panel p-6">
+          <p class="mb-2 font-display text-xs font-semibold uppercase tracking-wider text-mist">Ergebnisse</p>
+          <ul class="divide-y divide-line">
+            <template x-for="m in teamResults" :key="m.id">
+              <li class="flex flex-wrap items-center gap-x-3 gap-y-2 py-3">
+                <span class="w-12 shrink-0 font-display text-xs font-semibold text-mist" x-text="`ST ${m.day}`"></span>
+                <img :src="logoUrl(m.opponent?.logo)" :alt="m.opponent?.name" loading="lazy" class="size-8 shrink-0 rounded-lg object-contain" />
+                <span class="min-w-0 flex-1 truncate text-ink"><span class="text-mist">vs</span> <span x-text="m.opponent?.name"></span></span>
+                <div class="flex shrink-0 items-center gap-1">
+                  <template x-for="(b, bi) in m.battles" :key="bi">
+                    <span class="grid h-6 min-w-[2.5rem] place-items-center rounded px-1.5 text-xs font-bold tabular-nums"
+                          :class="!b.done ? 'bg-elevated text-mist/40' : (b.outcome === 'win' ? 'bg-volt-400/15 text-volt-400' : (b.outcome === 'loss' ? 'bg-flame-500/15 text-flame-400' : 'bg-elevated text-mist'))"
+                          x-text="b.done ? `${b.own}:${b.opp}` : '–'"></span>
+                  </template>
+                </div>
+                <span x-show="m.done" class="w-10 shrink-0 text-right font-display text-sm font-bold tabular-nums"
+                      :class="m.outcome === 'win' ? 'text-volt-400' : (m.outcome === 'loss' ? 'text-flame-400' : 'text-mist')"
+                      x-text="`${m.ownWins}:${m.oppWins}`"></span>
+                <span x-show="!m.done" class="w-10 shrink-0 text-right text-sm text-mist">offen</span>
+              </li>
+            </template>
+          </ul>
+          <p x-show="teamResults.length === 0" class="text-sm text-mist">Noch keine Spiele.</p>
+        </div>
+      </section>
+
+      <!-- MODUL: Pokémon-Ranking des Teams -->
+      <section class="mt-6 rounded-2xl border border-line bg-panel p-6">
+        <div class="mb-4 flex flex-wrap items-center justify-between gap-3">
+          <h2 class="font-display text-xl font-bold uppercase tracking-wider text-ink">Pokémon-Ranking</h2>
+          <div class="flex items-center gap-2">
+            <div class="flex rounded-xl border border-line bg-elevated p-1">
+              <template x-for="m in statModes" :key="m.key">
+                <button type="button" @click="setStatMode(m.key)"
+                        class="rounded-lg px-3 py-1.5 text-sm font-semibold transition-colors"
+                        :class="statMode === m.key ? 'bg-flame-500 text-white' : 'text-mist hover:text-ink'"
+                        x-text="m.label"></button>
+              </template>
+            </div>
+            <button type="button" @click="toggleStatDir()"
+                    class="grid size-9 shrink-0 place-items-center rounded-xl border border-line font-bold text-mist transition-colors hover:text-ink"
+                    :title="statDir === 'desc' ? 'Absteigend' : 'Aufsteigend'" x-text="statDir === 'desc' ? '↓' : '↑'"></button>
+          </div>
+        </div>
+        <div class="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-5">
+          <template x-for="(s, i) in teamRanking" :key="s.pokemon.name">
+            <div class="relative rounded-2xl border border-line bg-elevated p-3 text-center"
+                 :style="`view-transition-name:${vtName(s.pokemon)}`">
+              <div class="flex items-center justify-between px-1">
+                <span class="font-display text-xs font-bold tabular-nums text-mist" x-text="`#${i + 1}`"></span>
+                <span class="font-display text-2xl font-bold tabular-nums text-flame-400" x-text="s[statMode]"></span>
+              </div>
+              <div class="my-1 grid aspect-square place-items-center rounded-xl bg-panel">
+                <img :src="s.pokemon.image" :alt="s.pokemon.name" loading="lazy" class="h-4/5 w-4/5 object-contain" />
+              </div>
+              <p class="truncate text-sm font-semibold text-ink" x-text="s.pokemon.name" :title="s.pokemon.name"></p>
+              <div class="mt-1 flex flex-wrap justify-center gap-1">
+                <template x-for="t in (s.pokemon.types || [])" :key="t">
+                  <span class="rounded px-1 py-0.5 text-[10px] font-bold uppercase tracking-wide" :style="`color:${typeColor(t)}; background:${typeColor(t)}22`" x-text="t"></span>
+                </template>
+              </div>
+            </div>
+          </template>
+        </div>
+        <p x-show="teamRanking.length === 0" class="text-sm text-mist">Noch keine Daten.</p>
+      </section>
+    </div>
+  </template>
+
+</div>

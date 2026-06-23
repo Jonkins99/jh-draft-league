@@ -1,0 +1,32 @@
+{
+  "hash": "a2d7b965",
+  "configHash": "73673b75",
+  "lockfileHash": "b4a368d8",
+  "browserHash": "f413347e",
+  "optimized": {
+    "alpinejs": {
+      "src": "../../node_modules/alpinejs/dist/module.esm.js",
+      "file": "alpinejs.js",
+      "fileHash": "7596dbd1",
+      "needsInterop": false
+    },
+    "firebase/app": {
+      "src": "../../node_modules/firebase/app/dist/esm/index.esm.js",
+      "file": "firebase_app.js",
+      "fileHash": "6c784489",
+      "needsInterop": false
+    },
+    "firebase/firestore": {
+      "src": "../../node_modules/firebase/firestore/dist/esm/index.esm.js",
+      "file": "firebase_firestore.js",
+      "fileHash": "8d2ae4ce",
+      "needsInterop": false
+    }
+  },
+  "chunks": {
+    "index.esm-BKgnS8vD": {
+      "file": "index.esm-BKgnS8vD.js",
+      "isDynamicEntry": false
+    }
+  }
+}

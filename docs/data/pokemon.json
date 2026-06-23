@@ -1,0 +1,3587 @@
+[
+  {
+    "name": "Mega-Glurak Y",
+    "name_en": "Mega Charizard Y",
+    "dex": 6,
+    "types": [
+      "Feuer",
+      "Flug"
+    ],
+    "tier": "S",
+    "cost": 20,
+    "image": "https://www.serebii.net/pokemonhome/pokemon/006-my.png"
+  },
+  {
+    "name": "Mega-Floette",
+    "name_en": "Mega Floette",
+    "dex": 670,
+    "types": [
+      "Fee"
+    ],
+    "tier": "S",
+    "cost": 20,
+    "image": "https://www.serebii.net/pokemonhome/pokemon/670-m.png"
+  },
+  {
+    "name": "Mega-Gengar",
+    "name_en": "Mega Gengar",
+    "dex": 94,
+    "types": [
+      "Geist",
+      "Gift"
+    ],
+    "tier": "S",
+    "cost": 20,
+    "image": "https://www.serebii.net/pokemonhome/pokemon/094-m.png"
+  },
+  {
+    "name": "Briduradon",
+    "name_en": "Archaludon",
+    "dex": 1018,
+    "types": [
+      "Stahl",
+      "Drache"
+    ],
+    "tier": "S",
+    "cost": 19,
+    "image": "https://www.serebii.net/pokemonhome/pokemon/1018.png"
+  },
+  {
+    "name": "Salmagnis ♂",
+    "name_en": "Basculegion-Male",
+    "dex": 902,
+    "types": [
+      "Wasser",
+      "Geist"
+    ],
+    "tier": "S",
+    "cost": 19,
+    "image": "https://www.serebii.net/pokemonhome/pokemon/902.png"
+  },
+  {
+    "name": "Mega-Frosdedje",
+    "name_en": "Mega Froslass",
+    "dex": 478,
+    "types": [
+      "Eis",
+      "Geist"
+    ],
+    "tier": "S",
+    "cost": 19,
+    "image": "https://www.serebii.net/pokemonhome/pokemon/478-m.png"
+  },
+  {
+    "name": "Snieboss",
+    "name_en": "Sneasler",
+    "dex": 903,
+    "types": [
+      "Kampf",
+      "Gift"
+    ],
+    "tier": "S",
+    "cost": 19,
+    "image": "https://www.serebii.net/pokemonhome/pokemon/903.png"
+  },
+  {
+    "name": "Elfun",
+    "name_en": "Whimsicott",
+    "dex": 547,
+    "types": [
+      "Pflanze",
+      "Fee"
+    ],
+    "tier": "S",
+    "cost": 19,
+    "image": "https://www.serebii.net/pokemonhome/pokemon/547.png"
+  },
+  {
+    "name": "Knakrack",
+    "name_en": "Garchomp",
+    "dex": 445,
+    "types": [
+      "Drache",
+      "Boden"
+    ],
+    "tier": "S",
+    "cost": 18,
+    "image": "https://www.serebii.net/pokemonhome/pokemon/445.png"
+  },
+  {
+    "name": "Fuegro",
+    "name_en": "Incineroar",
+    "dex": 727,
+    "types": [
+      "Feuer",
+      "Unlicht"
+    ],
+    "tier": "S",
+    "cost": 18,
+    "image": "https://www.serebii.net/pokemonhome/pokemon/727.png"
+  },
+  {
+    "name": "Mega-Guardevoir",
+    "name_en": "Mega Gardevoir",
+    "dex": 282,
+    "types": [
+      "Psycho",
+      "Fee"
+    ],
+    "tier": "S",
+    "cost": 18,
+    "image": "https://www.serebii.net/pokemonhome/pokemon/282-m.png"
+  },
+  {
+    "name": "Mega-Kangama",
+    "name_en": "Mega Kangaskhan",
+    "dex": 115,
+    "types": [
+      "Normal"
+    ],
+    "tier": "S",
+    "cost": 18,
+    "image": "https://www.serebii.net/pokemonhome/pokemon/115-m.png"
+  },
+  {
+    "name": "Fatalitcha",
+    "name_en": "Sinistcha",
+    "dex": 1013,
+    "types": [
+      "Pflanze",
+      "Geist"
+    ],
+    "tier": "S",
+    "cost": 18,
+    "image": "https://www.serebii.net/pokemonhome/pokemon/1013.png"
+  },
+  {
+    "name": "Aerodactyl",
+    "name_en": "Aerodactyl",
+    "dex": 142,
+    "types": [
+      "Gestein",
+      "Flug"
+    ],
+    "tier": "S",
+    "cost": 17,
+    "image": "https://www.serebii.net/pokemonhome/pokemon/142.png"
+  },
+  {
+    "name": "Gladimperio",
+    "name_en": "Kingambit",
+    "dex": 983,
+    "types": [
+      "Unlicht",
+      "Stahl"
+    ],
+    "tier": "S",
+    "cost": 17,
+    "image": "https://www.serebii.net/pokemonhome/pokemon/983.png"
+  },
+  {
+    "name": "Mega-Aerodactyl",
+    "name_en": "Mega Aerodactyl",
+    "dex": 142,
+    "types": [
+      "Gestein",
+      "Flug"
+    ],
+    "tier": "S",
+    "cost": 17,
+    "image": "https://www.serebii.net/pokemonhome/pokemon/142-m.png"
+  },
+  {
+    "name": "Mega-Turtok",
+    "name_en": "Mega Blastoise",
+    "dex": 9,
+    "types": [
+      "Wasser"
+    ],
+    "tier": "S",
+    "cost": 17,
+    "image": "https://www.serebii.net/pokemonhome/pokemon/009-m.png"
+  },
+  {
+    "name": "Mega-Fennexis",
+    "name_en": "Mega Delphox",
+    "dex": 655,
+    "types": [
+      "Feuer",
+      "Psycho"
+    ],
+    "tier": "S",
+    "cost": 17,
+    "image": "https://www.serebii.net/pokemonhome/pokemon/655-m.png"
+  },
+  {
+    "name": "Mega-Despotar",
+    "name_en": "Mega Tyranitar",
+    "dex": 248,
+    "types": [
+      "Gestein",
+      "Unlicht"
+    ],
+    "tier": "S",
+    "cost": 17,
+    "image": "https://www.serebii.net/pokemonhome/pokemon/248-m.png"
+  },
+  {
+    "name": "Durengard",
+    "name_en": "Aegislash",
+    "dex": 681,
+    "types": [
+      "Stahl",
+      "Geist"
+    ],
+    "tier": "A",
+    "cost": 16,
+    "image": "https://www.serebii.net/pokemonhome/pokemon/681.png"
+  },
+  {
+    "name": "Dragoran",
+    "name_en": "Dragonite",
+    "dex": 149,
+    "types": [
+      "Drache",
+      "Flug"
+    ],
+    "tier": "A",
+    "cost": 16,
+    "image": "https://www.serebii.net/pokemonhome/pokemon/149.png"
+  },
+  {
+    "name": "Farigiraf",
+    "name_en": "Farigiraf",
+    "dex": 981,
+    "types": [
+      "Normal",
+      "Psycho"
+    ],
+    "tier": "A",
+    "cost": 16,
+    "image": "https://www.serebii.net/pokemonhome/pokemon/981.png"
+  },
+  {
+    "name": "Famieps",
+    "name_en": "Maushold",
+    "dex": 925,
+    "types": [
+      "Normal"
+    ],
+    "tier": "A",
+    "cost": 16,
+    "image": "https://www.serebii.net/pokemonhome/pokemon/925.png"
+  },
+  {
+    "name": "Mega-Lumiflora",
+    "name_en": "Mega Glimmora",
+    "dex": 970,
+    "types": [
+      "Gestein",
+      "Gift"
+    ],
+    "tier": "A",
+    "cost": 16,
+    "image": "https://www.serebii.net/pokemonhome/pokemon/970-m.png"
+  },
+  {
+    "name": "Mega-Schlapor",
+    "name_en": "Mega Lopunny",
+    "dex": 428,
+    "types": [
+      "Normal",
+      "Kampf"
+    ],
+    "tier": "A",
+    "cost": 16,
+    "image": "https://www.serebii.net/pokemonhome/pokemon/428-m.png"
+  },
+  {
+    "name": "Pelipper",
+    "name_en": "Pelipper",
+    "dex": 279,
+    "types": [
+      "Wasser",
+      "Flug"
+    ],
+    "tier": "A",
+    "cost": 16,
+    "image": "https://www.serebii.net/pokemonhome/pokemon/279.png"
+  },
+  {
+    "name": "Despotar",
+    "name_en": "Tyranitar",
+    "dex": 248,
+    "types": [
+      "Gestein",
+      "Unlicht"
+    ],
+    "tier": "A",
+    "cost": 16,
+    "image": "https://www.serebii.net/pokemonhome/pokemon/248.png"
+  },
+  {
+    "name": "Ramoth",
+    "name_en": "Volcarona",
+    "dex": 637,
+    "types": [
+      "Käfer",
+      "Feuer"
+    ],
+    "tier": "A",
+    "cost": 16,
+    "image": "https://www.serebii.net/pokemonhome/pokemon/637.png"
+  },
+  {
+    "name": "Pixi",
+    "name_en": "Clefable",
+    "dex": 36,
+    "types": [
+      "Fee"
+    ],
+    "tier": "A",
+    "cost": 15,
+    "image": "https://www.serebii.net/pokemonhome/pokemon/036.png"
+  },
+  {
+    "name": "Katapuldra",
+    "name_en": "Dragapult",
+    "dex": 887,
+    "types": [
+      "Drache",
+      "Geist"
+    ],
+    "tier": "A",
+    "cost": 15,
+    "image": "https://www.serebii.net/pokemonhome/pokemon/887.png"
+  },
+  {
+    "name": "Hisui-Arkani",
+    "name_en": "Hisuian Arcanine",
+    "dex": 59,
+    "types": [
+      "Feuer",
+      "Gestein"
+    ],
+    "tier": "A",
+    "cost": 15,
+    "image": "https://www.serebii.net/pokemonhome/pokemon/059-h.png"
+  },
+  {
+    "name": "Mega-Glurak X",
+    "name_en": "Mega Charizard X",
+    "dex": 6,
+    "types": [
+      "Feuer",
+      "Drache"
+    ],
+    "tier": "A",
+    "cost": 15,
+    "image": "https://www.serebii.net/pokemonhome/pokemon/006-mx.png"
+  },
+  {
+    "name": "Mega-Dragoran",
+    "name_en": "Mega Dragonite",
+    "dex": 149,
+    "types": [
+      "Drache",
+      "Flug"
+    ],
+    "tier": "A",
+    "cost": 15,
+    "image": "https://www.serebii.net/pokemonhome/pokemon/149-m.png"
+  },
+  {
+    "name": "Mega-Lucario",
+    "name_en": "Mega Lucario",
+    "dex": 448,
+    "types": [
+      "Kampf",
+      "Stahl"
+    ],
+    "tier": "A",
+    "cost": 15,
+    "image": "https://www.serebii.net/pokemonhome/pokemon/448-m.png"
+  },
+  {
+    "name": "Mega-Scherox",
+    "name_en": "Mega Scizor",
+    "dex": 212,
+    "types": [
+      "Käfer",
+      "Stahl"
+    ],
+    "tier": "A",
+    "cost": 15,
+    "image": "https://www.serebii.net/pokemonhome/pokemon/212-m.png"
+  },
+  {
+    "name": "Mega-Starmie",
+    "name_en": "Mega Starmie",
+    "dex": 121,
+    "types": [
+      "Wasser",
+      "Psycho"
+    ],
+    "tier": "A",
+    "cost": 15,
+    "image": "https://www.serebii.net/pokemonhome/pokemon/121-m.png"
+  },
+  {
+    "name": "Primarene",
+    "name_en": "Primarina",
+    "dex": 730,
+    "types": [
+      "Wasser",
+      "Fee"
+    ],
+    "tier": "A",
+    "cost": 15,
+    "image": "https://www.serebii.net/pokemonhome/pokemon/730.png"
+  },
+  {
+    "name": "Feelinara",
+    "name_en": "Sylveon",
+    "dex": 700,
+    "types": [
+      "Fee"
+    ],
+    "tier": "A",
+    "cost": 15,
+    "image": "https://www.serebii.net/pokemonhome/pokemon/700.png"
+  },
+  {
+    "name": "Fiaro",
+    "name_en": "Talonflame",
+    "dex": 663,
+    "types": [
+      "Feuer",
+      "Flug"
+    ],
+    "tier": "A",
+    "cost": 15,
+    "image": "https://www.serebii.net/pokemonhome/pokemon/663.png"
+  },
+  {
+    "name": "Qurtel",
+    "name_en": "Torkoal",
+    "dex": 324,
+    "types": [
+      "Feuer"
+    ],
+    "tier": "A",
+    "cost": 15,
+    "image": "https://www.serebii.net/pokemonhome/pokemon/324.png"
+  },
+  {
+    "name": "Alola-Vulnona",
+    "name_en": "Alolan Ninetales",
+    "dex": 38,
+    "types": [
+      "Eis",
+      "Fee"
+    ],
+    "tier": "A",
+    "cost": 14,
+    "image": "https://www.serebii.net/pokemonhome/pokemon/038-a.png"
+  },
+  {
+    "name": "Arkani",
+    "name_en": "Arcanine",
+    "dex": 59,
+    "types": [
+      "Feuer"
+    ],
+    "tier": "A",
+    "cost": 14,
+    "image": "https://www.serebii.net/pokemonhome/pokemon/059.png"
+  },
+  {
+    "name": "Trikephalo",
+    "name_en": "Hydreigon",
+    "dex": 635,
+    "types": [
+      "Unlicht",
+      "Drache"
+    ],
+    "tier": "A",
+    "cost": 14,
+    "image": "https://www.serebii.net/pokemonhome/pokemon/635.png"
+  },
+  {
+    "name": "Grandiras",
+    "name_en": "Kommo-o",
+    "dex": 784,
+    "types": [
+      "Drache",
+      "Kampf"
+    ],
+    "tier": "A",
+    "cost": 14,
+    "image": "https://www.serebii.net/pokemonhome/pokemon/784.png"
+  },
+  {
+    "name": "Mega-Pixi",
+    "name_en": "Mega Clefable",
+    "dex": 36,
+    "types": [
+      "Fee",
+      "Flug"
+    ],
+    "tier": "A",
+    "cost": 14,
+    "image": "https://www.serebii.net/pokemonhome/pokemon/036-m.png"
+  },
+  {
+    "name": "Mega-Knakrack",
+    "name_en": "Mega Garchomp",
+    "dex": 445,
+    "types": [
+      "Drache",
+      "Boden"
+    ],
+    "tier": "A",
+    "cost": 14,
+    "image": "https://www.serebii.net/pokemonhome/pokemon/445-m.png"
+  },
+  {
+    "name": "Mega-Garados",
+    "name_en": "Mega Gyarados",
+    "dex": 130,
+    "types": [
+      "Wasser",
+      "Unlicht"
+    ],
+    "tier": "A",
+    "cost": 14,
+    "image": "https://www.serebii.net/pokemonhome/pokemon/130-m.png"
+  },
+  {
+    "name": "Mega-Meganie",
+    "name_en": "Mega Meganium",
+    "dex": 154,
+    "types": [
+      "Pflanze",
+      "Fee"
+    ],
+    "tier": "A",
+    "cost": 14,
+    "image": "https://www.serebii.net/pokemonhome/pokemon/154-m.png"
+  },
+  {
+    "name": "Mega-Halupenjo",
+    "name_en": "Mega Scovillain",
+    "dex": 952,
+    "types": [
+      "Pflanze",
+      "Feuer"
+    ],
+    "tier": "A",
+    "cost": 14,
+    "image": "https://www.serebii.net/pokemonhome/pokemon/952-m.png"
+  },
+  {
+    "name": "Mega-Bisaflor",
+    "name_en": "Mega Venusaur",
+    "dex": 3,
+    "types": [
+      "Pflanze",
+      "Gift"
+    ],
+    "tier": "A",
+    "cost": 14,
+    "image": "https://www.serebii.net/pokemonhome/pokemon/003-m.png"
+  },
+  {
+    "name": "Milotic",
+    "name_en": "Milotic",
+    "dex": 350,
+    "types": [
+      "Wasser"
+    ],
+    "tier": "A",
+    "cost": 14,
+    "image": "https://www.serebii.net/pokemonhome/pokemon/350.png"
+  },
+  {
+    "name": "Wasch-Rotom",
+    "name_en": "Rotom-Wash",
+    "dex": 479,
+    "types": [
+      "Elektro",
+      "Wasser"
+    ],
+    "tier": "A",
+    "cost": 14,
+    "image": "https://www.serebii.net/pokemonhome/pokemon/479-w.png"
+  },
+  {
+    "name": "Krarmor",
+    "name_en": "Corviknight",
+    "dex": 823,
+    "types": [
+      "Flug",
+      "Stahl"
+    ],
+    "tier": "A",
+    "cost": 13,
+    "image": "https://www.serebii.net/pokemonhome/pokemon/823.png"
+  },
+  {
+    "name": "Stalobor",
+    "name_en": "Excadrill",
+    "dex": 530,
+    "types": [
+      "Boden",
+      "Stahl"
+    ],
+    "tier": "A",
+    "cost": 13,
+    "image": "https://www.serebii.net/pokemonhome/pokemon/530.png"
+  },
+  {
+    "name": "Lumiflora",
+    "name_en": "Glimmora",
+    "dex": 970,
+    "types": [
+      "Gestein",
+      "Gift"
+    ],
+    "tier": "A",
+    "cost": 13,
+    "image": "https://www.serebii.net/pokemonhome/pokemon/970.png"
+  },
+  {
+    "name": "Garados",
+    "name_en": "Gyarados",
+    "dex": 130,
+    "types": [
+      "Wasser",
+      "Flug"
+    ],
+    "tier": "A",
+    "cost": 13,
+    "image": "https://www.serebii.net/pokemonhome/pokemon/130.png"
+  },
+  {
+    "name": "Mega-Stalobor",
+    "name_en": "Mega Excadrill",
+    "dex": 530,
+    "types": [
+      "Boden",
+      "Stahl"
+    ],
+    "tier": "A",
+    "cost": 13,
+    "image": "https://www.serebii.net/pokemonhome/pokemon/530-m.png"
+  },
+  {
+    "name": "Quaxo",
+    "name_en": "Politoed",
+    "dex": 186,
+    "types": [
+      "Wasser"
+    ],
+    "tier": "A",
+    "cost": 13,
+    "image": "https://www.serebii.net/pokemonhome/pokemon/186.png"
+  },
+  {
+    "name": "Bisaflor",
+    "name_en": "Venusaur",
+    "dex": 3,
+    "types": [
+      "Pflanze",
+      "Gift"
+    ],
+    "tier": "A",
+    "cost": 13,
+    "image": "https://www.serebii.net/pokemonhome/pokemon/003.png"
+  },
+  {
+    "name": "Azumarill",
+    "name_en": "Azumarill",
+    "dex": 184,
+    "types": [
+      "Wasser",
+      "Fee"
+    ],
+    "tier": "B",
+    "cost": 12,
+    "image": "https://www.serebii.net/pokemonhome/pokemon/184.png"
+  },
+  {
+    "name": "Salmagnis ♀",
+    "name_en": "Basculegion-Female",
+    "dex": 902,
+    "types": [
+      "Wasser",
+      "Geist"
+    ],
+    "tier": "B",
+    "cost": 12,
+    "image": "https://www.serebii.net/pokemonhome/pokemon/902-f.png"
+  },
+  {
+    "name": "Mamutel",
+    "name_en": "Mamoswine",
+    "dex": 473,
+    "types": [
+      "Eis",
+      "Boden"
+    ],
+    "tier": "B",
+    "cost": 12,
+    "image": "https://www.serebii.net/pokemonhome/pokemon/473.png"
+  },
+  {
+    "name": "Mega-Simsala",
+    "name_en": "Mega Alakazam",
+    "dex": 65,
+    "types": [
+      "Psycho"
+    ],
+    "tier": "B",
+    "cost": 12,
+    "image": "https://www.serebii.net/pokemonhome/pokemon/065-m.png"
+  },
+  {
+    "name": "Mega-Galagladi",
+    "name_en": "Mega Gallade",
+    "dex": 475,
+    "types": [
+      "Psycho",
+      "Kampf"
+    ],
+    "tier": "B",
+    "cost": 12,
+    "image": "https://www.serebii.net/pokemonhome/pokemon/475-m.png"
+  },
+  {
+    "name": "Mega-Quajutsu",
+    "name_en": "Mega Greninja",
+    "dex": 658,
+    "types": [
+      "Wasser",
+      "Unlicht"
+    ],
+    "tier": "B",
+    "cost": 12,
+    "image": "https://www.serebii.net/pokemonhome/pokemon/658-m.png"
+  },
+  {
+    "name": "Mega-Meditalis",
+    "name_en": "Mega Medicham",
+    "dex": 308,
+    "types": [
+      "Kampf",
+      "Psycho"
+    ],
+    "tier": "B",
+    "cost": 12,
+    "image": "https://www.serebii.net/pokemonhome/pokemon/308-m.png"
+  },
+  {
+    "name": "Maskagato",
+    "name_en": "Meowscarada",
+    "dex": 908,
+    "types": [
+      "Pflanze",
+      "Unlicht"
+    ],
+    "tier": "B",
+    "cost": 12,
+    "image": "https://www.serebii.net/pokemonhome/pokemon/908.png"
+  },
+  {
+    "name": "Delfinator",
+    "name_en": "Palafin",
+    "dex": 964,
+    "types": [
+      "Wasser"
+    ],
+    "tier": "B",
+    "cost": 12,
+    "image": "https://www.serebii.net/pokemonhome/pokemon/964.png"
+  },
+  {
+    "name": "Hitze-Rotom",
+    "name_en": "Rotom-Heat",
+    "dex": 479,
+    "types": [
+      "Elektro",
+      "Feuer"
+    ],
+    "tier": "B",
+    "cost": 12,
+    "image": "https://www.serebii.net/pokemonhome/pokemon/479-h.png"
+  },
+  {
+    "name": "Aranestro",
+    "name_en": "Araquanid",
+    "dex": 752,
+    "types": [
+      "Wasser",
+      "Käfer"
+    ],
+    "tier": "B",
+    "cost": 11,
+    "image": "https://www.serebii.net/pokemonhome/pokemon/752.png"
+  },
+  {
+    "name": "Floette (Ewige Blume)",
+    "name_en": "Floette-Eternal",
+    "dex": 670,
+    "types": [
+      "Fee"
+    ],
+    "tier": "B",
+    "cost": 11,
+    "image": "https://www.serebii.net/pokemonhome/pokemon/670-e.png"
+  },
+  {
+    "name": "Clavion",
+    "name_en": "Klefki",
+    "dex": 707,
+    "types": [
+      "Stahl",
+      "Fee"
+    ],
+    "tier": "B",
+    "cost": 11,
+    "image": "https://www.serebii.net/pokemonhome/pokemon/707.png"
+  },
+  {
+    "name": "Mega-Panzaeron",
+    "name_en": "Mega Skarmory",
+    "dex": 227,
+    "types": [
+      "Stahl",
+      "Flug"
+    ],
+    "tier": "B",
+    "cost": 11,
+    "image": "https://www.serebii.net/pokemonhome/pokemon/227-m.png"
+  },
+  {
+    "name": "Psiaugon ♂",
+    "name_en": "Meowstic-Male",
+    "dex": 678,
+    "types": [
+      "Psycho"
+    ],
+    "tier": "B",
+    "cost": 11,
+    "image": "https://www.serebii.net/pokemonhome/pokemon/678.png"
+  },
+  {
+    "name": "Mimigma",
+    "name_en": "Mimikyu",
+    "dex": 778,
+    "types": [
+      "Geist",
+      "Fee"
+    ],
+    "tier": "B",
+    "cost": 11,
+    "image": "https://www.serebii.net/pokemonhome/pokemon/778.png"
+  },
+  {
+    "name": "Vulnona",
+    "name_en": "Ninetales",
+    "dex": 38,
+    "types": [
+      "Feuer"
+    ],
+    "tier": "B",
+    "cost": 11,
+    "image": "https://www.serebii.net/pokemonhome/pokemon/038.png"
+  },
+  {
+    "name": "Paldea-Tauros (Wasser)",
+    "name_en": "Paldean Tauros Aqua",
+    "dex": 128,
+    "types": [
+      "Kampf",
+      "Wasser"
+    ],
+    "tier": "B",
+    "cost": 11,
+    "image": "https://www.serebii.net/pokemonhome/pokemon/128-a.png"
+  },
+  {
+    "name": "Schneid-Rotom",
+    "name_en": "Rotom-Mow",
+    "dex": 479,
+    "types": [
+      "Elektro",
+      "Pflanze"
+    ],
+    "tier": "B",
+    "cost": 11,
+    "image": "https://www.serebii.net/pokemonhome/pokemon/479-m.png"
+  },
+  {
+    "name": "Zobiris",
+    "name_en": "Sableye",
+    "dex": 302,
+    "types": [
+      "Unlicht",
+      "Geist"
+    ],
+    "tier": "B",
+    "cost": 11,
+    "image": "https://www.serebii.net/pokemonhome/pokemon/302.png"
+  },
+  {
+    "name": "Scherox",
+    "name_en": "Scizor",
+    "dex": 212,
+    "types": [
+      "Käfer",
+      "Stahl"
+    ],
+    "tier": "B",
+    "cost": 11,
+    "image": "https://www.serebii.net/pokemonhome/pokemon/212.png"
+  },
+  {
+    "name": "Granforgita",
+    "name_en": "Tinkaton",
+    "dex": 959,
+    "types": [
+      "Fee",
+      "Stahl"
+    ],
+    "tier": "B",
+    "cost": 11,
+    "image": "https://www.serebii.net/pokemonhome/pokemon/959.png"
+  },
+  {
+    "name": "Guardevoir",
+    "name_en": "Gardevoir",
+    "dex": 282,
+    "types": [
+      "Psycho",
+      "Fee"
+    ],
+    "tier": "B",
+    "cost": 10,
+    "image": "https://www.serebii.net/pokemonhome/pokemon/282.png"
+  },
+  {
+    "name": "Kleoparda",
+    "name_en": "Liepard",
+    "dex": 510,
+    "types": [
+      "Unlicht"
+    ],
+    "tier": "B",
+    "cost": 10,
+    "image": "https://www.serebii.net/pokemonhome/pokemon/510.png"
+  },
+  {
+    "name": "Mega-Camerupt",
+    "name_en": "Mega Camerupt",
+    "dex": 323,
+    "types": [
+      "Feuer",
+      "Boden"
+    ],
+    "tier": "B",
+    "cost": 10,
+    "image": "https://www.serebii.net/pokemonhome/pokemon/323-m.png"
+  },
+  {
+    "name": "Mega-Golgantes",
+    "name_en": "Mega Golurk",
+    "dex": 623,
+    "types": [
+      "Boden",
+      "Geist"
+    ],
+    "tier": "B",
+    "cost": 10,
+    "image": "https://www.serebii.net/pokemonhome/pokemon/623-m.png"
+  },
+  {
+    "name": "Mega-Resladero",
+    "name_en": "Mega Hawlucha",
+    "dex": 701,
+    "types": [
+      "Kampf",
+      "Flug"
+    ],
+    "tier": "B",
+    "cost": 10,
+    "image": "https://www.serebii.net/pokemonhome/pokemon/701-m.png"
+  },
+  {
+    "name": "Mega-Voltenso",
+    "name_en": "Mega Manectric",
+    "dex": 310,
+    "types": [
+      "Elektro"
+    ],
+    "tier": "B",
+    "cost": 10,
+    "image": "https://www.serebii.net/pokemonhome/pokemon/310-m.png"
+  },
+  {
+    "name": "Kommandutan",
+    "name_en": "Oranguru",
+    "dex": 765,
+    "types": [
+      "Normal",
+      "Psycho"
+    ],
+    "tier": "B",
+    "cost": 10,
+    "image": "https://www.serebii.net/pokemonhome/pokemon/765.png"
+  },
+  {
+    "name": "Raichu",
+    "name_en": "Raichu",
+    "dex": 26,
+    "types": [
+      "Elektro"
+    ],
+    "tier": "B",
+    "cost": 10,
+    "image": "https://www.serebii.net/pokemonhome/pokemon/026.png"
+  },
+  {
+    "name": "Amfira",
+    "name_en": "Salazzle",
+    "dex": 758,
+    "types": [
+      "Gift",
+      "Feuer"
+    ],
+    "tier": "B",
+    "cost": 10,
+    "image": "https://www.serebii.net/pokemonhome/pokemon/758.png"
+  },
+  {
+    "name": "Vivillon",
+    "name_en": "Vivillon",
+    "dex": 666,
+    "types": [
+      "Käfer",
+      "Flug"
+    ],
+    "tier": "B",
+    "cost": 10,
+    "image": "https://www.serebii.net/pokemonhome/pokemon/666.png"
+  },
+  {
+    "name": "Turtok",
+    "name_en": "Blastoise",
+    "dex": 9,
+    "types": [
+      "Wasser"
+    ],
+    "tier": "B",
+    "cost": 9,
+    "image": "https://www.serebii.net/pokemonhome/pokemon/009.png"
+  },
+  {
+    "name": "Silembrim",
+    "name_en": "Hatterene",
+    "dex": 858,
+    "types": [
+      "Psycho",
+      "Fee"
+    ],
+    "tier": "B",
+    "cost": 9,
+    "image": "https://www.serebii.net/pokemonhome/pokemon/858.png"
+  },
+  {
+    "name": "Hisui-Zoroark",
+    "name_en": "Hisuian Zoroark",
+    "dex": 571,
+    "types": [
+      "Normal",
+      "Geist"
+    ],
+    "tier": "B",
+    "cost": 9,
+    "image": "https://www.serebii.net/pokemonhome/pokemon/571-h.png"
+  },
+  {
+    "name": "Rabigator",
+    "name_en": "Krookodile",
+    "dex": 553,
+    "types": [
+      "Boden",
+      "Unlicht"
+    ],
+    "tier": "B",
+    "cost": 9,
+    "image": "https://www.serebii.net/pokemonhome/pokemon/553.png"
+  },
+  {
+    "name": "Mega-Altaria",
+    "name_en": "Mega Altaria",
+    "dex": 334,
+    "types": [
+      "Drache",
+      "Fee"
+    ],
+    "tier": "B",
+    "cost": 9,
+    "image": "https://www.serebii.net/pokemonhome/pokemon/334-m.png"
+  },
+  {
+    "name": "Mega-Skelabra",
+    "name_en": "Mega Chandelure",
+    "dex": 609,
+    "types": [
+      "Geist",
+      "Feuer"
+    ],
+    "tier": "B",
+    "cost": 9,
+    "image": "https://www.serebii.net/pokemonhome/pokemon/609-m.png"
+  },
+  {
+    "name": "Mega-Palimpalim",
+    "name_en": "Mega Chimecho",
+    "dex": 358,
+    "types": [
+      "Psycho",
+      "Stahl"
+    ],
+    "tier": "B",
+    "cost": 9,
+    "image": "https://www.serebii.net/pokemonhome/pokemon/358-m.png"
+  },
+  {
+    "name": "Mega-Impergator",
+    "name_en": "Mega Feraligatr",
+    "dex": 160,
+    "types": [
+      "Wasser",
+      "Drache"
+    ],
+    "tier": "B",
+    "cost": 9,
+    "image": "https://www.serebii.net/pokemonhome/pokemon/160-m.png"
+  },
+  {
+    "name": "Mega-Psiaugon",
+    "name_en": "Mega Meowstic",
+    "dex": 678,
+    "types": [
+      "Psycho"
+    ],
+    "tier": "B",
+    "cost": 9,
+    "image": "https://www.serebii.net/pokemonhome/pokemon/678-m.png"
+  },
+  {
+    "name": "Mega-Zobiris",
+    "name_en": "Mega Sableye",
+    "dex": 302,
+    "types": [
+      "Unlicht",
+      "Geist"
+    ],
+    "tier": "B",
+    "cost": 9,
+    "image": "https://www.serebii.net/pokemonhome/pokemon/302-m.png"
+  },
+  {
+    "name": "UHaFnir",
+    "name_en": "Noivern",
+    "dex": 715,
+    "types": [
+      "Flug",
+      "Drache"
+    ],
+    "tier": "B",
+    "cost": 9,
+    "image": "https://www.serebii.net/pokemonhome/pokemon/715.png"
+  },
+  {
+    "name": "Paldea-Tauros (Flammen)",
+    "name_en": "Paldean Tauros Blaze",
+    "dex": 128,
+    "types": [
+      "Kampf",
+      "Feuer"
+    ],
+    "tier": "B",
+    "cost": 9,
+    "image": "https://www.serebii.net/pokemonhome/pokemon/128-b.png"
+  },
+  {
+    "name": "Rihornior",
+    "name_en": "Rhyperior",
+    "dex": 464,
+    "types": [
+      "Boden",
+      "Gestein"
+    ],
+    "tier": "B",
+    "cost": 9,
+    "image": "https://www.serebii.net/pokemonhome/pokemon/464.png"
+  },
+  {
+    "name": "Snibunna",
+    "name_en": "Weavile",
+    "dex": 461,
+    "types": [
+      "Unlicht",
+      "Eis"
+    ],
+    "tier": "B",
+    "cost": 9,
+    "image": "https://www.serebii.net/pokemonhome/pokemon/461.png"
+  },
+  {
+    "name": "Crimanzo",
+    "name_en": "Armarouge",
+    "dex": 936,
+    "types": [
+      "Feuer",
+      "Psycho"
+    ],
+    "tier": "C",
+    "cost": 8,
+    "image": "https://www.serebii.net/pokemonhome/pokemon/936.png"
+  },
+  {
+    "name": "Azugladis",
+    "name_en": "Ceruledge",
+    "dex": 937,
+    "types": [
+      "Feuer",
+      "Geist"
+    ],
+    "tier": "C",
+    "cost": 8,
+    "image": "https://www.serebii.net/pokemonhome/pokemon/937.png"
+  },
+  {
+    "name": "Galagladi",
+    "name_en": "Gallade",
+    "dex": 475,
+    "types": [
+      "Psycho",
+      "Kampf"
+    ],
+    "tier": "C",
+    "cost": 8,
+    "image": "https://www.serebii.net/pokemonhome/pokemon/475.png"
+  },
+  {
+    "name": "Gengar",
+    "name_en": "Gengar",
+    "dex": 94,
+    "types": [
+      "Geist",
+      "Gift"
+    ],
+    "tier": "C",
+    "cost": 8,
+    "image": "https://www.serebii.net/pokemonhome/pokemon/094.png"
+  },
+  {
+    "name": "Hisui-Tornupto",
+    "name_en": "Hisuian Typhlosion",
+    "dex": 157,
+    "types": [
+      "Feuer",
+      "Geist"
+    ],
+    "tier": "C",
+    "cost": 8,
+    "image": "https://www.serebii.net/pokemonhome/pokemon/157-h.png"
+  },
+  {
+    "name": "Mega-Stolloss",
+    "name_en": "Mega Aggron",
+    "dex": 306,
+    "types": [
+      "Stahl"
+    ],
+    "tier": "C",
+    "cost": 8,
+    "image": "https://www.serebii.net/pokemonhome/pokemon/306-m.png"
+  },
+  {
+    "name": "Mega-Brigaron",
+    "name_en": "Mega Chesnaught",
+    "dex": 652,
+    "types": [
+      "Pflanze",
+      "Kampf"
+    ],
+    "tier": "C",
+    "cost": 8,
+    "image": "https://www.serebii.net/pokemonhome/pokemon/652-m.png"
+  },
+  {
+    "name": "Mega-Krawell",
+    "name_en": "Mega Crabominable",
+    "dex": 740,
+    "types": [
+      "Kampf",
+      "Eis"
+    ],
+    "tier": "C",
+    "cost": 8,
+    "image": "https://www.serebii.net/pokemonhome/pokemon/740-m.png"
+  },
+  {
+    "name": "Mega-Sen-Long",
+    "name_en": "Mega Drampa",
+    "dex": 780,
+    "types": [
+      "Normal",
+      "Drache"
+    ],
+    "tier": "C",
+    "cost": 8,
+    "image": "https://www.serebii.net/pokemonhome/pokemon/780-m.png"
+  },
+  {
+    "name": "Mega-Flambirex",
+    "name_en": "Mega Emboar",
+    "dex": 500,
+    "types": [
+      "Feuer",
+      "Kampf"
+    ],
+    "tier": "C",
+    "cost": 8,
+    "image": "https://www.serebii.net/pokemonhome/pokemon/500-m.png"
+  },
+  {
+    "name": "Mega-Lahmus",
+    "name_en": "Mega Slowbro",
+    "dex": 80,
+    "types": [
+      "Wasser",
+      "Psycho"
+    ],
+    "tier": "C",
+    "cost": 8,
+    "image": "https://www.serebii.net/pokemonhome/pokemon/080-m.png"
+  },
+  {
+    "name": "Zytomega",
+    "name_en": "Reuniclus",
+    "dex": 579,
+    "types": [
+      "Psycho"
+    ],
+    "tier": "C",
+    "cost": 8,
+    "image": "https://www.serebii.net/pokemonhome/pokemon/579.png"
+  },
+  {
+    "name": "Relaxo",
+    "name_en": "Snorlax",
+    "dex": 143,
+    "types": [
+      "Normal"
+    ],
+    "tier": "C",
+    "cost": 8,
+    "image": "https://www.serebii.net/pokemonhome/pokemon/143.png"
+  },
+  {
+    "name": "Fruyal",
+    "name_en": "Tsareena",
+    "dex": 763,
+    "types": [
+      "Pflanze"
+    ],
+    "tier": "C",
+    "cost": 8,
+    "image": "https://www.serebii.net/pokemonhome/pokemon/763.png"
+  },
+  {
+    "name": "Gelatwino",
+    "name_en": "Vanilluxe",
+    "dex": 584,
+    "types": [
+      "Eis"
+    ],
+    "tier": "C",
+    "cost": 8,
+    "image": "https://www.serebii.net/pokemonhome/pokemon/584.png"
+  },
+  {
+    "name": "Meistagrif",
+    "name_en": "Conkeldurr",
+    "dex": 534,
+    "types": [
+      "Kampf"
+    ],
+    "tier": "C",
+    "cost": 7,
+    "image": "https://www.serebii.net/pokemonhome/pokemon/534.png"
+  },
+  {
+    "name": "Impoleon",
+    "name_en": "Empoleon",
+    "dex": 395,
+    "types": [
+      "Wasser",
+      "Stahl"
+    ],
+    "tier": "C",
+    "cost": 7,
+    "image": "https://www.serebii.net/pokemonhome/pokemon/395.png"
+  },
+  {
+    "name": "Psiana",
+    "name_en": "Espeon",
+    "dex": 196,
+    "types": [
+      "Psycho"
+    ],
+    "tier": "C",
+    "cost": 7,
+    "image": "https://www.serebii.net/pokemonhome/pokemon/196.png"
+  },
+  {
+    "name": "Florges",
+    "name_en": "Florges",
+    "dex": 671,
+    "types": [
+      "Fee"
+    ],
+    "tier": "C",
+    "cost": 7,
+    "image": "https://www.serebii.net/pokemonhome/pokemon/671.png"
+  },
+  {
+    "name": "Galar-Lahmus",
+    "name_en": "Galarian Slowbro",
+    "dex": 80,
+    "types": [
+      "Gift",
+      "Psycho"
+    ],
+    "tier": "C",
+    "cost": 7,
+    "image": "https://www.serebii.net/pokemonhome/pokemon/080-g.png"
+  },
+  {
+    "name": "Quajutsu",
+    "name_en": "Greninja",
+    "dex": 658,
+    "types": [
+      "Wasser",
+      "Unlicht"
+    ],
+    "tier": "C",
+    "cost": 7,
+    "image": "https://www.serebii.net/pokemonhome/pokemon/658.png"
+  },
+  {
+    "name": "Resladero",
+    "name_en": "Hawlucha",
+    "dex": 701,
+    "types": [
+      "Kampf",
+      "Flug"
+    ],
+    "tier": "C",
+    "cost": 7,
+    "image": "https://www.serebii.net/pokemonhome/pokemon/701.png"
+  },
+  {
+    "name": "Panferno",
+    "name_en": "Infernape",
+    "dex": 392,
+    "types": [
+      "Feuer",
+      "Kampf"
+    ],
+    "tier": "C",
+    "cost": 7,
+    "image": "https://www.serebii.net/pokemonhome/pokemon/392.png"
+  },
+  {
+    "name": "Kangama",
+    "name_en": "Kangaskhan",
+    "dex": 115,
+    "types": [
+      "Normal"
+    ],
+    "tier": "C",
+    "cost": 7,
+    "image": "https://www.serebii.net/pokemonhome/pokemon/115.png"
+  },
+  {
+    "name": "Meditalis",
+    "name_en": "Medicham",
+    "dex": 308,
+    "types": [
+      "Kampf",
+      "Psycho"
+    ],
+    "tier": "C",
+    "cost": 7,
+    "image": "https://www.serebii.net/pokemonhome/pokemon/308.png"
+  },
+  {
+    "name": "Mega-Skaraborn",
+    "name_en": "Mega Heracross",
+    "dex": 214,
+    "types": [
+      "Käfer",
+      "Kampf"
+    ],
+    "tier": "C",
+    "cost": 7,
+    "image": "https://www.serebii.net/pokemonhome/pokemon/214-m.png"
+  },
+  {
+    "name": "Mega-Tauboss",
+    "name_en": "Mega Pidgeot",
+    "dex": 18,
+    "types": [
+      "Normal",
+      "Flug"
+    ],
+    "tier": "C",
+    "cost": 7,
+    "image": "https://www.serebii.net/pokemonhome/pokemon/018-m.png"
+  },
+  {
+    "name": "Mega-Pinsir",
+    "name_en": "Mega Pinsir",
+    "dex": 127,
+    "types": [
+      "Käfer",
+      "Flug"
+    ],
+    "tier": "C",
+    "cost": 7,
+    "image": "https://www.serebii.net/pokemonhome/pokemon/127-m.png"
+  },
+  {
+    "name": "Mega-Tohaido",
+    "name_en": "Mega Sharpedo",
+    "dex": 319,
+    "types": [
+      "Wasser",
+      "Unlicht"
+    ],
+    "tier": "C",
+    "cost": 7,
+    "image": "https://www.serebii.net/pokemonhome/pokemon/319-m.png"
+  },
+  {
+    "name": "Mega-Sarzenia",
+    "name_en": "Mega Victreebel",
+    "dex": 71,
+    "types": [
+      "Pflanze",
+      "Gift"
+    ],
+    "tier": "C",
+    "cost": 7,
+    "image": "https://www.serebii.net/pokemonhome/pokemon/071-m.png"
+  },
+  {
+    "name": "Schlurm",
+    "name_en": "Orthworm",
+    "dex": 968,
+    "types": [
+      "Stahl"
+    ],
+    "tier": "C",
+    "cost": 7,
+    "image": "https://www.serebii.net/pokemonhome/pokemon/968.png"
+  },
+  {
+    "name": "Lahmus",
+    "name_en": "Slowbro",
+    "dex": 80,
+    "types": [
+      "Wasser",
+      "Psycho"
+    ],
+    "tier": "C",
+    "cost": 7,
+    "image": "https://www.serebii.net/pokemonhome/pokemon/080.png"
+  },
+  {
+    "name": "Laschoking",
+    "name_en": "Slowking",
+    "dex": 199,
+    "types": [
+      "Wasser",
+      "Psycho"
+    ],
+    "tier": "C",
+    "cost": 7,
+    "image": "https://www.serebii.net/pokemonhome/pokemon/199.png"
+  },
+  {
+    "name": "Damythir",
+    "name_en": "Wyrdeer",
+    "dex": 899,
+    "types": [
+      "Normal",
+      "Psycho"
+    ],
+    "tier": "C",
+    "cost": 7,
+    "image": "https://www.serebii.net/pokemonhome/pokemon/899.png"
+  },
+  {
+    "name": "Rexblisar",
+    "name_en": "Abomasnow",
+    "dex": 460,
+    "types": [
+      "Pflanze",
+      "Eis"
+    ],
+    "tier": "C",
+    "cost": 6,
+    "image": "https://www.serebii.net/pokemonhome/pokemon/460.png"
+  },
+  {
+    "name": "Parfinesse",
+    "name_en": "Aromatisse",
+    "dex": 683,
+    "types": [
+      "Fee"
+    ],
+    "tier": "C",
+    "cost": 6,
+    "image": "https://www.serebii.net/pokemonhome/pokemon/683.png"
+  },
+  {
+    "name": "Skelabra",
+    "name_en": "Chandelure",
+    "dex": 609,
+    "types": [
+      "Geist",
+      "Feuer"
+    ],
+    "tier": "C",
+    "cost": 6,
+    "image": "https://www.serebii.net/pokemonhome/pokemon/609.png"
+  },
+  {
+    "name": "Grebbit",
+    "name_en": "Diggersby",
+    "dex": 660,
+    "types": [
+      "Normal",
+      "Boden"
+    ],
+    "tier": "C",
+    "cost": 6,
+    "image": "https://www.serebii.net/pokemonhome/pokemon/660.png"
+  },
+  {
+    "name": "Galar-Laschoking",
+    "name_en": "Galarian Slowking",
+    "dex": 199,
+    "types": [
+      "Gift",
+      "Psycho"
+    ],
+    "tier": "C",
+    "cost": 6,
+    "image": "https://www.serebii.net/pokemonhome/pokemon/199-g.png"
+  },
+  {
+    "name": "Hisui-Viscogon",
+    "name_en": "Hisuian Goodra",
+    "dex": 706,
+    "types": [
+      "Stahl",
+      "Drache"
+    ],
+    "tier": "C",
+    "cost": 6,
+    "image": "https://www.serebii.net/pokemonhome/pokemon/706-h.png"
+  },
+  {
+    "name": "Hydrapfel",
+    "name_en": "Hydrapple",
+    "dex": 1019,
+    "types": [
+      "Pflanze",
+      "Drache"
+    ],
+    "tier": "C",
+    "cost": 6,
+    "image": "https://www.serebii.net/pokemonhome/pokemon/1019.png"
+  },
+  {
+    "name": "Axantor",
+    "name_en": "Kleavor",
+    "dex": 900,
+    "types": [
+      "Käfer",
+      "Gestein"
+    ],
+    "tier": "C",
+    "cost": 6,
+    "image": "https://www.serebii.net/pokemonhome/pokemon/900.png"
+  },
+  {
+    "name": "Lucario",
+    "name_en": "Lucario",
+    "dex": 448,
+    "types": [
+      "Kampf",
+      "Stahl"
+    ],
+    "tier": "C",
+    "cost": 6,
+    "image": "https://www.serebii.net/pokemonhome/pokemon/448.png"
+  },
+  {
+    "name": "Mega-Rexblisar",
+    "name_en": "Mega Abomasnow",
+    "dex": 460,
+    "types": [
+      "Pflanze",
+      "Eis"
+    ],
+    "tier": "C",
+    "cost": 6,
+    "image": "https://www.serebii.net/pokemonhome/pokemon/460-m.png"
+  },
+  {
+    "name": "Mega-Hundemon",
+    "name_en": "Mega Houndoom",
+    "dex": 229,
+    "types": [
+      "Unlicht",
+      "Feuer"
+    ],
+    "tier": "C",
+    "cost": 6,
+    "image": "https://www.serebii.net/pokemonhome/pokemon/229-m.png"
+  },
+  {
+    "name": "Mega-Stahlos",
+    "name_en": "Mega Steelix",
+    "dex": 208,
+    "types": [
+      "Stahl",
+      "Boden"
+    ],
+    "tier": "C",
+    "cost": 6,
+    "image": "https://www.serebii.net/pokemonhome/pokemon/208-m.png"
+  },
+  {
+    "name": "Pandagro",
+    "name_en": "Pangoro",
+    "dex": 675,
+    "types": [
+      "Kampf",
+      "Unlicht"
+    ],
+    "tier": "C",
+    "cost": 6,
+    "image": "https://www.serebii.net/pokemonhome/pokemon/675.png"
+  },
+  {
+    "name": "Kryppuk",
+    "name_en": "Spiritomb",
+    "dex": 442,
+    "types": [
+      "Geist",
+      "Unlicht"
+    ],
+    "tier": "C",
+    "cost": 6,
+    "image": "https://www.serebii.net/pokemonhome/pokemon/442.png"
+  },
+  {
+    "name": "Zoroark",
+    "name_en": "Zoroark",
+    "dex": 571,
+    "types": [
+      "Unlicht"
+    ],
+    "tier": "C",
+    "cost": 6,
+    "image": "https://www.serebii.net/pokemonhome/pokemon/571.png"
+  },
+  {
+    "name": "Simsala",
+    "name_en": "Alakazam",
+    "dex": 65,
+    "types": [
+      "Psycho"
+    ],
+    "tier": "C",
+    "cost": 5,
+    "image": "https://www.serebii.net/pokemonhome/pokemon/065.png"
+  },
+  {
+    "name": "Alola-Raichu",
+    "name_en": "Alolan Raichu",
+    "dex": 26,
+    "types": [
+      "Elektro",
+      "Psycho"
+    ],
+    "tier": "C",
+    "cost": 5,
+    "image": "https://www.serebii.net/pokemonhome/pokemon/026-a.png"
+  },
+  {
+    "name": "Glurak",
+    "name_en": "Charizard",
+    "dex": 6,
+    "types": [
+      "Feuer",
+      "Flug"
+    ],
+    "tier": "C",
+    "cost": 5,
+    "image": "https://www.serebii.net/pokemonhome/pokemon/006.png"
+  },
+  {
+    "name": "Echnatoll",
+    "name_en": "Cofagrigus",
+    "dex": 563,
+    "types": [
+      "Geist"
+    ],
+    "tier": "C",
+    "cost": 5,
+    "image": "https://www.serebii.net/pokemonhome/pokemon/563.png"
+  },
+  {
+    "name": "Fennexis",
+    "name_en": "Delphox",
+    "dex": 655,
+    "types": [
+      "Feuer",
+      "Psycho"
+    ],
+    "tier": "C",
+    "cost": 5,
+    "image": "https://www.serebii.net/pokemonhome/pokemon/655.png"
+  },
+  {
+    "name": "Psiopatra",
+    "name_en": "Espathra",
+    "dex": 956,
+    "types": [
+      "Psycho"
+    ],
+    "tier": "C",
+    "cost": 5,
+    "image": "https://www.serebii.net/pokemonhome/pokemon/956.png"
+  },
+  {
+    "name": "Saltigant",
+    "name_en": "Garganacl",
+    "dex": 934,
+    "types": [
+      "Gestein"
+    ],
+    "tier": "C",
+    "cost": 5,
+    "image": "https://www.serebii.net/pokemonhome/pokemon/934.png"
+  },
+  {
+    "name": "Glaziola",
+    "name_en": "Glaceon",
+    "dex": 471,
+    "types": [
+      "Eis"
+    ],
+    "tier": "C",
+    "cost": 5,
+    "image": "https://www.serebii.net/pokemonhome/pokemon/471.png"
+  },
+  {
+    "name": "Pumpdjinn",
+    "name_en": "Gourgeist",
+    "dex": 711,
+    "types": [
+      "Geist",
+      "Pflanze"
+    ],
+    "tier": "C",
+    "cost": 5,
+    "image": "https://www.serebii.net/pokemonhome/pokemon/711.png"
+  },
+  {
+    "name": "Hippoterus",
+    "name_en": "Hippowdon",
+    "dex": 450,
+    "types": [
+      "Boden"
+    ],
+    "tier": "C",
+    "cost": 5,
+    "image": "https://www.serebii.net/pokemonhome/pokemon/450.png"
+  },
+  {
+    "name": "Folipurba",
+    "name_en": "Leafeon",
+    "dex": 470,
+    "types": [
+      "Pflanze"
+    ],
+    "tier": "C",
+    "cost": 5,
+    "image": "https://www.serebii.net/pokemonhome/pokemon/470.png"
+  },
+  {
+    "name": "Wolwerock (Zwielichtform)",
+    "name_en": "Lycanroc-Dusk",
+    "dex": 745,
+    "types": [
+      "Gestein"
+    ],
+    "tier": "C",
+    "cost": 5,
+    "image": "https://www.serebii.net/pokemonhome/pokemon/745-d.png"
+  },
+  {
+    "name": "Mega-Banette",
+    "name_en": "Mega Banette",
+    "dex": 354,
+    "types": [
+      "Geist"
+    ],
+    "tier": "C",
+    "cost": 5,
+    "image": "https://www.serebii.net/pokemonhome/pokemon/354-m.png"
+  },
+  {
+    "name": "Mega-Bibor",
+    "name_en": "Mega Beedrill",
+    "dex": 15,
+    "types": [
+      "Käfer",
+      "Gift"
+    ],
+    "tier": "C",
+    "cost": 5,
+    "image": "https://www.serebii.net/pokemonhome/pokemon/015-m.png"
+  },
+  {
+    "name": "Pampross",
+    "name_en": "Mudsdale",
+    "dex": 750,
+    "types": [
+      "Boden"
+    ],
+    "tier": "C",
+    "cost": 5,
+    "image": "https://www.serebii.net/pokemonhome/pokemon/750.png"
+  },
+  {
+    "name": "Mortipot",
+    "name_en": "Polteageist",
+    "dex": 855,
+    "types": [
+      "Geist"
+    ],
+    "tier": "C",
+    "cost": 5,
+    "image": "https://www.serebii.net/pokemonhome/pokemon/855.png"
+  },
+  {
+    "name": "Bailonda",
+    "name_en": "Quaquaval",
+    "dex": 914,
+    "types": [
+      "Wasser",
+      "Kampf"
+    ],
+    "tier": "C",
+    "cost": 5,
+    "image": "https://www.serebii.net/pokemonhome/pokemon/914.png"
+  },
+  {
+    "name": "Oghnatoll",
+    "name_en": "Runerigus",
+    "dex": 867,
+    "types": [
+      "Boden",
+      "Geist"
+    ],
+    "tier": "C",
+    "cost": 5,
+    "image": "https://www.serebii.net/pokemonhome/pokemon/867.png"
+  },
+  {
+    "name": "Serpiroyal",
+    "name_en": "Serperior",
+    "dex": 497,
+    "types": [
+      "Pflanze"
+    ],
+    "tier": "C",
+    "cost": 5,
+    "image": "https://www.serebii.net/pokemonhome/pokemon/497.png"
+  },
+  {
+    "name": "Skelokrok",
+    "name_en": "Skeledirge",
+    "dex": 911,
+    "types": [
+      "Feuer",
+      "Geist"
+    ],
+    "tier": "C",
+    "cost": 5,
+    "image": "https://www.serebii.net/pokemonhome/pokemon/911.png"
+  },
+  {
+    "name": "Tornupto",
+    "name_en": "Typhlosion",
+    "dex": 157,
+    "types": [
+      "Feuer"
+    ],
+    "tier": "C",
+    "cost": 5,
+    "image": "https://www.serebii.net/pokemonhome/pokemon/157.png"
+  },
+  {
+    "name": "Nachtara",
+    "name_en": "Umbreon",
+    "dex": 197,
+    "types": [
+      "Unlicht"
+    ],
+    "tier": "C",
+    "cost": 5,
+    "image": "https://www.serebii.net/pokemonhome/pokemon/197.png"
+  },
+  {
+    "name": "Aquana",
+    "name_en": "Vaporeon",
+    "dex": 134,
+    "types": [
+      "Wasser"
+    ],
+    "tier": "C",
+    "cost": 5,
+    "image": "https://www.serebii.net/pokemonhome/pokemon/134.png"
+  },
+  {
+    "name": "Pokusan",
+    "name_en": "Alcremie",
+    "dex": 869,
+    "types": [
+      "Fee"
+    ],
+    "tier": "D",
+    "cost": 4,
+    "image": "https://www.serebii.net/pokemonhome/pokemon/869.png"
+  },
+  {
+    "name": "Wampitz",
+    "name_en": "Bellibolt",
+    "dex": 939,
+    "types": [
+      "Elektro"
+    ],
+    "tier": "D",
+    "cost": 4,
+    "image": "https://www.serebii.net/pokemonhome/pokemon/939.png"
+  },
+  {
+    "name": "Brigaron",
+    "name_en": "Chesnaught",
+    "dex": 652,
+    "types": [
+      "Pflanze",
+      "Kampf"
+    ],
+    "tier": "D",
+    "cost": 4,
+    "image": "https://www.serebii.net/pokemonhome/pokemon/652.png"
+  },
+  {
+    "name": "Wummer",
+    "name_en": "Clawitzer",
+    "dex": 693,
+    "types": [
+      "Wasser"
+    ],
+    "tier": "D",
+    "cost": 4,
+    "image": "https://www.serebii.net/pokemonhome/pokemon/693.png"
+  },
+  {
+    "name": "Ditto",
+    "name_en": "Ditto",
+    "dex": 132,
+    "types": [
+      "Normal"
+    ],
+    "tier": "D",
+    "cost": 4,
+    "image": "https://www.serebii.net/pokemonhome/pokemon/132.png"
+  },
+  {
+    "name": "Frosdedje",
+    "name_en": "Froslass",
+    "dex": 478,
+    "types": [
+      "Eis",
+      "Geist"
+    ],
+    "tier": "D",
+    "cost": 4,
+    "image": "https://www.serebii.net/pokemonhome/pokemon/478.png"
+  },
+  {
+    "name": "Golgantes",
+    "name_en": "Golurk",
+    "dex": 623,
+    "types": [
+      "Boden",
+      "Geist"
+    ],
+    "tier": "D",
+    "cost": 4,
+    "image": "https://www.serebii.net/pokemonhome/pokemon/623.png"
+  },
+  {
+    "name": "Viscogon",
+    "name_en": "Goodra",
+    "dex": 706,
+    "types": [
+      "Drache"
+    ],
+    "tier": "D",
+    "cost": 4,
+    "image": "https://www.serebii.net/pokemonhome/pokemon/706.png"
+  },
+  {
+    "name": "Elezard",
+    "name_en": "Heliolisk",
+    "dex": 695,
+    "types": [
+      "Elektro",
+      "Normal"
+    ],
+    "tier": "D",
+    "cost": 4,
+    "image": "https://www.serebii.net/pokemonhome/pokemon/695.png"
+  },
+  {
+    "name": "Hisui-Silvarro",
+    "name_en": "Hisuian Decidueye",
+    "dex": 724,
+    "types": [
+      "Pflanze",
+      "Kampf"
+    ],
+    "tier": "D",
+    "cost": 4,
+    "image": "https://www.serebii.net/pokemonhome/pokemon/724-h.png"
+  },
+  {
+    "name": "Hisui-Admurai",
+    "name_en": "Hisuian Samurott",
+    "dex": 503,
+    "types": [
+      "Wasser",
+      "Unlicht"
+    ],
+    "tier": "D",
+    "cost": 4,
+    "image": "https://www.serebii.net/pokemonhome/pokemon/503-h.png"
+  },
+  {
+    "name": "Blitza",
+    "name_en": "Jolteon",
+    "dex": 135,
+    "types": [
+      "Elektro"
+    ],
+    "tier": "D",
+    "cost": 4,
+    "image": "https://www.serebii.net/pokemonhome/pokemon/135.png"
+  },
+  {
+    "name": "Luxtra",
+    "name_en": "Luxray",
+    "dex": 405,
+    "types": [
+      "Elektro"
+    ],
+    "tier": "D",
+    "cost": 4,
+    "image": "https://www.serebii.net/pokemonhome/pokemon/405.png"
+  },
+  {
+    "name": "Machomei",
+    "name_en": "Machamp",
+    "dex": 68,
+    "types": [
+      "Kampf"
+    ],
+    "tier": "D",
+    "cost": 4,
+    "image": "https://www.serebii.net/pokemonhome/pokemon/068.png"
+  },
+  {
+    "name": "Mega-Absol",
+    "name_en": "Mega Absol",
+    "dex": 359,
+    "types": [
+      "Unlicht"
+    ],
+    "tier": "D",
+    "cost": 4,
+    "image": "https://www.serebii.net/pokemonhome/pokemon/359-m.png"
+  },
+  {
+    "name": "Mega-Ampharos",
+    "name_en": "Mega Ampharos",
+    "dex": 181,
+    "types": [
+      "Elektro",
+      "Drache"
+    ],
+    "tier": "D",
+    "cost": 4,
+    "image": "https://www.serebii.net/pokemonhome/pokemon/181-m.png"
+  },
+  {
+    "name": "Mega-Firnontor",
+    "name_en": "Mega Glalie",
+    "dex": 362,
+    "types": [
+      "Eis"
+    ],
+    "tier": "D",
+    "cost": 4,
+    "image": "https://www.serebii.net/pokemonhome/pokemon/362-m.png"
+  },
+  {
+    "name": "Rameidon",
+    "name_en": "Rampardos",
+    "dex": 409,
+    "types": [
+      "Gestein"
+    ],
+    "tier": "D",
+    "cost": 4,
+    "image": "https://www.serebii.net/pokemonhome/pokemon/409.png"
+  },
+  {
+    "name": "Roserade",
+    "name_en": "Roserade",
+    "dex": 407,
+    "types": [
+      "Pflanze",
+      "Gift"
+    ],
+    "tier": "D",
+    "cost": 4,
+    "image": "https://www.serebii.net/pokemonhome/pokemon/407.png"
+  },
+  {
+    "name": "Frost-Rotom",
+    "name_en": "Rotom-Frost",
+    "dex": 479,
+    "types": [
+      "Elektro",
+      "Eis"
+    ],
+    "tier": "D",
+    "cost": 4,
+    "image": "https://www.serebii.net/pokemonhome/pokemon/479-f.png"
+  },
+  {
+    "name": "Starmie",
+    "name_en": "Starmie",
+    "dex": 121,
+    "types": [
+      "Wasser",
+      "Psycho"
+    ],
+    "tier": "D",
+    "cost": 4,
+    "image": "https://www.serebii.net/pokemonhome/pokemon/121.png"
+  },
+  {
+    "name": "Chelterrar",
+    "name_en": "Torterra",
+    "dex": 389,
+    "types": [
+      "Pflanze",
+      "Boden"
+    ],
+    "tier": "D",
+    "cost": 4,
+    "image": "https://www.serebii.net/pokemonhome/pokemon/389.png"
+  },
+  {
+    "name": "Toxiquak",
+    "name_en": "Toxicroak",
+    "dex": 454,
+    "types": [
+      "Gift",
+      "Kampf"
+    ],
+    "tier": "D",
+    "cost": 4,
+    "image": "https://www.serebii.net/pokemonhome/pokemon/454.png"
+  },
+  {
+    "name": "Monargoras",
+    "name_en": "Tyrantrum",
+    "dex": 697,
+    "types": [
+      "Gestein",
+      "Drache"
+    ],
+    "tier": "D",
+    "cost": 4,
+    "image": "https://www.serebii.net/pokemonhome/pokemon/697.png"
+  },
+  {
+    "name": "Ohrdoch",
+    "name_en": "Audino",
+    "dex": 531,
+    "types": [
+      "Normal"
+    ],
+    "tier": "D",
+    "cost": 3,
+    "image": "https://www.serebii.net/pokemonhome/pokemon/531.png"
+  },
+  {
+    "name": "Amagarga",
+    "name_en": "Aurorus",
+    "dex": 699,
+    "types": [
+      "Gestein",
+      "Eis"
+    ],
+    "tier": "D",
+    "cost": 3,
+    "image": "https://www.serebii.net/pokemonhome/pokemon/699.png"
+  },
+  {
+    "name": "Siberio",
+    "name_en": "Beartic",
+    "dex": 614,
+    "types": [
+      "Eis"
+    ],
+    "tier": "D",
+    "cost": 3,
+    "image": "https://www.serebii.net/pokemonhome/pokemon/614.png"
+  },
+  {
+    "name": "Krawell",
+    "name_en": "Crabominable",
+    "dex": 740,
+    "types": [
+      "Kampf",
+      "Eis"
+    ],
+    "tier": "D",
+    "cost": 3,
+    "image": "https://www.serebii.net/pokemonhome/pokemon/740.png"
+  },
+  {
+    "name": "Silvarro",
+    "name_en": "Decidueye",
+    "dex": 724,
+    "types": [
+      "Pflanze",
+      "Geist"
+    ],
+    "tier": "D",
+    "cost": 3,
+    "image": "https://www.serebii.net/pokemonhome/pokemon/724.png"
+  },
+  {
+    "name": "Sen-Long",
+    "name_en": "Drampa",
+    "dex": 780,
+    "types": [
+      "Normal",
+      "Drache"
+    ],
+    "tier": "D",
+    "cost": 3,
+    "image": "https://www.serebii.net/pokemonhome/pokemon/780.png"
+  },
+  {
+    "name": "Flambirex",
+    "name_en": "Emboar",
+    "dex": 500,
+    "types": [
+      "Feuer",
+      "Kampf"
+    ],
+    "tier": "D",
+    "cost": 3,
+    "image": "https://www.serebii.net/pokemonhome/pokemon/500.png"
+  },
+  {
+    "name": "Impergator",
+    "name_en": "Feraligatr",
+    "dex": 160,
+    "types": [
+      "Wasser"
+    ],
+    "tier": "D",
+    "cost": 3,
+    "image": "https://www.serebii.net/pokemonhome/pokemon/160.png"
+  },
+  {
+    "name": "Drapfel",
+    "name_en": "Flapple",
+    "dex": 841,
+    "types": [
+      "Pflanze",
+      "Drache"
+    ],
+    "tier": "D",
+    "cost": 3,
+    "image": "https://www.serebii.net/pokemonhome/pokemon/841.png"
+  },
+  {
+    "name": "Flamara",
+    "name_en": "Flareon",
+    "dex": 136,
+    "types": [
+      "Feuer"
+    ],
+    "tier": "D",
+    "cost": 3,
+    "image": "https://www.serebii.net/pokemonhome/pokemon/136.png"
+  },
+  {
+    "name": "Skorgro",
+    "name_en": "Gliscor",
+    "dex": 472,
+    "types": [
+      "Boden",
+      "Flug"
+    ],
+    "tier": "D",
+    "cost": 3,
+    "image": "https://www.serebii.net/pokemonhome/pokemon/472.png"
+  },
+  {
+    "name": "Skaraborn",
+    "name_en": "Heracross",
+    "dex": 214,
+    "types": [
+      "Käfer",
+      "Kampf"
+    ],
+    "tier": "D",
+    "cost": 3,
+    "image": "https://www.serebii.net/pokemonhome/pokemon/214.png"
+  },
+  {
+    "name": "Wolwerock (Tagform)",
+    "name_en": "Lycanroc-Midday",
+    "dex": 745,
+    "types": [
+      "Gestein"
+    ],
+    "tier": "D",
+    "cost": 3,
+    "image": "https://www.serebii.net/pokemonhome/pokemon/745.png"
+  },
+  {
+    "name": "Mega-Ohrdoch",
+    "name_en": "Mega Audino",
+    "dex": 531,
+    "types": [
+      "Normal",
+      "Fee"
+    ],
+    "tier": "D",
+    "cost": 3,
+    "image": "https://www.serebii.net/pokemonhome/pokemon/531-m.png"
+  },
+  {
+    "name": "Pantifrost",
+    "name_en": "Mr. Rime",
+    "dex": 866,
+    "types": [
+      "Eis",
+      "Psycho"
+    ],
+    "tier": "D",
+    "cost": 3,
+    "image": "https://www.serebii.net/pokemonhome/pokemon/866.png"
+  },
+  {
+    "name": "Paldea-Tauros (Kampf)",
+    "name_en": "Paldean Tauros",
+    "dex": 128,
+    "types": [
+      "Kampf"
+    ],
+    "tier": "D",
+    "cost": 3,
+    "image": "https://www.serebii.net/pokemonhome/pokemon/128-p.png"
+  },
+  {
+    "name": "Quartermak",
+    "name_en": "Passimian",
+    "dex": 766,
+    "types": [
+      "Kampf"
+    ],
+    "tier": "D",
+    "cost": 3,
+    "image": "https://www.serebii.net/pokemonhome/pokemon/766.png"
+  },
+  {
+    "name": "Halupenjo",
+    "name_en": "Scovillain",
+    "dex": 952,
+    "types": [
+      "Pflanze",
+      "Feuer"
+    ],
+    "tier": "D",
+    "cost": 3,
+    "image": "https://www.serebii.net/pokemonhome/pokemon/952.png"
+  },
+  {
+    "name": "Panzaeron",
+    "name_en": "Skarmory",
+    "dex": 227,
+    "types": [
+      "Stahl",
+      "Flug"
+    ],
+    "tier": "D",
+    "cost": 3,
+    "image": "https://www.serebii.net/pokemonhome/pokemon/227.png"
+  },
+  {
+    "name": "Aggrostella",
+    "name_en": "Toxapex",
+    "dex": 748,
+    "types": [
+      "Gift",
+      "Wasser"
+    ],
+    "tier": "D",
+    "cost": 3,
+    "image": "https://www.serebii.net/pokemonhome/pokemon/748.png"
+  },
+  {
+    "name": "Trombork",
+    "name_en": "Trevenant",
+    "dex": 709,
+    "types": [
+      "Geist",
+      "Pflanze"
+    ],
+    "tier": "D",
+    "cost": 3,
+    "image": "https://www.serebii.net/pokemonhome/pokemon/709.png"
+  },
+  {
+    "name": "Sarzenia",
+    "name_en": "Victreebel",
+    "dex": 71,
+    "types": [
+      "Pflanze",
+      "Gift"
+    ],
+    "tier": "D",
+    "cost": 3,
+    "image": "https://www.serebii.net/pokemonhome/pokemon/071.png"
+  },
+  {
+    "name": "Stolloss",
+    "name_en": "Aggron",
+    "dex": 306,
+    "types": [
+      "Stahl",
+      "Gestein"
+    ],
+    "tier": "D",
+    "cost": 2,
+    "image": "https://www.serebii.net/pokemonhome/pokemon/306.png"
+  },
+  {
+    "name": "Arbok",
+    "name_en": "Arbok",
+    "dex": 24,
+    "types": [
+      "Gift"
+    ],
+    "tier": "D",
+    "cost": 2,
+    "image": "https://www.serebii.net/pokemonhome/pokemon/024.png"
+  },
+  {
+    "name": "Ariados",
+    "name_en": "Ariados",
+    "dex": 168,
+    "types": [
+      "Käfer",
+      "Gift"
+    ],
+    "tier": "D",
+    "cost": 2,
+    "image": "https://www.serebii.net/pokemonhome/pokemon/168.png"
+  },
+  {
+    "name": "Bollterus",
+    "name_en": "Bastiodon",
+    "dex": 411,
+    "types": [
+      "Gestein",
+      "Stahl"
+    ],
+    "tier": "D",
+    "cost": 2,
+    "image": "https://www.serebii.net/pokemonhome/pokemon/411.png"
+  },
+  {
+    "name": "Psiaugon ♀",
+    "name_en": "Meowstic-Female",
+    "dex": 678,
+    "types": [
+      "Psycho"
+    ],
+    "tier": "D",
+    "cost": 2,
+    "image": "https://www.serebii.net/pokemonhome/pokemon/678-f.png"
+  },
+  {
+    "name": "Morpeko",
+    "name_en": "Morpeko",
+    "dex": 877,
+    "types": [
+      "Elektro",
+      "Unlicht"
+    ],
+    "tier": "D",
+    "cost": 2,
+    "image": "https://www.serebii.net/pokemonhome/pokemon/877.png"
+  },
+  {
+    "name": "Rotom",
+    "name_en": "Rotom",
+    "dex": 479,
+    "types": [
+      "Elektro",
+      "Geist"
+    ],
+    "tier": "D",
+    "cost": 2,
+    "image": "https://www.serebii.net/pokemonhome/pokemon/479.png"
+  },
+  {
+    "name": "Wirbel-Rotom",
+    "name_en": "Rotom-Fan",
+    "dex": 479,
+    "types": [
+      "Elektro",
+      "Flug"
+    ],
+    "tier": "D",
+    "cost": 2,
+    "image": "https://www.serebii.net/pokemonhome/pokemon/479-s.png"
+  },
+  {
+    "name": "Sanaconda",
+    "name_en": "Sandaconda",
+    "dex": 844,
+    "types": [
+      "Boden"
+    ],
+    "tier": "D",
+    "cost": 2,
+    "image": "https://www.serebii.net/pokemonhome/pokemon/844.png"
+  },
+  {
+    "name": "Tohaido",
+    "name_en": "Sharpedo",
+    "dex": 319,
+    "types": [
+      "Wasser",
+      "Unlicht"
+    ],
+    "tier": "D",
+    "cost": 2,
+    "image": "https://www.serebii.net/pokemonhome/pokemon/319.png"
+  },
+  {
+    "name": "Sabbaione",
+    "name_en": "Slurpuff",
+    "dex": 685,
+    "types": [
+      "Fee"
+    ],
+    "tier": "D",
+    "cost": 2,
+    "image": "https://www.serebii.net/pokemonhome/pokemon/685.png"
+  },
+  {
+    "name": "Stahlos",
+    "name_en": "Steelix",
+    "dex": 208,
+    "types": [
+      "Stahl",
+      "Boden"
+    ],
+    "tier": "D",
+    "cost": 2,
+    "image": "https://www.serebii.net/pokemonhome/pokemon/208.png"
+  },
+  {
+    "name": "Tauros",
+    "name_en": "Tauros",
+    "dex": 128,
+    "types": [
+      "Normal"
+    ],
+    "tier": "D",
+    "cost": 2,
+    "image": "https://www.serebii.net/pokemonhome/pokemon/128.png"
+  },
+  {
+    "name": "Absol",
+    "name_en": "Absol",
+    "dex": 359,
+    "types": [
+      "Unlicht"
+    ],
+    "tier": "D",
+    "cost": 1,
+    "image": "https://www.serebii.net/pokemonhome/pokemon/359.png"
+  },
+  {
+    "name": "Altaria",
+    "name_en": "Altaria",
+    "dex": 334,
+    "types": [
+      "Drache",
+      "Flug"
+    ],
+    "tier": "D",
+    "cost": 1,
+    "image": "https://www.serebii.net/pokemonhome/pokemon/334.png"
+  },
+  {
+    "name": "Ampharos",
+    "name_en": "Ampharos",
+    "dex": 181,
+    "types": [
+      "Elektro"
+    ],
+    "tier": "D",
+    "cost": 1,
+    "image": "https://www.serebii.net/pokemonhome/pokemon/181.png"
+  },
+  {
+    "name": "Schlapfel",
+    "name_en": "Appletun",
+    "dex": 842,
+    "types": [
+      "Pflanze",
+      "Drache"
+    ],
+    "tier": "D",
+    "cost": 1,
+    "image": "https://www.serebii.net/pokemonhome/pokemon/842.png"
+  },
+  {
+    "name": "Arktilas",
+    "name_en": "Avalugg",
+    "dex": 713,
+    "types": [
+      "Eis"
+    ],
+    "tier": "D",
+    "cost": 1,
+    "image": "https://www.serebii.net/pokemonhome/pokemon/713.png"
+  },
+  {
+    "name": "Banette",
+    "name_en": "Banette",
+    "dex": 354,
+    "types": [
+      "Geist"
+    ],
+    "tier": "D",
+    "cost": 1,
+    "image": "https://www.serebii.net/pokemonhome/pokemon/354.png"
+  },
+  {
+    "name": "Bibor",
+    "name_en": "Beedrill",
+    "dex": 15,
+    "types": [
+      "Käfer",
+      "Gift"
+    ],
+    "tier": "D",
+    "cost": 1,
+    "image": "https://www.serebii.net/pokemonhome/pokemon/015.png"
+  },
+  {
+    "name": "Camerupt",
+    "name_en": "Camerupt",
+    "dex": 323,
+    "types": [
+      "Feuer",
+      "Boden"
+    ],
+    "tier": "D",
+    "cost": 1,
+    "image": "https://www.serebii.net/pokemonhome/pokemon/323.png"
+  },
+  {
+    "name": "Formeo",
+    "name_en": "Castform",
+    "dex": 351,
+    "types": [
+      "Normal"
+    ],
+    "tier": "D",
+    "cost": 1,
+    "image": "https://www.serebii.net/pokemonhome/pokemon/351.png"
+  },
+  {
+    "name": "Palimpalim",
+    "name_en": "Chimecho",
+    "dex": 358,
+    "types": [
+      "Psycho"
+    ],
+    "tier": "D",
+    "cost": 1,
+    "image": "https://www.serebii.net/pokemonhome/pokemon/358.png"
+  },
+  {
+    "name": "Dedenne",
+    "name_en": "Dedenne",
+    "dex": 702,
+    "types": [
+      "Elektro",
+      "Fee"
+    ],
+    "tier": "D",
+    "cost": 1,
+    "image": "https://www.serebii.net/pokemonhome/pokemon/702.png"
+  },
+  {
+    "name": "Emolga",
+    "name_en": "Emolga",
+    "dex": 587,
+    "types": [
+      "Elektro",
+      "Flug"
+    ],
+    "tier": "D",
+    "cost": 1,
+    "image": "https://www.serebii.net/pokemonhome/pokemon/587.png"
+  },
+  {
+    "name": "Forstellka",
+    "name_en": "Forretress",
+    "dex": 205,
+    "types": [
+      "Käfer",
+      "Stahl"
+    ],
+    "tier": "D",
+    "cost": 1,
+    "image": "https://www.serebii.net/pokemonhome/pokemon/205.png"
+  },
+  {
+    "name": "Coiffwaff",
+    "name_en": "Furfrou",
+    "dex": 676,
+    "types": [
+      "Normal"
+    ],
+    "tier": "D",
+    "cost": 1,
+    "image": "https://www.serebii.net/pokemonhome/pokemon/676.png"
+  },
+  {
+    "name": "Galar-Flunschlik",
+    "name_en": "Galarian Stunfisk",
+    "dex": 618,
+    "types": [
+      "Boden",
+      "Stahl"
+    ],
+    "tier": "D",
+    "cost": 1,
+    "image": "https://www.serebii.net/pokemonhome/pokemon/618-g.png"
+  },
+  {
+    "name": "Deponitox",
+    "name_en": "Garbodor",
+    "dex": 569,
+    "types": [
+      "Gift"
+    ],
+    "tier": "D",
+    "cost": 1,
+    "image": "https://www.serebii.net/pokemonhome/pokemon/569.png"
+  },
+  {
+    "name": "Firnontor",
+    "name_en": "Glalie",
+    "dex": 362,
+    "types": [
+      "Eis"
+    ],
+    "tier": "D",
+    "cost": 1,
+    "image": "https://www.serebii.net/pokemonhome/pokemon/362.png"
+  },
+  {
+    "name": "Hisui-Arktilas",
+    "name_en": "Hisuian Avalugg",
+    "dex": 713,
+    "types": [
+      "Eis",
+      "Gestein"
+    ],
+    "tier": "D",
+    "cost": 1,
+    "image": "https://www.serebii.net/pokemonhome/pokemon/713-h.png"
+  },
+  {
+    "name": "Hundemon",
+    "name_en": "Houndoom",
+    "dex": 229,
+    "types": [
+      "Unlicht",
+      "Feuer"
+    ],
+    "tier": "D",
+    "cost": 1,
+    "image": "https://www.serebii.net/pokemonhome/pokemon/229.png"
+  },
+  {
+    "name": "Schlapor",
+    "name_en": "Lopunny",
+    "dex": 428,
+    "types": [
+      "Normal"
+    ],
+    "tier": "D",
+    "cost": 1,
+    "image": "https://www.serebii.net/pokemonhome/pokemon/428.png"
+  },
+  {
+    "name": "Wolwerock (Nachtform)",
+    "name_en": "Lycanroc-Midnight",
+    "dex": 745,
+    "types": [
+      "Gestein"
+    ],
+    "tier": "D",
+    "cost": 1,
+    "image": "https://www.serebii.net/pokemonhome/pokemon/745-m.png"
+  },
+  {
+    "name": "Voltenso",
+    "name_en": "Manectric",
+    "dex": 310,
+    "types": [
+      "Elektro"
+    ],
+    "tier": "D",
+    "cost": 1,
+    "image": "https://www.serebii.net/pokemonhome/pokemon/310.png"
+  },
+  {
+    "name": "Meganie",
+    "name_en": "Meganium",
+    "dex": 154,
+    "types": [
+      "Pflanze"
+    ],
+    "tier": "D",
+    "cost": 1,
+    "image": "https://www.serebii.net/pokemonhome/pokemon/154.png"
+  },
+  {
+    "name": "Tauboss",
+    "name_en": "Pidgeot",
+    "dex": 18,
+    "types": [
+      "Normal",
+      "Flug"
+    ],
+    "tier": "D",
+    "cost": 1,
+    "image": "https://www.serebii.net/pokemonhome/pokemon/018.png"
+  },
+  {
+    "name": "Pikachu",
+    "name_en": "Pikachu",
+    "dex": 25,
+    "types": [
+      "Elektro"
+    ],
+    "tier": "D",
+    "cost": 1,
+    "image": "https://www.serebii.net/pokemonhome/pokemon/025.png"
+  },
+  {
+    "name": "Pinsir",
+    "name_en": "Pinsir",
+    "dex": 127,
+    "types": [
+      "Käfer"
+    ],
+    "tier": "D",
+    "cost": 1,
+    "image": "https://www.serebii.net/pokemonhome/pokemon/127.png"
+  },
+  {
+    "name": "Admurai",
+    "name_en": "Samurott",
+    "dex": 503,
+    "types": [
+      "Wasser"
+    ],
+    "tier": "D",
+    "cost": 1,
+    "image": "https://www.serebii.net/pokemonhome/pokemon/503.png"
+  },
+  {
+    "name": "Sodachita",
+    "name_en": "Simipour",
+    "dex": 516,
+    "types": [
+      "Wasser"
+    ],
+    "tier": "D",
+    "cost": 1,
+    "image": "https://www.serebii.net/pokemonhome/pokemon/516.png"
+  },
+  {
+    "name": "Vegichita",
+    "name_en": "Simisage",
+    "dex": 512,
+    "types": [
+      "Pflanze"
+    ],
+    "tier": "D",
+    "cost": 1,
+    "image": "https://www.serebii.net/pokemonhome/pokemon/512.png"
+  },
+  {
+    "name": "Grillchita",
+    "name_en": "Simisear",
+    "dex": 514,
+    "types": [
+      "Feuer"
+    ],
+    "tier": "D",
+    "cost": 1,
+    "image": "https://www.serebii.net/pokemonhome/pokemon/514.png"
+  },
+  {
+    "name": "Flunschlik",
+    "name_en": "Stunfisk",
+    "dex": 618,
+    "types": [
+      "Boden",
+      "Elektro"
+    ],
+    "tier": "D",
+    "cost": 1,
+    "image": "https://www.serebii.net/pokemonhome/pokemon/618.png"
+  },
+  {
+    "name": "Tukanon",
+    "name_en": "Toucannon",
+    "dex": 733,
+    "types": [
+      "Normal",
+      "Flug"
+    ],
+    "tier": "D",
+    "cost": 1,
+    "image": "https://www.serebii.net/pokemonhome/pokemon/733.png"
+  },
+  {
+    "name": "Kukmarda",
+    "name_en": "Watchog",
+    "dex": 505,
+    "types": [
+      "Normal"
+    ],
+    "tier": "D",
+    "cost": 1,
+    "image": "https://www.serebii.net/pokemonhome/pokemon/505.png"
+  },
+  {
+    "name": "Mega-Raichu X",
+    "name_en": "Mega Raichu X",
+    "dex": 26,
+    "types": [
+      "Elektro"
+    ],
+    "tier": "S",
+    "cost": null,
+    "image": "https://www.serebii.net/pokemonhome/pokemon/026-mx.png"
+  },
+  {
+    "name": "Mega-Raichu Y",
+    "name_en": "Mega Raichu Y",
+    "dex": 26,
+    "types": [
+      "Elektro"
+    ],
+    "tier": "S",
+    "cost": null,
+    "image": "https://www.serebii.net/pokemonhome/pokemon/026-my.png"
+  },
+  {
+    "name": "Giflor",
+    "name_en": "Vileplume",
+    "dex": 45,
+    "types": [
+      "Pflanze",
+      "Gift"
+    ],
+    "tier": "D",
+    "cost": null,
+    "image": "https://www.serebii.net/pokemonhome/pokemon/045.png"
+  },
+  {
+    "name": "Baldorfish",
+    "name_en": "Qwilfish",
+    "dex": 211,
+    "types": [
+      "Wasser",
+      "Gift"
+    ],
+    "tier": "D",
+    "cost": null,
+    "image": "https://www.serebii.net/pokemonhome/pokemon/211.png"
+  },
+  {
+    "name": "Gewaldro",
+    "name_en": "Sceptile",
+    "dex": 254,
+    "types": [
+      "Pflanze"
+    ],
+    "tier": "C",
+    "cost": null,
+    "image": "https://www.serebii.net/pokemonhome/pokemon/254.png"
+  },
+  {
+    "name": "Mega-Gewaldro",
+    "name_en": "Mega Sceptile",
+    "dex": 254,
+    "types": [
+      "Pflanze",
+      "Drache"
+    ],
+    "tier": "A",
+    "cost": null,
+    "image": "https://www.serebii.net/pokemonhome/pokemon/254-m.png"
+  },
+  {
+    "name": "Lohgock",
+    "name_en": "Blaziken",
+    "dex": 257,
+    "types": [
+      "Feuer",
+      "Kampf"
+    ],
+    "tier": "A",
+    "cost": null,
+    "image": "https://www.serebii.net/pokemonhome/pokemon/257.png"
+  },
+  {
+    "name": "Mega-Lohgock",
+    "name_en": "Mega Blaziken",
+    "dex": 257,
+    "types": [
+      "Feuer",
+      "Kampf"
+    ],
+    "tier": "A",
+    "cost": null,
+    "image": "https://www.serebii.net/pokemonhome/pokemon/257-m.png"
+  },
+  {
+    "name": "Sumpex",
+    "name_en": "Swampert",
+    "dex": 260,
+    "types": [
+      "Wasser",
+      "Boden"
+    ],
+    "tier": "B",
+    "cost": null,
+    "image": "https://www.serebii.net/pokemonhome/pokemon/260.png"
+  },
+  {
+    "name": "Mega-Sumpex",
+    "name_en": "Mega Swampert",
+    "dex": 260,
+    "types": [
+      "Wasser",
+      "Boden"
+    ],
+    "tier": "A",
+    "cost": null,
+    "image": "https://www.serebii.net/pokemonhome/pokemon/260-m.png"
+  },
+  {
+    "name": "Flunkifer",
+    "name_en": "Mawile",
+    "dex": 303,
+    "types": [
+      "Stahl",
+      "Fee"
+    ],
+    "tier": "C",
+    "cost": null,
+    "image": "https://www.serebii.net/pokemonhome/pokemon/303.png"
+  },
+  {
+    "name": "Mega-Flunkifer",
+    "name_en": "Mega Mawile",
+    "dex": 303,
+    "types": [
+      "Stahl",
+      "Fee"
+    ],
+    "tier": "A",
+    "cost": null,
+    "image": "https://www.serebii.net/pokemonhome/pokemon/303-m.png"
+  },
+  {
+    "name": "Metagross",
+    "name_en": "Metagross",
+    "dex": 376,
+    "types": [
+      "Stahl",
+      "Psycho"
+    ],
+    "tier": "A",
+    "cost": null,
+    "image": "https://www.serebii.net/pokemonhome/pokemon/376.png"
+  },
+  {
+    "name": "Mega-Metagross",
+    "name_en": "Mega Metagross",
+    "dex": 376,
+    "types": [
+      "Stahl",
+      "Psycho"
+    ],
+    "tier": "S",
+    "cost": null,
+    "image": "https://www.serebii.net/pokemonhome/pokemon/376-m.png"
+  },
+  {
+    "name": "Staraptor",
+    "name_en": "Staraptor",
+    "dex": 398,
+    "types": [
+      "Normal",
+      "Flug"
+    ],
+    "tier": "C",
+    "cost": null,
+    "image": "https://www.serebii.net/pokemonhome/pokemon/398.png"
+  },
+  {
+    "name": "Mega-Staraptor",
+    "name_en": "Mega Staraptor",
+    "dex": 398,
+    "types": [
+      "Kampf",
+      "Flug"
+    ],
+    "tier": "S",
+    "cost": null,
+    "image": "https://www.serebii.net/pokemonhome/pokemon/398-m.png"
+  },
+  {
+    "name": "Somnivora",
+    "name_en": "Musharna",
+    "dex": 518,
+    "types": [
+      "Psycho"
+    ],
+    "tier": "D",
+    "cost": null,
+    "image": "https://www.serebii.net/pokemonhome/pokemon/518.png"
+  },
+  {
+    "name": "Cerapendra",
+    "name_en": "Scolipede",
+    "dex": 545,
+    "types": [
+      "Käfer",
+      "Gift"
+    ],
+    "tier": "C",
+    "cost": null,
+    "image": "https://www.serebii.net/pokemonhome/pokemon/545.png"
+  },
+  {
+    "name": "Mega-Cerapendra",
+    "name_en": "Mega Scolipede",
+    "dex": 545,
+    "types": [
+      "Käfer",
+      "Gift"
+    ],
+    "tier": "B",
+    "cost": null,
+    "image": "https://www.serebii.net/pokemonhome/pokemon/545-m.png"
+  },
+  {
+    "name": "Irokex",
+    "name_en": "Scrafty",
+    "dex": 560,
+    "types": [
+      "Unlicht",
+      "Kampf"
+    ],
+    "tier": "B",
+    "cost": null,
+    "image": "https://www.serebii.net/pokemonhome/pokemon/560.png"
+  },
+  {
+    "name": "Mega-Irokex",
+    "name_en": "Mega Scrafty",
+    "dex": 560,
+    "types": [
+      "Unlicht",
+      "Kampf"
+    ],
+    "tier": "A",
+    "cost": null,
+    "image": "https://www.serebii.net/pokemonhome/pokemon/560-m.png"
+  },
+  {
+    "name": "Zapplarang",
+    "name_en": "Eelektross",
+    "dex": 604,
+    "types": [
+      "Elektro"
+    ],
+    "tier": "C",
+    "cost": null,
+    "image": "https://www.serebii.net/pokemonhome/pokemon/604.png"
+  },
+  {
+    "name": "Mega-Zapplarang",
+    "name_en": "Mega Eelektross",
+    "dex": 604,
+    "types": [
+      "Elektro"
+    ],
+    "tier": "A",
+    "cost": null,
+    "image": "https://www.serebii.net/pokemonhome/pokemon/604-m.png"
+  },
+  {
+    "name": "Pyroleo",
+    "name_en": "Pyroar",
+    "dex": 668,
+    "types": [
+      "Feuer",
+      "Normal"
+    ],
+    "tier": "C",
+    "cost": null,
+    "image": "https://www.serebii.net/pokemonhome/pokemon/668.png"
+  },
+  {
+    "name": "Mega-Pyroleo",
+    "name_en": "Mega Pyroar",
+    "dex": 668,
+    "types": [
+      "Feuer",
+      "Normal"
+    ],
+    "tier": "B",
+    "cost": null,
+    "image": "https://www.serebii.net/pokemonhome/pokemon/668-m.png"
+  },
+  {
+    "name": "Calamanero",
+    "name_en": "Malamar",
+    "dex": 687,
+    "types": [
+      "Unlicht",
+      "Psycho"
+    ],
+    "tier": "C",
+    "cost": null,
+    "image": "https://www.serebii.net/pokemonhome/pokemon/687.png"
+  },
+  {
+    "name": "Mega-Calamanero",
+    "name_en": "Mega Malamar",
+    "dex": 687,
+    "types": [
+      "Unlicht",
+      "Psycho"
+    ],
+    "tier": "C",
+    "cost": null,
+    "image": "https://www.serebii.net/pokemonhome/pokemon/687-m.png"
+  },
+  {
+    "name": "Thanathora",
+    "name_en": "Barbaracle",
+    "dex": 689,
+    "types": [
+      "Gestein",
+      "Wasser"
+    ],
+    "tier": "D",
+    "cost": null,
+    "image": "https://www.serebii.net/pokemonhome/pokemon/689.png"
+  },
+  {
+    "name": "Mega-Thanathora",
+    "name_en": "Mega Barbaracle",
+    "dex": 689,
+    "types": [
+      "Gestein",
+      "Kampf"
+    ],
+    "tier": "A",
+    "cost": null,
+    "image": "https://www.serebii.net/pokemonhome/pokemon/689-m.png"
+  },
+  {
+    "name": "Tandrak",
+    "name_en": "Dragalge",
+    "dex": 691,
+    "types": [
+      "Gift",
+      "Drache"
+    ],
+    "tier": "C",
+    "cost": null,
+    "image": "https://www.serebii.net/pokemonhome/pokemon/691.png"
+  },
+  {
+    "name": "Mega-Tandrak",
+    "name_en": "Mega Dragalge",
+    "dex": 691,
+    "types": [
+      "Gift",
+      "Drache"
+    ],
+    "tier": "A",
+    "cost": null,
+    "image": "https://www.serebii.net/pokemonhome/pokemon/691-m.png"
+  },
+  {
+    "name": "Olangaar",
+    "name_en": "Grimmsnarl",
+    "dex": 861,
+    "types": [
+      "Unlicht",
+      "Fee"
+    ],
+    "tier": "A",
+    "cost": null,
+    "image": "https://www.serebii.net/pokemonhome/pokemon/861.png"
+  },
+  {
+    "name": "Legios",
+    "name_en": "Falinks",
+    "dex": 870,
+    "types": [
+      "Kampf"
+    ],
+    "tier": "C",
+    "cost": null,
+    "image": "https://www.serebii.net/pokemonhome/pokemon/870.png"
+  },
+  {
+    "name": "Mega-Legios",
+    "name_en": "Mega Falinks",
+    "dex": 870,
+    "types": [
+      "Kampf"
+    ],
+    "tier": "B",
+    "cost": null,
+    "image": "https://www.serebii.net/pokemonhome/pokemon/870-m.png"
+  },
+  {
+    "name": "Myriador",
+    "name_en": "Overqwil",
+    "dex": 904,
+    "types": [
+      "Unlicht",
+      "Gift"
+    ],
+    "tier": "C",
+    "cost": null,
+    "image": "https://www.serebii.net/pokemonhome/pokemon/904.png"
+  },
+  {
+    "name": "Friedwuff",
+    "name_en": "Houndstone",
+    "dex": 972,
+    "types": [
+      "Geist"
+    ],
+    "tier": "B",
+    "cost": null,
+    "image": "https://www.serebii.net/pokemonhome/pokemon/972.png"
+  },
+  {
+    "name": "Epitaff",
+    "name_en": "Annihilape",
+    "dex": 979,
+    "types": [
+      "Kampf",
+      "Geist"
+    ],
+    "tier": "S",
+    "cost": null,
+    "image": "https://www.serebii.net/pokemonhome/pokemon/979.png"
+  },
+  {
+    "name": "Monetigo",
+    "name_en": "Gholdengo",
+    "dex": 1000,
+    "types": [
+      "Stahl",
+      "Geist"
+    ],
+    "tier": "S",
+    "cost": null,
+    "image": "https://www.serebii.net/pokemonhome/pokemon/1000.png"
+  }
+]

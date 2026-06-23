@@ -1,0 +1,172 @@
+<div x-data="draftBoard">
+  <header class="mb-8">
+    <p class="font-display text-xs font-semibold uppercase tracking-[0.3em] text-flame-400">Draft</p>
+    <h1 class="mt-1 font-display text-4xl font-bold tracking-wide text-ink md:text-5xl">Draft Board</h1>
+    <p class="mt-2 text-mist">Snake-Draft · jedes Team wählt zehn Pokémon, exakt zwei pro Tier.</p>
+  </header>
+
+  <div x-show="!loaded" class="py-12 text-center text-mist">Lade Draft…</div>
+
+  <!-- IDLE: Draft starten -->
+  <div x-show="loaded && status === 'idle'"
+       class="mb-8 flex flex-col items-center gap-4 rounded-2xl border border-line bg-panel p-10 text-center">
+    <span class="pokeball" aria-hidden="true"></span>
+    <div>
+      <h2 class="font-display text-2xl font-bold tracking-wide text-ink">Bereit für den Draft</h2>
+      <p class="mt-1 text-mist">Beim Start wird die Reihenfolge der acht Teams zufällig ausgelost.</p>
+    </div>
+    <button type="button" popovertarget="draft-confirm" :disabled="hasResults"
+            class="rounded-xl bg-flame-500 px-6 py-3 font-display font-bold uppercase tracking-wide text-white transition-colors hover:bg-flame-600 disabled:cursor-not-allowed disabled:opacity-50">
+      Draft starten
+    </button>
+    <p x-show="hasResults" class="text-xs text-mist">Gesperrt — es sind bereits Ergebnisse erfasst.</p>
+  </div>
+
+  <!-- RUNNING: Wer ist dran -->
+  <section x-show="loaded && running"
+           class="mb-8 rounded-2xl border border-flame-500/30 bg-gradient-to-br from-flame-500/10 to-panel p-6 md:p-7">
+    <template x-if="currentTeam">
+      <div>
+        <div class="flex flex-wrap items-center gap-5">
+          <img :src="`./img/teams/${currentTeam.logo}`" :alt="currentTeam.name"
+               class="size-16 shrink-0 rounded-xl object-contain" />
+          <div class="min-w-0">
+            <p class="font-display text-xs font-semibold uppercase tracking-[0.25em] text-flame-400"
+               x-text="`Runde ${currentPick.round} · Pick ${currentPick.pickNo} / ${total}`"></p>
+            <h2 class="mt-0.5 font-display text-3xl font-bold tracking-wide text-ink"
+                x-text="`${currentTeam.player} ist dran!`"></h2>
+            <p class="text-mist" x-text="currentTeam.name"></p>
+          </div>
+        </div>
+
+        <div class="mt-5">
+          <p class="font-display text-xs font-semibold uppercase tracking-wider text-mist">
+            Roster <span x-text="`${currentRoster.length} / 10`"></span>
+          </p>
+          <div class="mt-2 flex flex-wrap gap-x-5 gap-y-3">
+            <template x-for="grp in rosterSlots" :key="grp.tier">
+              <div>
+                <span class="mb-1 grid size-5 place-items-center rounded font-display text-[11px] font-bold"
+                      :style="`color:${tierColor(grp.tier)}; background:${tierColor(grp.tier)}1f`"
+                      x-text="grp.tier"></span>
+                <div class="flex gap-1.5">
+                  <template x-for="(slot, i) in grp.slots" :key="i">
+                    <div class="grid size-12 place-items-center rounded-lg"
+                         :class="slot ? 'bg-elevated' : 'border border-dashed'"
+                         :style="slot ? '' : `border-color:${tierColor(grp.tier)}66; background:${tierColor(grp.tier)}0d`"
+                         :title="slot ? `${slot.name} · Tier ${grp.tier}` : `Tier ${grp.tier} · frei`">
+                      <template x-if="slot">
+                        <img :src="slot.image" :alt="slot.name" loading="lazy" class="size-10 object-contain" />
+                      </template>
+                    </div>
+                  </template>
+                </div>
+              </div>
+            </template>
+          </div>
+        </div>
+
+        <div class="mt-5 border-t border-line pt-4">
+          <p class="font-display text-xs font-semibold uppercase tracking-wider text-mist">Reihenfolge</p>
+          <div class="mt-2 flex flex-wrap items-center gap-2">
+            <template x-for="t in orderTeams" :key="t.id">
+              <img :src="`./img/teams/${t.logo}`" :alt="t.name" :title="`${t.name} (${t.player})`"
+                   class="size-9 rounded-lg object-contain transition"
+                   :class="t.id === currentPick.teamId ? 'ring-2 ring-flame-500 scale-110' : 'opacity-50'" />
+            </template>
+          </div>
+        </div>
+      </div>
+    </template>
+  </section>
+
+  <!-- DONE: nur ein dezenter Hinweis über der Liste -->
+  <div x-show="loaded && status === 'done'"
+       class="mb-6 flex flex-wrap items-center justify-between gap-3 rounded-xl border border-line bg-panel px-5 py-3">
+    <span class="font-semibold text-ink">Draft abgeschlossen — alle Roster sind komplett.</span>
+    <button type="button" popovertarget="draft-confirm" x-show="!hasResults" class="text-sm font-semibold text-mist transition-colors hover:text-flame-400">
+      Neu starten
+    </button>
+    <span x-show="hasResults" class="text-sm text-mist">Gesperrt — es sind bereits Ergebnisse erfasst.</span>
+  </div>
+
+  <!-- POOL / Tier-Liste -->
+  <div x-show="loaded">
+    <div class="mb-6 flex flex-wrap items-end justify-between gap-4">
+      <div>
+        <h2 class="font-display text-2xl font-bold tracking-wide text-ink">Pokémon-Pool</h2>
+        <p class="mt-0.5 text-sm text-mist" x-text="`${league.pokemon.length} Pokémon · nach Tier sortiert`"></p>
+      </div>
+      <input type="search" name="pokemon-search" x-model.debounce.200ms="q" placeholder="Pokémon oder Typ suchen…"
+             class="w-full rounded-xl border border-line bg-elevated px-4 py-2.5 text-ink placeholder:text-mist focus:border-flame-500 focus:outline-none sm:w-72" />
+    </div>
+
+    <template x-for="group in groups" :key="group.tier">
+      <section class="mb-8">
+        <div class="mb-3 flex items-center gap-3">
+          <span class="grid size-10 place-items-center rounded-lg font-display text-xl font-bold"
+                :style="`color:${tierColor(group.tier)}; background:${tierColor(group.tier)}1f; box-shadow: inset 0 0 0 1px ${tierColor(group.tier)}55`"
+                x-text="group.tier"></span>
+          <h3 class="font-display text-lg font-bold uppercase tracking-wider text-ink" x-text="`Tier ${group.tier}`"></h3>
+          <span class="text-sm text-mist" x-text="group.mons.length"></span>
+        </div>
+
+        <div class="grid grid-cols-2 gap-3 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6">
+          <template x-for="p in group.mons" :key="p.dex + '-' + p.name">
+            <div @click="choose(p)"
+                 class="rounded-xl border border-line bg-panel p-2.5 transition"
+                 :class="running
+                   ? (isPickable(p) ? 'cursor-pointer hover:border-flame-500/50 hover:-translate-y-0.5' : 'opacity-35 pointer-events-none')
+                   : ''">
+              <div class="grid aspect-square place-items-center rounded-lg bg-elevated/60">
+                <img :src="p.image" :alt="p.name" loading="lazy" decoding="async" class="h-4/5 w-4/5 object-contain" />
+              </div>
+              <p class="mt-2 truncate text-sm font-semibold text-ink" x-text="p.name" :title="p.name"></p>
+              <div class="mt-1.5 flex flex-wrap gap-1">
+                <template x-for="t in p.types" :key="t">
+                  <span class="rounded px-1.5 py-0.5 text-[10px] font-bold uppercase tracking-wide"
+                        :style="`color:${typeColor(t)}; background:${typeColor(t)}22`" x-text="t"></span>
+                </template>
+              </div>
+            </div>
+          </template>
+        </div>
+      </section>
+    </template>
+
+    <div x-show="groups.length === 0" class="rounded-xl border border-line bg-panel p-6 text-center text-mist">
+      Keine Treffer für „<span x-text="q"></span>".
+    </div>
+  </div>
+
+  <!-- Bestätigung: Draft starten -->
+  <div popover id="draft-confirm" class="modal-pop w-[22rem] max-w-[90vw] rounded-2xl border border-line bg-panel p-6 text-center">
+    <h3 class="font-display text-xl font-bold tracking-wide text-ink">Draft starten?</h3>
+    <p class="mt-2 text-sm text-mist">Die Reihenfolge der Teams wird zufällig ausgelost. Bereits gedraftete Pokémon werden zurückgesetzt.</p>
+    <div class="mt-5 flex gap-3">
+      <button type="button" popovertarget="draft-confirm" popovertargetaction="hide"
+              class="flex-1 rounded-xl border border-line px-4 py-2.5 font-semibold text-mist transition-colors hover:text-ink">Abbrechen</button>
+      <button type="button" @click="startDraft()"
+              class="flex-1 rounded-xl bg-flame-500 px-4 py-2.5 font-display font-bold uppercase tracking-wide text-white transition-colors hover:bg-flame-600">Starten</button>
+    </div>
+  </div>
+
+  <!-- Bestätigung: Pokémon picken -->
+  <div popover id="pick-confirm" class="modal-pop w-[22rem] max-w-[90vw] rounded-2xl border border-line bg-panel p-6 text-center">
+    <template x-if="candidate">
+      <div>
+        <div class="mx-auto grid size-24 place-items-center rounded-xl bg-elevated">
+          <img :src="candidate.image" :alt="candidate.name" class="size-20 object-contain" />
+        </div>
+        <h3 class="mt-4 font-display text-xl font-bold tracking-wide text-ink" x-text="candidate.name"></h3>
+        <p class="mt-1 text-sm text-mist" x-text="currentTeam ? `Für ${currentTeam.name} (${currentTeam.player}) draften?` : ''"></p>
+        <div class="mt-5 flex gap-3">
+          <button type="button" popovertarget="pick-confirm" popovertargetaction="hide"
+                  class="flex-1 rounded-xl border border-line px-4 py-2.5 font-semibold text-mist transition-colors hover:text-ink">Abbrechen</button>
+          <button type="button" @click="confirmPick()" :disabled="busy"
+                  class="flex-1 rounded-xl bg-flame-500 px-4 py-2.5 font-display font-bold uppercase tracking-wide text-white transition-colors hover:bg-flame-600 disabled:opacity-60">Draften</button>
+        </div>
+      </div>
+    </template>
+  </div>
+</div>

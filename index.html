@@ -1,29 +1,116 @@
 <!DOCTYPE html>
 <html lang="de">
 <head>
+  <link rel="icon" type="image/png" href="/favicon-96x96.png" sizes="96x96" />
+  <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
+  <link rel="shortcut icon" href="/favicon.ico" />
+  <link rel="apple-touch-icon" sizes="180x180" href="/apple-touch-icon.png" />
+  <link rel="manifest" href="/site.webmanifest" />
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Vite + Tailwind v4</title>
-  <!-- Verknüpfung zur CSS-Datei -->
+  <title>JH Draft League</title>
   <link rel="stylesheet" href="./resources/css/style.css">
-  <meta name=“robots“ content=“noindex,nofollow“ />
+  <meta name="robots" content="noindex,nofollow" />
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Roboto:ital,wght@0,100..900;1,100..900&display=swap" rel="stylesheet">
 </head>
-<body class="bg-black text-white min-h-screen p-4">
-  <div class="grid md:grid-cols-[20rem_1fr] gap-y-8 gap-x-16 max-w-7xl">
-    <aside class="bg-white/6 rounded-2xl py-12 px-8 text-2xl font-bold">
-      <img src="resources/img/logo.png" class="w-24 mb-8" />
-      <nav>
-        <ul class="grid gap-y-4">
-          <li><a href="">Draft</a></li>
-          <li><a href="">Tabelle</a></li>
-          <li><a href="">Spieltag</a></li>
-          <li><a href="">Teams</a></li>
-        </ul>
-      </nav>
-    </aside>
+<body class="min-h-screen bg-void font-sans text-ink antialiased selection:bg-flame-500/30">
+  <div class="pointer-events-none fixed inset-0 -z-10 bg-[radial-gradient(75%_45%_at_88%_-8%,rgba(227,53,13,0.12),transparent_60%)]"></div>
+
+  <div x-data="gate()" x-cloak>
+
+    <div x-show="!unlocked" class="fixed inset-0 z-100 grid place-items-center bg-void px-6">
+      <form @submit.prevent="submit()" class="w-full max-w-sm rounded-2xl border border-line bg-panel p-8 text-center">
+        <div class="relative mx-auto w-fit">
+          <div class="absolute inset-2 -z-10 rounded-full bg-flame-500/20 blur-2xl"></div>
+          <img src="resources/img/logo.png" alt="JH Draft League" class="w-28" />
+        </div>
+        <h1 class="mt-6 font-display text-2xl font-bold tracking-wide text-ink">Zugang zur Liga</h1>
+        <p class="mt-1 text-sm text-mist">Bitte gib das Passwort ein, um fortzufahren.</p>
+        <input type="password" name="password" x-model="pw" placeholder="Passwort" autocomplete="current-password"
+               class="mt-6 w-full rounded-xl border bg-elevated px-4 py-3 text-ink placeholder:text-mist focus:outline-none"
+               :class="error ? 'border-flame-500' : 'border-line focus:border-flame-500'" />
+        <p x-show="error" x-cloak class="mt-2 text-sm font-semibold text-flame-400">Falsches Passwort. Bitte erneut versuchen.</p>
+        <button type="submit" :disabled="checking"
+                class="mt-4 w-full rounded-xl bg-flame-500 px-4 py-3 font-display font-bold uppercase tracking-wide text-white transition-colors hover:bg-flame-600 disabled:opacity-60">
+          Freischalten
+        </button>
+      </form>
+    </div>
+
+  <div x-show="unlocked" id="app" x-data="app()" x-init="load(current, { animate: false })">
+
+    <header class="fixed inset-x-0 top-0 z-40 flex h-16 items-center justify-between border-b border-line bg-void/85 px-4 backdrop-blur md:hidden">
+      <img src="resources/img/logo.png" alt="JH Draft League" class="h-11 w-auto" />
+      <button type="button" class="pokeball" popovertarget="mobile-nav" aria-label="Navigation öffnen"></button>
+    </header>
+
+    <nav id="mobile-nav" popover aria-label="Hauptnavigation">
+      <div class="flex h-16 items-center justify-between border-b border-line px-4">
+        <img src="resources/img/logo.png" alt="JH Draft League" class="h-11 w-auto" />
+        <button type="button" class="pokeball" popovertarget="mobile-nav" aria-label="Navigation schließen"></button>
+      </div>
+      <div class="grid gap-2 p-5">
+        <template x-for="item in items" :key="item.key">
+          <a href="#" @click.prevent="load(item.key)"
+             class="flex items-center gap-4 rounded-xl px-4 py-4 font-display text-2xl font-semibold tracking-wide transition-colors"
+             :class="isActive(item.key)
+               ? 'bg-flame-500/12 text-ink ring-1 ring-inset ring-flame-500/40'
+               : 'text-mist hover:bg-elevated hover:text-ink'">
+            <span class="size-7 shrink-0" :class="isActive(item.key) ? 'text-flame-400' : ''" x-html="item.icon"></span>
+            <span x-text="item.label"></span>
+          </a>
+        </template>
+      </div>
+    </nav>
+
+    <div class="md:grid md:min-h-screen md:grid-cols-[18rem_1fr]">
+
+      <aside class="sticky top-0 hidden h-screen flex-col border-r border-line bg-panel/50 backdrop-blur md:flex">
+        <div class="px-6 pb-6 pt-8">
+          <div class="relative mx-auto w-fit">
+            <div class="absolute inset-2 -z-10 rounded-full bg-flame-500/20 blur-2xl"></div>
+            <img src="resources/img/logo.png" alt="JH Draft League" class="w-40" />
+          </div>
+        </div>
+
+        <nav class="flex-1 px-4">
+          <p class="px-3.5 pb-2 font-display text-xs font-semibold uppercase tracking-[0.28em] text-mist">Liga</p>
+          <div class="grid gap-1.5">
+            <template x-for="item in items" :key="item.key">
+              <a href="#" @click.prevent="load(item.key)"
+                 class="group flex items-center gap-3 rounded-xl px-3.5 py-3 font-display text-lg font-semibold tracking-wide transition-colors"
+                 :class="isActive(item.key)
+                   ? 'bg-flame-500/10 text-ink ring-1 ring-inset ring-flame-500/35'
+                   : 'text-mist hover:bg-elevated hover:text-ink'">
+                <span class="size-5 shrink-0 transition-colors" :class="isActive(item.key) ? 'text-flame-400' : 'text-mist group-hover:text-ink'" x-html="item.icon"></span>
+                <span x-text="item.label"></span>
+              </a>
+            </template>
+          </div>
+        </nav>
+
+        <div class="border-t border-line px-6 py-5">
+          <div class="flex items-center gap-2.5">
+            <span class="relative flex size-2.5">
+              <span class="absolute inline-flex size-full animate-ping rounded-full bg-volt-400/70"></span>
+              <span class="relative inline-flex size-2.5 rounded-full bg-volt-400"></span>
+            </span>
+            <span class="font-display text-sm font-semibold tracking-wide text-mist">Season 1 · Live</span>
+          </div>
+        </div>
+      </aside>
+
+      <main class="min-w-0 px-4 pb-16 pt-20 md:px-8 md:pt-10 lg:px-12">
+        <div class="view mx-auto max-w-6xl" x-ref="view"></div>
+      </main>
+
+    </div>
   </div>
+
+  </div>
+
+  <script type="module" src="./resources/js/main.js"></script>
 </body>
 </html>

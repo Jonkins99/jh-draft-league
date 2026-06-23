@@ -1,0 +1,288 @@
+<div x-data="scheduleView">
+  <header class="mb-8 flex flex-wrap items-end justify-between gap-4">
+    <div>
+      <p class="font-display text-xs font-semibold uppercase tracking-[0.3em] text-flame-400">Matchday</p>
+      <h1 class="mt-1 font-display text-4xl font-bold tracking-wide text-ink md:text-5xl">Spielplan</h1>
+      <p class="mt-2 text-mist">Jedes Team von Janik gegen jedes Team von Henrik — Hin- und Rückrunde.</p>
+    </div>
+    <button x-show="loaded && hasSchedule && !hasResults" type="button" popovertarget="schedule-confirm"
+            class="rounded-xl border border-line px-4 py-2.5 font-semibold text-mist transition-colors hover:text-flame-400">
+      Neu auslosen
+    </button>
+    <span x-show="loaded && hasSchedule && hasResults" class="text-sm text-mist">Neu auslosen gesperrt — Ergebnisse erfasst.</span>
+  </header>
+
+  <div x-show="!loaded" class="py-12 text-center text-mist">Lade Spielplan…</div>
+
+  <!-- LEER: Spielplan auslosen -->
+  <div x-show="loaded && !hasSchedule"
+       class="flex flex-col items-center gap-4 rounded-2xl border border-line bg-panel p-10 text-center">
+    <span class="grid size-14 place-items-center rounded-2xl bg-flame-500/10 text-flame-400">
+      <svg viewBox="0 0 24 24" class="size-7" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M13 2 4 14h7l-1 8 9-12h-7z"/></svg>
+    </span>
+    <div>
+      <h2 class="font-display text-2xl font-bold tracking-wide text-ink">Noch kein Spielplan</h2>
+      <p class="mt-1 text-mist">Beim Auslosen kämpft jedes Team von Janik gegen jedes Team von Henrik — in Hin- und Rückrunde.</p>
+    </div>
+    <button type="button" popovertarget="schedule-confirm" :disabled="busy"
+            class="rounded-xl bg-flame-500 px-6 py-3 font-display font-bold uppercase tracking-wide text-white transition-colors hover:bg-flame-600 disabled:opacity-60">
+      Spielplan auslosen
+    </button>
+  </div>
+
+  <!-- SPIELPLAN -->
+  <div x-show="loaded && hasSchedule">
+    <template x-for="grp in legGroups()" :key="grp.leg">
+      <section class="mb-10">
+        <h2 class="mb-4 font-display text-2xl font-bold uppercase tracking-wider text-ink" x-text="grp.label"></h2>
+
+        <template x-for="day in grp.days" :key="day.day">
+          <div class="mb-6">
+            <div class="mb-3 flex items-center gap-3">
+              <span class="grid size-9 place-items-center rounded-lg bg-elevated font-display text-sm font-bold text-flame-400"
+                    x-text="day.day"></span>
+              <h3 class="font-display text-lg font-bold uppercase tracking-wider text-ink" x-text="`Spieltag ${day.day}`"></h3>
+            </div>
+
+            <div class="grid gap-4 md:grid-cols-2">
+              <template x-for="(m, i) in day.matches" :key="i">
+                <article class="rounded-2xl border border-line bg-panel p-5">
+                  <div class="flex items-center justify-between gap-3">
+                    <div class="flex min-w-0 flex-1 items-center gap-3">
+                      <img :src="logoUrl(teamById(m.home)?.logo)" :alt="teamById(m.home)?.name"
+                           class="size-11 shrink-0 rounded-lg object-contain" />
+                      <div class="min-w-0">
+                        <p class="truncate font-semibold text-ink" x-text="teamById(m.home)?.name"></p>
+                        <p class="truncate text-sm font-medium" :style="`color:${playerColor(teamById(m.home)?.player)}`"
+                           x-text="teamById(m.home)?.player"></p>
+                      </div>
+                    </div>
+
+                    <span class="shrink-0 font-display text-sm font-bold uppercase tracking-wider text-flame-400">vs</span>
+
+                    <div class="flex min-w-0 flex-1 items-center justify-end gap-3 text-right">
+                      <div class="min-w-0">
+                        <p class="truncate font-semibold text-ink" x-text="teamById(m.away)?.name"></p>
+                        <p class="truncate text-sm font-medium" :style="`color:${playerColor(teamById(m.away)?.player)}`"
+                           x-text="teamById(m.away)?.player"></p>
+                      </div>
+                      <img :src="logoUrl(teamById(m.away)?.logo)" :alt="teamById(m.away)?.name"
+                           class="size-11 shrink-0 rounded-lg object-contain" />
+                    </div>
+                  </div>
+
+                  <div class="mt-4 flex items-center justify-between border-t border-line pt-3">
+                    <template x-if="summaryFor(day.day, i)">
+                      <span class="font-display text-sm font-bold tabular-nums text-ink">
+                        <span x-text="summaryFor(day.day, i).home"></span> : <span x-text="summaryFor(day.day, i).away"></span>
+                        <span class="ml-1.5 text-xs font-normal uppercase tracking-wider text-mist">Kämpfe</span>
+                      </span>
+                    </template>
+                    <template x-if="!summaryFor(day.day, i)">
+                      <span class="text-xs text-mist">Noch kein Ergebnis</span>
+                    </template>
+                    <button type="button" @click="openEntry(day.day, i, m.home, m.away)"
+                            class="rounded-lg border border-line px-3 py-1.5 text-sm font-semibold text-mist transition-colors hover:border-flame-500/50 hover:text-flame-400"
+                            x-text="resultFor(day.day, i) ? 'Bearbeiten' : 'Ergebnis eintragen'"></button>
+                  </div>
+                </article>
+              </template>
+            </div>
+          </div>
+        </template>
+      </section>
+    </template>
+  </div>
+
+  <!-- Bestätigung: Spielplan auslosen -->
+  <div popover id="schedule-confirm" class="modal-pop w-[22rem] max-w-[90vw] rounded-2xl border border-line bg-panel p-6 text-center">
+    <h3 class="font-display text-xl font-bold tracking-wide text-ink">Spielplan auslosen?</h3>
+    <p class="mt-2 text-sm text-mist">Die Paarungen werden neu ausgelost. Ein bestehender Spielplan wird dabei überschrieben.</p>
+    <div class="mt-5 flex gap-3">
+      <button type="button" popovertarget="schedule-confirm" popovertargetaction="hide"
+              class="flex-1 rounded-xl border border-line px-4 py-2.5 font-semibold text-mist transition-colors hover:text-ink">Abbrechen</button>
+      <button type="button" @click="generate()" :disabled="busy"
+              class="flex-1 rounded-xl bg-flame-500 px-4 py-2.5 font-display font-bold uppercase tracking-wide text-white transition-colors hover:bg-flame-600 disabled:opacity-60">Auslosen</button>
+    </div>
+  </div>
+
+  <!-- Ergebnis-Eingabe (Stepper) -->
+  <div popover id="result-entry" class="modal-pop w-[46rem] max-w-[95vw] rounded-2xl border border-line bg-panel p-0 text-ink">
+    <template x-if="editing && form">
+      <div class="flex max-h-[88vh] flex-col">
+        <!-- Kopf -->
+        <div class="flex items-center justify-between gap-4 border-b border-line px-6 py-4">
+          <div class="min-w-0">
+            <p class="font-display text-xs font-semibold uppercase tracking-[0.25em] text-flame-400" x-text="`Spieltag ${editing.day} · Ergebnis`"></p>
+            <p class="mt-0.5 truncate font-semibold" x-text="`${teamById(editing.home)?.name} vs ${teamById(editing.away)?.name}`"></p>
+          </div>
+          <button type="button" @click="closeEntry()" class="shrink-0 rounded-lg p-1.5 text-mist transition-colors hover:text-ink" aria-label="Schließen">
+            <svg viewBox="0 0 24 24" class="size-5" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M6 6l12 12M18 6L6 18"/></svg>
+          </button>
+        </div>
+
+        <!-- Schritt-Navigation -->
+        <div class="flex gap-1.5 overflow-x-auto border-b border-line px-6 py-3">
+          <button type="button" @click="step = 0"
+                  class="shrink-0 rounded-lg px-3 py-1.5 text-sm font-semibold transition-colors"
+                  :class="step === 0 ? 'bg-flame-500 text-white' : 'text-mist hover:text-ink'">
+            Aufgebot <span x-show="squadValid" class="text-volt-300">✓</span>
+          </button>
+          <template x-for="n in 3" :key="n">
+            <button type="button" @click="step = n"
+                    class="shrink-0 rounded-lg px-3 py-1.5 text-sm font-semibold transition-colors"
+                    :class="step === n ? 'bg-flame-500 text-white' : 'text-mist hover:text-ink'">
+              <span x-text="`Kampf ${n}`"></span>
+              <span x-show="battleValid(form.battles[n - 1])" class="text-volt-300">✓</span>
+            </button>
+          </template>
+        </div>
+
+        <!-- Inhalt -->
+        <div class="min-h-0 flex-1 overflow-y-auto px-6 py-5">
+          <!-- SCHRITT 0: Aufgebot 6/10 -->
+          <div x-show="step === 0">
+            <p class="mb-4 text-sm text-mist">Jeder Spieler nimmt <strong class="text-ink">6 seiner 10</strong> Pokémon ins Match-Aufgebot.</p>
+            <div class="grid gap-6 md:grid-cols-2">
+              <template x-for="side in ['home', 'away']" :key="side">
+                <div>
+                  <div class="mb-2 flex items-center justify-between">
+                    <span class="font-semibold" :style="`color:${playerColor(teamById(editing[side])?.player)}`" x-text="teamById(editing[side])?.name"></span>
+                    <span class="font-display text-sm font-bold tabular-nums" :class="squadCount(side) === 6 ? 'text-volt-400' : 'text-mist'" x-text="`${squadCount(side)} / 6`"></span>
+                  </div>
+                  <div class="grid grid-cols-3 gap-2 sm:grid-cols-5 md:grid-cols-3">
+                    <template x-for="p in roster(side)" :key="p.name">
+                      <button type="button" @click="toggleSquad(side, p.name)"
+                              class="rounded-xl border p-2 transition"
+                              :class="inSquad(side, p.name) ? 'border-flame-500 bg-flame-500/10' : (squadCount(side) >= 6 ? 'border-line opacity-40' : 'border-line hover:border-flame-500/40')">
+                        <div class="grid aspect-square place-items-center">
+                          <img :src="p.image" :alt="p.name" loading="lazy" class="size-12 object-contain" />
+                        </div>
+                        <p class="truncate text-center text-[11px] font-medium text-ink" x-text="p.name" :title="p.name"></p>
+                      </button>
+                    </template>
+                  </div>
+                </div>
+              </template>
+            </div>
+          </div>
+
+          <!-- SCHRITTE 1-3: Kämpfe -->
+          <template x-if="step >= 1">
+            <div class="space-y-6">
+              <p x-show="!squadValid" class="rounded-lg border border-flame-500/40 bg-flame-500/10 px-3 py-2 text-sm text-flame-300">
+                Bitte zuerst beide Aufgebote (je 6) vollständig wählen.
+              </p>
+
+              <!-- Einsatz 4/6 -->
+              <div>
+                <h4 class="mb-3 font-display text-sm font-bold uppercase tracking-wider text-mist">Einsatz · 4 von 6</h4>
+                <div class="grid gap-6 md:grid-cols-2">
+                  <template x-for="side in ['home', 'away']" :key="side">
+                    <div>
+                      <div class="mb-2 flex items-center justify-between">
+                        <span class="font-semibold" :style="`color:${playerColor(teamById(editing[side])?.player)}`" x-text="teamById(editing[side])?.name"></span>
+                        <span class="font-display text-sm font-bold tabular-nums" :class="usedCount(side) === 4 ? 'text-volt-400' : 'text-mist'" x-text="`${usedCount(side)} / 4`"></span>
+                      </div>
+                      <div class="grid grid-cols-3 gap-2 sm:grid-cols-6 md:grid-cols-3">
+                        <template x-for="name in form.squads[side]" :key="name">
+                          <button type="button" @click="toggleUsed(side, name)"
+                                  class="rounded-xl border p-2 transition"
+                                  :class="inUsed(side, name) ? 'border-flame-500 bg-flame-500/10' : (usedCount(side) >= 4 ? 'border-line opacity-40' : 'border-line hover:border-flame-500/40')">
+                            <div class="grid aspect-square place-items-center">
+                              <img :src="monImage(side, name)" :alt="name" loading="lazy" class="size-11 object-contain" />
+                            </div>
+                            <p class="truncate text-center text-[11px] font-medium text-ink" x-text="name" :title="name"></p>
+                          </button>
+                        </template>
+                      </div>
+                    </div>
+                  </template>
+                </div>
+              </div>
+
+              <!-- Endstand -->
+              <div>
+                <h4 class="mb-3 font-display text-sm font-bold uppercase tracking-wider text-mist">Endstand</h4>
+                <div class="flex flex-wrap items-center gap-2">
+                  <button type="button" @click="setWinner('home')"
+                          class="rounded-lg border px-3 py-2 text-sm font-semibold transition-colors"
+                          :class="currentBattle().winner === 'home' ? 'border-flame-500 bg-flame-500/10 text-ink' : 'border-line text-mist hover:text-ink'"
+                          x-text="`Sieg ${teamById(editing.home)?.name}`"></button>
+                  <button type="button" @click="setWinner('draw')"
+                          class="rounded-lg border px-3 py-2 text-sm font-semibold transition-colors"
+                          :class="currentBattle().winner === 'draw' ? 'border-flame-500 bg-flame-500/10 text-ink' : 'border-line text-mist hover:text-ink'">Unentschieden</button>
+                  <button type="button" @click="setWinner('away')"
+                          class="rounded-lg border px-3 py-2 text-sm font-semibold transition-colors"
+                          :class="currentBattle().winner === 'away' ? 'border-flame-500 bg-flame-500/10 text-ink' : 'border-line text-mist hover:text-ink'"
+                          x-text="`Sieg ${teamById(editing.away)?.name}`"></button>
+                </div>
+                <div x-show="currentBattle().winner && currentBattle().winner !== 'draw'" class="mt-3 flex items-center gap-2">
+                  <span class="text-sm text-mist">Überlebende Pokémon des Siegers:</span>
+                  <template x-for="n in 4" :key="n">
+                    <button type="button" @click="setSurvivors(n)"
+                            class="grid size-9 place-items-center rounded-lg border font-display font-bold tabular-nums transition-colors"
+                            :class="currentBattle().survivors === n ? 'border-flame-500 bg-flame-500/10 text-ink' : 'border-line text-mist hover:text-ink'"
+                            x-text="n"></button>
+                  </template>
+                </div>
+              </div>
+
+              <!-- Kill-Log (Pflicht) -->
+              <div>
+                <h4 class="mb-1 font-display text-sm font-bold uppercase tracking-wider text-mist">Kill-Log · Pflicht</h4>
+                <p class="mb-3 text-xs text-mist">Für jedes eingesetzte Pokémon festlegen, ob es überlebt hat oder von wem es besiegt wurde.</p>
+                <div class="grid gap-4 md:grid-cols-2">
+                  <template x-for="side in ['home', 'away']" :key="side">
+                    <div class="space-y-2">
+                      <p class="text-xs font-semibold uppercase tracking-wider" :style="`color:${playerColor(teamById(editing[side])?.player)}`" x-text="teamById(editing[side])?.name"></p>
+                      <template x-for="mon in fielded(side)" :key="mon.name">
+                        <div class="flex items-center gap-2 rounded-lg border border-line bg-elevated/40 p-2">
+                          <img :src="mon.image" :alt="mon.name" class="size-8 shrink-0 object-contain" />
+                          <span class="w-20 shrink-0 truncate text-sm font-medium text-ink" x-text="mon.name" :title="mon.name"></span>
+                          <select @change="setFate(mon, $event.target.value)"
+                                  class="min-w-0 flex-1 rounded-lg border bg-panel px-2 py-1.5 text-sm text-ink focus:border-flame-500 focus:outline-none"
+                                  :class="fateOf(mon) ? 'border-line' : 'border-flame-500/50'">
+                            <option value="" :selected="!fateOf(mon)">— Status wählen —</option>
+                            <option value="survived" :selected="fateOf(mon) === 'survived'">Überlebt</option>
+                            <optgroup label="Besiegt durch Gegner">
+                              <template x-for="opp in killerOptions(side).opponents" :key="'opp-' + opp">
+                                <option :value="'opp:' + opp" :selected="fateOf(mon) === ('opp:' + opp)" x-text="opp"></option>
+                              </template>
+                            </optgroup>
+                            <optgroup label="Self-Kill (eigenes Team)">
+                              <template x-for="own in killerOptions(side).own.filter((o) => o !== mon.name)" :key="'self-' + own">
+                                <option :value="'self:' + own" :selected="fateOf(mon) === ('self:' + own)" x-text="`${own} (Self-Kill)`"></option>
+                              </template>
+                            </optgroup>
+                            <option value="none" :selected="fateOf(mon) === 'none'">Besiegt – niemandem angerechnet</option>
+                          </select>
+                        </div>
+                      </template>
+                      <p x-show="fielded(side).length === 0" class="text-xs text-mist">Erst 4 Pokémon einsetzen.</p>
+                    </div>
+                  </template>
+                </div>
+              </div>
+
+              <p class="text-sm" :class="currentBattleValid ? 'text-volt-400' : 'text-mist'"
+                 x-text="currentBattleValid ? 'Kampf vollständig — zählt für die Tabelle.' : 'Kampf unvollständig — wird gespeichert, zählt aber noch nicht für die Tabelle.'"></p>
+            </div>
+          </template>
+        </div>
+
+        <!-- Fuß -->
+        <div class="flex items-center justify-between gap-3 border-t border-line px-6 py-4">
+          <button type="button" @click="step = Math.max(0, step - 1)" :disabled="step === 0"
+                  class="rounded-xl border border-line px-4 py-2.5 font-semibold text-mist transition-colors hover:text-ink disabled:opacity-40">Zurück</button>
+          <div class="flex gap-3">
+            <button type="button" x-show="step < 3" @click="step = step + 1"
+                    class="rounded-xl border border-line px-4 py-2.5 font-semibold text-mist transition-colors hover:text-ink">Weiter</button>
+            <button type="button" @click="save()" :disabled="saving"
+                    class="rounded-xl bg-flame-500 px-5 py-2.5 font-display font-bold uppercase tracking-wide text-white transition-colors hover:bg-flame-600 disabled:opacity-60">Speichern</button>
+          </div>
+        </div>
+      </div>
+    </template>
+  </div>
+</div>

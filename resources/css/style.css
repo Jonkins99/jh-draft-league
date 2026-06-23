@@ -1,3 +1,183 @@
 @import "./base/reset.css";
 @import "tailwindcss";
 @import "./font/font.css";
+
+@source "../../index.html";
+@source "../../public/pages/*.html";
+@source "../js/*.js";
+
+@theme {
+  --color-void: #0b0d12;
+  --color-panel: #14171f;
+  --color-elevated: #1b2029;
+  --color-line: #2a313d;
+  --color-mist: #98a2b3;
+  --color-ink: #eef1f6;
+
+  --color-flame-400: #ff5a36;
+  --color-flame-500: #e3350d;
+  --color-flame-600: #be2c0b;
+
+  --color-volt-400: #ffcb05;
+  --color-volt-500: #efb600;
+
+  --font-display: "Roboto", sans-serif;
+  --font-sans: "Roboto", sans-serif;
+
+  --header-h: 4rem;
+}
+
+[x-cloak] {
+  display: none !important;
+}
+
+.view {
+  view-transition-name: content;
+}
+
+@keyframes vt-in {
+  from {
+    opacity: 0;
+    transform: translateY(0.75rem);
+  }
+}
+
+@keyframes vt-out {
+  to {
+    opacity: 0;
+    transform: translateY(-0.5rem);
+  }
+}
+
+::view-transition-old(content) {
+  animation: vt-out 180ms ease both;
+}
+
+::view-transition-new(content) {
+  animation: vt-in 320ms cubic-bezier(0.2, 0.7, 0.2, 1) both;
+}
+
+.pokeball {
+  width: 2.75rem;
+  height: 2.75rem;
+  border-radius: 9999px;
+  border: 2px solid #06070a;
+  position: relative;
+  flex: none;
+  background: linear-gradient(
+    to bottom,
+    var(--color-flame-500) 0 calc(50% - 1.5px),
+    #06070a calc(50% - 1.5px) calc(50% + 1.5px),
+    #f3f4f6 calc(50% + 1.5px) 100%
+  );
+  box-shadow: 0 6px 16px -6px rgb(227 53 13 / 0.55), inset 0 1px 0 rgb(255 255 255 / 0.18);
+  transition: transform 180ms ease, box-shadow 180ms ease;
+}
+
+.pokeball::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  margin: auto;
+  width: 0.95rem;
+  height: 0.95rem;
+  border-radius: 9999px;
+  background: #f3f4f6;
+  border: 2px solid #06070a;
+  box-shadow: inset 0 0 0 2px var(--color-void);
+}
+
+.pokeball:hover {
+  transform: scale(1.06) rotate(-8deg);
+  box-shadow: 0 8px 22px -6px rgb(227 53 13 / 0.7), inset 0 1px 0 rgb(255 255 255 / 0.18);
+}
+
+.pokeball:active {
+  transform: scale(0.94);
+}
+
+#mobile-nav {
+  position: fixed;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  max-width: none;
+  max-height: none;
+  margin: 0;
+  padding: 0;
+  border: 0;
+  overflow-y: auto;
+  background: radial-gradient(120% 80% at 100% 0%, #161b26 0%, var(--color-void) 55%);
+  color: var(--color-ink);
+  opacity: 0;
+  translate: 0 -0.75rem;
+  transition-property: opacity, translate, overlay, display;
+  transition-duration: 320ms;
+  transition-timing-function: cubic-bezier(0.2, 0.7, 0.2, 1);
+  transition-behavior: allow-discrete;
+}
+
+#mobile-nav:popover-open {
+  opacity: 1;
+  translate: 0 0;
+}
+
+@starting-style {
+  #mobile-nav:popover-open {
+    opacity: 0;
+    translate: 0 -0.75rem;
+  }
+}
+
+.modal-pop {
+  margin: auto;
+  opacity: 0;
+  scale: 0.95;
+  transition-property: opacity, scale, overlay, display;
+  transition-duration: 240ms;
+  transition-timing-function: cubic-bezier(0.2, 0.7, 0.2, 1);
+  transition-behavior: allow-discrete;
+}
+
+.modal-pop:popover-open {
+  opacity: 1;
+  scale: 1;
+}
+
+@starting-style {
+  .modal-pop:popover-open {
+    opacity: 0;
+    scale: 0.95;
+  }
+}
+
+.modal-pop::backdrop {
+  background: rgba(5, 6, 9, 0.6);
+  backdrop-filter: blur(2px);
+  opacity: 0;
+  transition-property: opacity, overlay, display;
+  transition-duration: 240ms;
+  transition-behavior: allow-discrete;
+}
+
+.modal-pop:popover-open::backdrop {
+  opacity: 1;
+}
+
+@starting-style {
+  .modal-pop:popover-open::backdrop {
+    opacity: 0;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  ::view-transition-old(content),
+  ::view-transition-new(content) {
+    animation: none;
+  }
+
+  .pokeball,
+  #mobile-nav {
+    transition-duration: 1ms;
+  }
+}

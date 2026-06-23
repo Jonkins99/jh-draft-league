@@ -10,7 +10,7 @@ export default defineConfig({
     // Legt den Ausgabeordner fest. Standard ist 'dist'.
     // Falls Sie GitHub Pages so eingestellt haben, dass es aus dem /docs-Ordner serviert, 
     // ändern Sie 'dist' hier einfach in 'docs'.
-    outDir: 'dist', 
+    outDir: 'docs',
     emptyOutDir: true, // Leert den Ordner vor jedem Build
   }
 });
