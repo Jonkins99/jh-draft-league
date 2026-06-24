@@ -86,11 +86,14 @@ const STAT_MODES = [
   { key: 'battles', label: 'Kämpfe' },
 ];
 
-const SERIES_COLORS = ['#e3350d', '#ffcb05', '#4d90d5', '#63bc5a', '#ab6ac8', '#ff9d55', '#73cec0', '#ec8fe6'];
+// Neutrale Linienfarbe — Teams werden im Diagramm über ihr Logo an jedem Datenpunkt
+// identifiziert, nicht über eine hinterlegte Team-Farbe.
+const CHART_LINE = '#4b5563';
 
 // Aus dem Platzierungsverlauf eine SVG-Geometrie bauen (Platz 1 oben, gespielte Spieltage als X).
-function buildChart(history, teamsCount, colorFor) {
-  const W = 640, H = 240, padL = 30, padR = 14, padT = 14, padB = 26;
+// styleFor(teamId, i) -> { logo } liefert das Logo, das an jedem Datenpunkt gezeichnet wird.
+function buildChart(history, teamsCount, styleFor) {
+  const W = 640, H = 240, padL = 34, padR = 26, padT = 18, padB = 26;
   const innerW = W - padL - padR;
   const innerH = H - padT - padB;
   const days = history.days || [];
@@ -99,12 +102,18 @@ function buildChart(history, teamsCount, colorFor) {
   const maxDay = days.length ? days[days.length - 1] : 1;
   const xFor = (d) => (maxDay === minDay ? padL + innerW / 2 : padL + ((d - minDay) / (maxDay - minDay)) * innerW);
   const yFor = (place) => (n <= 1 ? padT + innerH / 2 : padT + ((place - 1) / (n - 1)) * innerH);
-  const lines = Object.entries(history.series || {}).map(([teamId, pts], i) => ({
-    teamId,
-    color: colorFor ? colorFor(teamId, i) : SERIES_COLORS[i % SERIES_COLORS.length],
-    dots: pts.map((p) => ({ day: p.day, place: p.place, x: xFor(p.day), y: yFor(p.place) })),
-    path: pts.map((p, j) => `${j === 0 ? 'M' : 'L'}${xFor(p.day).toFixed(1)} ${yFor(p.place).toFixed(1)}`).join(' '),
-  }));
+  const lines = Object.entries(history.series || {}).map(([teamId, pts], i) => {
+    const style = (styleFor && styleFor(teamId, i)) || {};
+    const dots = pts.map((p) => ({ day: p.day, place: p.place, x: xFor(p.day), y: yFor(p.place) }));
+    return {
+      teamId,
+      color: CHART_LINE,
+      logo: style.logo || null,
+      dots,
+      end: dots.length ? dots[dots.length - 1] : null,
+      path: pts.map((p, j) => `${j === 0 ? 'M' : 'L'}${xFor(p.day).toFixed(1)} ${yFor(p.place).toFixed(1)}`).join(' '),
+    };
+  });
   return {
     W, H, padL, padR, padT, padB,
     lines,
@@ -133,12 +142,24 @@ function chartSvgString(chart) {
   const xlabels = chart.xTicks
     .map((t) => `<text x="${t.x.toFixed(1)}" y="${chart.H - 8}" text-anchor="middle" fill="#98a2b3" font-size="10">${t.day}</text>`)
     .join('');
+  // Logo-Marker an jedem Datenpunkt; der letzte (aktuellster Spieltag) etwas größer.
+  const logoDot = (ln, d, i, j, last) => {
+    const r = last ? 11 : 8.5;
+    const id = `vt-clip-${i}-${j}`;
+    if (!ln.logo) return `<circle cx="${d.x.toFixed(1)}" cy="${d.y.toFixed(1)}" r="3.5" fill="${ln.color}"/>`;
+    return (
+      `<clipPath id="${id}"><circle cx="${d.x.toFixed(1)}" cy="${d.y.toFixed(1)}" r="${(r - 1.5).toFixed(1)}"/></clipPath>` +
+      `<circle cx="${d.x.toFixed(1)}" cy="${d.y.toFixed(1)}" r="${r}" fill="#0f1219" stroke="#2a313d" stroke-width="1.5"/>` +
+      `<image href="${ln.logo}" x="${(d.x - (r - 1.5)).toFixed(1)}" y="${(d.y - (r - 1.5)).toFixed(1)}" width="${((r - 1.5) * 2).toFixed(1)}" height="${((r - 1.5) * 2).toFixed(1)}" clip-path="url(#${id})" preserveAspectRatio="xMidYMid slice"/>`
+    );
+  };
   const lines = chart.lines
-    .map(
-      (ln) =>
-        `<path d="${ln.path}" fill="none" stroke="${ln.color}" stroke-width="2.5" stroke-linejoin="round" stroke-linecap="round"/>` +
-        ln.dots.map((d) => `<circle cx="${d.x.toFixed(1)}" cy="${d.y.toFixed(1)}" r="3.5" fill="${ln.color}"/>`).join(''),
-    )
+    .map((ln, i) => {
+      const lastIdx = ln.dots.length - 1;
+      const path = `<path d="${ln.path}" fill="none" stroke="${ln.color}" stroke-width="2" stroke-linejoin="round" stroke-linecap="round"/>`;
+      const markers = ln.dots.map((d, j) => logoDot(ln, d, i, j, j === lastIdx)).join('');
+      return path + markers;
+    })
     .join('');
   return `<svg viewBox="0 0 ${chart.W} ${chart.H}" class="w-full" style="min-width:34rem" preserveAspectRatio="xMidYMid meet">${grid}${xlabels}${lines}</svg>`;
 }
@@ -196,6 +217,7 @@ function gate() {
       if (hash === ACCESS_HASH) {
         localStorage.setItem(ACCESS_KEY, ACCESS_HASH);
         this.unlocked = true;
+        this.$store.league.ensureNotifyPermission?.();
       } else {
         this.error = true;
         this.pw = '';
@@ -208,6 +230,26 @@ function gate() {
 function app() {
   return {
     current: 'draft',
+    toasts: [],
+    _toastSeq: 0,
+
+    // Verlinkungs-Navigation: Ziel im nav-Store ablegen, dann Ansicht laden.
+    onNavigate(detail) {
+      if (!detail || !detail.key) return;
+      const nav = this.$store.nav;
+      if (nav) {
+        nav.teamId = detail.teamId || null;
+        nav.matchId = detail.matchId || null;
+      }
+      this.load(detail.key);
+    },
+
+    pushToast(detail) {
+      if (!detail || !detail.msg) return;
+      const id = ++this._toastSeq;
+      this.toasts.push({ id, msg: detail.msg, icon: detail.icon || null });
+      setTimeout(() => { this.toasts = this.toasts.filter((t) => t.id !== id); }, 4500);
+    },
 
     // Reihenfolge abhängig vom Draft-Status: vor/während des Drafts Draft→Teams→
     // Spielplan→Tabelle, nach Abschluss umgekehrt (Tabelle zuerst).
@@ -235,6 +277,7 @@ function app() {
       if (!item) return;
 
       this.closeMobileNav();
+      this.$store.league.ensureNotifyPermission?.();
 
       let html;
       try {
@@ -327,6 +370,31 @@ function draftBoard() {
       return (this.draft.order || []).map((id) => this.teamById(id)).filter(Boolean);
     },
 
+    // Letzte Picks (neueste zuerst) — aus Snake-Reihenfolge + Team-Rostern rekonstruiert.
+    // Picks landen pro Team in Pick-Reihenfolge im roster; die globale Reihenfolge ergibt
+    // sich aus order[] + pickIndex, daher kein separater Pick-Log nötig.
+    get recentPicks() {
+      const d = this.draft;
+      const order = d.order || [];
+      const n = order.length;
+      if (!n) return [];
+      const made = Math.min(d.pickIndex || 0, n * PICKS_PER_TEAM);
+      const counts = {};
+      const picks = [];
+      for (let k = 0; k < made; k++) {
+        const round = Math.floor(k / n);
+        const pos = k % n;
+        const idx = round % 2 === 0 ? pos : n - 1 - pos;
+        const teamId = order[idx];
+        const occ = counts[teamId] || 0;
+        counts[teamId] = occ + 1;
+        const team = this.teamById(teamId);
+        const mon = team?.pokemon?.[occ] || null;
+        if (mon) picks.push({ pickNo: k + 1, round: round + 1, team, mon });
+      }
+      return picks.slice(-9).reverse();
+    },
+
     get draftedNames() {
       const set = new Set();
       this.league.teams.forEach((t) => (t.pokemon || []).forEach((p) => set.add(p.name)));
@@ -376,6 +444,9 @@ function draftBoard() {
     },
     tierColor(tier) {
       return TIER_COLORS[tier] || '#6b7280';
+    },
+    playerColor(player) {
+      return player === 'Henrik' ? '#4d90d5' : '#e3350d';
     },
 
     // Sobald echte Ergebnisse erfasst sind, darf der Draft nicht mehr zurückgesetzt
@@ -432,6 +503,16 @@ function teamsView() {
     statMode: 'kills',
     statDir: 'desc',
     statModes: STAT_MODES,
+
+    // Beim Laden: ggf. per Verlinkung übergebenes Team direkt öffnen.
+    init() {
+      const nav = this.$store.nav;
+      const teamId = nav?.teamId || null;
+      if (nav) nav.teamId = null;
+      if (!teamId) return;
+      if (this.loaded) this.open(teamId);
+      else this.$watch('loaded', () => { if (this.loaded && this.selectedId == null) this.open(teamId); });
+    },
 
     get league() {
       return this.$store.league;
@@ -492,7 +573,10 @@ function teamsView() {
     get teamCurve() {
       const hist = placementHistory(this.teams, this.league.results);
       const single = { days: hist.days, series: { [this.selectedId]: hist.series[this.selectedId] || [] } };
-      return buildChart(single, this.teams.length, () => '#e3350d');
+      const team = this.selectedTeam;
+      return buildChart(single, this.teams.length, () => ({
+        logo: team ? this.logoUrl(team.logo) : null,
+      }));
     },
     get teamCurveSvg() {
       return chartSvgString(this.teamCurve);
@@ -568,6 +652,29 @@ function scheduleView() {
     editing: null, // { day, matchIndex, home, away, docId }
     step: 0, // 0 = Aufgebot, 1..3 = Kämpfe
     form: null,
+    detail: null, // { day, matchIndex, home, away }
+    _pendingMatch: null,
+
+    // Beim Laden: ggf. per Verlinkung übergebene Match-Detailansicht öffnen.
+    init() {
+      const nav = this.$store.nav;
+      this._pendingMatch = nav?.matchId || null;
+      if (nav) nav.matchId = null;
+      if (!this._pendingMatch) return;
+      if (this.loaded) this._tryOpenPending();
+      else this.$watch('loaded', () => this._tryOpenPending());
+    },
+    _tryOpenPending() {
+      if (!this._pendingMatch || !this.loaded) return;
+      const m = /d(\d+)-m(\d+)/.exec(this._pendingMatch);
+      if (!m) { this._pendingMatch = null; return; }
+      const md = this.matchdays.find((d) => d.day === +m[1]);
+      const match = md?.matches?.[+m[2]];
+      if (match) {
+        this._pendingMatch = null;
+        this.openDetail(+m[1], +m[2], match.home, match.away);
+      }
+    },
 
     get league() {
       return this.$store.league;
@@ -646,6 +753,90 @@ function scheduleView() {
         }
       });
       return any ? { home, away } : null;
+    },
+    // Gesamtsieger eines Matches (gewonnene Kämpfe je Seite), für Karten-Akzent.
+    matchOutcome(day, matchIndex) {
+      const s = this.summaryFor(day, matchIndex);
+      if (!s) return null;
+      return { ...s, winner: s.home > s.away ? 'home' : s.away > s.home ? 'away' : 'draw' };
+    },
+
+    // --- Match-Detailansicht (read-only) ---
+    monImageFor(teamId, name) {
+      const t = this.teamById(teamId);
+      return (t?.pokemon || []).find((p) => p.name === name)?.image || '';
+    },
+    openDetail(day, matchIndex, home, away) {
+      // Nur öffnen, wenn ein Ergebnis existiert; sonst direkt in die Eingabe.
+      if (!this.resultFor(day, matchIndex)) return this.openEntry(day, matchIndex, home, away);
+      this.detail = { day, matchIndex, home, away };
+      this.$nextTick(() => document.getElementById('match-detail')?.showPopover());
+    },
+    closeDetail() {
+      const el = document.getElementById('match-detail');
+      if (el && el.matches(':popover-open')) el.hidePopover();
+      this.detail = null;
+    },
+    editFromDetail() {
+      const d = this.detail;
+      if (!d) return;
+      this.closeDetail();
+      this.openEntry(d.day, d.matchIndex, d.home, d.away);
+    },
+    // Strukturierte, anzeigefertige Daten des aktuell gewählten Matches.
+    get matchDetail() {
+      const dt = this.detail;
+      if (!dt) return null;
+      const r = this.resultFor(dt.day, dt.matchIndex);
+      const home = this.teamById(dt.home);
+      const away = this.teamById(dt.away);
+
+      const battles = (r?.battles || []).map((b, i) => {
+        if (!b || !b.done) return { no: i + 1, done: false };
+        const s = battleStats(b.score);
+        const sideMons = (side) => {
+          const teamId = side === 'home' ? dt.home : dt.away;
+          return (b.used?.[side] || []).map((name) => {
+            const kill = (b.kills || []).find((k) => k.victimSide === side && k.victim === name);
+            let status = 'survived', by = null, byNone = false, self = false;
+            if (kill) {
+              status = 'defeated';
+              if (kill.killerSide == null) byNone = true;
+              else { self = kill.killerSide === side; by = kill.killer; }
+            }
+            const frags = (b.kills || [])
+              .filter((k) => k.killerSide === side && k.killer === name && k.killerSide !== k.victimSide)
+              .map((k) => k.victim);
+            return { name, image: this.monImageFor(teamId, name), status, by, byNone, self, frags };
+          });
+        };
+        return {
+          no: i + 1,
+          done: true,
+          winner: s.winner,
+          home: { mons: sideMons('home'), survivors: b.score?.home ?? 0, kills: s.homeKills },
+          away: { mons: sideMons('away'), survivors: b.score?.away ?? 0, kills: s.awayKills },
+        };
+      });
+
+      let homeWins = 0, awayWins = 0, homeKills = 0, awayKills = 0, played = 0;
+      battles.forEach((b) => {
+        if (!b.done) return;
+        played++;
+        if (b.winner === 'home') homeWins++;
+        else if (b.winner === 'away') awayWins++;
+        homeKills += b.home.kills;
+        awayKills += b.away.kills;
+      });
+      const squads = {
+        home: (r?.squads?.home || []).map((name) => ({ name, image: this.monImageFor(dt.home, name) })),
+        away: (r?.squads?.away || []).map((name) => ({ name, image: this.monImageFor(dt.away, name) })),
+      };
+      return {
+        day: dt.day, home, away, battles, squads, played,
+        homeWins, awayWins, homeKills, awayKills,
+        winner: homeWins > awayWins ? 'home' : awayWins > homeWins ? 'away' : 'draw',
+      };
     },
 
     // --- Eingabe-Stepper ---
@@ -856,7 +1047,14 @@ function standingsView() {
 
     // --- Liga-weites Platzierungs-Diagramm (alle Teams) ---
     get curve() {
-      return buildChart(placementHistory(this.league.seasonTeams, this.league.results), this.league.seasonTeams.length);
+      return buildChart(
+        placementHistory(this.league.seasonTeams, this.league.results),
+        this.league.seasonTeams.length,
+        (teamId) => {
+          const t = this.teamById(teamId);
+          return { logo: t ? this.logoUrl(t.logo) : null };
+        },
+      );
     },
     get curveSvg() {
       return chartSvgString(this.curve);
@@ -915,6 +1113,11 @@ Alpine.store('league', {
   scheduleLoaded: false,
   resultsLoaded: false,
 
+  // Pick-Benachrichtigungen
+  _rosterCounts: {},
+  _notifyArmed: false,
+  _audioCtx: null,
+
   get seasonTeams() {
     return [...this.teams]
       .filter((t) => t.season === 1)
@@ -925,7 +1128,9 @@ Alpine.store('league', {
     this.loadPokemon();
 
     onSnapshot(collection(db, 'teams'), (snap) => {
-      this.teams = snap.docs.map((d) => ({ id: d.id, ...d.data() }));
+      const next = snap.docs.map((d) => ({ id: d.id, ...d.data() }));
+      this.detectPicks(next);
+      this.teams = next;
       this.teamsLoaded = true;
     });
 
@@ -955,6 +1160,79 @@ Alpine.store('league', {
     } finally {
       this.pokemonLoaded = true;
     }
+  },
+
+  // Neue Picks anhand wachsender Roster erkennen (unabhängig vom pickIndex-Timing).
+  // Erste Snapshot-Runde nur seeden, danach pro neuem Pokémon eine Benachrichtigung.
+  detectPicks(nextTeams) {
+    const prev = this._rosterCounts || {};
+    const counts = {};
+    const fresh = [];
+    nextTeams.forEach((t) => {
+      const len = (t.pokemon || []).length;
+      counts[t.id] = len;
+      const before = prev[t.id];
+      if (before != null && len > before) {
+        for (let i = before; i < len; i++) fresh.push({ team: t, mon: (t.pokemon || [])[i] });
+      }
+    });
+    this._rosterCounts = counts;
+    if (!this._notifyArmed) { this._notifyArmed = true; return; }
+    if (this.draft?.status === 'running') fresh.forEach((p) => p.mon && this.notifyPick(p.team, p.mon));
+  },
+
+  // Bei User-Geste aufrufen: Audio-Context entsperren + Notification-Permission anfragen.
+  ensureNotifyPermission() {
+    try {
+      const Ctx = window.AudioContext || window.webkitAudioContext;
+      if (Ctx && !this._audioCtx) this._audioCtx = new Ctx();
+      if (this._audioCtx && this._audioCtx.state === 'suspended') this._audioCtx.resume();
+    } catch (e) {}
+    try {
+      if (typeof Notification !== 'undefined' && Notification.permission === 'default') Notification.requestPermission();
+    } catch (e) {}
+  },
+
+  playPickSound() {
+    try {
+      const Ctx = window.AudioContext || window.webkitAudioContext;
+      if (!Ctx) return;
+      if (!this._audioCtx) this._audioCtx = new Ctx();
+      const ctx = this._audioCtx;
+      if (ctx.state === 'suspended') ctx.resume();
+      const now = ctx.currentTime;
+      [880, 1318.5].forEach((f, i) => {
+        const o = ctx.createOscillator();
+        const g = ctx.createGain();
+        o.type = 'triangle';
+        o.frequency.value = f;
+        const t0 = now + i * 0.09;
+        g.gain.setValueAtTime(0.0001, t0);
+        g.gain.exponentialRampToValueAtTime(0.16, t0 + 0.015);
+        g.gain.exponentialRampToValueAtTime(0.0001, t0 + 0.12);
+        o.connect(g).connect(ctx.destination);
+        o.start(t0);
+        o.stop(t0 + 0.14);
+      });
+    } catch (e) {}
+  },
+
+  notifyPick(team, mon) {
+    const title = `${team?.player || ''} draftet ${mon?.name || ''}`.trim();
+    this.playPickSound();
+    try {
+      if (typeof Notification !== 'undefined' && Notification.permission === 'granted') {
+        const n = new Notification(title, {
+          body: `${team?.name || ''} · Tier ${mon?.tier || '?'}`,
+          icon: mon?.image || undefined,
+          tag: 'jhdl-pick',
+          renotify: true,
+          silent: true,
+        });
+        setTimeout(() => { try { n.close(); } catch (e) {} }, 5000);
+      }
+    } catch (e) {}
+    window.dispatchEvent(new CustomEvent('toast', { detail: { msg: `${title} · ${team?.name || ''}`, icon: mon?.image || null } }));
   },
 
   async startDraft() {
@@ -994,6 +1272,10 @@ Alpine.store('league', {
     await batch.commit();
   },
 });
+
+// Einfacher Navigations-Übergabepuffer: ein Klick setzt ein Ziel, die Ziel-View liest
+// es beim init() aus und räumt auf.
+Alpine.store('nav', { teamId: null, matchId: null });
 
 Alpine.data('gate', gate);
 Alpine.data('app', app);

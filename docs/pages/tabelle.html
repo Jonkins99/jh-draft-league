@@ -25,7 +25,9 @@
         </thead>
         <tbody class="divide-y divide-line">
           <template x-for="(row, idx) in rows" :key="row.team.id">
-            <tr :class="idx === 0 ? 'bg-flame-500/[0.07]' : ''">
+            <tr class="cursor-pointer transition-colors hover:bg-elevated/40"
+                :class="idx === 0 ? 'bg-flame-500/[0.07]' : ''"
+                @click="$dispatch('navigate', { key:'teams', teamId: row.team.id })">
               <td class="px-5 py-4">
                 <span class="font-display text-lg font-bold" :class="idx < 3 ? (idx === 0 ? 'text-flame-400' : 'text-volt-400') : 'text-mist'" x-text="idx + 1"></span>
               </td>
@@ -60,10 +62,10 @@
     <p x-show="!curve.hasData" class="py-8 text-center text-sm text-mist">Noch keine gespielten Spieltage.</p>
     <div x-show="curve.hasData" class="mt-4 flex flex-wrap gap-x-4 gap-y-2">
       <template x-for="ln in curve.lines" :key="ln.teamId">
-        <div class="flex items-center gap-2">
-          <span class="size-3 shrink-0 rounded-full" :style="`background:${ln.color}`"></span>
-          <img :src="logoUrl(teamById(ln.teamId)?.logo)" :alt="teamById(ln.teamId)?.name" class="size-5 shrink-0 rounded object-contain" />
-          <span class="text-sm text-mist" x-text="teamById(ln.teamId)?.name"></span>
+        <div class="flex cursor-pointer items-center gap-2 text-mist transition-colors hover:text-ink"
+             @click="$dispatch('navigate', { key:'teams', teamId: ln.teamId })">
+          <img :src="logoUrl(teamById(ln.teamId)?.logo)" :alt="teamById(ln.teamId)?.name" class="size-6 shrink-0 rounded object-contain" />
+          <span class="text-sm" x-text="teamById(ln.teamId)?.name"></span>
         </div>
       </template>
     </div>
@@ -71,25 +73,26 @@
 
   <!-- MODUL: Pokémon-Ranking (liga-weit) -->
   <section x-show="loaded" class="mt-6 rounded-2xl border border-line bg-panel p-6">
-    <div class="mb-4 flex flex-wrap items-center justify-between gap-3">
+    <div class="mb-4 flex flex-col items-start gap-3 sm:flex-row sm:items-center sm:justify-between">
       <h2 class="font-display text-xl font-bold uppercase tracking-wider text-ink">Pokémon-Ranking</h2>
-      <div class="flex items-center gap-2">
-        <div class="flex rounded-xl border border-line bg-elevated p-1">
+      <div class="flex w-full items-center gap-2 sm:w-auto">
+        <div class="flex flex-1 overflow-x-auto rounded-xl border border-line bg-elevated p-1 sm:flex-none">
           <template x-for="m in statModes" :key="m.key">
             <button type="button" @click="setStatMode(m.key)"
-                    class="rounded-lg px-3 py-1.5 text-sm font-semibold transition-colors"
+                    class="shrink-0 whitespace-nowrap rounded-lg px-3 py-2 text-sm font-semibold transition-colors"
                     :class="statMode === m.key ? 'bg-flame-500 text-white' : 'text-mist hover:text-ink'"
                     x-text="m.label"></button>
           </template>
         </div>
         <button type="button" @click="toggleStatDir()"
-                class="grid size-9 shrink-0 place-items-center rounded-xl border border-line font-bold text-mist transition-colors hover:text-ink"
+                class="grid size-10 shrink-0 place-items-center rounded-xl border border-line font-bold text-mist transition-colors hover:text-ink"
                 :title="statDir === 'desc' ? 'Absteigend' : 'Aufsteigend'" x-text="statDir === 'desc' ? '↓' : '↑'"></button>
       </div>
     </div>
     <div class="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-5 xl:grid-cols-6">
       <template x-for="(s, i) in ranking" :key="s.pokemon.name">
-        <div class="relative rounded-2xl border border-line bg-elevated p-3 text-center"
+        <div class="relative cursor-pointer rounded-2xl border border-line bg-elevated p-3 text-center transition-colors hover:border-flame-500/40"
+             @click="$dispatch('navigate', { key:'teams', teamId: s.team.id })"
              :style="`view-transition-name:${vtName(s.pokemon)}`">
           <div class="flex items-center justify-between px-1">
             <span class="font-display text-xs font-bold tabular-nums text-mist" x-text="`#${i + 1}`"></span>
@@ -100,7 +103,7 @@
             <img :src="s.pokemon.image" :alt="s.pokemon.name" loading="lazy" class="relative h-4/5 w-4/5 object-contain" />
           </div>
           <p class="truncate text-sm font-semibold text-ink" x-text="s.pokemon.name" :title="s.pokemon.name"></p>
-          <p class="mt-0.5 truncate text-xs text-mist" x-text="s.team?.name"></p>
+          <p class="mt-0.5 truncate text-xs text-flame-400/80" x-text="s.team?.name" :title="s.team?.name"></p>
         </div>
       </template>
     </div>

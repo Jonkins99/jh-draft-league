@@ -46,44 +46,52 @@
 
             <div class="grid gap-4 md:grid-cols-2">
               <template x-for="(m, i) in day.matches" :key="i">
-                <article class="rounded-2xl border border-line bg-panel p-5">
-                  <div class="flex items-center justify-between gap-3">
-                    <div class="flex min-w-0 flex-1 items-center gap-3">
+                <article @click="openDetail(day.day, i, m.home, m.away)"
+                         class="cursor-pointer rounded-2xl border border-line bg-panel p-4 transition-colors hover:border-flame-500/40 sm:p-5">
+                  <div class="flex items-center justify-between gap-2 sm:gap-3">
+                    <button type="button" @click.stop="$dispatch('navigate', { key: 'teams', teamId: m.home })"
+                            class="flex min-w-0 flex-1 items-center gap-2 rounded-lg text-left transition-opacity hover:opacity-80 sm:gap-3">
                       <img :src="logoUrl(teamById(m.home)?.logo)" :alt="teamById(m.home)?.name"
-                           class="size-11 shrink-0 rounded-lg object-contain" />
+                           class="size-10 shrink-0 rounded-lg object-contain sm:size-11" />
                       <div class="min-w-0">
                         <p class="truncate font-semibold text-ink" x-text="teamById(m.home)?.name"></p>
                         <p class="truncate text-sm font-medium" :style="`color:${playerColor(teamById(m.home)?.player)}`"
                            x-text="teamById(m.home)?.player"></p>
                       </div>
-                    </div>
+                    </button>
 
-                    <span class="shrink-0 font-display text-sm font-bold uppercase tracking-wider text-flame-400">vs</span>
+                    <span class="shrink-0 font-display text-xs font-bold uppercase tracking-wider text-flame-400 sm:text-sm">vs</span>
 
-                    <div class="flex min-w-0 flex-1 items-center justify-end gap-3 text-right">
+                    <button type="button" @click.stop="$dispatch('navigate', { key: 'teams', teamId: m.away })"
+                            class="flex min-w-0 flex-1 items-center justify-end gap-2 rounded-lg text-right transition-opacity hover:opacity-80 sm:gap-3">
                       <div class="min-w-0">
                         <p class="truncate font-semibold text-ink" x-text="teamById(m.away)?.name"></p>
                         <p class="truncate text-sm font-medium" :style="`color:${playerColor(teamById(m.away)?.player)}`"
                            x-text="teamById(m.away)?.player"></p>
                       </div>
                       <img :src="logoUrl(teamById(m.away)?.logo)" :alt="teamById(m.away)?.name"
-                           class="size-11 shrink-0 rounded-lg object-contain" />
-                    </div>
+                           class="size-10 shrink-0 rounded-lg object-contain sm:size-11" />
+                    </button>
                   </div>
 
-                  <div class="mt-4 flex items-center justify-between border-t border-line pt-3">
-                    <template x-if="summaryFor(day.day, i)">
-                      <span class="font-display text-sm font-bold tabular-nums text-ink">
-                        <span x-text="summaryFor(day.day, i).home"></span> : <span x-text="summaryFor(day.day, i).away"></span>
-                        <span class="ml-1.5 text-xs font-normal uppercase tracking-wider text-mist">Kämpfe</span>
-                      </span>
-                    </template>
-                    <template x-if="!summaryFor(day.day, i)">
-                      <span class="text-xs text-mist">Noch kein Ergebnis</span>
-                    </template>
-                    <button type="button" @click="openEntry(day.day, i, m.home, m.away)"
-                            class="rounded-lg border border-line px-3 py-1.5 text-sm font-semibold text-mist transition-colors hover:border-flame-500/50 hover:text-flame-400"
-                            x-text="resultFor(day.day, i) ? 'Bearbeiten' : 'Ergebnis eintragen'"></button>
+                  <div class="mt-4 flex items-center justify-between gap-2 border-t border-line pt-3">
+                    <div class="min-w-0">
+                      <template x-if="summaryFor(day.day, i)">
+                        <span class="font-display text-sm font-bold tabular-nums text-ink">
+                          <span x-text="summaryFor(day.day, i).home"></span> : <span x-text="summaryFor(day.day, i).away"></span>
+                          <span class="ml-1.5 text-xs font-normal uppercase tracking-wider text-mist">Kämpfe</span>
+                        </span>
+                      </template>
+                      <template x-if="!summaryFor(day.day, i)">
+                        <span class="text-xs text-mist">Noch kein Ergebnis</span>
+                      </template>
+                    </div>
+                    <div class="flex shrink-0 items-center gap-2">
+                      <span x-show="resultFor(day.day, i)" class="hidden text-xs font-semibold text-flame-400 sm:inline">Details ansehen →</span>
+                      <button type="button" @click.stop="openEntry(day.day, i, m.home, m.away)"
+                              class="rounded-lg border border-line px-3 py-2 text-sm font-semibold text-mist transition-colors hover:border-flame-500/50 hover:text-flame-400"
+                              x-text="resultFor(day.day, i) ? 'Bearbeiten' : 'Ergebnis eintragen'"></button>
+                    </div>
                   </div>
                 </article>
               </template>
@@ -143,7 +151,7 @@
           <!-- SCHRITT 0: Aufgebot 6/10 -->
           <div x-show="step === 0">
             <p class="mb-4 text-sm text-mist">Jeder Spieler nimmt <strong class="text-ink">6 seiner 10</strong> Pokémon ins Match-Aufgebot.</p>
-            <div class="grid gap-6 md:grid-cols-2">
+            <div class="grid grid-cols-1 gap-6 md:grid-cols-2">
               <template x-for="side in ['home', 'away']" :key="side">
                 <div>
                   <div class="mb-2 flex items-center justify-between">
@@ -177,7 +185,7 @@
               <!-- Einsatz 4/6 -->
               <div>
                 <h4 class="mb-3 font-display text-sm font-bold uppercase tracking-wider text-mist">Einsatz · 4 von 6</h4>
-                <div class="grid gap-6 md:grid-cols-2">
+                <div class="grid grid-cols-1 gap-6 md:grid-cols-2">
                   <template x-for="side in ['home', 'away']" :key="side">
                     <div>
                       <div class="mb-2 flex items-center justify-between">
@@ -232,9 +240,9 @@
               <div>
                 <h4 class="mb-1 font-display text-sm font-bold uppercase tracking-wider text-mist">Kill-Log · Pflicht</h4>
                 <p class="mb-3 text-xs text-mist">Für jedes eingesetzte Pokémon festlegen, ob es überlebt hat oder von wem es besiegt wurde.</p>
-                <div class="grid gap-4 md:grid-cols-2">
+                <div class="grid grid-cols-1 gap-4 md:grid-cols-2">
                   <template x-for="side in ['home', 'away']" :key="side">
-                    <div class="space-y-2">
+                    <div class="min-w-0 space-y-2">
                       <p class="text-xs font-semibold uppercase tracking-wider" :style="`color:${playerColor(teamById(editing[side])?.player)}`" x-text="teamById(editing[side])?.name"></p>
                       <template x-for="mon in fielded(side)" :key="mon.name">
                         <div class="flex items-center gap-2 rounded-lg border border-line bg-elevated/40 p-2">
@@ -281,6 +289,136 @@
             <button type="button" @click="save()" :disabled="saving"
                     class="rounded-xl bg-flame-500 px-5 py-2.5 font-display font-bold uppercase tracking-wide text-white transition-colors hover:bg-flame-600 disabled:opacity-60">Speichern</button>
           </div>
+        </div>
+      </div>
+    </template>
+  </div>
+
+  <!-- Match-Detailansicht (read-only) -->
+  <div popover id="match-detail" class="modal-pop w-[48rem] max-w-[95vw] rounded-2xl border border-line bg-panel p-0 text-ink">
+    <template x-if="detail && matchDetail">
+      <div class="flex max-h-[90vh] flex-col">
+
+        <!-- Kopf mit Gesamtstand -->
+        <div class="relative border-b border-line p-5 sm:p-6">
+          <button type="button" @click="closeDetail()" class="absolute right-3 top-3 rounded-lg p-1.5 text-mist transition-colors hover:text-ink" aria-label="Schließen">
+            <svg viewBox="0 0 24 24" class="size-5" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M6 6l12 12M18 6L6 18"/></svg>
+          </button>
+          <p class="font-display text-xs font-semibold uppercase tracking-[0.25em] text-flame-400" x-text="`Spieltag ${matchDetail.day} · Match-Detail`"></p>
+
+          <div class="mt-4 grid grid-cols-[1fr_auto_1fr] items-start gap-2 sm:gap-4">
+            <button type="button" @click="closeDetail(); $dispatch('navigate', { key: 'teams', teamId: matchDetail.home?.id })"
+                    class="flex flex-col items-center gap-2 rounded-xl p-1 transition-colors hover:bg-elevated">
+              <img :src="logoUrl(matchDetail.home?.logo)" :alt="matchDetail.home?.name" class="size-14 rounded-xl object-contain sm:size-16" />
+              <div class="min-w-0 text-center">
+                <p class="truncate text-sm font-semibold text-ink" x-text="matchDetail.home?.name"></p>
+                <p class="truncate text-xs font-medium" :style="`color:${playerColor(matchDetail.home?.player)}`" x-text="matchDetail.home?.player"></p>
+              </div>
+            </button>
+
+            <div class="px-1 text-center">
+              <div class="font-display text-4xl font-bold tabular-nums sm:text-5xl">
+                <span :class="matchDetail.winner === 'home' ? 'text-flame-400' : 'text-mist'" x-text="matchDetail.homeWins"></span>
+                <span class="text-mist">:</span>
+                <span :class="matchDetail.winner === 'away' ? 'text-flame-400' : 'text-mist'" x-text="matchDetail.awayWins"></span>
+              </div>
+              <p class="mt-1 text-[11px] uppercase tracking-wider text-mist">Kämpfe</p>
+              <p class="mt-1.5 text-xs text-mist">Kills <span class="font-semibold text-ink" x-text="`${matchDetail.homeKills} : ${matchDetail.awayKills}`"></span></p>
+            </div>
+
+            <button type="button" @click="closeDetail(); $dispatch('navigate', { key: 'teams', teamId: matchDetail.away?.id })"
+                    class="flex flex-col items-center gap-2 rounded-xl p-1 transition-colors hover:bg-elevated">
+              <img :src="logoUrl(matchDetail.away?.logo)" :alt="matchDetail.away?.name" class="size-14 rounded-xl object-contain sm:size-16" />
+              <div class="min-w-0 text-center">
+                <p class="truncate text-sm font-semibold text-ink" x-text="matchDetail.away?.name"></p>
+                <p class="truncate text-xs font-medium" :style="`color:${playerColor(matchDetail.away?.player)}`" x-text="matchDetail.away?.player"></p>
+              </div>
+            </button>
+          </div>
+        </div>
+
+        <!-- Inhalt -->
+        <div class="min-h-0 flex-1 overflow-y-auto p-5 sm:p-6">
+          <p x-show="!matchDetail.played" class="rounded-xl border border-line bg-elevated/30 px-4 py-6 text-center text-sm text-mist">
+            Für dieses Match wurde noch kein vollständiger Kampf erfasst.
+          </p>
+
+          <!-- Aufgebote -->
+          <div x-show="matchDetail.squads.home.length || matchDetail.squads.away.length" class="mb-6 grid grid-cols-1 gap-4 sm:grid-cols-2">
+            <template x-for="side in ['home', 'away']" :key="side">
+              <div>
+                <p class="mb-2 text-xs font-semibold uppercase tracking-wider"
+                   :style="`color:${playerColor((side === 'home' ? matchDetail.home : matchDetail.away)?.player)}`"
+                   x-text="`${(side === 'home' ? matchDetail.home : matchDetail.away)?.name} · Aufgebot`"></p>
+                <div class="flex flex-wrap gap-1.5">
+                  <template x-for="mon in matchDetail.squads[side]" :key="mon.name">
+                    <div class="grid size-10 place-items-center rounded-lg bg-elevated" :title="mon.name">
+                      <img :src="mon.image" :alt="mon.name" loading="lazy" class="size-8 object-contain" />
+                    </div>
+                  </template>
+                </div>
+              </div>
+            </template>
+          </div>
+
+          <!-- Kämpfe -->
+          <div class="space-y-4">
+            <template x-for="b in matchDetail.battles" :key="b.no">
+              <section class="rounded-xl border border-line bg-elevated/30 p-4">
+                <div class="mb-3 flex items-center justify-between gap-2">
+                  <h4 class="font-display text-sm font-bold uppercase tracking-wider text-ink" x-text="`Kampf ${b.no}`"></h4>
+                  <template x-if="b.done">
+                    <span class="rounded-full px-2.5 py-1 text-xs font-bold"
+                          :class="b.winner === 'draw' ? 'bg-elevated text-mist' : 'bg-flame-500/15 text-flame-400'"
+                          x-text="b.winner === 'draw' ? 'Unentschieden' : `Sieg ${(b.winner === 'home' ? matchDetail.home : matchDetail.away)?.name}`"></span>
+                  </template>
+                  <template x-if="!b.done">
+                    <span class="rounded-full bg-elevated px-2.5 py-1 text-xs font-semibold text-mist">Nicht ausgetragen</span>
+                  </template>
+                </div>
+
+                <template x-if="b.done">
+                  <div class="grid grid-cols-1 gap-4 sm:grid-cols-2">
+                    <template x-for="side in ['home', 'away']" :key="side">
+                      <div>
+                        <div class="mb-2 flex items-center justify-between gap-2">
+                          <span class="truncate text-xs font-semibold uppercase tracking-wider"
+                                :style="`color:${playerColor((side === 'home' ? matchDetail.home : matchDetail.away)?.player)}`"
+                                x-text="(side === 'home' ? matchDetail.home : matchDetail.away)?.name"></span>
+                          <span class="shrink-0 font-display text-[11px] font-bold tabular-nums text-mist"
+                                x-text="`${b[side].survivors} überlebt · ${b[side].kills} KO`"></span>
+                        </div>
+                        <div class="space-y-1.5">
+                          <template x-for="mon in b[side].mons" :key="mon.name">
+                            <div class="flex items-center gap-2 rounded-lg border bg-panel/60 p-2"
+                                 :class="mon.status === 'survived' ? 'border-volt-400/30' : 'border-flame-500/25'">
+                              <img :src="mon.image" :alt="mon.name" loading="lazy" class="size-9 shrink-0 object-contain"
+                                   :class="mon.status !== 'survived' ? 'opacity-50 grayscale' : ''" />
+                              <div class="min-w-0 flex-1">
+                                <p class="truncate text-sm font-semibold text-ink" x-text="mon.name"></p>
+                                <p class="truncate text-xs" :class="mon.status === 'survived' ? 'text-volt-400' : 'text-flame-400'"
+                                   x-text="mon.status === 'survived' ? 'Überlebt' : (mon.byNone ? 'Besiegt' : (mon.self ? `Self-Kill durch ${mon.by}` : `Besiegt von ${mon.by}`))"></p>
+                              </div>
+                              <span x-show="mon.frags.length" class="shrink-0 rounded bg-volt-400/15 px-1.5 py-0.5 font-display text-[11px] font-bold text-volt-400"
+                                    :title="`Besiegt: ${mon.frags.join(', ')}`" x-text="`${mon.frags.length} KO`"></span>
+                            </div>
+                          </template>
+                        </div>
+                      </div>
+                    </template>
+                  </div>
+                </template>
+              </section>
+            </template>
+          </div>
+        </div>
+
+        <!-- Fuß -->
+        <div class="flex items-center justify-between gap-3 border-t border-line p-4 sm:px-6">
+          <button type="button" @click="closeDetail()"
+                  class="rounded-xl border border-line px-4 py-2.5 font-semibold text-mist transition-colors hover:text-ink">Schließen</button>
+          <button type="button" @click="editFromDetail()"
+                  class="rounded-xl bg-flame-500 px-5 py-2.5 font-display font-bold uppercase tracking-wide text-white transition-colors hover:bg-flame-600">Bearbeiten</button>
         </div>
       </div>
     </template>
