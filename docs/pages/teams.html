@@ -10,7 +10,7 @@
 
     <div x-show="!loaded" class="py-12 text-center text-mist">Lade Teams…</div>
 
-    <div x-show="loaded" class="grid gap-5 sm:grid-cols-2 xl:grid-cols-3">
+    <div x-show="loaded" class="grid grid-cols-1 gap-5 sm:grid-cols-2 xl:grid-cols-3">
       <template x-for="t in teams" :key="t.id">
         <article @click="open(t.id)"
                  class="cursor-pointer rounded-2xl border border-line bg-panel p-6 transition-colors hover:border-flame-500/40">
@@ -100,8 +100,8 @@
       <!-- MODUL: Saison-Kontext (Platz, Ergebnisse, Verlauf) -->
       <section class="mt-10">
         <h2 class="mb-4 font-display text-xl font-bold uppercase tracking-wider text-ink">Saison</h2>
-        <div class="grid gap-6 lg:grid-cols-2">
-          <div class="rounded-2xl border border-line bg-panel p-6">
+        <div class="grid grid-cols-1 gap-6 lg:grid-cols-2">
+          <div class="min-w-0 rounded-2xl border border-line bg-panel p-6">
             <p class="font-display text-xs font-semibold uppercase tracking-wider text-mist">Tabellenplatz</p>
             <div class="mt-1 flex items-end gap-3">
               <span class="font-display text-5xl font-bold text-ink" x-text="teamPlace ? `#${teamPlace}` : '—'"></span>
@@ -123,7 +123,7 @@
             </div>
           </div>
 
-          <div class="rounded-2xl border border-line bg-panel p-6">
+          <div class="min-w-0 rounded-2xl border border-line bg-panel p-6">
             <p class="font-display text-xs font-semibold uppercase tracking-wider text-mist">Platzierungsverlauf</p>
             <div x-show="teamCurve.hasData" class="mt-3 overflow-x-auto" x-html="teamCurveSvg"></div>
             <p x-show="!teamCurve.hasData" class="mt-3 py-8 text-center text-sm text-mist">Noch keine gespielten Spieltage.</p>

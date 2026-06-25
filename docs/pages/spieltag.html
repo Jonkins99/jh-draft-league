@@ -44,13 +44,13 @@
               <h3 class="font-display text-lg font-bold uppercase tracking-wider text-ink" x-text="`Spieltag ${day.day}`"></h3>
             </div>
 
-            <div class="grid gap-4 md:grid-cols-2">
+            <div class="grid grid-cols-1 gap-4 md:grid-cols-2">
               <template x-for="(m, i) in day.matches" :key="i">
                 <article @click="openDetail(day.day, i, m.home, m.away)"
                          class="cursor-pointer rounded-2xl border border-line bg-panel p-4 transition-colors hover:border-flame-500/40 sm:p-5">
-                  <div class="flex items-center justify-between gap-2 sm:gap-3">
+                  <div class="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between sm:gap-3">
                     <button type="button" @click.stop="$dispatch('navigate', { key: 'teams', teamId: m.home })"
-                            class="flex min-w-0 flex-1 items-center gap-2 rounded-lg text-left transition-opacity hover:opacity-80 sm:gap-3">
+                            class="flex min-w-0 items-center gap-3 rounded-lg text-left transition-opacity hover:opacity-80 sm:flex-1">
                       <img :src="logoUrl(teamById(m.home)?.logo)" :alt="teamById(m.home)?.name"
                            class="size-10 shrink-0 rounded-lg object-contain sm:size-11" />
                       <div class="min-w-0">
@@ -60,17 +60,17 @@
                       </div>
                     </button>
 
-                    <span class="shrink-0 font-display text-xs font-bold uppercase tracking-wider text-flame-400 sm:text-sm">vs</span>
+                    <span class="shrink-0 self-start font-display text-xs font-bold uppercase tracking-wider text-flame-400 sm:self-auto sm:text-sm">vs</span>
 
                     <button type="button" @click.stop="$dispatch('navigate', { key: 'teams', teamId: m.away })"
-                            class="flex min-w-0 flex-1 items-center justify-end gap-2 rounded-lg text-right transition-opacity hover:opacity-80 sm:gap-3">
+                            class="flex min-w-0 items-center gap-3 rounded-lg text-left transition-opacity hover:opacity-80 sm:flex-1 sm:flex-row-reverse sm:text-right">
+                      <img :src="logoUrl(teamById(m.away)?.logo)" :alt="teamById(m.away)?.name"
+                           class="size-10 shrink-0 rounded-lg object-contain sm:size-11" />
                       <div class="min-w-0">
                         <p class="truncate font-semibold text-ink" x-text="teamById(m.away)?.name"></p>
                         <p class="truncate text-sm font-medium" :style="`color:${playerColor(teamById(m.away)?.player)}`"
                            x-text="teamById(m.away)?.player"></p>
                       </div>
-                      <img :src="logoUrl(teamById(m.away)?.logo)" :alt="teamById(m.away)?.name"
-                           class="size-10 shrink-0 rounded-lg object-contain sm:size-11" />
                     </button>
                   </div>
 
@@ -280,14 +280,14 @@
         </div>
 
         <!-- Fuß -->
-        <div class="flex items-center justify-between gap-3 border-t border-line px-6 py-4">
+        <div class="flex flex-wrap items-center justify-between gap-2 border-t border-line px-4 py-4 sm:gap-3 sm:px-6">
           <button type="button" @click="step = Math.max(0, step - 1)" :disabled="step === 0"
-                  class="rounded-xl border border-line px-4 py-2.5 font-semibold text-mist transition-colors hover:text-ink disabled:opacity-40">Zurück</button>
-          <div class="flex gap-3">
+                  class="rounded-xl border border-line px-3.5 py-2.5 font-semibold text-mist transition-colors hover:text-ink disabled:opacity-40 sm:px-4">Zurück</button>
+          <div class="flex gap-2 sm:gap-3">
             <button type="button" x-show="step < 3" @click="step = step + 1"
-                    class="rounded-xl border border-line px-4 py-2.5 font-semibold text-mist transition-colors hover:text-ink">Weiter</button>
+                    class="rounded-xl border border-line px-3.5 py-2.5 font-semibold text-mist transition-colors hover:text-ink sm:px-4">Weiter</button>
             <button type="button" @click="save()" :disabled="saving"
-                    class="rounded-xl bg-flame-500 px-5 py-2.5 font-display font-bold uppercase tracking-wide text-white transition-colors hover:bg-flame-600 disabled:opacity-60">Speichern</button>
+                    class="rounded-xl bg-flame-500 px-4 py-2.5 font-display font-bold uppercase tracking-wide text-white transition-colors hover:bg-flame-600 disabled:opacity-60 sm:px-5">Speichern</button>
           </div>
         </div>
       </div>
