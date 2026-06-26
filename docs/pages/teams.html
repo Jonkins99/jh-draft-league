@@ -97,6 +97,180 @@
         </p>
       </section>
 
+      <!-- MODUL: Speed-Tiers (errechnete Initiative auf Lvl 50) -->
+      <section x-show="(selectedTeam.pokemon || []).length" class="mt-6 rounded-2xl border border-line bg-panel p-5 sm:p-6">
+        <div class="mb-4">
+          <h2 class="font-display text-xl font-bold uppercase tracking-wider text-ink">Speed-Tiers</h2>
+          <p class="mt-1 text-sm text-mist">Errechnete Initiative (Lvl 50): <b>0</b> SP, <b>32</b> SP und <b>32+</b> (32 SP mit positivem Wesen). Pro Pokémon optional ×1,5 (Boost/Wahlschal) und ×2 (Rückenwind/Wassertempo).</p>
+        </div>
+
+        <!-- Steuerung je Pokémon -->
+        <div class="mb-5 grid gap-2 sm:grid-cols-2">
+          <template x-for="mon in speedMons" :key="'spd-'+mon.name">
+            <div class="flex min-w-0 items-center gap-2 rounded-xl border border-line bg-elevated/60 p-2 transition-opacity"
+                 :class="spdGet(mon.name).show ? '' : 'opacity-50'">
+              <img :src="mon.image" :alt="mon.name" loading="lazy" class="size-9 shrink-0 object-contain" />
+              <span class="min-w-0 flex-1 truncate text-sm font-semibold text-ink" x-text="mon.name" :title="mon.name"></span>
+              <div class="flex shrink-0 gap-1">
+                <button type="button" @click="spdToggle(mon.name,'show')"
+                        class="grid size-8 place-items-center rounded-lg border border-line text-mist transition-colors"
+                        :style="spdGet(mon.name).show ? 'border-color:#e3350d;background:#e3350d22;color:#ff5a36' : ''"
+                        :title="spdGet(mon.name).show ? 'In Tabelle anzeigen (an)' : 'In Tabelle anzeigen (aus)'" :aria-pressed="spdGet(mon.name).show">
+                  <svg viewBox="0 0 24 24" class="size-4" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                    <path x-show="spdGet(mon.name).show" d="M2 12s3.5-7 10-7 10 7 10 7-3.5 7-10 7-10-7-10-7z"/>
+                    <circle x-show="spdGet(mon.name).show" cx="12" cy="12" r="3"/>
+                    <path x-show="!spdGet(mon.name).show" d="M3 3l18 18M10.6 10.6a3 3 0 0 0 4.2 4.2M9.9 5.2A9.5 9.5 0 0 1 12 5c6.5 0 10 7 10 7a17 17 0 0 1-3.2 3.9M6.6 6.6A17 17 0 0 0 2 12s3.5 7 10 7a9.6 9.6 0 0 0 3-.5"/>
+                  </svg>
+                </button>
+                <button type="button" @click="spdToggle(mon.name,'x15')"
+                        class="h-8 rounded-lg border border-line px-2 text-xs font-bold text-mist transition-colors"
+                        :style="spdGet(mon.name).x15 ? 'border-color:#4d90d5;background:#4d90d522;color:#7fb2e8' : ''"
+                        :aria-pressed="spdGet(mon.name).x15">×1,5</button>
+                <button type="button" @click="spdToggle(mon.name,'x2')"
+                        class="h-8 rounded-lg border border-line px-2 text-xs font-bold text-mist transition-colors"
+                        :style="spdGet(mon.name).x2 ? 'border-color:#63bc5a;background:#63bc5a22;color:#8fd588' : ''"
+                        :aria-pressed="spdGet(mon.name).x2">×2</button>
+              </div>
+            </div>
+          </template>
+        </div>
+
+        <!-- Tabelle -->
+        <div x-show="speedReady && speedRows.length">
+          <table class="w-full table-fixed border-collapse text-sm">
+            <colgroup>
+              <col />
+              <col class="w-12 sm:w-16" />
+              <col class="w-14 sm:w-20" />
+              <col class="w-12 sm:w-16" />
+            </colgroup>
+            <thead>
+              <tr class="border-b border-line">
+                <th class="py-2 pr-2 text-left font-display text-xs font-semibold uppercase tracking-wider text-mist">Pokémon</th>
+                <th class="px-1 py-2 text-left font-display text-xs font-semibold uppercase tracking-wider text-mist sm:px-2">SP</th>
+                <th class="px-1 py-2 text-left font-display text-xs font-semibold uppercase tracking-wider text-mist sm:px-2">Mod.</th>
+                <th class="py-2 pl-1 text-right sm:pl-2">
+                  <button type="button" @click="toggleSpdSort()" class="inline-flex items-center gap-1 font-display text-xs font-semibold uppercase tracking-wider text-mist transition-colors hover:text-ink">
+                    Init <span class="text-flame-400" x-text="spdSort === 'desc' ? '↓' : '↑'"></span>
+                  </button>
+                </th>
+              </tr>
+            </thead>
+            <tbody>
+              <template x-for="r in speedRows" :key="r.id">
+                <tr class="border-b border-line/50">
+                  <td class="py-1.5 pr-2">
+                    <div class="flex items-center gap-2">
+                      <img :src="r.mon.image" :alt="r.mon.name" loading="lazy" class="size-7 shrink-0 object-contain" />
+                      <span class="min-w-0 truncate font-medium text-ink" x-text="r.mon.name" :title="r.mon.name"></span>
+                    </div>
+                  </td>
+                  <td class="px-1 py-1.5 sm:px-2">
+                    <span class="inline-block rounded px-1.5 py-0.5 text-xs font-bold" :style="`color:${invColor(r.invKey)};background:${invColor(r.invKey)}1f`" x-text="r.inv"></span>
+                  </td>
+                  <td class="px-1 py-1.5 sm:px-2">
+                    <span class="inline-block rounded px-1.5 py-0.5 text-xs font-bold" :style="`color:${modColor(r.modKey)};background:${modColor(r.modKey)}1f`" x-text="r.mod"></span>
+                  </td>
+                  <td class="py-1.5 pl-1 text-right font-display text-lg font-bold tabular-nums text-ink sm:pl-2" x-text="r.speed"></td>
+                </tr>
+              </template>
+            </tbody>
+          </table>
+        </div>
+        <p x-show="speedReady && !speedRows.length" class="text-sm text-mist">Keine Pokémon ausgewählt.</p>
+        <p x-show="!speedReady" class="text-sm text-mist">Lade Initiative-Daten…</p>
+      </section>
+
+      <!-- MODUL: Schwächen & Resistenzen (Team-Defensivprofil je Angriffstyp) -->
+      <section x-show="(selectedTeam.pokemon || []).length" class="mt-6 rounded-2xl border border-line bg-panel p-5 sm:p-6">
+        <div class="mb-4">
+          <h2 class="font-display text-xl font-bold uppercase tracking-wider text-ink">Schwächen &amp; Resistenzen</h2>
+          <p class="mt-1 text-sm text-mist">Defensiv-Profil je Angriffstyp. Pokémon antippen, um sie aus der Auswertung auszuschließen.</p>
+        </div>
+
+        <!-- Pokémon-Auswahl -->
+        <div class="mb-5 flex flex-wrap gap-2">
+          <template x-for="mon in speedMons" :key="'wk-'+mon.name">
+            <button type="button" @click="toggleWeak(mon.name)"
+                    class="flex items-center gap-1.5 rounded-full border py-1 pl-1 pr-2.5 text-sm font-semibold transition-colors"
+                    :class="weakIncluded(mon.name) ? 'border-flame-500/40 bg-flame-500/10 text-ink' : 'border-line text-mist opacity-50'"
+                    :aria-pressed="weakIncluded(mon.name)">
+              <img :src="mon.image" :alt="mon.name" loading="lazy" class="size-6 shrink-0 object-contain" :class="weakIncluded(mon.name) ? '' : 'grayscale'" />
+              <span class="max-w-[6.5rem] truncate" x-text="mon.name"></span>
+            </button>
+          </template>
+        </div>
+
+        <template x-if="weakMons.length">
+          <div>
+            <!-- Übersichtskarten je Typ (größte Schwächen zuerst) -->
+            <div class="grid grid-cols-2 gap-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6">
+              <template x-for="t in weakSummary" :key="'sum-'+t.type">
+                <div class="rounded-xl border border-line bg-elevated/60 p-2.5"
+                     :style="t.net > 0 ? 'border-color:rgba(227,53,13,0.35)' : (t.net < 0 ? 'border-color:rgba(99,188,90,0.35)' : '')">
+                  <span class="inline-block rounded px-1.5 py-0.5 text-[10px] font-bold uppercase tracking-wide" :style="`color:${typeColor(t.type)};background:${typeColor(t.type)}22`" x-text="t.type"></span>
+                  <div class="mt-2 flex items-center gap-1.5 font-display text-base font-bold tabular-nums">
+                    <span class="text-flame-400" :class="t.weak ? '' : 'opacity-25'" x-text="t.weak"></span>
+                    <span class="text-mist/40 text-xs">/</span>
+                    <span :class="(t.resist + t.immune) ? '' : 'opacity-25'" :style="'color:#63bc5a'" x-text="t.resist + t.immune"></span>
+                    <span x-show="t.immune" class="ml-auto rounded bg-mist/15 px-1 text-[9px] font-bold text-mist" x-text="t.immune + '× immun'"></span>
+                  </div>
+                  <div class="mt-0.5 text-[10px] text-mist">schwach / stark</div>
+                </div>
+              </template>
+            </div>
+
+            <!-- Detail-Matrix: Pokémon × Angriffstyp -->
+            <div class="mt-5 -mx-1 overflow-x-auto px-1">
+              <table class="border-collapse text-center text-xs">
+                <thead>
+                  <tr>
+                    <th class="sticky left-0 z-10 bg-panel py-1.5 pr-2 text-left font-display text-[10px] font-semibold uppercase tracking-wider text-mist">Pokémon</th>
+                    <template x-for="ty in allTypes" :key="'h-'+ty">
+                      <th class="px-0.5 py-1">
+                        <span class="inline-block w-9 rounded py-0.5 text-[9px] font-bold" :style="`color:${typeColor(ty)};background:${typeColor(ty)}22`" x-text="typeAbbr(ty)" :title="ty"></span>
+                      </th>
+                    </template>
+                  </tr>
+                </thead>
+                <tbody>
+                  <template x-for="row in weakMatrix" :key="'m-'+row.name">
+                    <tr class="border-t border-line/40">
+                      <td class="sticky left-0 z-10 bg-panel py-1 pr-2 text-left">
+                        <div class="flex items-center gap-1.5">
+                          <img :src="row.image" :alt="row.name" loading="lazy" class="size-6 shrink-0 object-contain" />
+                          <span class="max-w-[5.5rem] truncate font-medium text-ink" x-text="row.name" :title="row.name"></span>
+                        </div>
+                      </td>
+                      <template x-for="c in row.cells" :key="row.name+'-'+c.type">
+                        <td class="p-0.5">
+                          <span class="grid h-7 w-9 place-items-center rounded font-bold tabular-nums" :style="multStyle(c.mult)" x-text="multLabel(c.mult)" :title="row.name + ' · ' + c.type + ': ×' + c.mult"></span>
+                        </td>
+                      </template>
+                    </tr>
+                  </template>
+                </tbody>
+                <tfoot>
+                  <tr class="border-t border-line">
+                    <td class="sticky left-0 z-10 bg-panel py-1.5 pr-2 text-left font-display text-[10px] font-semibold uppercase tracking-wider text-flame-400">Schwach</td>
+                    <template x-for="t in weakByType" :key="'fw-'+t.type">
+                      <td class="p-0.5"><span class="font-display font-bold tabular-nums text-flame-400" :class="t.weak ? '' : 'opacity-25'" x-text="t.weak"></span></td>
+                    </template>
+                  </tr>
+                  <tr>
+                    <td class="sticky left-0 z-10 bg-panel py-1.5 pr-2 text-left font-display text-[10px] font-semibold uppercase tracking-wider" style="color:#63bc5a">Stark</td>
+                    <template x-for="t in weakByType" :key="'fr-'+t.type">
+                      <td class="p-0.5"><span class="font-display font-bold tabular-nums" :class="(t.resist + t.immune) ? '' : 'opacity-25'" style="color:#63bc5a" x-text="t.resist + t.immune"></span></td>
+                    </template>
+                  </tr>
+                </tfoot>
+              </table>
+            </div>
+          </div>
+        </template>
+        <p x-show="!weakMons.length" class="text-sm text-mist">Alle Pokémon ausgeschlossen — bitte mindestens eines auswählen.</p>
+      </section>
+
       <!-- MODUL: Saison-Kontext (Platz, Ergebnisse, Verlauf) -->
       <section class="mt-10">
         <h2 class="mb-4 font-display text-xl font-bold uppercase tracking-wider text-ink">Saison</h2>

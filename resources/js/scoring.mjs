@@ -133,3 +133,69 @@ export function placementHistory(teams, results) {
 
   return { days: playedDays, series };
 }
+
+// === Pokémon Champions: Initiative-Statuswert (Speed) =======================
+// In Champions kämpfen alle Pokémon auf Level 50 mit fixen IVs (31). EVs sind
+// durch SP (Stat Points) ersetzt: 1 SP = +1 Punkt, max. 32 SP pro Statuswert.
+// Nicht-HP-Formel:  floor( (floor((2*Base+31)/2) + 5 + SP) * Wesen )
+// mit Wesen = 1,1 (positiv) / 1,0 (neutral). Gegen die Serebii-Champions-Daten
+// verifiziert (z. B. Mega-Simsala Base 150 -> 32 SP + positives Wesen = 222).
+
+// Initiative für gegebene SP und Wesen.
+export function speedAt(base, sp = 0, natureUp = false) {
+  const core = Math.floor((2 * base + 31) / 2) + 5 + sp;
+  return Math.floor(core * (natureUp ? 1.1 : 1));
+}
+
+// Die drei Investment-Fälle (ohne In-Battle-Modifikator):
+//  s0   = 0 SP, neutrales Wesen
+//  s32  = 32 SP, neutrales Wesen
+//  s32n = 32 SP, positives Initiative-Wesen
+export function speedTiers(base) {
+  return {
+    s0: speedAt(base, 0, false),
+    s32: speedAt(base, 32, false),
+    s32n: speedAt(base, 32, true),
+  };
+}
+
+// In-Battle-Multiplikator (Initiative-Boost/Wahlschal = x1,5,
+// Rückenwind/Wassertempo = x2). In den Spielen wird abgerundet.
+export function applySpeedMod(value, mult) {
+  return Math.floor(value * mult);
+}
+
+// === Typ-Effektivität (Gen 6+, inkl. Fee) ===================================
+export const ALL_TYPES = [
+  'Normal', 'Feuer', 'Wasser', 'Elektro', 'Pflanze', 'Eis', 'Kampf', 'Gift',
+  'Boden', 'Flug', 'Psycho', 'Käfer', 'Gestein', 'Geist', 'Drache', 'Unlicht',
+  'Stahl', 'Fee',
+];
+
+// Angriffstyp -> { Verteidigungstyp: Multiplikator != 1 }
+export const TYPE_CHART = {
+  Normal: { Gestein: 0.5, Stahl: 0.5, Geist: 0 },
+  Feuer: { Feuer: 0.5, Wasser: 0.5, Pflanze: 2, Eis: 2, 'Käfer': 2, Gestein: 0.5, Drache: 0.5, Stahl: 2 },
+  Wasser: { Feuer: 2, Wasser: 0.5, Pflanze: 0.5, Boden: 2, Gestein: 2, Drache: 0.5 },
+  Elektro: { Wasser: 2, Elektro: 0.5, Pflanze: 0.5, Boden: 0, Flug: 2, Drache: 0.5 },
+  Pflanze: { Feuer: 0.5, Wasser: 2, Pflanze: 0.5, Gift: 0.5, Boden: 2, Flug: 0.5, 'Käfer': 0.5, Gestein: 2, Drache: 0.5, Stahl: 0.5 },
+  Eis: { Feuer: 0.5, Wasser: 0.5, Pflanze: 2, Eis: 0.5, Boden: 2, Flug: 2, Drache: 2, Stahl: 0.5 },
+  Kampf: { Normal: 2, Eis: 2, Gift: 0.5, Flug: 0.5, Psycho: 0.5, 'Käfer': 0.5, Gestein: 2, Geist: 0, Unlicht: 2, Stahl: 2, Fee: 0.5 },
+  Gift: { Pflanze: 2, Gift: 0.5, Boden: 0.5, Gestein: 0.5, Geist: 0.5, Stahl: 0, Fee: 2 },
+  Boden: { Feuer: 2, Elektro: 2, Pflanze: 0.5, Gift: 2, Flug: 0, 'Käfer': 0.5, Gestein: 2, Stahl: 2 },
+  Flug: { Elektro: 0.5, Pflanze: 2, Kampf: 2, 'Käfer': 2, Gestein: 0.5, Stahl: 0.5 },
+  Psycho: { Kampf: 2, Gift: 2, Psycho: 0.5, Unlicht: 0, Stahl: 0.5 },
+  'Käfer': { Feuer: 0.5, Pflanze: 2, Kampf: 0.5, Gift: 0.5, Flug: 0.5, Psycho: 2, Geist: 0.5, Unlicht: 2, Stahl: 0.5, Fee: 0.5 },
+  Gestein: { Feuer: 2, Eis: 2, Kampf: 0.5, Boden: 0.5, Flug: 2, 'Käfer': 2, Stahl: 0.5 },
+  Geist: { Normal: 0, Psycho: 2, Geist: 2, Unlicht: 0.5 },
+  Drache: { Drache: 2, Stahl: 0.5, Fee: 0 },
+  Unlicht: { Kampf: 0.5, Psycho: 2, Geist: 2, Unlicht: 0.5, Fee: 0.5 },
+  Stahl: { Feuer: 0.5, Wasser: 0.5, Elektro: 0.5, Eis: 2, Gestein: 2, Stahl: 0.5, Fee: 2 },
+  Fee: { Feuer: 0.5, Kampf: 2, Gift: 0.5, Drache: 2, Unlicht: 2, Stahl: 0.5 },
+};
+
+// Schadensmultiplikator eines Angriffstyps gegen ein (Doppel-)Typ-Pokémon.
+export function typeMultiplier(attackType, defenderTypes) {
+  const row = TYPE_CHART[attackType] || {};
+  return (defenderTypes || []).reduce((m, t) => m * (row[t] ?? 1), 1);
+}

@@ -1,7 +1,7 @@
 import Alpine from 'alpinejs';
 import { db } from './firebase.js';
 import { collection, doc, onSnapshot, writeBatch, arrayUnion, setDoc } from 'firebase/firestore';
-import { battleStats, computeStandings, pokemonStats, placementHistory } from './scoring.mjs';
+import { battleStats, computeStandings, pokemonStats, placementHistory, speedTiers, applySpeedMod, typeMultiplier, ALL_TYPES } from './scoring.mjs';
 
 const PICKS_PER_TEAM = 10;
 const TIER_ORDER = ['S', 'A', 'B', 'C', 'D'];
@@ -44,6 +44,31 @@ const TIER_COLORS = {
 
 const ACCESS_KEY = 'jhdl-access-v1';
 const ACCESS_HASH = 'b1cf8aac575a8627eb910e7df1962aa0d50621d7f1007fdeaa838d6fdce66883';
+
+// Persistente, gerätelokale Anzeige-Einstellungen der Team-Analyse-Bereiche.
+const SPEED_SETTINGS_KEY = 'jhdl-speedtiers-v1'; // { [monName]: { show, x15, x2 } }
+const WEAK_SETTINGS_KEY = 'jhdl-weakness-v1';   // { [monName]: true }  (ausgeschlossen)
+
+// Kurzkürzel je Typ für die kompakte Schwächen-Matrix.
+const TYPE_ABBR = {
+  Normal: 'NOR', Feuer: 'FEU', Wasser: 'WAS', Elektro: 'ELE', Pflanze: 'PFL',
+  Eis: 'EIS', Kampf: 'KAM', Gift: 'GIF', Boden: 'BOD', Flug: 'FLU', Psycho: 'PSY',
+  'Käfer': 'KÄF', Gestein: 'GES', Geist: 'GEI', Drache: 'DRA', Unlicht: 'UNL',
+  Stahl: 'STA', Fee: 'FEE',
+};
+
+function loadJson(key) {
+  try {
+    return JSON.parse(localStorage.getItem(key) || '{}') || {};
+  } catch (e) {
+    return {};
+  }
+}
+function saveJson(key, value) {
+  try {
+    localStorage.setItem(key, JSON.stringify(value));
+  } catch (e) {}
+}
 
 function shuffle(arr) {
   const a = [...arr];
@@ -504,8 +529,17 @@ function teamsView() {
     statDir: 'desc',
     statModes: STAT_MODES,
 
+    // Speed-Tiers: gerätelokal persistierte Anzeige-Einstellungen je Pokémon.
+    spdSort: 'desc',
+    spdSettings: {},
+    // Schwächen/Resistenzen: ausgeschlossene Pokémon (gerätelokal).
+    weakExcluded: {},
+    allTypes: ALL_TYPES,
+
     // Beim Laden: ggf. per Verlinkung übergebenes Team direkt öffnen.
     init() {
+      this.spdSettings = loadJson(SPEED_SETTINGS_KEY);
+      this.weakExcluded = loadJson(WEAK_SETTINGS_KEY);
       const nav = this.$store.nav;
       const teamId = nav?.teamId || null;
       if (nav) nav.teamId = null;
@@ -628,6 +662,140 @@ function teamsView() {
     rosterByTier(team) {
       const rank = { S: 0, A: 1, B: 2, C: 3, D: 4 };
       return [...(team?.pokemon || [])].sort((a, b) => (rank[a.tier] ?? 9) - (rank[b.tier] ?? 9));
+    },
+
+    // === Speed-Tiers ========================================================
+    // Gedraftete Pokémon werden ohne base_speed gespeichert -> aus der Stammliste
+    // (pokemon.json im Store) per Name auflösen.
+    get speedReady() {
+      return this.league.pokemonLoaded;
+    },
+    baseSpeedFor(mon) {
+      const m = this.league.pokemon.find((p) => p.name === mon.name);
+      const v = m?.base_speed ?? mon.base_speed;
+      return Number.isFinite(v) ? v : null;
+    },
+    spdGet(name) {
+      const s = this.spdSettings[name] || {};
+      return { show: s.show !== false, x15: !!s.x15, x2: !!s.x2 };
+    },
+    spdToggle(name, key) {
+      const cur = this.spdGet(name);
+      cur[key] = !cur[key];
+      this.spdSettings = { ...this.spdSettings, [name]: cur };
+      saveJson(SPEED_SETTINGS_KEY, this.spdSettings);
+    },
+    toggleSpdSort() {
+      this.spdSort = this.spdSort === 'desc' ? 'asc' : 'desc';
+    },
+    // Anzeige-Pokémon der Steuerung (Kader nach Tier sortiert).
+    get speedMons() {
+      return this.rosterByTier(this.selectedTeam);
+    },
+    // Eine Zeile je (Pokémon × Investment-Fall × aktivem Modifikator).
+    get speedRows() {
+      const team = this.selectedTeam;
+      if (!team || !this.speedReady) return [];
+      const invs = [
+        { key: 's0', label: '0' },
+        { key: 's32', label: '32' },
+        { key: 's32n', label: '32+' },
+      ];
+      const rows = [];
+      for (const mon of (team.pokemon || [])) {
+        const s = this.spdGet(mon.name);
+        if (!s.show) continue;
+        const base = this.baseSpeedFor(mon);
+        if (base == null) continue;
+        const tiers = speedTiers(base);
+        const mods = [{ key: 'x1', label: '×1', mult: 1 }];
+        if (s.x15) mods.push({ key: 'x15', label: '×1,5', mult: 1.5 });
+        if (s.x2) mods.push({ key: 'x2', label: '×2', mult: 2 });
+        for (const inv of invs) {
+          for (const mod of mods) {
+            rows.push({
+              id: `${mon.name}|${inv.key}|${mod.key}`,
+              mon,
+              inv: inv.label,
+              invKey: inv.key,
+              mod: mod.label,
+              modKey: mod.key,
+              speed: applySpeedMod(tiers[inv.key], mod.mult),
+            });
+          }
+        }
+      }
+      const dir = this.spdSort === 'asc' ? 1 : -1;
+      rows.sort((a, b) => dir * (a.speed - b.speed) || a.mon.name.localeCompare(b.mon.name));
+      return rows;
+    },
+    invColor(key) {
+      return key === 's32n' ? '#ffcb05' : key === 's32' ? '#ff5a36' : '#98a2b3';
+    },
+    modColor(key) {
+      return key === 'x2' ? '#63bc5a' : key === 'x15' ? '#4d90d5' : '#98a2b3';
+    },
+
+    // === Schwächen & Resistenzen ===========================================
+    weakIncluded(name) {
+      return !this.weakExcluded[name];
+    },
+    toggleWeak(name) {
+      const next = { ...this.weakExcluded };
+      if (next[name]) delete next[name];
+      else next[name] = true;
+      this.weakExcluded = next;
+      saveJson(WEAK_SETTINGS_KEY, this.weakExcluded);
+    },
+    get weakMons() {
+      return (this.selectedTeam?.pokemon || []).filter((m) => this.weakIncluded(m.name));
+    },
+    // Je Angriffstyp: Multiplikator je einbezogenem Pokémon + Zählung schwach/resistent/immun.
+    get weakByType() {
+      const mons = this.weakMons;
+      return ALL_TYPES.map((type) => {
+        let weak = 0, resist = 0, immune = 0;
+        const cells = mons.map((m) => {
+          const mult = typeMultiplier(type, m.types || []);
+          if (mult === 0) immune++;
+          else if (mult > 1) weak++;
+          else if (mult < 1) resist++;
+          return { name: m.name, image: m.image, mult };
+        });
+        return { type, weak, resist, immune, net: weak - resist - immune, cells };
+      });
+    },
+    // Für die Übersichtskarten: nach Netto-Bedrohung absteigend (größte Schwächen zuerst).
+    get weakSummary() {
+      return [...this.weakByType].sort((a, b) => b.net - a.net || a.type.localeCompare(b.type));
+    },
+    // Detail-Matrix: ein Eintrag je einbezogenem Pokémon mit Multiplikator je Typ.
+    get weakMatrix() {
+      return this.weakMons.map((m) => ({
+        name: m.name,
+        image: m.image,
+        types: m.types || [],
+        cells: ALL_TYPES.map((type) => ({ type, mult: typeMultiplier(type, m.types || []) })),
+      }));
+    },
+    typeAbbr(type) {
+      return TYPE_ABBR[type] || type.slice(0, 3).toUpperCase();
+    },
+    // Farbe + Label eines Effektivitäts-Multiplikators.
+    multLabel(mult) {
+      if (mult === 0) return '0';
+      if (mult === 0.25) return '¼';
+      if (mult === 0.5) return '½';
+      if (mult === 1) return '·';
+      return String(mult);
+    },
+    multStyle(mult) {
+      if (mult >= 4) return 'background:rgba(227,53,13,0.85);color:#fff';
+      if (mult > 1) return 'background:rgba(227,53,13,0.4);color:#ffd9cf';
+      if (mult === 0) return 'background:rgba(152,162,179,0.16);color:#98a2b3';
+      if (mult <= 0.25) return 'background:rgba(99,188,90,0.7);color:#06210a';
+      if (mult < 1) return 'background:rgba(99,188,90,0.3);color:#bbe9b3';
+      return 'color:#5b6573';
     },
 
     logoUrl(file) {
