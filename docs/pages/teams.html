@@ -75,7 +75,8 @@
 
         <div x-show="(selectedTeam.pokemon || []).length" class="grid grid-cols-2 gap-4 sm:grid-cols-3 lg:grid-cols-5">
           <template x-for="p in rosterByTier(selectedTeam)" :key="p.name">
-            <div class="rounded-2xl border border-line bg-panel p-4">
+            <div @click.stop="goMon(p.name)"
+                 class="cursor-pointer rounded-2xl border border-line bg-panel p-4 transition-colors hover:border-flame-500/40">
               <div class="relative grid aspect-square place-items-center rounded-xl bg-elevated/60">
                 <span class="absolute left-2 top-2 grid size-6 place-items-center rounded font-display text-xs font-bold"
                       :style="`color:${tierColor(p.tier)}; background:${tierColor(p.tier)}26`" x-text="p.tier"></span>
@@ -109,8 +110,11 @@
           <template x-for="mon in speedMons" :key="'spd-'+mon.name">
             <div class="flex min-w-0 items-center gap-2 rounded-xl border border-line bg-elevated/60 p-2 transition-opacity"
                  :class="spdGet(mon.name).show ? '' : 'opacity-50'">
-              <img :src="mon.image" :alt="mon.name" loading="lazy" class="size-9 shrink-0 object-contain" />
-              <span class="min-w-0 flex-1 truncate text-sm font-semibold text-ink" x-text="mon.name" :title="mon.name"></span>
+              <button type="button" @click.stop="goMon(mon.name)"
+                      class="flex min-w-0 flex-1 cursor-pointer items-center gap-2 text-left transition-colors hover:text-flame-400">
+                <img :src="mon.image" :alt="mon.name" loading="lazy" class="size-9 shrink-0 object-contain" />
+                <span class="min-w-0 flex-1 truncate text-sm font-semibold text-ink" x-text="mon.name" :title="mon.name"></span>
+              </button>
               <div class="flex shrink-0 gap-1">
                 <button type="button" @click="spdToggle(mon.name,'show')"
                         class="grid size-8 place-items-center rounded-lg border border-line text-mist transition-colors"
@@ -160,7 +164,8 @@
               <template x-for="r in speedRows" :key="r.id">
                 <tr class="border-b border-line/50">
                   <td class="py-1.5 pr-2">
-                    <div class="flex items-center gap-2">
+                    <div @click.stop="goMon(r.mon.name)"
+                         class="flex cursor-pointer items-center gap-2 transition-colors hover:text-flame-400">
                       <img :src="r.mon.image" :alt="r.mon.name" loading="lazy" class="size-7 shrink-0 object-contain" />
                       <span class="min-w-0 truncate font-medium text-ink" x-text="r.mon.name" :title="r.mon.name"></span>
                     </div>
@@ -237,7 +242,8 @@
                   <template x-for="row in weakMatrix" :key="'m-'+row.name">
                     <tr class="border-t border-line/40">
                       <td class="sticky left-0 z-10 bg-panel py-1 pr-2 text-left">
-                        <div class="flex items-center gap-1.5">
+                        <div @click.stop="goMon(row.name)"
+                             class="flex cursor-pointer items-center gap-1.5 transition-colors hover:text-flame-400">
                           <img :src="row.image" :alt="row.name" loading="lazy" class="size-6 shrink-0 object-contain" />
                           <span class="max-w-[5.5rem] truncate font-medium text-ink" x-text="row.name" :title="row.name"></span>
                         </div>
@@ -354,7 +360,8 @@
         </div>
         <div class="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-5">
           <template x-for="(s, i) in teamRanking" :key="s.pokemon.name">
-            <div class="relative rounded-2xl border border-line bg-elevated p-3 text-center"
+            <div @click.stop="goMon(s.pokemon.name)"
+                 class="relative cursor-pointer rounded-2xl border border-line bg-elevated p-3 text-center transition-colors hover:border-flame-500/40"
                  :style="`view-transition-name:${vtName(s.pokemon)}`">
               <div class="flex items-center justify-between px-1">
                 <span class="font-display text-xs font-bold tabular-nums text-mist" x-text="`#${i + 1}`"></span>

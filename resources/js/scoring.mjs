@@ -199,3 +199,265 @@ export function typeMultiplier(attackType, defenderTypes) {
   const row = TYPE_CHART[attackType] || {};
   return (defenderTypes || []).reduce((m, t) => m * (row[t] ?? 1), 1);
 }
+
+// Defensive Typ-Tabelle: wie stark jeder Angriffstyp dieses (Doppel-)Typ-Pokémon trifft.
+// -> [{ type, mult }] für jeden ALL_TYPES.
+export function defensiveChart(types) {
+  return ALL_TYPES.map((type) => ({ type, mult: typeMultiplier(type, types || []) }));
+}
+
+// Offensive Coverage: für jeden Verteidigungstyp der beste (max.) Multiplikator,
+// den irgendeiner der eigenen Angriffstypen gegen diesen Typ erzielt.
+// -> [{ type, mult }] für jeden ALL_TYPES.
+export function offensiveChart(types) {
+  const atkTypes = types || [];
+  return ALL_TYPES.map((def) => {
+    const mult = atkTypes.reduce(
+      (best, atk) => Math.max(best, typeMultiplier(atk, [def])),
+      0,
+    );
+    return { type: def, mult: atkTypes.length ? mult : 1 };
+  });
+}
+
+// === Detail-Profil eines einzelnen Pokémon ==================================
+// Aggregiert über die gesamte results-Collection alle Kennzahlen für die
+// Pokémon-Detailansicht. Reine Funktion, kein Framework.
+//   name    — global eindeutiger Pokémon-Name
+//   teams   — alle Saison-Teams [{id,name,player,logo,pokemon:[{name,...}]}]
+//   results — results-Collection [{home,away,day,squads:{home,away},
+//             battles:[{done,used:{home,away},score:{home,away},
+//             kills:[{victimSide,victim,killerSide,killer}]}]}]
+// Zähl-Definitionen siehe Spec E1:
+//  - Nur Kämpfe mit b.done === true zählen.
+//  - kills:  k.killer === name && k.killerSide !== k.victimSide (kein Self-Kill).
+//  - deaths: k.victim === name (inkl. Self-Kill und ohne Verursacher).
+export function pokemonProfile(name, teams, results) {
+  // Team des Pokémon und dessen Gegner-Name je result ermitteln.
+  const team = (teams || []).find((t) => (t?.pokemon || []).some((p) => p?.name === name)) || null;
+  const teamById = {};
+  (teams || []).forEach((t) => { if (t?.id != null) teamById[t.id] = t; });
+  const teamName = (id) => teamById[id]?.name || null;
+
+  // Zähl-Helfer für [{name,count}]-Listen (desc sortiert).
+  const tally = () => Object.create(null);
+  const toList = (obj) =>
+    Object.entries(obj)
+      .map(([n, count]) => ({ name: n, count }))
+      .sort((a, b) => b.count - a.count || a.name.localeCompare(b.name));
+
+  const empty = {
+    drafted: false,
+    team: null,
+    teamMatchesPlayed: 0,
+    matchups: 0,
+    matchupPct: 0,
+    teamBattlesTotal: 0,
+    battles: 0,
+    battlesAvailable: 0,
+    battlePctTotal: 0,
+    battlePctAvailable: 0,
+    benched: 0,
+    kills: 0,
+    deaths: 0,
+    kd: 0,
+    killsPerBattle: 0,
+    survivalRate: 0,
+    history: [],
+    partnersByBattle: [],
+    opponentsByBattle: [],
+    partnersByMatchup: [],
+    opponentsByMatchup: [],
+    topVictims: [],
+    topNemeses: [],
+    matchRecordWith: { w: 0, l: 0, d: 0, total: 0, winPct: 0 },
+    matchRecordWithout: { w: 0, l: 0, d: 0, total: 0, winPct: 0 },
+    timeline: [],
+  };
+
+  if (!team) return empty;
+
+  let teamMatchesPlayed = 0;
+  let matchups = 0;
+  let teamBattlesTotal = 0;
+  let battles = 0;
+  let battlesAvailable = 0;
+  let kills = 0;
+  let deaths = 0;
+
+  const history = [];
+  const partnersByBattle = tally();
+  const opponentsByBattle = tally();
+  const partnersByMatchup = tally();
+  const opponentsByMatchup = tally();
+  const topVictims = tally();
+  const topNemeses = tally();
+
+  const recWith = { w: 0, l: 0, d: 0, total: 0, winPct: 0 };
+  const recWithout = { w: 0, l: 0, d: 0, total: 0, winPct: 0 };
+
+  const timeline = [];
+
+  // results des Teams chronologisch (day asc) sortieren.
+  const myResults = (results || [])
+    .filter((r) => r && (r.home === team.id || r.away === team.id))
+    .slice()
+    .sort((a, b) => (a.day ?? 0) - (b.day ?? 0));
+
+  myResults.forEach((r) => {
+    const ownSide = r.home === team.id ? 'home' : 'away';
+    const oppSide = ownSide === 'home' ? 'away' : 'home';
+    const oppTeamName = teamName(oppSide === 'home' ? r.home : r.away);
+
+    const doneBattles = (r.battles || []).filter((b) => b && b.done === true);
+    if (doneBattles.length === 0) return; // Match gilt nur mit >=1 done-battle als gespielt.
+
+    teamMatchesPlayed += 1;
+    teamBattlesTotal += doneBattles.length;
+
+    const inSquad = (r.squads?.[ownSide] || []).includes(name);
+    if (inSquad) {
+      matchups += 1;
+      // Partner/Gegner auf Matchup-Ebene (6er-squad).
+      (r.squads?.[ownSide] || []).forEach((n) => {
+        if (n && n !== name) partnersByMatchup[n] = (partnersByMatchup[n] || 0) + 1;
+      });
+      (r.squads?.[oppSide] || []).forEach((n) => {
+        if (n) opponentsByMatchup[n] = (opponentsByMatchup[n] || 0) + 1;
+      });
+    }
+
+    // Match-Ausgang aus Team-Sicht: gewonnene Kämpfe vergleichen.
+    let ownPts = 0;
+    let oppPts = 0;
+    let monBattlesThisMatch = 0;
+    let monKillsThisMatch = 0;
+    let monDeathsThisMatch = 0;
+
+    doneBattles.forEach((b, idx) => {
+      const battleNo = (r.battles || []).indexOf(b);
+      const s = battleStats(b.score);
+      ownPts += ownSide === 'home' ? s.homePoints : s.awayPoints;
+      oppPts += ownSide === 'home' ? s.awayPoints : s.homePoints;
+
+      const usedOwn = b.used?.[ownSide] || [];
+      const usedOpp = b.used?.[oppSide] || [];
+      const inBattle = usedOwn.includes(name);
+
+      // battlesAvailable: done-battles in Matches, in denen es im squad stand.
+      if (inSquad) battlesAvailable += 1;
+
+      if (inBattle) {
+        battles += 1;
+        monBattlesThisMatch += 1;
+        usedOwn.forEach((n) => {
+          if (n && n !== name) partnersByBattle[n] = (partnersByBattle[n] || 0) + 1;
+        });
+        usedOpp.forEach((n) => {
+          if (n) opponentsByBattle[n] = (opponentsByBattle[n] || 0) + 1;
+        });
+      }
+
+      (b.kills || []).forEach((k) => {
+        if (!k) return;
+        const isSelf = k.killerSide != null && k.killerSide === k.victimSide;
+        const isNone = k.killerSide == null;
+
+        // Kill: dieses Pokémon hat ein gegnerisches besiegt (kein Self-Kill).
+        if (k.killer === name && k.killerSide !== k.victimSide) {
+          kills += 1;
+          monKillsThisMatch += 1;
+          if (k.victim) topVictims[k.victim] = (topVictims[k.victim] || 0) + 1;
+          history.push({
+            day: r.day,
+            matchId: r.id ?? null,
+            battleNo,
+            kind: 'kill',
+            otherName: k.victim ?? null,
+            self: false,
+            none: false,
+            opponentTeamName: oppTeamName,
+          });
+        }
+
+        // Death: dieses Pokémon wurde besiegt (inkl. Self-Kill / none).
+        if (k.victim === name) {
+          deaths += 1;
+          monDeathsThisMatch += 1;
+          if (!isSelf && !isNone && k.killer) {
+            topNemeses[k.killer] = (topNemeses[k.killer] || 0) + 1;
+          }
+          history.push({
+            day: r.day,
+            matchId: r.id ?? null,
+            battleNo,
+            kind: 'death',
+            otherName: isNone ? null : (k.killer ?? null),
+            self: isSelf,
+            none: isNone,
+            opponentTeamName: oppTeamName,
+          });
+        }
+      });
+    });
+
+    // Match-Ausgang aus Team-Sicht.
+    let outcome;
+    if (ownPts > oppPts) outcome = 'win';
+    else if (oppPts > ownPts) outcome = 'loss';
+    else outcome = 'draw';
+
+    const rec = inSquad ? recWith : recWithout;
+    rec.total += 1;
+    if (outcome === 'win') rec.w += 1;
+    else if (outcome === 'loss') rec.l += 1;
+    else rec.d += 1;
+
+    timeline.push({
+      day: r.day,
+      matchId: r.id ?? null,
+      inSquad,
+      inBattle: monBattlesThisMatch > 0,
+      kills: monKillsThisMatch,
+      deaths: monDeathsThisMatch,
+      outcome,
+    });
+  });
+
+  // history chronologisch: day asc, dann battleNo.
+  history.sort((a, b) => (a.day ?? 0) - (b.day ?? 0) || (a.battleNo ?? 0) - (b.battleNo ?? 0));
+
+  recWith.winPct = recWith.total ? recWith.w / recWith.total : 0;
+  recWithout.winPct = recWithout.total ? recWithout.w / recWithout.total : 0;
+
+  const clamp01 = (x) => Math.max(0, Math.min(1, x));
+
+  return {
+    drafted: true,
+    team,
+    teamMatchesPlayed,
+    matchups,
+    matchupPct: teamMatchesPlayed ? matchups / teamMatchesPlayed : 0,
+    teamBattlesTotal,
+    battles,
+    battlesAvailable,
+    battlePctTotal: teamBattlesTotal ? battles / teamBattlesTotal : 0,
+    battlePctAvailable: battlesAvailable ? battles / battlesAvailable : 0,
+    benched: battlesAvailable - battles,
+    kills,
+    deaths,
+    kd: kills / Math.max(1, deaths),
+    killsPerBattle: kills / Math.max(1, battles),
+    survivalRate: clamp01((battles - deaths) / Math.max(1, battles)),
+    history,
+    partnersByBattle: toList(partnersByBattle),
+    opponentsByBattle: toList(opponentsByBattle),
+    partnersByMatchup: toList(partnersByMatchup),
+    opponentsByMatchup: toList(opponentsByMatchup),
+    topVictims: toList(topVictims),
+    topNemeses: toList(topNemeses),
+    matchRecordWith: recWith,
+    matchRecordWithout: recWithout,
+    timeline,
+  };
+}

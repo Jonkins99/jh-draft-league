@@ -91,8 +91,8 @@
     </div>
     <div class="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-5 xl:grid-cols-6">
       <template x-for="(s, i) in ranking" :key="s.pokemon.name">
-        <div class="relative cursor-pointer rounded-2xl border border-line bg-elevated p-3 text-center transition-colors hover:border-flame-500/40"
-             @click="$dispatch('navigate', { key:'teams', teamId: s.team.id })"
+        <div class="relative cursor-pointer rounded-2xl border border-line bg-elevated p-3 text-center transition-colors hover:border-flame-500/40 hover:bg-elevated/60"
+             @click.stop="goMon(s.pokemon.name)"
              :style="`view-transition-name:${vtName(s.pokemon)}`">
           <div class="flex items-center justify-between px-1">
             <span class="font-display text-xs font-bold tabular-nums text-mist" x-text="`#${i + 1}`"></span>

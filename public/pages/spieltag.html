@@ -47,12 +47,13 @@
             <div class="grid grid-cols-1 gap-4 md:grid-cols-2">
               <template x-for="(m, i) in day.matches" :key="i">
                 <article @click="openDetail(day.day, i, m.home, m.away)"
-                         class="cursor-pointer rounded-2xl border border-line bg-panel p-4 transition-colors hover:border-flame-500/40 sm:p-5">
-                  <div class="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between sm:gap-3">
+                         :data-match-key="`${day.day}-${i}`"
+                         class="cursor-pointer overflow-hidden rounded-2xl border border-line bg-panel transition-colors hover:border-flame-500/40">
+                  <div class="grid grid-cols-[1fr_auto_1fr] items-center gap-2 p-4 sm:gap-4 sm:p-5">
                     <button type="button" @click.stop="$dispatch('navigate', { key: 'teams', teamId: m.home })"
-                            class="flex min-w-0 items-center gap-3 rounded-lg text-left transition-opacity hover:opacity-80 sm:flex-1">
+                            class="flex min-w-0 flex-col items-center gap-2 rounded-xl p-1 text-center transition-colors hover:bg-elevated">
                       <img :src="logoUrl(teamById(m.home)?.logo)" :alt="teamById(m.home)?.name"
-                           class="size-10 shrink-0 rounded-lg object-contain sm:size-11" />
+                           class="size-16 shrink-0 rounded-xl object-contain sm:size-20" />
                       <div class="min-w-0">
                         <p class="truncate font-semibold text-ink" x-text="teamById(m.home)?.name"></p>
                         <p class="truncate text-sm font-medium" :style="`color:${playerColor(teamById(m.home)?.player)}`"
@@ -60,12 +61,26 @@
                       </div>
                     </button>
 
-                    <span class="shrink-0 self-start font-display text-xs font-bold uppercase tracking-wider text-flame-400 sm:self-auto sm:text-sm">vs</span>
+                    <div class="px-1 text-center">
+                      <template x-if="!summaryFor(day.day, i)">
+                        <span class="font-display text-2xl font-bold uppercase tracking-wider text-flame-400 sm:text-3xl">VS</span>
+                      </template>
+                      <template x-if="summaryFor(day.day, i)">
+                        <div>
+                          <div class="font-display text-3xl font-bold tabular-nums sm:text-4xl">
+                            <span :class="matchOutcome(day.day, i)?.winner === 'home' ? 'text-flame-400' : 'text-mist'" x-text="summaryFor(day.day, i).home"></span>
+                            <span class="text-mist">:</span>
+                            <span :class="matchOutcome(day.day, i)?.winner === 'away' ? 'text-flame-400' : 'text-mist'" x-text="summaryFor(day.day, i).away"></span>
+                          </div>
+                          <p class="mt-1 text-[11px] uppercase tracking-wider text-mist">Kämpfe</p>
+                        </div>
+                      </template>
+                    </div>
 
                     <button type="button" @click.stop="$dispatch('navigate', { key: 'teams', teamId: m.away })"
-                            class="flex min-w-0 items-center gap-3 rounded-lg text-left transition-opacity hover:opacity-80 sm:flex-1 sm:flex-row-reverse sm:text-right">
+                            class="flex min-w-0 flex-col items-center gap-2 rounded-xl p-1 text-center transition-colors hover:bg-elevated">
                       <img :src="logoUrl(teamById(m.away)?.logo)" :alt="teamById(m.away)?.name"
-                           class="size-10 shrink-0 rounded-lg object-contain sm:size-11" />
+                           class="size-16 shrink-0 rounded-xl object-contain sm:size-20" />
                       <div class="min-w-0">
                         <p class="truncate font-semibold text-ink" x-text="teamById(m.away)?.name"></p>
                         <p class="truncate text-sm font-medium" :style="`color:${playerColor(teamById(m.away)?.player)}`"
@@ -74,24 +89,10 @@
                     </button>
                   </div>
 
-                  <div class="mt-4 flex items-center justify-between gap-2 border-t border-line pt-3">
-                    <div class="min-w-0">
-                      <template x-if="summaryFor(day.day, i)">
-                        <span class="font-display text-sm font-bold tabular-nums text-ink">
-                          <span x-text="summaryFor(day.day, i).home"></span> : <span x-text="summaryFor(day.day, i).away"></span>
-                          <span class="ml-1.5 text-xs font-normal uppercase tracking-wider text-mist">Kämpfe</span>
-                        </span>
-                      </template>
-                      <template x-if="!summaryFor(day.day, i)">
-                        <span class="text-xs text-mist">Noch kein Ergebnis</span>
-                      </template>
-                    </div>
-                    <div class="flex shrink-0 items-center gap-2">
-                      <span x-show="resultFor(day.day, i)" class="hidden text-xs font-semibold text-flame-400 sm:inline">Details ansehen →</span>
-                      <button type="button" @click.stop="openEntry(day.day, i, m.home, m.away)"
-                              class="rounded-lg border border-line px-3 py-2 text-sm font-semibold text-mist transition-colors hover:border-flame-500/50 hover:text-flame-400"
-                              x-text="resultFor(day.day, i) ? 'Bearbeiten' : 'Ergebnis eintragen'"></button>
-                    </div>
+                  <div class="flex items-center justify-end border-t border-line px-4 py-2.5">
+                    <button type="button" @click.stop="openEntry(day.day, i, m.home, m.away)"
+                            class="rounded-lg px-3 py-1.5 text-xs font-semibold text-mist transition-colors hover:text-flame-400"
+                            x-text="resultFor(day.day, i) ? 'Bearbeiten' : 'Ergebnis eintragen'"></button>
                   </div>
                 </article>
               </template>
@@ -103,7 +104,7 @@
   </div>
 
   <!-- Bestätigung: Spielplan auslosen -->
-  <div popover id="schedule-confirm" class="modal-pop w-[22rem] max-w-[90vw] rounded-2xl border border-line bg-panel p-6 text-center">
+  <div popover="manual" id="schedule-confirm" class="modal-pop w-[22rem] max-w-[90vw] rounded-2xl border border-line bg-panel p-6 text-center">
     <h3 class="font-display text-xl font-bold tracking-wide text-ink">Spielplan auslosen?</h3>
     <p class="mt-2 text-sm text-mist">Die Paarungen werden neu ausgelost. Ein bestehender Spielplan wird dabei überschrieben.</p>
     <div class="mt-5 flex gap-3">
@@ -115,7 +116,7 @@
   </div>
 
   <!-- Ergebnis-Eingabe (Stepper) -->
-  <div popover id="result-entry" class="modal-pop w-[46rem] max-w-[95vw] rounded-2xl border border-line bg-panel p-0 text-ink">
+  <div popover="manual" id="result-entry" class="modal-pop w-[46rem] max-w-[95vw] rounded-2xl border border-line bg-panel p-0 text-ink">
     <template x-if="editing && form">
       <div class="flex max-h-[88vh] flex-col">
         <!-- Kopf -->
@@ -295,7 +296,7 @@
   </div>
 
   <!-- Match-Detailansicht (read-only) -->
-  <div popover id="match-detail" class="modal-pop w-[48rem] max-w-[95vw] rounded-2xl border border-line bg-panel p-0 text-ink">
+  <div popover="manual" id="match-detail" class="modal-pop w-[48rem] max-w-[95vw] rounded-2xl border border-line bg-panel p-0 text-ink">
     <template x-if="detail && matchDetail">
       <div class="flex max-h-[90vh] flex-col">
 
@@ -352,9 +353,10 @@
                    x-text="`${(side === 'home' ? matchDetail.home : matchDetail.away)?.name} · Aufgebot`"></p>
                 <div class="flex flex-wrap gap-1.5">
                   <template x-for="mon in matchDetail.squads[side]" :key="mon.name">
-                    <div class="grid size-10 place-items-center rounded-lg bg-elevated" :title="mon.name">
+                    <button type="button" @click="openMon(mon.name)" :title="mon.name"
+                            class="grid size-10 cursor-pointer place-items-center rounded-lg bg-elevated transition-colors hover:bg-elevated/60 hover:ring-1 hover:ring-flame-500/40">
                       <img :src="mon.image" :alt="mon.name" loading="lazy" class="size-8 object-contain" />
-                    </div>
+                    </button>
                   </template>
                 </div>
               </div>
@@ -390,7 +392,8 @@
                         </div>
                         <div class="space-y-1.5">
                           <template x-for="mon in b[side].mons" :key="mon.name">
-                            <div class="flex items-center gap-2 rounded-lg border bg-panel/60 p-2"
+                            <button type="button" @click="openMon(mon.name)"
+                                 class="flex w-full cursor-pointer items-center gap-2 rounded-lg border bg-panel/60 p-2 text-left transition-colors hover:bg-panel"
                                  :class="mon.status === 'survived' ? 'border-volt-400/30' : 'border-flame-500/25'">
                               <img :src="mon.image" :alt="mon.name" loading="lazy" class="size-9 shrink-0 object-contain"
                                    :class="mon.status !== 'survived' ? 'opacity-50 grayscale' : ''" />
@@ -401,7 +404,7 @@
                               </div>
                               <span x-show="mon.frags.length" class="shrink-0 rounded bg-volt-400/15 px-1.5 py-0.5 font-display text-[11px] font-bold text-volt-400"
                                     :title="`Besiegt: ${mon.frags.join(', ')}`" x-text="`${mon.frags.length} KO`"></span>
-                            </div>
+                            </button>
                           </template>
                         </div>
                       </div>
