@@ -1,9 +1,37 @@
 <div x-data="standingsView">
-  <header class="mb-8">
-    <p class="font-display text-xs font-semibold uppercase tracking-[0.3em] text-flame-400">Standings</p>
-    <h1 class="mt-1 font-display text-4xl font-bold tracking-wide text-ink md:text-5xl">Tabelle</h1>
-    <p class="mt-2 text-mist">Ein Punkt pro gewonnenem Kampf. Bei Gleichstand entscheidet die Kill-Differenz.</p>
+  <header class="mb-8 flex items-start justify-between gap-4">
+    <div>
+      <p class="font-display text-xs font-semibold uppercase tracking-[0.3em] text-flame-400">Standings</p>
+      <h1 class="mt-1 font-display text-4xl font-bold tracking-wide text-ink md:text-5xl">Tabelle</h1>
+      <p class="mt-2 text-mist">Ein Punkt pro gewonnenem Kampf. Bei Gleichstand entscheidet die Kill-Differenz.</p>
+    </div>
+    <button type="button" popovertarget="exp-tabelle" title="Exportieren"
+            class="mt-1 grid size-10 shrink-0 place-items-center rounded-xl border border-line text-mist transition-colors hover:text-flame-400">
+      <svg viewBox="0 0 24 24" class="size-5" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3v12"/><path d="m8 11 4 4 4-4"/><path d="M4 17v2a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-2"/></svg>
+    </button>
   </header>
+
+  <!-- Export-Popover: Tabelle & Ranking -->
+  <div popover id="exp-tabelle" class="modal-pop w-[20rem] max-w-[calc(100vw-2rem)] rounded-2xl border border-line bg-panel p-5 text-ink">
+    <div class="space-y-4">
+      <div>
+        <p class="mb-2 font-display text-sm font-bold uppercase tracking-wider text-ink">Tabelle</p>
+        <div class="grid grid-cols-4 gap-2">
+          <template x-for="f in [['json','JSON'],['xml','XML'],['csv','CSV'],['xlsx','Excel']]" :key="'t'+f[0]">
+            <button type="button" @click="runExport('standings', f[0])" class="rounded-lg border border-line px-2 py-2 text-xs font-semibold text-mist transition-colors hover:border-flame-500/40 hover:text-ink" x-text="f[1]"></button>
+          </template>
+        </div>
+      </div>
+      <div class="border-t border-line pt-4">
+        <p class="mb-2 font-display text-sm font-bold uppercase tracking-wider text-ink">Pokémon-Ranking</p>
+        <div class="grid grid-cols-4 gap-2">
+          <template x-for="f in [['json','JSON'],['xml','XML'],['csv','CSV'],['xlsx','Excel']]" :key="'r'+f[0]">
+            <button type="button" @click="runExport('ranking', f[0])" class="rounded-lg border border-line px-2 py-2 text-xs font-semibold text-mist transition-colors hover:border-flame-500/40 hover:text-ink" x-text="f[1]"></button>
+          </template>
+        </div>
+      </div>
+    </div>
+  </div>
 
   <div x-show="!loaded" class="py-12 text-center text-mist">Lade Tabelle…</div>
 
@@ -18,9 +46,21 @@
             <th class="px-5 py-4 text-center" title="Gewonnene Kämpfe">S</th>
             <th class="px-5 py-4 text-center" title="Unentschiedene Kämpfe">U</th>
             <th class="px-5 py-4 text-center" title="Verlorene Kämpfe">N</th>
-            <th class="px-5 py-4 text-center" title="Kills : Deaths">K:D</th>
-            <th class="px-5 py-4 text-center" title="Kill-Differenz">Diff</th>
-            <th class="px-5 py-4 text-right">Pkt</th>
+            <th class="px-5 py-4 text-center" title="Kills : Deaths">
+              <span class="inline-flex items-center gap-1">K:D
+                <button type="button" @click="info('K : D', 'Kills (besiegte gegnerische Pokémon) zu Deaths (verlorene eigene Pokémon) des Teams.')" class="text-mist/60 hover:text-flame-400" aria-label="Erklärung"><svg viewBox="0 0 24 24" class="size-3.5" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="9"/><path d="M12 11v5" stroke-linecap="round"/><circle cx="12" cy="7.6" r="0.6" fill="currentColor"/></svg></button>
+              </span>
+            </th>
+            <th class="px-5 py-4 text-center" title="Kill-Differenz">
+              <span class="inline-flex items-center gap-1">Diff
+                <button type="button" @click="statInfo('diff')" class="text-mist/60 hover:text-flame-400" aria-label="Erklärung"><svg viewBox="0 0 24 24" class="size-3.5" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="9"/><path d="M12 11v5" stroke-linecap="round"/><circle cx="12" cy="7.6" r="0.6" fill="currentColor"/></svg></button>
+              </span>
+            </th>
+            <th class="px-5 py-4 text-right">
+              <span class="inline-flex items-center gap-1">Pkt
+                <button type="button" @click="statInfo('points')" class="text-mist/60 hover:text-flame-400" aria-label="Erklärung"><svg viewBox="0 0 24 24" class="size-3.5" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="9"/><path d="M12 11v5" stroke-linecap="round"/><circle cx="12" cy="7.6" r="0.6" fill="currentColor"/></svg></button>
+              </span>
+            </th>
           </tr>
         </thead>
         <tbody class="divide-y divide-line">
@@ -35,8 +75,8 @@
                 <div class="flex items-center gap-3">
                   <img :src="logoUrl(row.team.logo)" :alt="row.team.name" class="size-9 shrink-0 rounded-lg object-contain" />
                   <div class="min-w-0">
-                    <div class="truncate font-semibold text-ink" x-text="row.team.name"></div>
-                    <div class="truncate text-sm font-medium" :style="`color:${playerColor(row.team.player)}`" x-text="row.team.player"></div>
+                    <div class="truncate font-semibold" :style="`color:${playerColor(row.team.player)}`" x-text="row.team.name"></div>
+                    <div class="truncate text-sm font-medium text-mist" x-text="row.team.player"></div>
                   </div>
                 </div>
               </td>
@@ -71,42 +111,101 @@
     </div>
   </section>
 
-  <!-- MODUL: Pokémon-Ranking (liga-weit) -->
-  <section x-show="loaded" class="mt-6 rounded-2xl border border-line bg-panel p-6">
-    <div class="mb-4 flex flex-col items-start gap-3 sm:flex-row sm:items-center sm:justify-between">
+  <!-- MODUL: Pokémon-Ranking (liga-weit, konfigurierbare Tabelle) -->
+  <section x-show="loaded" class="mt-6 rounded-2xl border border-line bg-panel p-4 sm:p-6">
+    <div class="mb-4 flex flex-col gap-3">
       <h2 class="font-display text-xl font-bold uppercase tracking-wider text-ink">Pokémon-Ranking</h2>
-      <div class="flex w-full items-center gap-2 sm:w-auto">
-        <div class="flex flex-1 overflow-x-auto rounded-xl border border-line bg-elevated p-1 sm:flex-none">
-          <template x-for="m in statModes" :key="m.key">
-            <button type="button" @click="setStatMode(m.key)"
-                    class="shrink-0 whitespace-nowrap rounded-lg px-3 py-2 text-sm font-semibold transition-colors"
-                    :class="statMode === m.key ? 'bg-flame-500 text-white' : 'text-mist hover:text-ink'"
-                    x-text="m.label"></button>
-          </template>
-        </div>
-        <button type="button" @click="toggleStatDir()"
-                class="grid size-10 shrink-0 place-items-center rounded-xl border border-line font-bold text-mist transition-colors hover:text-ink"
-                :title="statDir === 'desc' ? 'Absteigend' : 'Aufsteigend'" x-text="statDir === 'desc' ? '↓' : '↑'"></button>
+      <div class="flex flex-wrap items-center gap-2">
+        <select x-model="fType" class="min-w-0 rounded-lg border border-line bg-elevated px-2 py-2 text-sm text-ink focus:border-flame-500 focus:outline-none">
+          <option value="">Alle Typen</option>
+          <template x-for="t in allTypes" :key="'ft-'+t"><option :value="t" x-text="t"></option></template>
+        </select>
+        <select x-model="fTier" class="min-w-0 rounded-lg border border-line bg-elevated px-2 py-2 text-sm text-ink focus:border-flame-500 focus:outline-none">
+          <option value="">Alle Tiers</option>
+          <template x-for="t in tiers" :key="'ftier-'+t"><option :value="t" x-text="'Tier '+t"></option></template>
+        </select>
+        <select x-model="fTeam" class="min-w-0 rounded-lg border border-line bg-elevated px-2 py-2 text-sm text-ink focus:border-flame-500 focus:outline-none">
+          <option value="">Alle Teams</option>
+          <template x-for="t in filterTeams" :key="'fteam-'+t.id"><option :value="t.id" x-text="t.name"></option></template>
+        </select>
+        <button type="button" x-show="hasFilters" @click="clearFilters()"
+                class="rounded-lg border border-line px-2.5 py-2 text-sm font-semibold text-mist transition-colors hover:text-flame-400">Filter&nbsp;×</button>
+        <button type="button" popovertarget="cols-league"
+                class="ml-auto inline-flex items-center gap-1.5 rounded-lg border border-line px-3 py-2 text-sm font-semibold text-mist transition-colors hover:text-flame-400">
+          <svg viewBox="0 0 24 24" class="size-4" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M3 6h18M3 12h18M3 18h18"/></svg>
+          Spalten
+        </button>
       </div>
     </div>
-    <div class="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-5 xl:grid-cols-6">
-      <template x-for="(s, i) in ranking" :key="s.pokemon.name">
-        <div class="relative cursor-pointer rounded-2xl border border-line bg-elevated p-3 text-center transition-colors hover:border-flame-500/40 hover:bg-elevated/60"
-             @click.stop="goMon(s.pokemon.name)"
-             :style="`view-transition-name:${vtName(s.pokemon)}`">
-          <div class="flex items-center justify-between px-1">
-            <span class="font-display text-xs font-bold tabular-nums text-mist" x-text="`#${i + 1}`"></span>
-            <span class="font-display text-2xl font-bold tabular-nums text-flame-400" x-text="s[statMode]"></span>
-          </div>
-          <div class="relative my-1 grid aspect-square place-items-center overflow-hidden rounded-xl bg-panel">
-            <img :src="logoUrl(s.team?.logo)" alt="" aria-hidden="true" class="absolute inset-0 size-full scale-110 object-contain opacity-20" />
-            <img :src="s.pokemon.image" :alt="s.pokemon.name" loading="lazy" class="relative h-4/5 w-4/5 object-contain" />
-          </div>
-          <p class="truncate text-sm font-semibold text-ink" x-text="s.pokemon.name" :title="s.pokemon.name"></p>
-          <p class="mt-0.5 truncate text-xs text-flame-400/80" x-text="s.team?.name" :title="s.team?.name"></p>
-        </div>
-      </template>
+
+    <div class="-mx-1 overflow-x-auto px-1">
+      <table class="min-w-max border-collapse text-sm">
+        <thead>
+          <tr class="border-b border-line">
+            <th class="sticky left-0 z-10 bg-panel py-2 pr-3 text-left font-display text-xs font-semibold uppercase tracking-wider text-mist">Pokémon</th>
+            <template x-for="c in visibleCols()" :key="'h-'+c.key">
+              <th class="whitespace-nowrap px-3 py-2 text-right">
+                <span class="inline-flex items-center gap-1">
+                  <button type="button" @click="sortByCol(c.key)" class="inline-flex items-center gap-1 font-display text-xs font-semibold uppercase tracking-wider transition-colors"
+                          :class="sortKey === c.key ? 'text-flame-400' : 'text-mist hover:text-ink'">
+                    <span x-text="c.short"></span>
+                    <span x-show="sortKey === c.key" x-text="sortDir === 'desc' ? '↓' : '↑'"></span>
+                  </button>
+                  <button type="button" @click="statInfo(c.key)" class="text-mist/60 transition-colors hover:text-flame-400" aria-label="Erklärung">
+                    <svg viewBox="0 0 24 24" class="size-3.5" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="9"/><path d="M12 11v5" stroke-linecap="round"/><circle cx="12" cy="7.6" r="0.6" fill="currentColor"/></svg>
+                  </button>
+                </span>
+              </th>
+            </template>
+          </tr>
+        </thead>
+        <tbody>
+          <template x-for="(s, i) in ranking" :key="s.pokemon.name">
+            <tr class="cursor-pointer border-b border-line/40 transition-colors hover:bg-elevated/40" @click="goMon(s.pokemon.name)">
+              <td class="sticky left-0 z-10 bg-panel py-2 pr-3">
+                <div class="flex items-center gap-2">
+                  <span class="w-5 shrink-0 text-right font-display text-xs font-bold tabular-nums text-mist/60" x-text="i + 1"></span>
+                  <img :src="s.pokemon.image" :alt="s.pokemon.name" loading="lazy" class="size-8 shrink-0 object-contain" />
+                  <div class="min-w-0">
+                    <p class="max-w-[8rem] truncate font-semibold text-ink" x-text="s.pokemon.name" :title="s.pokemon.name"></p>
+                    <p class="max-w-[8rem] truncate text-xs" :style="`color:${playerColor(s.team?.player)}`" x-text="s.team?.name" :title="s.team?.name"></p>
+                  </div>
+                </div>
+              </td>
+              <template x-for="c in visibleCols()" :key="s.pokemon.name+'-'+c.key">
+                <td class="whitespace-nowrap px-3 py-2 text-right font-display tabular-nums"
+                    :class="sortKey === c.key ? 'font-bold text-flame-400' : 'text-ink'" x-text="colValue(s, c.key)"></td>
+              </template>
+            </tr>
+          </template>
+        </tbody>
+      </table>
     </div>
-    <p x-show="ranking.length === 0" class="text-sm text-mist">Noch keine Daten.</p>
+    <p x-show="ranking.length === 0" class="mt-2 text-sm text-mist">Keine Pokémon für diese Filter.</p>
   </section>
+
+  <!-- Spalten-Popover (Liga-Ranking) -->
+  <div popover id="cols-league" class="modal-pop w-[20rem] max-w-[calc(100vw-2rem)] rounded-2xl border border-line bg-panel p-4 text-ink"
+       @pointermove.window="colDragMove($event)" @pointerup.window="colDragEnd()">
+    <p class="font-display text-sm font-bold uppercase tracking-wider text-ink">Spalten</p>
+    <p class="mb-3 mt-0.5 text-xs text-mist">Häkchen blendet ein/aus · Griff zum Umsortieren ziehen.</p>
+    <ul class="space-y-1">
+      <template x-for="c in orderedCatalog()" :key="'col-'+c.key">
+        <li :data-col-key="c.key"
+            class="flex items-center gap-2 rounded-lg border border-line bg-elevated/50 px-2 py-2 transition-colors"
+            :class="_dragKey === c.key ? 'opacity-60 ring-1 ring-flame-500/60' : ''">
+          <span class="col-grip shrink-0 cursor-grab text-mist" @pointerdown="colDragStart(c.key, $event)" title="Ziehen zum Umsortieren">
+            <svg viewBox="0 0 24 24" class="size-4" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M9 6h.01M9 12h.01M9 18h.01M15 6h.01M15 12h.01M15 18h.01"/></svg>
+          </span>
+          <label class="flex min-w-0 flex-1 cursor-pointer items-center gap-2">
+            <input type="checkbox" :checked="colVisible[c.key]" @change="toggleCol(c.key)" class="size-4 shrink-0 accent-flame-500" />
+            <span class="min-w-0 flex-1 truncate text-sm text-ink" x-text="c.label"></span>
+          </label>
+          <button type="button" @click="statInfo(c.key)" class="shrink-0 text-mist/60 transition-colors hover:text-flame-400" aria-label="Erklärung">
+            <svg viewBox="0 0 24 24" class="size-4" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="9"/><path d="M12 11v5" stroke-linecap="round"/><circle cx="12" cy="7.6" r="0.6" fill="currentColor"/></svg>
+          </button>
+        </li>
+      </template>
+    </ul>
+  </div>
 </div>

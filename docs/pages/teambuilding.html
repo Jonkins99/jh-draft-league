@@ -1,0 +1,175 @@
+<div x-data="teambuildingView">
+  <header class="mb-8">
+    <p class="font-display text-xs font-semibold uppercase tracking-[0.3em] text-flame-400">Analyse</p>
+    <h1 class="mt-1 font-display text-4xl font-bold tracking-wide text-ink md:text-5xl">Teambuilding</h1>
+    <p class="mt-2 text-mist">Zwei Teams gegenüberstellen. Pokémon lassen sich deaktivieren – das wirkt auf alle Auswertungen darunter.</p>
+  </header>
+
+  <div x-show="!loaded" class="py-12 text-center text-mist">Lade Teams…</div>
+
+  <template x-if="loaded">
+    <div>
+      <!-- Team-Auswahl -->
+      <section class="grid grid-cols-1 gap-4 rounded-2xl border border-line bg-panel p-5 sm:grid-cols-2">
+        <template x-for="cfg in [{side:'a', label:'Team A', id: teamAId},{side:'b', label:'Team B', id: teamBId}]" :key="cfg.side">
+          <div>
+            <label class="mb-1.5 block font-display text-xs font-semibold uppercase tracking-wider text-mist" x-text="cfg.label"></label>
+            <select @change="setTeam(cfg.side, $event.target.value)"
+                    class="w-full rounded-xl border border-line bg-elevated px-3 py-2.5 font-semibold text-ink focus:border-flame-500 focus:outline-none">
+              <template x-for="t in teams" :key="cfg.side+'-'+t.id">
+                <option :value="t.id" :selected="t.id === cfg.id" x-text="`${t.name} · ${t.player}`"></option>
+              </template>
+            </select>
+          </div>
+        </template>
+      </section>
+
+      <template x-if="ready">
+        <div>
+          <!-- Kader mit De-/Aktivierung + Speed-Modifikatoren -->
+          <section class="mt-6 grid grid-cols-1 gap-4 lg:grid-cols-2">
+            <template x-for="cfg in [{side:'a', team: teamA},{side:'b', team: teamB}]" :key="'roster-'+cfg.side">
+              <div class="rounded-2xl border border-line bg-panel p-5">
+                <div class="mb-3 flex items-center gap-2">
+                  <img :src="logoUrl(cfg.team.logo)" :alt="cfg.team.name" class="size-8 shrink-0 rounded-lg object-contain" />
+                  <span class="min-w-0 break-words font-display text-lg font-bold leading-tight" :style="`color:${playerColor(cfg.team.player)}`" x-text="cfg.team.name"></span>
+                </div>
+                <div class="space-y-2">
+                  <template x-for="mon in allMons(cfg.team)" :key="'m-'+cfg.side+'-'+mon.name">
+                    <div class="flex min-w-0 items-center gap-2 rounded-xl border border-line bg-elevated/60 p-2 transition-opacity"
+                         :class="isActive(mon.name) ? '' : 'opacity-40'">
+                      <button type="button" @click="toggleActive(mon.name)"
+                              class="grid size-8 shrink-0 place-items-center rounded-lg border transition-colors"
+                              :style="isActive(mon.name) ? `border-color:${playerColor(cfg.team.player)};background:${playerColor(cfg.team.player)}22` : ''"
+                              :aria-pressed="isActive(mon.name)" :title="isActive(mon.name) ? 'Aktiv' : 'Deaktiviert'">
+                        <svg viewBox="0 0 24 24" class="size-4" :style="`color:${isActive(mon.name) ? playerColor(cfg.team.player) : '#98a2b3'}`" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                          <path x-show="isActive(mon.name)" d="M20 6 9 17l-5-5"/>
+                          <path x-show="!isActive(mon.name)" d="M18 6 6 18M6 6l12 12"/>
+                        </svg>
+                      </button>
+                      <button type="button" @click="goMon(mon.name)" class="flex min-w-0 flex-1 items-center gap-2 text-left transition-colors hover:text-flame-400">
+                        <img :src="mon.image" :alt="mon.name" loading="lazy" class="size-8 shrink-0 object-contain" />
+                        <span class="min-w-0 flex-1 truncate text-sm font-medium text-ink" x-text="mon.name" :title="mon.name"></span>
+                      </button>
+                      <div class="flex shrink-0 gap-1">
+                        <button type="button" @click="modToggle(mon.name,'x15')"
+                                class="h-8 rounded-lg border border-line px-2 text-xs font-bold text-mist transition-colors"
+                                :style="modGet(mon.name).x15 ? 'border-color:#4d90d5;background:#4d90d522;color:#7fb2e8' : ''"
+                                :aria-pressed="modGet(mon.name).x15">×1,5</button>
+                        <button type="button" @click="modToggle(mon.name,'x2')"
+                                class="h-8 rounded-lg border border-line px-2 text-xs font-bold text-mist transition-colors"
+                                :style="modGet(mon.name).x2 ? 'border-color:#63bc5a;background:#63bc5a22;color:#8fd588' : ''"
+                                :aria-pressed="modGet(mon.name).x2">×2</button>
+                      </div>
+                    </div>
+                  </template>
+                </div>
+              </div>
+            </template>
+          </section>
+
+          <!-- Gemeinsame Initiative-Tierlist -->
+          <section class="mt-6 rounded-2xl border border-line bg-panel p-5 sm:p-6">
+            <div class="mb-4">
+              <h2 class="font-display text-xl font-bold uppercase tracking-wider text-ink">Initiative-Tierlist</h2>
+              <p class="mt-1 text-sm text-mist">Errechnete Initiative (Lvl 50) beider Teams, nach Team eingefärbt – wer überholt wen? <b>0</b>/<b>32</b>/<b>32+</b> SP, optional ×1,5 / ×2 je Pokémon oben.</p>
+            </div>
+            <div x-show="combinedSpeedRows.length" class="-mx-1 overflow-x-auto px-1">
+              <table class="w-full min-w-[24rem] border-collapse text-sm">
+                <thead>
+                  <tr class="border-b border-line">
+                    <th class="py-2 pr-2 text-left font-display text-xs font-semibold uppercase tracking-wider text-mist">Pokémon</th>
+                    <th class="px-2 py-2 text-left font-display text-xs font-semibold uppercase tracking-wider text-mist">SP</th>
+                    <th class="px-2 py-2 text-left font-display text-xs font-semibold uppercase tracking-wider text-mist">Mod.</th>
+                    <th class="py-2 pl-2 text-right">
+                      <button type="button" @click="toggleSpdSort()" class="inline-flex items-center gap-1 font-display text-xs font-semibold uppercase tracking-wider text-mist transition-colors hover:text-ink">
+                        Init <span class="text-flame-400" x-text="spdSort === 'desc' ? '↓' : '↑'"></span>
+                      </button>
+                    </th>
+                  </tr>
+                </thead>
+                <tbody>
+                  <template x-for="r in combinedSpeedRows" :key="r.id">
+                    <tr class="border-b border-line/50">
+                      <td class="py-1.5 pr-2">
+                        <div @click="goMon(r.mon.name)" class="flex cursor-pointer items-center gap-2 transition-colors hover:text-flame-400">
+                          <span class="h-6 w-1 shrink-0 rounded" :style="`background:${r.color}`"></span>
+                          <img :src="r.mon.image" :alt="r.mon.name" loading="lazy" class="size-7 shrink-0 object-contain" />
+                          <span class="min-w-0 truncate font-medium" :style="`color:${r.color}`" x-text="r.mon.name" :title="r.mon.name"></span>
+                        </div>
+                      </td>
+                      <td class="px-2 py-1.5">
+                        <span class="inline-block rounded px-1.5 py-0.5 text-xs font-bold" :style="`color:${invColor(r.invKey)};background:${invColor(r.invKey)}1f`" x-text="r.inv"></span>
+                      </td>
+                      <td class="px-2 py-1.5">
+                        <span class="inline-block rounded px-1.5 py-0.5 text-xs font-bold" :style="`color:${modColor(r.modKey)};background:${modColor(r.modKey)}1f`" x-text="r.mod"></span>
+                      </td>
+                      <td class="py-1.5 pl-2 text-right font-display text-lg font-bold tabular-nums text-ink" x-text="r.speed"></td>
+                    </tr>
+                  </template>
+                </tbody>
+              </table>
+            </div>
+            <p x-show="!combinedSpeedRows.length" class="text-sm text-mist">Keine aktiven Pokémon mit Initiative-Daten.</p>
+          </section>
+
+          <!-- Bedrohungs-Matrix in beide Richtungen -->
+          <section class="mt-6 grid grid-cols-1 gap-4 lg:grid-cols-2">
+            <template x-for="dir in [{atk:'a', team: teamA, def: teamB},{atk:'b', team: teamB, def: teamA}]" :key="'threat-'+dir.atk">
+              <div class="rounded-2xl border border-line bg-panel p-5">
+                <h3 class="font-display text-sm font-bold uppercase tracking-wider text-ink">
+                  <span :style="`color:${playerColor(dir.team.player)}`" x-text="dir.team.name"></span>
+                  <span class="text-mist"> trifft </span>
+                  <span :style="`color:${playerColor(dir.def.player)}`" x-text="dir.def.name"></span>
+                </h3>
+                <p class="mb-3 mt-0.5 text-xs text-mist">Bester Schadensmultiplikator der aktiven Angriffstypen gegen jedes aktive Pokémon.</p>
+                <ul class="space-y-1.5">
+                  <template x-for="row in threatList(dir.atk)" :key="'tl-'+dir.atk+'-'+row.mon.name">
+                    <li class="flex items-center gap-2">
+                      <button type="button" @click="goMon(row.mon.name)" class="flex min-w-0 flex-1 items-center gap-2 text-left transition-colors hover:text-flame-400">
+                        <img :src="row.mon.image" :alt="row.mon.name" loading="lazy" class="size-7 shrink-0 object-contain" />
+                        <span class="min-w-0 flex-1 truncate text-sm font-medium text-ink" x-text="row.mon.name" :title="row.mon.name"></span>
+                      </button>
+                      <span class="grid h-7 w-12 shrink-0 place-items-center rounded font-display text-sm font-bold tabular-nums" :style="multStyle(row.mult)" x-text="multLabel(row.mult)"></span>
+                    </li>
+                  </template>
+                </ul>
+                <p x-show="!threatList(dir.atk).length" class="text-sm text-mist">Keine aktiven Pokémon.</p>
+              </div>
+            </template>
+          </section>
+
+          <!-- Schwächen-Vergleich je Angriffstyp -->
+          <section class="mt-6 rounded-2xl border border-line bg-panel p-5 sm:p-6">
+            <div class="mb-4">
+              <h2 class="font-display text-xl font-bold uppercase tracking-wider text-ink">Schwächen-Vergleich</h2>
+              <p class="mt-1 text-sm text-mist">Anzahl aktiver Pokémon je Team, die gegen einen Angriffstyp schwach sind (× > 1). Größte gemeinsame Schwächen zuerst.</p>
+            </div>
+            <div class="-mx-1 overflow-x-auto px-1">
+              <table class="w-full min-w-[20rem] border-collapse text-sm">
+                <thead>
+                  <tr class="border-b border-line text-xs font-semibold uppercase tracking-wider text-mist">
+                    <th class="py-2 pr-2 text-left">Angriffstyp</th>
+                    <th class="px-2 py-2 text-center"><span :style="`color:${playerColor(teamA.player)}`" x-text="teamA.name"></span></th>
+                    <th class="px-2 py-2 text-center"><span :style="`color:${playerColor(teamB.player)}`" x-text="teamB.name"></span></th>
+                  </tr>
+                </thead>
+                <tbody>
+                  <template x-for="w in weakCompare" :key="'wc-'+w.type">
+                    <tr class="border-b border-line/40" x-show="w.a || w.b">
+                      <td class="py-1.5 pr-2">
+                        <span class="inline-block rounded px-2 py-0.5 text-[11px] font-bold uppercase tracking-wide" :style="`color:${typeColor(w.type)};background:${typeColor(w.type)}22`" x-text="w.type"></span>
+                      </td>
+                      <td class="px-2 py-1.5 text-center font-display font-bold tabular-nums" :class="w.a ? '' : 'text-mist/30'" :style="w.a ? `color:${playerColor(teamA.player)}` : ''" x-text="w.a"></td>
+                      <td class="px-2 py-1.5 text-center font-display font-bold tabular-nums" :class="w.b ? '' : 'text-mist/30'" :style="w.b ? `color:${playerColor(teamB.player)}` : ''" x-text="w.b"></td>
+                    </tr>
+                  </template>
+                </tbody>
+              </table>
+            </div>
+          </section>
+        </div>
+      </template>
+    </div>
+  </template>
+</div>

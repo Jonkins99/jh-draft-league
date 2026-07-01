@@ -1,0 +1,106 @@
+<div x-data="spielerView">
+  <header class="mb-8">
+    <p class="font-display text-xs font-semibold uppercase tracking-[0.3em] text-flame-400">Duell</p>
+    <h1 class="mt-1 font-display text-4xl font-bold tracking-wide text-ink md:text-5xl">Spieler</h1>
+    <p class="mt-2 text-mist">Janik gegen Henrik – die Gesamtbilanz über alle Teams und Spieltage.</p>
+  </header>
+
+  <div x-show="!loaded" class="py-12 text-center text-mist">Lade Duell…</div>
+
+  <template x-if="loaded">
+    <div>
+      <!-- VS-Kopf -->
+      <section class="overflow-hidden rounded-2xl border border-line bg-panel p-5 sm:p-8 @container">
+        <div class="grid grid-cols-[1fr_auto_1fr] items-center gap-2 @min-[26rem]:gap-6">
+          <div class="min-w-0 text-center">
+            <p class="break-words font-display text-2xl font-bold leading-tight @min-[26rem]:text-4xl" :style="`color:${playerColor('Janik')}`">Janik</p>
+            <p class="mt-1 text-xs text-mist @min-[26rem]:text-sm" x-text="`${janik.teams} Teams`"></p>
+          </div>
+          <div class="text-center">
+            <p class="font-display text-3xl font-bold tabular-nums text-ink @min-[26rem]:text-5xl">
+              <span :style="janik.matchWins > henrik.matchWins ? `color:${playerColor('Janik')}` : ''" x-text="janik.matchWins"></span>
+              <span class="text-mist">:</span>
+              <span :style="henrik.matchWins > janik.matchWins ? `color:${playerColor('Henrik')}` : ''" x-text="henrik.matchWins"></span>
+            </p>
+            <p class="mt-1 text-[10px] uppercase tracking-wider text-mist @min-[26rem]:text-xs" x-text="`${duel.totalMatches} Matches`"></p>
+          </div>
+          <div class="min-w-0 text-center">
+            <p class="break-words font-display text-2xl font-bold leading-tight @min-[26rem]:text-4xl" :style="`color:${playerColor('Henrik')}`">Henrik</p>
+            <p class="mt-1 text-xs text-mist @min-[26rem]:text-sm" x-text="`${henrik.teams} Teams`"></p>
+          </div>
+        </div>
+      </section>
+
+      <p x-show="!hasData" class="mt-6 rounded-2xl border border-line bg-panel p-8 text-center text-mist">
+        Noch keine gespielten Kämpfe – die Bilanz erscheint, sobald Ergebnisse erfasst sind.
+      </p>
+
+      <!-- Vergleichsbalken -->
+      <section x-show="hasData" class="mt-6 rounded-2xl border border-line bg-panel p-5 sm:p-6">
+        <h2 class="mb-4 font-display text-xl font-bold uppercase tracking-wider text-ink">Direktvergleich</h2>
+        <div class="space-y-4">
+          <template x-for="m in metrics" :key="m.label">
+            <div>
+              <div class="mb-1 flex items-center justify-between gap-2 text-sm">
+                <span class="font-display font-bold tabular-nums" :style="`color:${playerColor('Janik')}`" x-text="m.a"></span>
+                <span class="flex items-center gap-1 text-xs font-semibold uppercase tracking-wider text-mist">
+                  <span x-text="m.label"></span>
+                  <button type="button" @click="info(m.label, m.info)" class="text-mist/60 hover:text-flame-400" aria-label="Erklärung"><svg viewBox="0 0 24 24" class="size-3.5" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="9"/><path d="M12 11v5" stroke-linecap="round"/><circle cx="12" cy="7.6" r="0.6" fill="currentColor"/></svg></button>
+                </span>
+                <span class="font-display font-bold tabular-nums" :style="`color:${playerColor('Henrik')}`" x-text="m.b"></span>
+              </div>
+              <div class="flex h-2.5 overflow-hidden rounded-full bg-elevated">
+                <div class="h-full transition-all" :style="`width:${share(Math.max(m.a,0), Math.max(m.b,0))}%;background:${playerColor('Janik')}`"></div>
+                <div class="h-full flex-1 transition-all" :style="`background:${playerColor('Henrik')}`"></div>
+              </div>
+            </div>
+          </template>
+        </div>
+
+        <!-- Quoten + Ø-Platz -->
+        <div class="mt-6 grid grid-cols-2 gap-3 sm:grid-cols-4">
+          <div class="rounded-xl bg-elevated p-3 text-center">
+            <p class="text-[11px] uppercase tracking-wider text-mist">Match-SQ Janik</p>
+            <p class="font-display text-xl font-bold" :style="`color:${playerColor('Janik')}`" x-text="fmtPct(janik.matchWinPct)"></p>
+          </div>
+          <div class="rounded-xl bg-elevated p-3 text-center">
+            <p class="text-[11px] uppercase tracking-wider text-mist">Match-SQ Henrik</p>
+            <p class="font-display text-xl font-bold" :style="`color:${playerColor('Henrik')}`" x-text="fmtPct(henrik.matchWinPct)"></p>
+          </div>
+          <div class="rounded-xl bg-elevated p-3 text-center">
+            <p class="flex items-center justify-center gap-1 text-[11px] uppercase tracking-wider text-mist">Ø-Platz Janik
+              <button type="button" @click="info('Ø-Platzierung', 'Durchschnittliche Tabellenplatzierung aller Teams dieses Spielers.')" class="text-mist/60 hover:text-flame-400" aria-label="Erklärung"><svg viewBox="0 0 24 24" class="size-3" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="9"/><path d="M12 11v5" stroke-linecap="round"/><circle cx="12" cy="7.6" r="0.6" fill="currentColor"/></svg></button>
+            </p>
+            <p class="font-display text-xl font-bold text-ink" x-text="fmtAvg(janik.avgPlace)"></p>
+          </div>
+          <div class="rounded-xl bg-elevated p-3 text-center">
+            <p class="text-[11px] uppercase tracking-wider text-mist">Ø-Platz Henrik</p>
+            <p class="font-display text-xl font-bold text-ink" x-text="fmtAvg(henrik.avgPlace)"></p>
+          </div>
+        </div>
+      </section>
+
+      <!-- Top-Pokémon je Spieler -->
+      <section x-show="hasData" class="mt-6 grid grid-cols-1 gap-4 sm:grid-cols-2">
+        <template x-for="p in [{key:'janik', player:'Janik', data:janik},{key:'henrik', player:'Henrik', data:henrik}]" :key="p.key">
+          <div class="rounded-2xl border border-line bg-panel p-5">
+            <p class="mb-3 font-display text-sm font-bold uppercase tracking-wider" :style="`color:${playerColor(p.player)}`" x-text="`Top-Pokémon ${p.player}`"></p>
+            <ul x-show="p.data.top.length" class="space-y-2">
+              <template x-for="(s, i) in p.data.top" :key="p.key+'-'+s.pokemon.name">
+                <li class="flex items-center gap-2.5">
+                  <span class="w-4 shrink-0 text-center font-display text-xs font-bold text-mist/60" x-text="i + 1"></span>
+                  <button type="button" @click="goMon(s.pokemon.name)" class="grid size-10 shrink-0 place-items-center rounded-lg border border-line bg-elevated/60 transition-colors hover:border-flame-500/40">
+                    <img :src="s.pokemon.image" :alt="s.pokemon.name" loading="lazy" class="size-8 object-contain" />
+                  </button>
+                  <button type="button" @click="goMon(s.pokemon.name)" class="min-w-0 flex-1 truncate text-left text-sm font-medium text-ink transition-colors hover:text-flame-400" x-text="s.pokemon.name" :title="s.pokemon.name"></button>
+                  <span class="shrink-0 font-display text-sm font-bold tabular-nums text-volt-400" x-text="`${s.kills} K`"></span>
+                </li>
+              </template>
+            </ul>
+            <p x-show="!p.data.top.length" class="text-sm text-mist">Noch keine Kills.</p>
+          </div>
+        </template>
+      </section>
+    </div>
+  </template>
+</div>

@@ -1,7 +1,11 @@
 import Alpine from 'alpinejs';
 import { db } from './firebase.js';
 import { collection, doc, onSnapshot, writeBatch, arrayUnion, setDoc } from 'firebase/firestore';
-import { battleStats, computeStandings, pokemonStats, placementHistory, speedTiers, applySpeedMod, typeMultiplier, ALL_TYPES, pokemonProfile, defensiveChart, offensiveChart } from './scoring.mjs';
+import { battleStats, computeStandings, pokemonStats, placementHistory, speedTiers, applySpeedMod, typeMultiplier, ALL_TYPES, pokemonProfile, defensiveChart, offensiveChart, playerDuel } from './scoring.mjs';
+import {
+  exportDataset, buildScheduleExport, buildBattleDetailsExport, buildStandingsExport,
+  buildRankingExport, buildTeamsExport, buildDraftpoolExport,
+} from './export.mjs';
 
 const PICKS_PER_TEAM = 10;
 const TIER_ORDER = ['S', 'A', 'B', 'C', 'D'];
@@ -11,6 +15,9 @@ const ICONS = {
   standings: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M5 21V12"/><path d="M12 21V4"/><path d="M19 21v-6"/><path d="M3 21h18"/></svg>`,
   bolt: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M13 2 4 14h7l-1 8 9-12h-7z"/></svg>`,
   teams: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="9" cy="8" r="3.2"/><path d="M3.5 20a5.5 5.5 0 0 1 11 0"/><path d="M16 5.4a3.2 3.2 0 0 1 0 5.2"/><path d="M17.6 14.6a5.5 5.5 0 0 1 2.9 5.4"/></svg>`,
+  player: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="7" cy="7" r="3"/><circle cx="17" cy="7" r="3"/><path d="M2 20a5 5 0 0 1 10 0"/><path d="M12 20a5 5 0 0 1 10 0"/></svg>`,
+  build: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M3 7h7"/><path d="M3 12h7"/><path d="M3 17h7"/><path d="M14 7h7"/><path d="M14 12h7"/><path d="M14 17h7"/><circle cx="14" cy="7" r="0.5"/></svg>`,
+  search: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="7"/><path d="m21 21-4.3-4.3"/></svg>`,
 };
 
 const TYPE_COLORS = {
@@ -70,6 +77,148 @@ function saveJson(key, value) {
   } catch (e) {}
 }
 
+// === Statistik-Katalog ======================================================
+// Zentrale Definition aller Pokémon-Kennzahlen: Beschriftung, Kurzform, Format
+// und Erklärtext (für die Info-Popovers). Reihenfolge = Standard-Spaltenreihenfolge.
+const STAT_CATALOG = [
+  { key: 'kills', label: 'Kills', short: 'K', fmt: 'int', info: 'Anzahl gegnerischer Pokémon, die dieses Pokémon besiegt hat. Self-Kills zählen nicht.' },
+  { key: 'deaths', label: 'Deaths', short: 'D', fmt: 'int', info: 'Wie oft dieses Pokémon besiegt wurde – inklusive Self-Kills und ohne Verursacher.' },
+  { key: 'kd', label: 'K/D', short: 'K/D', fmt: 'num2', info: 'Verhältnis Kills zu Deaths (Kills geteilt durch Deaths, Nenner mindestens 1).' },
+  { key: 'killsPerBattle', label: 'Kills/Kampf', short: 'K/Kpf', fmt: 'num2', info: 'Durchschnittliche Kills pro eingesetztem Kampf.' },
+  { key: 'deathsPerBattle', label: 'Deaths/Kampf', short: 'D/Kpf', fmt: 'num2', info: 'Durchschnittliche Deaths pro eingesetztem Kampf.' },
+  { key: 'matchups', label: 'Matchups', short: 'MU', fmt: 'int', info: 'In wie vielen Match-Aufgeboten (6 von 10) dieses Pokémon stand.' },
+  { key: 'battles', label: 'Kämpfe', short: 'Kpf', fmt: 'int', info: 'In wie vielen ausgetragenen Kämpfen (4er-Einsatz) es stand.' },
+  { key: 'battleWinPct', label: 'Kampf-Siegquote', short: 'Kpf-SQ', fmt: 'pct', info: 'Anteil gewonnener Kämpfe an allen Kämpfen, in denen es eingesetzt wurde.' },
+  { key: 'matchWinPct', label: 'Match-Siegquote', short: 'M-SQ', fmt: 'pct', info: 'Anteil gewonnener Matches an allen Matches, in denen es im Aufgebot stand.' },
+  { key: 'survivalRate', label: 'Überlebensrate', short: 'Überl.', fmt: 'pct', info: 'Anteil der Kämpfe, die es überlebt hat (kein Death).' },
+  { key: 'base_speed', label: 'Initiative', short: 'Init', fmt: 'int', info: 'Basis-Initiative (Speed-Basiswert) aus den Stammdaten.' },
+  { key: 'cost', label: 'Kosten', short: 'Kosten', fmt: 'int', info: 'Draft-Kosten (Punkte) des Pokémon.' },
+];
+const STAT_BY_KEY = Object.fromEntries(STAT_CATALOG.map((s) => [s.key, s]));
+const STAT_KEYS = STAT_CATALOG.map((s) => s.key);
+const DEFAULT_COLS = ['kills', 'deaths', 'matchups', 'battles'];
+
+// Weitere Erklärtexte für Kennzahlen außerhalb der Tabellen (Info-Popovers).
+const EXTRA_INFO = {
+  matchupPct: 'Anteil der Matches, in denen dieses Pokémon im 6er-Aufgebot stand.',
+  battleShare: 'Anteil der Team-Kämpfe, in denen dieses Pokémon eingesetzt wurde.',
+  diff: 'Kill-Differenz: Kills minus Deaths. Zweites Sortierkriterium der Tabelle.',
+  points: 'Ein Punkt je gewonnenem Kampf über die gesamte Saison.',
+  avgPlace: 'Durchschnittliche Tabellenplatzierung aller Teams dieses Spielers.',
+};
+
+function fmtStat(value, fmt) {
+  const v = Number.isFinite(value) ? value : 0;
+  if (fmt === 'pct') return `${Math.round(v * 100)} %`;
+  if (fmt === 'num2') return v.toFixed(2);
+  return String(v);
+}
+
+// Spalten-Steuerung (Sichtbarkeit, Reihenfolge, Sortierung, Drag&Drop) als
+// wiederverwendbarer Mixin – wird in Team- und Liga-Ranking eingespreizt.
+function columnsMixin(storageKey) {
+  return {
+    colStorageKey: storageKey,
+    colOrder: [...STAT_KEYS],
+    colVisible: Object.fromEntries(STAT_KEYS.map((k) => [k, DEFAULT_COLS.includes(k)])),
+    sortKey: 'kills',
+    sortDir: 'desc',
+    catalog: STAT_CATALOG,
+    _dragKey: null,
+
+    initColumns() {
+      const saved = loadJson(this.colStorageKey);
+      if (saved && Array.isArray(saved.order)) {
+        // Nur bekannte Keys übernehmen, fehlende hinten anhängen (Katalog-Erweiterungen).
+        const known = saved.order.filter((k) => STAT_BY_KEY[k]);
+        const missing = STAT_KEYS.filter((k) => !known.includes(k));
+        this.colOrder = [...known, ...missing];
+      }
+      if (saved && saved.visible) {
+        this.colVisible = Object.fromEntries(STAT_KEYS.map((k) => [k, !!saved.visible[k]]));
+      }
+      if (saved && STAT_BY_KEY[saved.sortKey]) this.sortKey = saved.sortKey;
+      if (saved && (saved.sortDir === 'asc' || saved.sortDir === 'desc')) this.sortDir = saved.sortDir;
+      if (!this.visibleCols().length) this.colVisible[this.colOrder[0]] = true; // nie 0 Spalten
+    },
+    saveColumns() {
+      saveJson(this.colStorageKey, {
+        order: this.colOrder,
+        visible: this.colVisible,
+        sortKey: this.sortKey,
+        sortDir: this.sortDir,
+      });
+    },
+    // Als Methoden (nicht Getter!): der Object-Spread beim Einspreizen des Mixins
+    // würde Getter sonst einmalig auswerten und einfrieren.
+    orderedCatalog() {
+      return this.colOrder.map((k) => STAT_BY_KEY[k]).filter(Boolean);
+    },
+    visibleCols() {
+      return this.colOrder.filter((k) => this.colVisible[k]).map((k) => STAT_BY_KEY[k]);
+    },
+    toggleCol(key) {
+      const on = !this.colVisible[key];
+      if (!on && this.visibleCols().length <= 1) return; // mindestens eine Spalte
+      this.colVisible = { ...this.colVisible, [key]: on };
+      if (this.sortKey === key && !on) {
+        const first = this.visibleCols()[0];
+        if (first) this.sortKey = first.key;
+      }
+      this.saveColumns();
+    },
+    setSort(key) {
+      if (this.sortKey === key) {
+        this.sortDir = this.sortDir === 'desc' ? 'asc' : 'desc';
+      } else {
+        this.sortKey = key;
+        this.sortDir = 'desc';
+      }
+      this.saveColumns();
+    },
+    sortRows(rows) {
+      const key = this.sortKey;
+      const dir = this.sortDir === 'asc' ? 1 : -1;
+      return [...rows].sort(
+        (a, b) => dir * ((a[key] ?? 0) - (b[key] ?? 0)) || a.pokemon.name.localeCompare(b.pokemon.name),
+      );
+    },
+    colValue(row, key) {
+      return fmtStat(row[key], STAT_BY_KEY[key]?.fmt);
+    },
+    // Pointer-basiertes Drag&Drop (touch-tauglich) im Spalten-Popover.
+    colDragStart(key, e) {
+      this._dragKey = key;
+      if (e?.target?.setPointerCapture && e.pointerId != null) {
+        try { e.target.setPointerCapture(e.pointerId); } catch (err) {}
+      }
+    },
+    colDragMove(e) {
+      if (!this._dragKey) return;
+      const el = document.elementFromPoint(e.clientX, e.clientY)?.closest('[data-col-key]');
+      const overKey = el?.dataset?.colKey;
+      if (!overKey || overKey === this._dragKey) return;
+      const order = [...this.colOrder];
+      const from = order.indexOf(this._dragKey);
+      const to = order.indexOf(overKey);
+      if (from < 0 || to < 0) return;
+      order.splice(from, 1);
+      order.splice(to, 0, this._dragKey);
+      this.colOrder = order;
+    },
+    colDragEnd() {
+      if (!this._dragKey) return;
+      this._dragKey = null;
+      this.saveColumns();
+    },
+  };
+}
+
+// Info-Popover global öffnen (Light-Dismiss). Reicht Titel + Text an das App-Level weiter.
+function openStatInfo(el, title, text) {
+  window.dispatchEvent(new CustomEvent('stat-info', { detail: { title, text } }));
+}
+
 function shuffle(arr) {
   const a = [...arr];
   for (let i = a.length - 1; i > 0; i--) {
@@ -103,13 +252,6 @@ function buildSchedule(janikIds, henrikIds) {
   rueck.forEach((matches, i) => matchdays.push({ day: n + i + 1, leg: 'rueck', matches }));
   return matchdays;
 }
-
-const STAT_MODES = [
-  { key: 'kills', label: 'Kills' },
-  { key: 'deaths', label: 'Deaths' },
-  { key: 'matchups', label: 'Matchups' },
-  { key: 'battles', label: 'Kämpfe' },
-];
 
 // Neutrale Linienfarbe — Teams werden im Diagramm über ihr Logo an jedem Datenpunkt
 // identifiziert, nicht über eine hinterlegte Team-Farbe.
@@ -146,12 +288,6 @@ function buildChart(history, teamsCount, styleFor) {
     xTicks: days.map((d) => ({ day: d, x: xFor(d) })),
     hasData: days.length > 0,
   };
-}
-
-function rankPokemon(arr, mode, dir) {
-  return [...arr].sort(
-    (a, b) => (dir === 'asc' ? a[mode] - b[mode] : b[mode] - a[mode]) || a.pokemon.name.localeCompare(b.pokemon.name),
-  );
 }
 
 // Liniendiagramm als SVG-String (x-html); x-for im SVG-Namespace ist unzuverlässig.
@@ -258,6 +394,28 @@ function app() {
     toasts: [],
     _toastSeq: 0,
 
+    // Globale Suche (Strg/⌘ + K)
+    searchQ: '',
+    searchIndex: 0,
+    // Info-Popover (geteilt)
+    info: { title: '', text: '' },
+
+    initApp() {
+      window.addEventListener('keydown', (e) => {
+        if ((e.ctrlKey || e.metaKey) && (e.key === 'k' || e.key === 'K')) {
+          e.preventDefault();
+          this.openSearch();
+        }
+      });
+      window.addEventListener('stat-info', (e) => this.showInfo(e.detail));
+    },
+    get isMac() {
+      return typeof navigator !== 'undefined' && /Mac|iPhone|iPad/.test(navigator.platform || navigator.userAgent || '');
+    },
+    get shortcutHint() {
+      return this.isMac ? '⌘K' : 'Strg K';
+    },
+
     // Verlinkungs-Navigation: Ziel im nav-Store ablegen, dann Ansicht laden.
     onNavigate(detail) {
       if (!detail || !detail.key) return;
@@ -286,8 +444,10 @@ function app() {
       const base = [
         { key: 'draft', label: 'Draft', file: './pages/draft.html', icon: ICONS.pokeball },
         { key: 'teams', label: 'Teams', file: './pages/teams.html', icon: ICONS.teams },
+        { key: 'teambuilding', label: 'Teambuilding', file: './pages/teambuilding.html', icon: ICONS.build },
         { key: 'spieltag', label: 'Spielplan', file: './pages/spieltag.html', icon: ICONS.bolt },
         { key: 'tabelle', label: 'Tabelle', file: './pages/tabelle.html', icon: ICONS.standings },
+        { key: 'spieler', label: 'Spieler', file: './pages/spieler.html', icon: ICONS.player },
       ];
       return this.$store.league.draft?.status === 'done' ? [...base].reverse() : base;
     },
@@ -328,6 +488,9 @@ function app() {
         view.innerHTML = html;
         Alpine.initTree(view);
         this.current = key;
+        // Scroll immer zurücksetzen; nur der Spieltag scrollt danach selbst zum
+        // nächsten offenen Spiel. So bleibt die Tiefscroll-Logik auf den Spieltag begrenzt.
+        window.scrollTo({ top: 0 });
       };
 
       const reduce = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
@@ -339,6 +502,73 @@ function app() {
       } else {
         swap();
       }
+    },
+
+    // === Info-Popover (geteilt) ============================================
+    showInfo(detail) {
+      if (!detail) return;
+      this.info = { title: detail.title || 'Info', text: detail.text || '' };
+      this.$nextTick(() => document.getElementById('stat-info')?.showPopover());
+    },
+
+    // === Globale Suche =====================================================
+    openSearch() {
+      this.searchQ = '';
+      this.searchIndex = 0;
+      const el = document.getElementById('search-pop');
+      if (el && !el.matches(':popover-open')) el.showPopover();
+      this.$nextTick(() => this.$refs.searchInput?.focus());
+    },
+    closeSearch() {
+      const el = document.getElementById('search-pop');
+      if (el && el.matches(':popover-open')) el.hidePopover();
+    },
+    get searchResults() {
+      const q = this.searchQ.trim().toLowerCase();
+      if (!q) return [];
+      const league = this.$store.league;
+      const out = [];
+      // Teams
+      (league.seasonTeams || []).forEach((t) => {
+        if (t.name.toLowerCase().includes(q) || (t.player || '').toLowerCase().includes(q)) {
+          out.push({ type: 'Team', label: t.name, sub: t.player, teamId: t.id, key: 'teams', logo: `./img/teams/${t.logo}` });
+        }
+      });
+      // Pokémon
+      (league.pokemon || []).forEach((p) => {
+        if (p.name.toLowerCase().includes(q) || (p.name_en || '').toLowerCase().includes(q) || (p.types || []).some((ty) => ty.toLowerCase().includes(q))) {
+          out.push({ type: 'Pokémon', label: p.name, sub: (p.types || []).join(' · '), pokemonName: p.name, key: 'pokemon', image: p.image });
+        }
+      });
+      // Matches
+      const teamById = (id) => (league.teams || []).find((t) => t.id === id);
+      (league.schedule?.matchdays || []).forEach((md) => {
+        (md.matches || []).forEach((m, i) => {
+          const home = teamById(m.home);
+          const away = teamById(m.away);
+          const label = `${home?.name || ''} vs ${away?.name || ''}`;
+          if (label.toLowerCase().includes(q) || `spieltag ${md.day}`.includes(q) || `st ${md.day}`.includes(q)) {
+            out.push({ type: 'Match', label, sub: `Spieltag ${md.day}`, matchId: `s1-d${md.day}-m${i}`, key: 'spieltag' });
+          }
+        });
+      });
+      return out.slice(0, 24);
+    },
+    searchMove(dir) {
+      const n = this.searchResults.length;
+      if (!n) return;
+      this.searchIndex = (this.searchIndex + dir + n) % n;
+    },
+    selectSearch(res) {
+      const r = res || this.searchResults[this.searchIndex];
+      if (!r) return;
+      this.closeSearch();
+      this.$dispatch('navigate', {
+        key: r.key,
+        teamId: r.teamId || null,
+        matchId: r.matchId || null,
+        pokemonName: r.pokemonName || null,
+      });
     },
   };
 }
@@ -532,15 +762,19 @@ function draftBoard() {
       const el = document.getElementById(id);
       if (el && el.matches(':popover-open')) el.hidePopover();
     },
+    // Draftpool exportieren
+    runExport(fmt) {
+      exportDataset(buildDraftpoolExport(this.league.pokemon, this.league.teams), fmt);
+      const el = document.getElementById('exp-draft');
+      if (el && el.matches(':popover-open')) el.hidePopover();
+    },
   };
 }
 
 function teamsView() {
   return {
+    ...columnsMixin('jhdl-cols-teamrank-v1'),
     selectedId: null,
-    statMode: 'kills',
-    statDir: 'desc',
-    statModes: STAT_MODES,
 
     // Speed-Tiers: gerätelokal persistierte Anzeige-Einstellungen je Pokémon.
     spdSort: 'desc',
@@ -551,6 +785,7 @@ function teamsView() {
 
     // Beim Laden: ggf. per Verlinkung übergebenes Team direkt öffnen.
     init() {
+      this.initColumns();
       this.spdSettings = loadJson(SPEED_SETTINGS_KEY);
       this.weakExcluded = loadJson(WEAK_SETTINGS_KEY);
       const nav = this.$store.nav;
@@ -602,15 +837,15 @@ function teamsView() {
       let oppWins = 0;
       let done = 0;
       const battles = (r.battles || []).map((b) => {
-        if (!b || !b.done || !b.score) return { done: false };
+        if (!b || !b.done) return { done: false };
         done++;
-        const s = battleStats(b.score);
+        const s = battleStats(b);
         ownWins += side === 'home' ? s.homePoints : s.awayPoints;
         oppWins += side === 'home' ? s.awayPoints : s.homePoints;
         return {
           done: true,
-          own: side === 'home' ? b.score.home : b.score.away,
-          opp: side === 'home' ? b.score.away : b.score.home,
+          own: side === 'home' ? s.homeSurvivors : s.awaySurvivors,
+          opp: side === 'home' ? s.awaySurvivors : s.homeSurvivors,
           outcome: s.winner === 'draw' ? 'draw' : s.winner === side ? 'win' : 'loss',
         };
       });
@@ -629,24 +864,33 @@ function teamsView() {
       return chartSvgString(this.teamCurve);
     },
 
-    // --- Pokémon-Ranking des Teams ---
+    // --- Pokémon-Ranking des Teams (konfigurierbare Tabelle) ---
     get teamRanking() {
       const team = this.selectedTeam;
       if (!team) return [];
-      return rankPokemon(pokemonStats([team], this.league.results), this.statMode, this.statDir);
+      return this.sortRows(this.enrichSpeed(pokemonStats([team], this.league.results)));
+    },
+    enrichSpeed(list) {
+      return list.map((s) => ({ ...s, base_speed: this.baseSpeedFor(s.pokemon) ?? 0 }));
     },
     vtName(p) {
       return pokemonVtName(p);
     },
-    setStatMode(m) {
-      if (m === this.statMode) return;
-      withReorderTransition(() => (this.statMode = m), () => this.$nextTick());
+    sortByCol(key) {
+      withReorderTransition(() => this.setSort(key), () => this.$nextTick());
     },
-    toggleStatDir() {
-      withReorderTransition(() => (this.statDir = this.statDir === 'desc' ? 'asc' : 'desc'), () => this.$nextTick());
+    statInfo(key) {
+      const s = STAT_BY_KEY[key];
+      if (s) openStatInfo(null, s.label, s.info);
     },
     fmtDiff(d) {
       return d > 0 ? `+${d}` : `${d}`;
+    },
+    // Teams exportieren (Übersicht)
+    runExport(fmt) {
+      exportDataset(buildTeamsExport(this.league.teams, this.league.pokemon), fmt);
+      const el = document.getElementById('exp-teams');
+      if (el && el.matches(':popover-open')) el.hidePopover();
     },
 
     open(id) {
@@ -959,9 +1203,9 @@ function scheduleView() {
       let away = 0;
       let any = false;
       (r.battles || []).forEach((b) => {
-        if (b && b.done && b.score) {
+        if (b && b.done) {
           any = true;
-          const s = battleStats(b.score);
+          const s = battleStats(b);
           home += s.homePoints;
           away += s.awayPoints;
         }
@@ -1007,7 +1251,7 @@ function scheduleView() {
 
       const battles = (r?.battles || []).map((b, i) => {
         if (!b || !b.done) return { no: i + 1, done: false };
-        const s = battleStats(b.score);
+        const s = battleStats(b);
         const sideMons = (side) => {
           const teamId = side === 'home' ? dt.home : dt.away;
           return (b.used?.[side] || []).map((name) => {
@@ -1063,8 +1307,17 @@ function scheduleView() {
       return this.roster(side).find((p) => p.name === name)?.image || '';
     },
 
+    // Sieger, Ergebnis (Überlebende je Seite) und Kill-Log sind entkoppelt.
     blankBattle() {
-      return { used: { home: [], away: [] }, winner: null, survivors: null, fate: {} };
+      return { used: { home: [], away: [] }, winner: null, score: { home: null, away: null }, fate: {} };
+    },
+    // Matchup-Reiter nur bei neuer Eingabe (noch kein gespeichertes Ergebnis).
+    get isNewEntry() {
+      return !!this.editing && !this.resultFor(this.editing.day, this.editing.matchIndex);
+    },
+    // Volle 10er-Kader beider Seiten (für den Matchup-Screenshot).
+    fullRoster(side) {
+      return this.roster(side);
     },
     openEntry(day, matchIndex, home, away) {
       const existing = this.resultFor(day, matchIndex);
@@ -1090,13 +1343,13 @@ function scheduleView() {
           else if (k.killerSide === k.victimSide) fate[key] = `self:${k.killer}`;
           else fate[key] = `opp:${k.killer}`;
         });
-        let winner = 'draw';
-        let survivors = null;
+        let winner = b.winner;
         const sh = b.score?.home ?? 0;
         const sa = b.score?.away ?? 0;
-        if (sh > sa) { winner = 'home'; survivors = sh; }
-        else if (sa > sh) { winner = 'away'; survivors = sa; }
-        return { used, winner, survivors, fate };
+        if (winner !== 'home' && winner !== 'away' && winner !== 'draw') {
+          winner = sh > sa ? 'home' : sa > sh ? 'away' : 'draw';
+        }
+        return { used, winner, score: { home: b.score?.home ?? null, away: b.score?.away ?? null }, fate };
       });
       return { squads: { home: [...(r.squads?.home || [])], away: [...(r.squads?.away || [])] }, battles };
     },
@@ -1157,14 +1410,13 @@ function scheduleView() {
       return this.currentBattle().used[side].length;
     },
 
-    // Endstand
+    // Sieger (frei wählbar, unabhängig vom Ergebnis)
     setWinner(side) {
-      const b = this.currentBattle();
-      b.winner = side;
-      if (side === 'draw') b.survivors = null;
+      this.currentBattle().winner = side;
     },
-    setSurvivors(n) {
-      this.currentBattle().survivors = n;
+    // Ergebnis: Überlebende je Seite (0–4), frei eintragbar
+    setScore(side, n) {
+      this.currentBattle().score[side] = n;
     },
 
     // Kill-Log
@@ -1189,7 +1441,9 @@ function scheduleView() {
       if (!b) return false;
       if (b.used.home.length !== 4 || b.used.away.length !== 4) return false;
       if (!['home', 'away', 'draw'].includes(b.winner)) return false;
-      if (b.winner !== 'draw' && !(b.survivors >= 1 && b.survivors <= 4)) return false;
+      const sh = b.score?.home;
+      const sa = b.score?.away;
+      if (!(sh >= 0 && sh <= 4) || !(sa >= 0 && sa <= 4)) return false;
       const keys = [
         ...b.used.home.map((n) => `home:${n}`),
         ...b.used.away.map((n) => `away:${n}`),
@@ -1202,10 +1456,7 @@ function scheduleView() {
 
     serialize() {
       const battles = this.form.battles.map((b) => {
-        const score =
-          b.winner === 'home' ? { home: b.survivors || 0, away: 0 }
-          : b.winner === 'away' ? { home: 0, away: b.survivors || 0 }
-          : { home: 0, away: 0 };
+        const score = { home: b.score?.home ?? 0, away: b.score?.away ?? 0 };
         const kills = [];
         ['home', 'away'].forEach((side) => {
           b.used[side].forEach((name) => {
@@ -1220,6 +1471,7 @@ function scheduleView() {
           done: this.battleValid(b),
           used: { home: [...b.used.home], away: [...b.used.away] },
           score,
+          winner: b.winner || null,
           kills,
         };
       });
@@ -1244,11 +1496,34 @@ function scheduleView() {
       }
       this.saving = false;
     },
+
+    // --- Export ---
+    runExport(kind, fmt) {
+      const l = this.league;
+      const ds = kind === 'schedule'
+        ? buildScheduleExport(l.teams, l.results, l.schedule)
+        : buildBattleDetailsExport(l.teams, l.results, l.schedule);
+      exportDataset(ds, fmt);
+      const el = document.getElementById('exp-spieltag');
+      if (el && el.matches(':popover-open')) el.hidePopover();
+    },
   };
 }
 
 function standingsView() {
   return {
+    ...columnsMixin('jhdl-cols-leaguerank-v1'),
+    // Ranking-Filter (nur Tabelle-View)
+    fType: '',
+    fTier: '',
+    fTeam: '',
+    allTypes: ALL_TYPES,
+    tiers: TIER_ORDER,
+
+    init() {
+      this.initColumns();
+    },
+
     get league() {
       return this.$store.league;
     },
@@ -1274,22 +1549,53 @@ function standingsView() {
       return chartSvgString(this.curve);
     },
 
-    // --- Liga-weites Pokémon-Ranking (alle Teams) ---
-    statMode: 'kills',
-    statDir: 'desc',
-    statModes: STAT_MODES,
+    // --- Liga-weites Pokémon-Ranking (konfigurierbare, filterbare Tabelle) ---
+    get baseRanking() {
+      const speed = this.league.pokemon;
+      return pokemonStats(this.league.seasonTeams, this.league.results).map((s) => ({
+        ...s,
+        base_speed: (speed.find((p) => p.name === s.pokemon.name)?.base_speed) ?? 0,
+      }));
+    },
+    get filterTeams() {
+      return this.league.seasonTeams;
+    },
+    get hasFilters() {
+      return !!(this.fType || this.fTier || this.fTeam);
+    },
+    clearFilters() {
+      this.fType = '';
+      this.fTier = '';
+      this.fTeam = '';
+    },
     get ranking() {
-      return rankPokemon(pokemonStats(this.league.seasonTeams, this.league.results), this.statMode, this.statDir);
+      let list = this.baseRanking;
+      if (this.fType) list = list.filter((s) => (s.pokemon.types || []).includes(this.fType));
+      if (this.fTier) list = list.filter((s) => s.pokemon.tier === this.fTier);
+      if (this.fTeam) list = list.filter((s) => s.team?.id === this.fTeam);
+      return this.sortRows(list);
     },
     vtName(p) {
       return pokemonVtName(p);
     },
-    setStatMode(m) {
-      if (m === this.statMode) return;
-      withReorderTransition(() => (this.statMode = m), () => this.$nextTick());
+    sortByCol(key) {
+      withReorderTransition(() => this.setSort(key), () => this.$nextTick());
     },
-    toggleStatDir() {
-      withReorderTransition(() => (this.statDir = this.statDir === 'desc' ? 'asc' : 'desc'), () => this.$nextTick());
+    statInfo(key) {
+      const s = STAT_BY_KEY[key];
+      if (s) return openStatInfo(null, s.label, s.info);
+      if (EXTRA_INFO[key]) openStatInfo(null, key, EXTRA_INFO[key]);
+    },
+    info(title, text) { openStatInfo(null, title, text); },
+    // Export: Tabelle bzw. Ranking
+    runExport(kind, fmt) {
+      const l = this.league;
+      const ds = kind === 'standings'
+        ? buildStandingsExport(l.seasonTeams, l.results)
+        : buildRankingExport(l.seasonTeams, l.results, l.pokemon);
+      exportDataset(ds, fmt);
+      const el = document.getElementById('exp-tabelle');
+      if (el && el.matches(':popover-open')) el.hidePopover();
     },
 
     teamById(id) {
@@ -1487,6 +1793,219 @@ function pokemonView() {
       const v = Number.isFinite(x) ? x : 0;
       return `${Math.round(v * 100)} %`;
     },
+    // Info-Popover zu einer Kennzahl öffnen (aus Katalog oder Zusatztexten).
+    statInfo(key) {
+      const s = STAT_BY_KEY[key];
+      if (s) return openStatInfo(null, s.label, s.info);
+      if (EXTRA_INFO[key]) openStatInfo(null, key, EXTRA_INFO[key]);
+    },
+    info(title, text) {
+      openStatInfo(null, title, text);
+    },
+  };
+}
+
+// === Spieler-Duell (Janik ⚔ Henrik) ========================================
+function spielerView() {
+  return {
+    get league() {
+      return this.$store.league;
+    },
+    get loaded() {
+      return this.league.teamsLoaded && this.league.resultsLoaded && this.league.pokemonLoaded;
+    },
+    get duel() {
+      return playerDuel(this.league.seasonTeams, this.league.results);
+    },
+    get janik() { return this.duel.janik; },
+    get henrik() { return this.duel.henrik; },
+    get hasData() { return this.duel.totalBattles > 0; },
+    get metrics() {
+      const j = this.janik;
+      const h = this.henrik;
+      return [
+        { label: 'Matches gewonnen', a: j.matchWins, b: h.matchWins, info: 'Gewonnene Matches über die gesamte Saison.' },
+        { label: 'Kämpfe gewonnen', a: j.battleWins, b: h.battleWins, info: 'Gewonnene Einzelkämpfe (je Match bis zu drei).' },
+        { label: 'Kills gesamt', a: j.kills, b: h.kills, info: 'Insgesamt besiegte gegnerische Pokémon.' },
+        { label: 'Deaths gesamt', a: j.deaths, b: h.deaths, info: 'Insgesamt verlorene eigene Pokémon.' },
+        { label: 'Kill-Differenz', a: j.diff, b: h.diff, info: 'Kills minus Deaths über alle Teams des Spielers.' },
+        { label: 'Punkte gesamt', a: j.points, b: h.points, info: 'Summe der gewonnenen Kämpfe (ein Punkt je Sieg).' },
+      ];
+    },
+    playerColor(player) {
+      return player === 'Henrik' ? '#4d90d5' : '#e3350d';
+    },
+    monImage(name) {
+      return this.league.pokemon.find((p) => p.name === name)?.image || '';
+    },
+    monTeam(name) {
+      return this.league.teams.find((t) => (t.pokemon || []).some((p) => p.name === name)) || null;
+    },
+    logoUrl(file) { return `./img/teams/${file}`; },
+    fmtPct(x) { return `${Math.round((Number.isFinite(x) ? x : 0) * 100)} %`; },
+    fmtDiff(d) { return d > 0 ? `+${d}` : `${d}`; },
+    fmtAvg(x) { return x == null ? '—' : x.toFixed(2); },
+    // Balkenanteil (0..100) für den Vergleichsbalken.
+    share(a, b) {
+      const t = (a || 0) + (b || 0);
+      return t ? Math.round((a / t) * 100) : 50;
+    },
+    goMon(name) { this.$dispatch('navigate', { key: 'pokemon', pokemonName: name }); },
+    goTeam(id) { this.$dispatch('navigate', { key: 'teams', teamId: id }); },
+    statInfo(key) {
+      const s = STAT_BY_KEY[key];
+      if (s) return openStatInfo(null, s.label, s.info);
+      if (EXTRA_INFO[key]) openStatInfo(null, key, EXTRA_INFO[key]);
+    },
+    info(title, text) { openStatInfo(null, title, text); },
+  };
+}
+
+// === Teambuilding: zwei Teams gegenüberstellen =============================
+function teambuildingView() {
+  return {
+    teamAId: null,
+    teamBId: null,
+    inactive: {}, // name -> true (deaktiviert)
+    mods: {},     // name -> { x15, x2 }
+    spdSort: 'desc',
+    allTypes: ALL_TYPES,
+
+    init() {
+      if (this.loaded) this.pickDefaults();
+      else this.$watch('loaded', () => { if (this.loaded && this.teamAId == null) this.pickDefaults(); });
+    },
+    get league() { return this.$store.league; },
+    get loaded() { return this.league.teamsLoaded && this.league.pokemonLoaded; },
+    get teams() { return this.league.seasonTeams; },
+    teamById(id) { return this.league.teams.find((t) => t.id === id) || null; },
+    pickDefaults() {
+      const j = this.teams.find((t) => t.player === 'Janik');
+      const h = this.teams.find((t) => t.player === 'Henrik');
+      this.teamAId = j?.id || this.teams[0]?.id || null;
+      this.teamBId = h?.id || this.teams.find((t) => t.id !== this.teamAId)?.id || null;
+      this.loadPair();
+    },
+    get teamA() { return this.teamById(this.teamAId); },
+    get teamB() { return this.teamById(this.teamBId); },
+    get ready() { return !!(this.teamA && this.teamB); },
+    setTeam(side, id) {
+      if (side === 'a') this.teamAId = id; else this.teamBId = id;
+      this.loadPair();
+    },
+    pairKey() { return `jhdl-tb-${this.teamAId}-${this.teamBId}`; },
+    loadPair() {
+      const s = loadJson(this.pairKey());
+      this.inactive = s.inactive || {};
+      this.mods = s.mods || {};
+    },
+    savePair() { saveJson(this.pairKey(), { inactive: this.inactive, mods: this.mods }); },
+    isActive(name) { return !this.inactive[name]; },
+    toggleActive(name) {
+      const n = { ...this.inactive };
+      if (n[name]) delete n[name]; else n[name] = true;
+      this.inactive = n;
+      this.savePair();
+    },
+    modGet(name) {
+      const m = this.mods[name] || {};
+      return { x15: !!m.x15, x2: !!m.x2 };
+    },
+    modToggle(name, key) {
+      const cur = this.modGet(name);
+      cur[key] = !cur[key];
+      this.mods = { ...this.mods, [name]: cur };
+      this.savePair();
+    },
+    allMons(team) {
+      const rank = { S: 0, A: 1, B: 2, C: 3, D: 4 };
+      return [...(team?.pokemon || [])].sort((a, b) => (rank[a.tier] ?? 9) - (rank[b.tier] ?? 9));
+    },
+    activeMons(team) {
+      return this.allMons(team).filter((p) => this.isActive(p.name));
+    },
+    baseSpeedFor(mon) {
+      const m = this.league.pokemon.find((p) => p.name === mon.name);
+      const v = m?.base_speed ?? mon.base_speed;
+      return Number.isFinite(v) ? v : null;
+    },
+    playerColor(player) { return player === 'Henrik' ? '#4d90d5' : '#e3350d'; },
+    logoUrl(file) { return `./img/teams/${file}`; },
+    typeColor(type) { return TYPE_COLORS[type] || '#6b7280'; },
+    tierColor(tier) { return TIER_COLORS[tier] || '#6b7280'; },
+    goMon(name) { this.$dispatch('navigate', { key: 'pokemon', pokemonName: name }); },
+    toggleSpdSort() { this.spdSort = this.spdSort === 'desc' ? 'asc' : 'desc'; },
+
+    // Gemeinsame Initiative-Tierlist beider Teams, nach Team eingefärbt.
+    get combinedSpeedRows() {
+      const invs = [{ key: 's0', label: '0' }, { key: 's32', label: '32' }, { key: 's32n', label: '32+' }];
+      const rows = [];
+      [['a', this.teamA], ['b', this.teamB]].forEach(([side, team]) => {
+        if (!team) return;
+        this.activeMons(team).forEach((mon) => {
+          const base = this.baseSpeedFor(mon);
+          if (base == null) return;
+          const tiers = speedTiers(base);
+          const m = this.modGet(mon.name);
+          const mods = [{ key: 'x1', label: '×1', mult: 1 }];
+          if (m.x15) mods.push({ key: 'x15', label: '×1,5', mult: 1.5 });
+          if (m.x2) mods.push({ key: 'x2', label: '×2', mult: 2 });
+          invs.forEach((inv) => mods.forEach((mod) => {
+            rows.push({
+              id: `${side}|${mon.name}|${inv.key}|${mod.key}`,
+              side, team, mon,
+              inv: inv.label, invKey: inv.key, mod: mod.label, modKey: mod.key,
+              speed: applySpeedMod(tiers[inv.key], mod.mult),
+              color: this.playerColor(team.player),
+            });
+          }));
+        });
+      });
+      const dir = this.spdSort === 'asc' ? 1 : -1;
+      rows.sort((a, b) => dir * (a.speed - b.speed) || a.mon.name.localeCompare(b.mon.name));
+      return rows;
+    },
+    invColor(key) { return key === 's32n' ? '#ffcb05' : key === 's32' ? '#ff5a36' : '#98a2b3'; },
+    modColor(key) { return key === 'x2' ? '#63bc5a' : key === 'x15' ? '#4d90d5' : '#98a2b3'; },
+
+    // Bedrohungs-Matrix: bester Multiplikator, den attackerSide gegen jedes aktive
+    // Pokémon der Gegenseite erzielt (STAB-Typen der aktiven Pokémon).
+    threat(attacker, defenderMon) {
+      const atkTypes = [...new Set(this.activeMons(attacker).flatMap((m) => m.types || []))];
+      return atkTypes.reduce((best, atk) => Math.max(best, typeMultiplier(atk, defenderMon.types || [])), 0);
+    },
+    threatList(attackerSide) {
+      const attacker = attackerSide === 'a' ? this.teamA : this.teamB;
+      const defender = attackerSide === 'a' ? this.teamB : this.teamA;
+      if (!attacker || !defender) return [];
+      return this.activeMons(defender)
+        .map((m) => ({ mon: m, mult: this.threat(attacker, m), color: this.playerColor(defender.player) }))
+        .sort((a, b) => b.mult - a.mult || a.mon.name.localeCompare(b.mon.name));
+    },
+    // Schwächen-Vergleich je Angriffstyp (Anzahl aktiver Pokémon mit Schwäche).
+    get weakCompare() {
+      const count = (team) => ALL_TYPES.map((type) => this.activeMons(team).filter((m) => typeMultiplier(type, m.types || []) > 1).length);
+      const a = count(this.teamA);
+      const b = count(this.teamB);
+      return ALL_TYPES
+        .map((type, i) => ({ type, a: a[i], b: b[i] }))
+        .sort((x, y) => (y.a + y.b) - (x.a + x.b) || x.type.localeCompare(y.type));
+    },
+    multLabel(mult) {
+      if (mult === 0) return '0';
+      if (mult === 0.25) return '¼';
+      if (mult === 0.5) return '½';
+      if (mult === 1) return '·';
+      return `${mult}×`;
+    },
+    multStyle(mult) {
+      if (mult >= 4) return 'background:rgba(227,53,13,0.85);color:#fff';
+      if (mult > 1) return 'background:rgba(227,53,13,0.4);color:#ffd9cf';
+      if (mult === 0) return 'background:rgba(152,162,179,0.16);color:#98a2b3';
+      if (mult <= 0.25) return 'background:rgba(99,188,90,0.7);color:#06210a';
+      if (mult < 1) return 'background:rgba(99,188,90,0.3);color:#bbe9b3';
+      return 'color:#5b6573';
+    },
   };
 }
 
@@ -1675,4 +2194,6 @@ Alpine.data('teamsView', teamsView);
 Alpine.data('scheduleView', scheduleView);
 Alpine.data('standingsView', standingsView);
 Alpine.data('pokemonView', pokemonView);
+Alpine.data('spielerView', spielerView);
+Alpine.data('teambuildingView', teambuildingView);
 Alpine.start();

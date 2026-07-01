@@ -3,25 +3,39 @@
 
 export const POKEMON_PER_BATTLE = 4;
 
-// Aus dem Endstand eines Kampfes (Überlebende je Seite, Verlierer i.d.R. 0)
-// Punkte und Kill/Death-Werte ableiten.
-// Kills einer Seite = besiegte gegnerische Pokémon = 4 − Überlebende des Gegners.
-export function battleStats(score) {
-  const home = Math.max(0, Math.min(POKEMON_PER_BATTLE, score?.home ?? 0));
-  const away = Math.max(0, Math.min(POKEMON_PER_BATTLE, score?.away ?? 0));
+// Kennzahlen eines Kampfes. Sieger, Ergebnis (Überlebende) und Kill-Log sind entkoppelt:
+//  - winner ist EXPLIZIT gesetzt ('home'|'away'|'draw') und bestimmt die Punkte. Fehlt er
+//    (Alt-Daten), wird er aus den Überlebenden abgeleitet (mehr Überlebende gewinnt).
+//  - homeSurvivors/awaySurvivors sind das frei eingetragene Ergebnis (0–4 je Seite).
+//  - Kills/Deaths stammen AUSSCHLIESSLICH aus dem Kill-Log (b.kills). Ein als „überlebt"
+//    gewertetes Pokémon erhält keinen Death, dem Gegner wird kein Kill angerechnet —
+//    unabhängig davon, was das Ergebnis suggeriert (z. B. Sieg durch Regelverstoß).
+export function battleStats(b) {
+  const score = b?.score || {};
+  const homeSurvivors = Math.max(0, Math.min(POKEMON_PER_BATTLE, score.home ?? 0));
+  const awaySurvivors = Math.max(0, Math.min(POKEMON_PER_BATTLE, score.away ?? 0));
 
-  const homeDeaths = POKEMON_PER_BATTLE - home;
-  const awayDeaths = POKEMON_PER_BATTLE - away;
-  const homeKills = awayDeaths;
-  const awayKills = homeDeaths;
+  let homeKills = 0, awayKills = 0, homeDeaths = 0, awayDeaths = 0;
+  (b?.kills || []).forEach((k) => {
+    if (!k) return;
+    if (k.victimSide === 'home') homeDeaths += 1;
+    if (k.victimSide === 'away') awayDeaths += 1;
+    if (k.killerSide === 'home' && k.killerSide !== k.victimSide) homeKills += 1;
+    if (k.killerSide === 'away' && k.killerSide !== k.victimSide) awayKills += 1;
+  });
 
-  let winner = 'draw';
-  let homePoints = 0;
-  let awayPoints = 0;
-  if (home > away) { winner = 'home'; homePoints = 1; }
-  else if (away > home) { winner = 'away'; awayPoints = 1; }
+  let winner = b?.winner;
+  if (winner !== 'home' && winner !== 'away' && winner !== 'draw') {
+    winner = homeSurvivors > awaySurvivors ? 'home' : awaySurvivors > homeSurvivors ? 'away' : 'draw';
+  }
+  const homePoints = winner === 'home' ? 1 : 0;
+  const awayPoints = winner === 'away' ? 1 : 0;
 
-  return { winner, homePoints, awayPoints, homeKills, homeDeaths, awayKills, awayDeaths };
+  return {
+    winner, homePoints, awayPoints,
+    homeKills, homeDeaths, awayKills, awayDeaths,
+    homeSurvivors, awaySurvivors,
+  };
 }
 
 // Tabelle aus allen Match-Ergebnissen berechnen.
@@ -38,8 +52,8 @@ export function computeStandings(teams, results) {
     const H = stats[r.home];
     const A = stats[r.away];
     (r.battles || []).forEach((b) => {
-      if (!b || !b.done || !b.score) return;
-      const s = battleStats(b.score);
+      if (!b || !b.done) return;
+      const s = battleStats(b);
       H.points += s.homePoints;
       A.points += s.awayPoints;
       H.kills += s.homeKills;
@@ -74,24 +88,72 @@ export function computeStandings(teams, results) {
 //            oder ohne Verursacher zählt als Death.
 // - matchups: in wie vielen Matches es im 6er-Aufgebot stand.
 // - battles:  in wie vielen (gespielten) Kämpfen es im 4er-Einsatz stand.
+// Abgeleitete (sortierbare) Kennzahlen an ein Roh-Stat-Objekt anhängen.
+function withDerivedStats(st) {
+  const battles = st.battles;
+  const battleDecided = st.battleWins + st.battleDraws + st.battleLosses;
+  const matchesDecided = st.matchWins + st.matchDraws + st.matchLosses;
+  return {
+    ...st,
+    kd: st.kills / Math.max(1, st.deaths),
+    killsPerBattle: st.kills / Math.max(1, battles),
+    deathsPerBattle: st.deaths / Math.max(1, battles),
+    survivalRate: Math.max(0, Math.min(1, (battles - st.deaths) / Math.max(1, battles))),
+    battleWinPct: battleDecided ? st.battleWins / battleDecided : 0,
+    matchWinPct: matchesDecided ? st.matchWins / matchesDecided : 0,
+    base_speed: Number.isFinite(st.pokemon?.base_speed) ? st.pokemon.base_speed : 0,
+    cost: Number.isFinite(st.pokemon?.cost) ? st.pokemon.cost : 0,
+  };
+}
+
 export function pokemonStats(teams, results) {
   const stats = {};
   (teams || []).forEach((t) => {
     (t.pokemon || []).forEach((p) => {
-      stats[p.name] = { pokemon: p, team: t, kills: 0, deaths: 0, matchups: 0, battles: 0 };
+      stats[p.name] = {
+        pokemon: p, team: t,
+        kills: 0, deaths: 0, matchups: 0, battles: 0,
+        battleWins: 0, battleDraws: 0, battleLosses: 0,
+        matchWins: 0, matchDraws: 0, matchLosses: 0,
+      };
     });
   });
 
   (results || []).forEach((r) => {
     if (!r) return;
+
+    // Match-Ausgang aus den gewonnenen Kämpfen (done-battles) je Seite bestimmen.
+    let hoWins = 0, awWins = 0, anyDone = false;
+    (r.battles || []).forEach((b) => {
+      if (!b || !b.done) return;
+      anyDone = true;
+      const s = battleStats(b);
+      if (s.winner === 'home') hoWins += 1;
+      else if (s.winner === 'away') awWins += 1;
+    });
+    const matchWinner = !anyDone ? null : hoWins > awWins ? 'home' : awWins > hoWins ? 'away' : 'draw';
+
     ['home', 'away'].forEach((side) => {
       (r.squads?.[side] || []).forEach((name) => {
-        if (stats[name]) stats[name].matchups += 1;
+        const st = stats[name];
+        if (!st) return;
+        st.matchups += 1;
+        if (matchWinner) {
+          if (matchWinner === 'draw') st.matchDraws += 1;
+          else if (matchWinner === side) st.matchWins += 1;
+          else st.matchLosses += 1;
+        }
       });
       (r.battles || []).forEach((b) => {
         if (!b || !b.done) return;
+        const s = battleStats(b);
         (b.used?.[side] || []).forEach((name) => {
-          if (stats[name]) stats[name].battles += 1;
+          const st = stats[name];
+          if (!st) return;
+          st.battles += 1;
+          if (s.winner === 'draw') st.battleDraws += 1;
+          else if (s.winner === side) st.battleWins += 1;
+          else st.battleLosses += 1;
         });
         (b.kills || []).forEach((k) => {
           // Death: Opfer auf dieser Seite (egal wer es besiegt hat).
@@ -105,7 +167,7 @@ export function pokemonStats(teams, results) {
     });
   });
 
-  return Object.values(stats);
+  return Object.values(stats).map(withDerivedStats);
 }
 
 // Platzierungsverlauf: für jeden gespielten Spieltag die kumulative Tabelle berechnen
@@ -263,6 +325,7 @@ export function pokemonProfile(name, teams, results) {
     kd: 0,
     killsPerBattle: 0,
     survivalRate: 0,
+    battleRecord: { w: 0, l: 0, d: 0, total: 0, winPct: 0 },
     history: [],
     partnersByBattle: [],
     opponentsByBattle: [],
@@ -295,6 +358,8 @@ export function pokemonProfile(name, teams, results) {
 
   const recWith = { w: 0, l: 0, d: 0, total: 0, winPct: 0 };
   const recWithout = { w: 0, l: 0, d: 0, total: 0, winPct: 0 };
+  // Kampf-Bilanz über die tatsächlich eingesetzten Kämpfe dieses Pokémon.
+  const battleRecord = { w: 0, l: 0, d: 0, total: 0, winPct: 0 };
 
   const timeline = [];
 
@@ -336,7 +401,7 @@ export function pokemonProfile(name, teams, results) {
 
     doneBattles.forEach((b, idx) => {
       const battleNo = (r.battles || []).indexOf(b);
-      const s = battleStats(b.score);
+      const s = battleStats(b);
       ownPts += ownSide === 'home' ? s.homePoints : s.awayPoints;
       oppPts += ownSide === 'home' ? s.awayPoints : s.homePoints;
 
@@ -350,6 +415,11 @@ export function pokemonProfile(name, teams, results) {
       if (inBattle) {
         battles += 1;
         monBattlesThisMatch += 1;
+        // Kampf-Bilanz aus Sicht dieses Pokémon (Sieger des Kampfes vs. eigene Seite).
+        battleRecord.total += 1;
+        if (s.winner === 'draw') battleRecord.d += 1;
+        else if (s.winner === ownSide) battleRecord.w += 1;
+        else battleRecord.l += 1;
         usedOwn.forEach((n) => {
           if (n && n !== name) partnersByBattle[n] = (partnersByBattle[n] || 0) + 1;
         });
@@ -429,6 +499,7 @@ export function pokemonProfile(name, teams, results) {
 
   recWith.winPct = recWith.total ? recWith.w / recWith.total : 0;
   recWithout.winPct = recWithout.total ? recWithout.w / recWithout.total : 0;
+  battleRecord.winPct = battleRecord.total ? battleRecord.w / battleRecord.total : 0;
 
   const clamp01 = (x) => Math.max(0, Math.min(1, x));
 
@@ -458,6 +529,92 @@ export function pokemonProfile(name, teams, results) {
     topNemeses: toList(topNemeses),
     matchRecordWith: recWith,
     matchRecordWithout: recWithout,
+    battleRecord,
     timeline,
+  };
+}
+
+// === Spieler-Duell: Janik ⚔ Henrik ==========================================
+// Aggregiert alle Ergebnisse zu einem direkten Spieler-Vergleich. Da jedes Match
+// Janik-Team vs Henrik-Team ist, entspricht die Match-Bilanz der Gesamt-Saison.
+export function playerDuel(teams, results) {
+  const teamById = {};
+  (teams || []).forEach((t) => { if (t?.id != null) teamById[t.id] = t; });
+
+  const blank = (player) => ({
+    player, teams: 0,
+    matchWins: 0, matchDraws: 0, matchLosses: 0,
+    battleWins: 0, battleDraws: 0, battleLosses: 0,
+    kills: 0, deaths: 0, points: 0,
+  });
+  const acc = { Janik: blank('Janik'), Henrik: blank('Henrik') };
+  (teams || []).forEach((t) => { if (acc[t.player]) acc[t.player].teams += 1; });
+
+  (results || []).forEach((r) => {
+    if (!r) return;
+    const home = teamById[r.home];
+    const away = teamById[r.away];
+    if (!home || !away) return;
+    const hp = acc[home.player];
+    const ap = acc[away.player];
+
+    let hoWins = 0, awWins = 0, anyDone = false;
+    (r.battles || []).forEach((b) => {
+      if (!b || !b.done) return;
+      anyDone = true;
+      const s = battleStats(b);
+      if (s.winner === 'home') hoWins += 1; else if (s.winner === 'away') awWins += 1;
+      if (hp) {
+        if (s.winner === 'draw') hp.battleDraws += 1;
+        else if (s.winner === 'home') hp.battleWins += 1;
+        else hp.battleLosses += 1;
+        hp.kills += s.homeKills; hp.deaths += s.homeDeaths; hp.points += s.homePoints;
+      }
+      if (ap) {
+        if (s.winner === 'draw') ap.battleDraws += 1;
+        else if (s.winner === 'away') ap.battleWins += 1;
+        else ap.battleLosses += 1;
+        ap.kills += s.awayKills; ap.deaths += s.awayDeaths; ap.points += s.awayPoints;
+      }
+    });
+    if (anyDone) {
+      const mw = hoWins > awWins ? 'home' : awWins > hoWins ? 'away' : 'draw';
+      if (mw === 'draw') { if (hp) hp.matchDraws += 1; if (ap) ap.matchDraws += 1; }
+      else if (mw === 'home') { if (hp) hp.matchWins += 1; if (ap) ap.matchLosses += 1; }
+      else { if (ap) ap.matchWins += 1; if (hp) hp.matchLosses += 1; }
+    }
+  });
+
+  const standings = computeStandings(teams, results);
+  const placeSum = { Janik: 0, Henrik: 0 };
+  const placeCnt = { Janik: 0, Henrik: 0 };
+  standings.forEach((row, i) => {
+    const pl = row.team.player;
+    if (placeCnt[pl] != null) { placeSum[pl] += i + 1; placeCnt[pl] += 1; }
+  });
+
+  const monStats = pokemonStats(teams, results);
+  const finalize = (p) => {
+    const md = p.matchWins + p.matchDraws + p.matchLosses;
+    const bd = p.battleWins + p.battleDraws + p.battleLosses;
+    return {
+      ...p,
+      diff: p.kills - p.deaths,
+      matchWinPct: md ? p.matchWins / md : 0,
+      battleWinPct: bd ? p.battleWins / bd : 0,
+      avgPlace: placeCnt[p.player] ? placeSum[p.player] / placeCnt[p.player] : null,
+      top: monStats
+        .filter((s) => s.team?.player === p.player)
+        .sort((a, b) => b.kills - a.kills || b.battles - a.battles || a.pokemon.name.localeCompare(b.pokemon.name))
+        .slice(0, 5),
+    };
+  };
+
+  const janik = finalize(acc.Janik);
+  const henrik = finalize(acc.Henrik);
+  return {
+    janik, henrik,
+    totalMatches: janik.matchWins + janik.matchDraws + janik.matchLosses,
+    totalBattles: janik.battleWins + janik.battleDraws + janik.battleLosses,
   };
 }

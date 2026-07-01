@@ -39,12 +39,18 @@
       </form>
     </div>
 
-  <div x-show="unlocked" id="app" x-data="app()" x-init="load(current, { animate: false })"
+  <div x-show="unlocked" id="app" x-data="app()" x-init="initApp(); load(current, { animate: false })"
        @navigate.window="onNavigate($event.detail)" @toast.window="pushToast($event.detail)">
 
     <header class="fixed inset-x-0 top-0 z-40 flex h-16 items-center justify-between border-b border-line bg-void/85 px-4 backdrop-blur md:hidden">
       <img src="resources/img/logo.png" alt="JH Draft League" class="h-11 w-auto" />
-      <button type="button" class="pokeball" popovertarget="mobile-nav" aria-label="Navigation öffnen"></button>
+      <div class="flex items-center gap-2">
+        <button type="button" @click="openSearch()" aria-label="Suche öffnen"
+                class="grid size-11 place-items-center rounded-xl border border-line text-mist transition-colors hover:text-flame-400">
+          <svg viewBox="0 0 24 24" class="size-5" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="7"/><path d="m21 21-4.3-4.3"/></svg>
+        </button>
+        <button type="button" class="pokeball" popovertarget="mobile-nav" aria-label="Navigation öffnen"></button>
+      </div>
     </header>
 
     <nav id="mobile-nav" popover="manual" aria-label="Hauptnavigation">
@@ -74,6 +80,15 @@
             <div class="absolute inset-2 -z-10 rounded-full bg-flame-500/20 blur-2xl"></div>
             <img src="resources/img/logo.png" alt="JH Draft League" class="w-40" />
           </div>
+        </div>
+
+        <div class="px-4 pb-4">
+          <button type="button" @click="openSearch()"
+                  class="flex w-full items-center gap-2.5 rounded-xl border border-line bg-elevated/60 px-3.5 py-2.5 text-left text-mist transition-colors hover:border-flame-500/40 hover:text-ink">
+            <svg viewBox="0 0 24 24" class="size-4 shrink-0" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="7"/><path d="m21 21-4.3-4.3"/></svg>
+            <span class="flex-1 text-sm">Suche…</span>
+            <kbd class="rounded border border-line bg-void px-1.5 py-0.5 font-display text-[10px] font-semibold tracking-wide text-mist" x-text="shortcutHint"></kbd>
+          </button>
         </div>
 
         <nav class="flex-1 px-4">
@@ -107,6 +122,53 @@
         <div class="view mx-auto max-w-6xl" x-ref="view"></div>
       </main>
 
+    </div>
+
+    <!-- Info-Popover (geteilt, Light-Dismiss) -->
+    <div popover id="stat-info" class="modal-pop w-[20rem] max-w-[calc(100vw-2rem)] rounded-2xl border border-line bg-panel p-5 text-ink">
+      <div class="flex items-start gap-3">
+        <span class="mt-0.5 grid size-7 shrink-0 place-items-center rounded-full bg-flame-500/15 text-flame-400" aria-hidden="true">
+          <svg viewBox="0 0 24 24" class="size-4" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="9"/><path d="M12 11v5" stroke-linecap="round"/><circle cx="12" cy="7.6" r="0.6" fill="currentColor"/></svg>
+        </span>
+        <div class="min-w-0">
+          <p class="font-display text-sm font-bold uppercase tracking-wider text-ink" x-text="info.title"></p>
+          <p class="mt-1 text-sm leading-relaxed text-mist" x-text="info.text"></p>
+        </div>
+      </div>
+    </div>
+
+    <!-- Globale Suche (Strg/⌘ + K) -->
+    <div popover id="search-pop" class="search-pop w-[38rem] max-w-[calc(100vw-1.5rem)] rounded-2xl border border-line bg-panel text-ink"
+         @keydown.down.prevent="searchMove(1)" @keydown.up.prevent="searchMove(-1)" @keydown.enter.prevent="selectSearch()">
+      <div class="flex items-center gap-3 border-b border-line px-4 py-3">
+        <svg viewBox="0 0 24 24" class="size-5 shrink-0 text-mist" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="7"/><path d="m21 21-4.3-4.3"/></svg>
+        <input x-ref="searchInput" x-model="searchQ" @input="searchIndex = 0" type="text" placeholder="Teams, Pokémon oder Matches suchen…"
+               class="min-w-0 flex-1 bg-transparent text-ink placeholder:text-mist focus:outline-none" />
+        <kbd class="hidden shrink-0 rounded border border-line bg-void px-1.5 py-0.5 font-display text-[10px] font-semibold text-mist sm:block">ESC</kbd>
+      </div>
+      <div class="max-h-[60vh] overflow-y-auto p-2">
+        <template x-if="searchQ.trim() && !searchResults.length">
+          <p class="px-3 py-6 text-center text-sm text-mist">Keine Treffer.</p>
+        </template>
+        <template x-for="(res, i) in searchResults" :key="res.type + '-' + res.label + '-' + i">
+          <button type="button" @click="selectSearch(res)" @mousemove="searchIndex = i"
+                  class="flex w-full items-center gap-3 rounded-xl px-3 py-2.5 text-left transition-colors"
+                  :class="i === searchIndex ? 'bg-elevated' : 'hover:bg-elevated/50'">
+            <span class="grid size-9 shrink-0 place-items-center overflow-hidden rounded-lg border border-line bg-elevated/60">
+              <template x-if="res.image"><img :src="res.image" :alt="res.label" class="size-7 object-contain" /></template>
+              <template x-if="res.logo"><img :src="res.logo" :alt="res.label" class="size-7 object-contain" /></template>
+              <template x-if="!res.image && !res.logo">
+                <svg viewBox="0 0 24 24" class="size-4 text-mist" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M13 2 4 14h7l-1 8 9-12h-7z"/></svg>
+              </template>
+            </span>
+            <span class="min-w-0 flex-1">
+              <span class="block truncate font-semibold text-ink" x-text="res.label"></span>
+              <span x-show="res.sub" class="block truncate text-xs text-mist" x-text="res.sub"></span>
+            </span>
+            <span class="shrink-0 rounded-full border border-line px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wider text-mist" x-text="res.type"></span>
+          </button>
+        </template>
+      </div>
     </div>
 
     <!-- Toasts: Pick-Benachrichtigungen für alle Nutzer auf der Seite -->
