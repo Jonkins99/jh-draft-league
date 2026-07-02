@@ -26,6 +26,47 @@
 
       <template x-if="ready">
         <div>
+          <!-- Matchup-View (screenshot-tauglich) + private Klick-Markierung -->
+          <section class="mt-6 rounded-2xl border border-line bg-panel p-5 sm:p-6">
+            <div class="mb-3 flex flex-wrap items-start justify-between gap-3">
+              <div class="min-w-0">
+                <h2 class="font-display text-xl font-bold uppercase tracking-wider text-ink">Matchup</h2>
+                <p class="mt-1 text-sm text-mist">Beide Kader – ideal für einen Screenshot. Klick auf ein Pokémon markiert (nur für dich, gerätelokal je Paarung), wie wahrscheinlich es gewählt wird: <span class="font-semibold" style="color:#63bc5a">Grün</span> → <span class="font-semibold" style="color:#ffcb05">Gelb</span> → <span class="font-semibold" style="color:#ff9d55">Orange</span> → <span class="font-semibold" style="color:#e3350d">Rot</span> → aus.</p>
+              </div>
+              <button type="button" @click="openExport()"
+                      class="inline-flex shrink-0 items-center gap-1.5 rounded-lg border border-line px-3 py-2 text-sm font-semibold text-mist transition-colors hover:border-flame-500/40 hover:text-flame-400">
+                <svg viewBox="0 0 24 24" class="size-4" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3v12"/><path d="m8 11 4 4 4-4"/><path d="M4 17v2a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-2"/></svg>
+                Showdown-Export
+              </button>
+            </div>
+            <template x-for="cfg in [{side:'a', team: teamA},{side:'b', team: teamB}]" :key="'mu-'+cfg.side">
+              <div class="mt-3">
+                <div class="mb-2 flex items-center gap-2">
+                  <img :src="logoUrl(cfg.team.logo)" :alt="cfg.team.name" class="size-7 shrink-0 rounded object-contain" />
+                  <span class="min-w-0 break-words font-display text-sm font-bold leading-tight" :style="`color:${playerColor(cfg.team.player)}`" x-text="cfg.team.name"></span>
+                </div>
+                <div class="grid grid-cols-5 gap-1.5 sm:grid-cols-10">
+                  <template x-for="mon in allMons(cfg.team)" :key="'mut-'+cfg.side+'-'+mon.name">
+                    <button type="button" @click="markCycle(mon.name)"
+                            class="rounded-lg border-2 bg-elevated/40 p-1 transition-colors"
+                            :style="markGet(mon.name) ? `border-color:${markColor(markGet(mon.name))}` : 'border-color:transparent'"
+                            :title="mon.name">
+                      <div class="grid aspect-square place-items-center">
+                        <img :src="mon.image" :alt="mon.name" loading="lazy" class="size-10 object-contain" />
+                      </div>
+                      <p class="truncate text-center text-[9px] font-medium text-mist" x-text="mon.name"></p>
+                    </button>
+                  </template>
+                </div>
+                <div x-show="cfg.side === 'a'" class="my-3 flex items-center gap-2">
+                  <span class="h-px flex-1 bg-line"></span>
+                  <span class="font-display text-[10px] font-bold uppercase tracking-[0.3em] text-flame-400">VS</span>
+                  <span class="h-px flex-1 bg-line"></span>
+                </div>
+              </div>
+            </template>
+          </section>
+
           <!-- Kader mit De-/Aktivierung + Speed-Modifikatoren -->
           <section class="mt-6 grid grid-cols-1 gap-4 lg:grid-cols-2">
             <template x-for="cfg in [{side:'a', team: teamA},{side:'b', team: teamB}]" :key="'roster-'+cfg.side">
@@ -168,6 +209,70 @@
               </table>
             </div>
           </section>
+
+          <!-- Showdown-Export-Dialog -->
+          <div popover="manual" id="sd-export" class="modal-pop w-[34rem] max-w-[calc(100vw-2rem)] rounded-2xl border border-line bg-panel p-0 text-ink">
+            <div class="flex items-center justify-between gap-4 border-b border-line px-5 py-4">
+              <p class="font-display text-sm font-bold uppercase tracking-wider text-ink">Showdown-Export</p>
+              <button type="button" popovertarget="sd-export" popovertargetaction="hide" class="rounded-lg p-1.5 text-mist transition-colors hover:text-ink" aria-label="Schließen">
+                <svg viewBox="0 0 24 24" class="size-5" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M6 6l12 12M18 6L6 18"/></svg>
+              </button>
+            </div>
+            <div class="space-y-4 px-5 py-4">
+              <div>
+                <p class="mb-1.5 font-display text-xs font-semibold uppercase tracking-wider text-mist">Team</p>
+                <div class="flex gap-2">
+                  <template x-for="opt in [{v:'a', team: teamA},{v:'b', team: teamB}]" :key="'exs-'+opt.v">
+                    <button type="button" @click="exportSide = opt.v; buildExport()"
+                            class="flex-1 truncate rounded-lg border px-3 py-2 text-sm font-semibold transition-colors"
+                            :class="exportSide === opt.v ? 'border-flame-500 text-ink' : 'border-line text-mist hover:text-ink'"
+                            :style="exportSide === opt.v ? `color:${playerColor(opt.team.player)}` : ''"
+                            x-text="opt.team.name"></button>
+                  </template>
+                </div>
+              </div>
+              <div>
+                <p class="mb-1.5 font-display text-xs font-semibold uppercase tracking-wider text-mist">Auswahl</p>
+                <div class="flex flex-wrap gap-2">
+                  <template x-for="opt in [{v:'all', l:'Alle'},{v:'green', l:'Nur Grün'},{v:'greenplus', l:'Grün + Ergänzung'}]" :key="'exm-'+opt.v">
+                    <button type="button" @click="exportMode = opt.v; buildExport()"
+                            class="rounded-lg border px-3 py-2 text-sm font-semibold transition-colors"
+                            :class="exportMode === opt.v ? 'border-flame-500 bg-flame-500/10 text-flame-300' : 'border-line text-mist hover:text-ink'"
+                            x-text="opt.l"></button>
+                  </template>
+                </div>
+              </div>
+              <div x-show="exportMode === 'greenplus'">
+                <div class="mb-1.5 flex items-center justify-between">
+                  <p class="font-display text-xs font-semibold uppercase tracking-wider text-mist">Ergänzen (bis 6)</p>
+                  <span class="font-display text-xs font-bold tabular-nums" :class="exportCount >= 6 ? 'text-flame-400' : 'text-mist'" x-text="`${exportCount} / 6`"></span>
+                </div>
+                <div class="grid grid-cols-5 gap-1.5">
+                  <template x-for="mon in exportRest" :key="'exr-'+mon.name">
+                    <button type="button" @click="toggleExportExtra(mon.name)" :disabled="!exportExtra[mon.name] && exportCount >= 6"
+                            class="rounded-lg border p-1 transition-colors disabled:opacity-30"
+                            :class="exportExtra[mon.name] ? 'border-flame-500 bg-flame-500/10' : 'border-line hover:border-flame-500/40'"
+                            :title="mon.name">
+                      <div class="grid aspect-square place-items-center"><img :src="mon.image" :alt="mon.name" loading="lazy" class="size-9 object-contain" /></div>
+                    </button>
+                  </template>
+                </div>
+                <p x-show="exportRest.length === 0" class="text-xs text-mist">Alle Pokémon des Teams sind bereits grün.</p>
+              </div>
+              <div>
+                <div class="mb-1.5 flex items-center justify-between">
+                  <p class="font-display text-xs font-semibold uppercase tracking-wider text-mist">Import-Text</p>
+                  <button type="button" @click="copyExport()" class="inline-flex items-center gap-1.5 rounded-lg border border-line px-2.5 py-1.5 text-xs font-semibold text-mist transition-colors hover:border-flame-500/40 hover:text-flame-400">
+                    <svg viewBox="0 0 24 24" class="size-3.5" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="9" y="9" width="11" height="11" rx="2"/><path d="M5 15V5a2 2 0 0 1 2-2h10"/></svg>
+                    Kopieren
+                  </button>
+                </div>
+                <textarea readonly rows="6" x-model="exportText"
+                          class="w-full resize-y rounded-lg border border-line bg-elevated px-3 py-2 font-mono text-sm text-ink focus:border-flame-500 focus:outline-none"
+                          placeholder="Keine Pokémon ausgewählt."></textarea>
+              </div>
+            </div>
+          </div>
         </div>
       </template>
     </div>

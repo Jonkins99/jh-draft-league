@@ -1,7 +1,7 @@
 import Alpine from 'alpinejs';
 import { db } from './firebase.js';
 import { collection, doc, onSnapshot, writeBatch, arrayUnion, setDoc } from 'firebase/firestore';
-import { battleStats, computeStandings, pokemonStats, placementHistory, speedTiers, applySpeedMod, typeMultiplier, ALL_TYPES, pokemonProfile, defensiveChart, offensiveChart, playerDuel } from './scoring.mjs';
+import { battleStats, computeStandings, pokemonStats, placementHistory, speedTiers, applySpeedMod, typeMultiplier, ALL_TYPES, pokemonProfile, defensiveChart, offensiveChart, playerDuel, showdownExport } from './scoring.mjs';
 import {
   exportDataset, buildScheduleExport, buildBattleDetailsExport, buildStandingsExport,
   buildRankingExport, buildTeamsExport, buildDraftpoolExport,
@@ -18,6 +18,7 @@ const ICONS = {
   player: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="7" cy="7" r="3"/><circle cx="17" cy="7" r="3"/><path d="M2 20a5 5 0 0 1 10 0"/><path d="M12 20a5 5 0 0 1 10 0"/></svg>`,
   build: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M3 7h7"/><path d="M3 12h7"/><path d="M3 17h7"/><path d="M14 7h7"/><path d="M14 12h7"/><path d="M14 17h7"/><circle cx="14" cy="7" r="0.5"/></svg>`,
   search: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="7"/><path d="m21 21-4.3-4.3"/></svg>`,
+  transfer: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M4 8h13"/><path d="m14 5 3 3-3 3"/><path d="M20 16H7"/><path d="m10 13-3 3 3 3"/></svg>`,
 };
 
 const TYPE_COLORS = {
@@ -56,6 +57,12 @@ const ACCESS_HASH = 'b1cf8aac575a8627eb910e7df1962aa0d50621d7f1007fdeaa838d6fdce
 const SPEED_SETTINGS_KEY = 'jhdl-speedtiers-v1'; // { [monName]: { show, x15, x2 } }
 const WEAK_SETTINGS_KEY = 'jhdl-weakness-v1';   // { [monName]: true }  (ausgeschlossen)
 
+// Matchup-Markierungen: pro Team-Paarung (reihenfolge-unabhängig) je Pokémon eine Farbe,
+// die durch Klick rotiert. Rein gerätelokal, nur für den Nutzer selbst.
+const MATCHUP_MARKS_KEY = 'jhdl-matchup-marks-v1'; // { [pairKey]: { [monName]: 'green'|'yellow'|'orange'|'red' } }
+const MARK_CYCLE = [null, 'green', 'yellow', 'orange', 'red'];
+const MARK_COLORS = { green: '#63bc5a', yellow: '#ffcb05', orange: '#ff9d55', red: '#e3350d' };
+
 // Kurzkürzel je Typ für die kompakte Schwächen-Matrix.
 const TYPE_ABBR = {
   Normal: 'NOR', Feuer: 'FEU', Wasser: 'WAS', Elektro: 'ELE', Pflanze: 'PFL',
@@ -86,6 +93,7 @@ const STAT_CATALOG = [
   { key: 'kd', label: 'K/D', short: 'K/D', fmt: 'num2', info: 'Verhältnis Kills zu Deaths (Kills geteilt durch Deaths, Nenner mindestens 1).' },
   { key: 'killsPerBattle', label: 'Kills/Kampf', short: 'K/Kpf', fmt: 'num2', info: 'Durchschnittliche Kills pro eingesetztem Kampf.' },
   { key: 'deathsPerBattle', label: 'Deaths/Kampf', short: 'D/Kpf', fmt: 'num2', info: 'Durchschnittliche Deaths pro eingesetztem Kampf.' },
+  { key: 'kpfPerMu', label: 'Kämpfe/Matchup', short: 'Kpf/MU', fmt: 'num2', info: 'Durchschnittliche Kampf-Einsätze pro Match-Aufgebot (0–3): Wie oft ein nominiertes Pokémon tatsächlich in einem der bis zu drei Kämpfe steht.' },
   { key: 'matchups', label: 'Matchups', short: 'MU', fmt: 'int', info: 'In wie vielen Match-Aufgeboten (6 von 10) dieses Pokémon stand.' },
   { key: 'battles', label: 'Kämpfe', short: 'Kpf', fmt: 'int', info: 'In wie vielen ausgetragenen Kämpfen (4er-Einsatz) es stand.' },
   { key: 'battleWinPct', label: 'Kampf-Siegquote', short: 'Kpf-SQ', fmt: 'pct', info: 'Anteil gewonnener Kämpfe an allen Kämpfen, in denen es eingesetzt wurde.' },
@@ -123,6 +131,7 @@ function columnsMixin(storageKey) {
     colVisible: Object.fromEntries(STAT_KEYS.map((k) => [k, DEFAULT_COLS.includes(k)])),
     sortKey: 'kills',
     sortDir: 'desc',
+    viewMode: 'table', // 'table' | 'cards'
     catalog: STAT_CATALOG,
     _dragKey: null,
 
@@ -139,6 +148,7 @@ function columnsMixin(storageKey) {
       }
       if (saved && STAT_BY_KEY[saved.sortKey]) this.sortKey = saved.sortKey;
       if (saved && (saved.sortDir === 'asc' || saved.sortDir === 'desc')) this.sortDir = saved.sortDir;
+      if (saved && (saved.view === 'table' || saved.view === 'cards')) this.viewMode = saved.view;
       if (!this.visibleCols().length) this.colVisible[this.colOrder[0]] = true; // nie 0 Spalten
     },
     saveColumns() {
@@ -147,7 +157,12 @@ function columnsMixin(storageKey) {
         visible: this.colVisible,
         sortKey: this.sortKey,
         sortDir: this.sortDir,
+        view: this.viewMode,
       });
+    },
+    toggleView() {
+      this.viewMode = this.viewMode === 'table' ? 'cards' : 'table';
+      this.saveColumns();
     },
     // Als Methoden (nicht Getter!): der Object-Spread beim Einspreizen des Mixins
     // würde Getter sonst einmalig auswerten und einfrieren.
@@ -424,6 +439,8 @@ function app() {
         nav.teamId = detail.teamId || null;
         nav.matchId = detail.matchId || null;
         nav.pokemonName = detail.pokemonName || null;
+        nav.teamAId = detail.teamAId || null;
+        nav.teamBId = detail.teamBId || null;
         // Herkunft merken, damit der Pokémon→Pokémon-Wechsel nicht die ursprüngliche
         // Ausgangsansicht überschreibt.
         if (detail.key === 'pokemon' && this.current !== 'pokemon') nav.from = this.current;
@@ -449,7 +466,15 @@ function app() {
         { key: 'tabelle', label: 'Tabelle', file: './pages/tabelle.html', icon: ICONS.standings },
         { key: 'spieler', label: 'Spieler', file: './pages/spieler.html', icon: ICONS.player },
       ];
-      return this.$store.league.draft?.status === 'done' ? [...base].reverse() : base;
+      const done = this.$store.league.draft?.status === 'done';
+      if (!done) return base;
+      // Transfer erst nach abgeschlossenem Draft (mitten in der Saison).
+      const withTransfer = [
+        base[0],
+        { key: 'transfer', label: 'Transfer', file: './pages/transfer.html', icon: ICONS.transfer },
+        ...base.slice(1),
+      ];
+      return withTransfer.reverse();
     },
 
     // Vollständiger Route-Katalog inkl. versteckter Pokémon-Detailansicht (nicht in
@@ -868,7 +893,7 @@ function teamsView() {
     get teamRanking() {
       const team = this.selectedTeam;
       if (!team) return [];
-      return this.sortRows(this.enrichSpeed(pokemonStats([team], this.league.results)));
+      return this.sortRows(this.enrichSpeed(pokemonStats([team], this.league.results, this.league.pokemon, { scopeTeamId: team.id })));
     },
     enrichSpeed(list) {
       return list.map((s) => ({ ...s, base_speed: this.baseSpeedFor(s.pokemon) ?? 0 }));
@@ -1552,7 +1577,7 @@ function standingsView() {
     // --- Liga-weites Pokémon-Ranking (konfigurierbare, filterbare Tabelle) ---
     get baseRanking() {
       const speed = this.league.pokemon;
-      return pokemonStats(this.league.seasonTeams, this.league.results).map((s) => ({
+      return pokemonStats(this.league.seasonTeams, this.league.results, this.league.pokemon).map((s) => ({
         ...s,
         base_speed: (speed.find((p) => p.name === s.pokemon.name)?.base_speed) ?? 0,
       }));
@@ -1659,7 +1684,7 @@ function pokemonView() {
       const key = `${this.name}|${this.league.results?.length || 0}|${this.league.teams?.length || 0}`;
       if (this._profileKey !== key) {
         this._profileKey = key;
-        this._profileCache = pokemonProfile(this.name, this.league.seasonTeams, this.league.results);
+        this._profileCache = pokemonProfile(this.name, this.league.seasonTeams, this.league.results, this.league.pokemon);
       }
       return this._profileCache;
     },
@@ -1868,12 +1893,32 @@ function teambuildingView() {
     teamBId: null,
     inactive: {}, // name -> true (deaktiviert)
     mods: {},     // name -> { x15, x2 }
+    marks: {},    // name -> Markierungsfarbe (pro Paarung)
     spdSort: 'desc',
     allTypes: ALL_TYPES,
+    // Showdown-Export
+    exportSide: 'a',
+    exportMode: 'all', // 'all' | 'green' | 'greenplus'
+    exportExtra: {},   // name -> true (manuelle Ergänzung bei 'greenplus')
+    exportText: '',
 
     init() {
-      if (this.loaded) this.pickDefaults();
-      else this.$watch('loaded', () => { if (this.loaded && this.teamAId == null) this.pickDefaults(); });
+      const nav = this.$store.nav;
+      const preA = nav?.teamAId || null;
+      const preB = nav?.teamBId || null;
+      if (nav) { nav.teamAId = null; nav.teamBId = null; }
+      const start = () => {
+        if (preA || preB) this.applyPair(preA, preB);
+        else this.pickDefaults();
+      };
+      if (this.loaded) start();
+      else this.$watch('loaded', () => { if (this.loaded && this.teamAId == null) start(); });
+    },
+    // Von außen (Spieltag-Link) vorgegebene Paarung übernehmen.
+    applyPair(aId, bId) {
+      this.teamAId = aId || this.teams[0]?.id || null;
+      this.teamBId = bId || this.teams.find((t) => t.id !== this.teamAId)?.id || null;
+      this.loadPair();
     },
     get league() { return this.$store.league; },
     get loaded() { return this.league.teamsLoaded && this.league.pokemonLoaded; },
@@ -1894,12 +1939,68 @@ function teambuildingView() {
       this.loadPair();
     },
     pairKey() { return `jhdl-tb-${this.teamAId}-${this.teamBId}`; },
+    // Reihenfolge-unabhängiger Schlüssel für die Markierungen dieser Paarung.
+    markPairKey() { return [this.teamAId, this.teamBId].filter(Boolean).sort().join('|'); },
     loadPair() {
       const s = loadJson(this.pairKey());
       this.inactive = s.inactive || {};
       this.mods = s.mods || {};
+      this.marks = loadJson(MATCHUP_MARKS_KEY)[this.markPairKey()] || {};
+      this.exportExtra = {};
+      this.exportText = '';
     },
     savePair() { saveJson(this.pairKey(), { inactive: this.inactive, mods: this.mods }); },
+
+    // === Matchup-Markierungen ===============================================
+    markGet(name) { return this.marks[name] || null; },
+    markColor(c) { return MARK_COLORS[c] || 'transparent'; },
+    markCycle(name) {
+      const i = MARK_CYCLE.indexOf(this.markGet(name));
+      const next = MARK_CYCLE[(i + 1) % MARK_CYCLE.length];
+      const m = { ...this.marks };
+      if (next) m[name] = next; else delete m[name];
+      this.marks = m;
+      const all = loadJson(MATCHUP_MARKS_KEY);
+      all[this.markPairKey()] = this.marks;
+      saveJson(MATCHUP_MARKS_KEY, all);
+    },
+
+    // === Showdown-Export ====================================================
+    get exportTeam() { return this.exportSide === 'a' ? this.teamA : this.teamB; },
+    greenMons(team) { return this.allMons(team).filter((m) => this.marks[m.name] === 'green'); },
+    // Übrige Pokémon des Teams (nicht grün) für die manuelle Ergänzung.
+    get exportRest() {
+      const team = this.exportTeam;
+      if (!team) return [];
+      return this.allMons(team).filter((m) => this.marks[m.name] !== 'green');
+    },
+    exportSelection() {
+      const team = this.exportTeam;
+      if (!team) return [];
+      if (this.exportMode === 'all') return this.allMons(team);
+      const green = this.greenMons(team);
+      if (this.exportMode === 'green') return green;
+      // greenplus: grüne + manuell gewählte, dedupliziert, max. 6.
+      const extra = this.allMons(team).filter((m) => this.exportExtra[m.name] && this.marks[m.name] !== 'green');
+      const seen = new Set();
+      return [...green, ...extra].filter((m) => (seen.has(m.name) ? false : seen.add(m.name))).slice(0, 6);
+    },
+    get exportCount() { return this.exportSelection().length; },
+    toggleExportExtra(name) {
+      const n = { ...this.exportExtra };
+      if (n[name]) delete n[name]; else n[name] = true;
+      this.exportExtra = n;
+      this.buildExport();
+    },
+    buildExport() { this.exportText = showdownExport(this.exportSelection()); },
+    openExport() {
+      this.buildExport();
+      this.$nextTick(() => document.getElementById('sd-export')?.showPopover());
+    },
+    async copyExport() {
+      try { await navigator.clipboard?.writeText(this.exportText); } catch (e) {}
+      window.dispatchEvent(new CustomEvent('toast', { detail: { msg: 'Showdown-Export kopiert.' } }));
+    },
     isActive(name) { return !this.inactive[name]; },
     toggleActive(name) {
       const n = { ...this.inactive };
@@ -2009,6 +2110,108 @@ function teambuildingView() {
   };
 }
 
+// === Wintertransfer-Draft ==================================================
+function transferView() {
+  return {
+    busy: false,
+    candidate: null, // { type:'remove'|'pick', mon }
+    q: '',           // Pool-Suche (Pick-Phase)
+
+    get league() { return this.$store.league; },
+    get loaded() {
+      return this.league.teamsLoaded && this.league.resultsLoaded && this.league.draftLoaded && this.league.transferLoaded;
+    },
+    get transfer() { return this.league.transfer; },
+    get status() { return this.transfer.status || 'idle'; },
+    get running() { return this.status === 'running'; },
+    get draftDone() { return this.league.draft?.status === 'done'; },
+    get order() { return this.transfer.order || []; },
+    get n() { return this.order.length; },
+    get total() { return 4 * this.n; },
+
+    teamById(id) { return this.league.teams.find((t) => t.id === id) || null; },
+
+    // Aktueller Zug im 4-Runden-Snake.
+    get currentPick() {
+      const t = this.transfer;
+      if (!this.running || !this.n) return null;
+      const round = Math.floor(t.pickIndex / this.n); // 0..3
+      const pos = t.pickIndex % this.n;
+      const idx = round % 2 === 0 ? pos : this.n - 1 - pos;
+      return { teamId: this.order[idx], round: round + 1, phase: round < 2 ? 'remove' : 'pick', pickNo: t.pickIndex + 1 };
+    },
+    get currentTeam() { const cp = this.currentPick; return cp ? this.teamById(cp.teamId) : null; },
+    get currentRoster() {
+      const rank = { S: 0, A: 1, B: 2, C: 3, D: 4 };
+      return [...(this.currentTeam?.pokemon || [])].sort((a, b) => (rank[a.tier] ?? 9) - (rank[b.tier] ?? 9));
+    },
+    get orderTeams() { return this.order.map((id) => this.teamById(id)).filter(Boolean); },
+
+    // Alle aktuell gerosterten Namen (für Pool-Ausschluss).
+    get rosteredNames() {
+      const s = new Set();
+      this.league.teams.forEach((t) => (t.pokemon || []).forEach((p) => s.add(p.name)));
+      return s;
+    },
+
+    // Tier-Credits eines Teams: abgegeben (R1/R2) minus bereits zurückgepickt.
+    creditsFor(teamId) {
+      const c = {};
+      (this.transfer.removed || []).forEach((r) => { if (r.teamId === teamId) c[r.tier] = (c[r.tier] || 0) + 1; });
+      (this.transfer.added || []).forEach((a) => { if (a.teamId === teamId) c[a.tier] = (c[a.tier] || 0) - 1; });
+      return c;
+    },
+    get currentCredits() { return this.currentTeam ? this.creditsFor(this.currentTeam.id) : {}; },
+    get pickableTiers() { return TIER_ORDER.filter((t) => (this.currentCredits[t] || 0) > 0); },
+    get canPickAny() { return this.pickableTiers.length > 0; },
+
+    // Pool je pickbarem Tier: Pokémon dieses Tiers, die in KEINEM Roster stehen.
+    poolGroups() {
+      const rostered = this.rosteredNames;
+      const term = this.q.trim().toLowerCase();
+      return this.pickableTiers.map((tier) => ({
+        tier,
+        mons: this.league.pokemon.filter((p) => p.tier === tier && !rostered.has(p.name)
+          && (!term || p.name.toLowerCase().includes(term) || (p.name_en || '').toLowerCase().includes(term)
+            || (p.types || []).some((ty) => ty.toLowerCase().includes(term)))),
+      })).filter((g) => g.mons.length > 0);
+    },
+
+    // Verlauf (Abgaben + Picks) nach Runde.
+    get log() {
+      const rows = [];
+      (this.transfer.removed || []).forEach((r) => rows.push({ ...r, kind: 'remove' }));
+      (this.transfer.added || []).forEach((a) => rows.push({ ...a, kind: 'pick' }));
+      return rows.sort((a, b) => (a.round || 0) - (b.round || 0));
+    },
+    monImage(name) { return this.league.pokemon.find((p) => p.name === name)?.image || ''; },
+
+    // --- Aktionen (mit Bestätigung) ---
+    askRemove(mon) { if (this.busy) return; this.candidate = { type: 'remove', mon }; this.$nextTick(() => document.getElementById('transfer-confirm')?.showPopover()); },
+    askPick(mon) { if (this.busy) return; this.candidate = { type: 'pick', mon }; this.$nextTick(() => document.getElementById('transfer-confirm')?.showPopover()); },
+    closeConfirm(id) { const el = document.getElementById(id); if (el && el.matches(':popover-open')) el.hidePopover(); },
+    async confirmAction() {
+      if (!this.candidate || !this.currentTeam || this.busy) return;
+      this.busy = true;
+      try {
+        if (this.candidate.type === 'remove') await this.league.transferRemove(this.currentTeam.id, this.candidate.mon.name);
+        else await this.league.transferPick(this.currentTeam.id, this.candidate.mon);
+      } catch (e) { console.error('Transfer-Aktion fehlgeschlagen:', e); }
+      this.closeConfirm('transfer-confirm');
+      this.candidate = null;
+      this.busy = false;
+    },
+    async skip() { if (this.busy) return; this.busy = true; try { await this.league.transferSkip(); } catch (e) { console.error(e); } this.busy = false; },
+    async start() { this.closeConfirm('transfer-start-confirm'); if (this.busy || !this.draftDone) return; this.busy = true; try { await this.league.startTransfer(); } catch (e) { console.error(e); } this.busy = false; },
+
+    logoUrl(file) { return `./img/teams/${file}`; },
+    playerColor(player) { return player === 'Henrik' ? '#4d90d5' : '#e3350d'; },
+    tierColor(tier) { return TIER_COLORS[tier] || '#6b7280'; },
+    typeColor(type) { return TYPE_COLORS[type] || '#6b7280'; },
+    goMon(name) { this.$dispatch('navigate', { key: 'pokemon', pokemonName: name }); },
+  };
+}
+
 window.Alpine = Alpine;
 
 Alpine.store('league', {
@@ -2017,11 +2220,13 @@ Alpine.store('league', {
   draft: { status: 'idle', order: [], pickIndex: 0 },
   schedule: { matchdays: [] },
   results: [],
+  transfer: { status: 'idle', order: [], pickIndex: 0, removed: [], added: [] },
   teamsLoaded: false,
   pokemonLoaded: false,
   draftLoaded: false,
   scheduleLoaded: false,
   resultsLoaded: false,
+  transferLoaded: false,
 
   // Pick-Benachrichtigungen
   _rosterCounts: {},
@@ -2057,6 +2262,11 @@ Alpine.store('league', {
     onSnapshot(collection(db, 'results'), (snap) => {
       this.results = snap.docs.map((d) => ({ id: d.id, ...d.data() }));
       this.resultsLoaded = true;
+    });
+
+    onSnapshot(doc(db, 'drafts', 'transfer-s1'), (snap) => {
+      this.transfer = snap.exists() ? snap.data() : { status: 'idle', order: [], pickIndex: 0, removed: [], added: [] };
+      this.transferLoaded = true;
     });
   },
 
@@ -2181,11 +2391,64 @@ Alpine.store('league', {
     batch.update(doc(db, 'drafts', 's1'), { pickIndex: nextIndex, status });
     await batch.commit();
   },
+
+  // === Wintertransfer =======================================================
+  // 4 Runden Snake, Reihenfolge = Tabellenplatz (schlechtester zuerst). Bestehende
+  // Ergebnisse bleiben erhalten; nur die Roster werden verändert.
+  async startTransfer() {
+    const order = computeStandings(this.seasonTeams, this.results).map((r) => r.team.id).reverse();
+    if (!order.length) return;
+    await setDoc(doc(db, 'drafts', 'transfer-s1'), {
+      season: 1, status: 'running', order, pickIndex: 0, removed: [], added: [],
+    });
+  },
+
+  _transferRound() {
+    const n = this.transfer.order?.length || 1;
+    return Math.floor((this.transfer.pickIndex || 0) / n) + 1;
+  },
+  // pickIndex vorrücken; nach 4 Runden abschließen.
+  _transferAdvance(batch, extra = {}) {
+    const n = this.transfer.order?.length || 0;
+    const next = (this.transfer.pickIndex || 0) + 1;
+    const status = next >= 4 * n ? 'done' : 'running';
+    batch.update(doc(db, 'drafts', 'transfer-s1'), { pickIndex: next, status, ...extra });
+  },
+
+  async transferRemove(teamId, monName) {
+    const team = this.teams.find((t) => t.id === teamId);
+    const mon = (team?.pokemon || []).find((p) => p.name === monName);
+    if (!mon) return;
+    const round = this._transferRound();
+    const nextRoster = team.pokemon.filter((p) => p.name !== monName);
+    const batch = writeBatch(db);
+    batch.update(doc(db, 'teams', teamId), { pokemon: nextRoster });
+    this._transferAdvance(batch, { removed: arrayUnion({ teamId, name: monName, tier: mon.tier, round }) });
+    await batch.commit();
+  },
+
+  async transferSkip() {
+    const batch = writeBatch(db);
+    this._transferAdvance(batch);
+    await batch.commit();
+  },
+
+  async transferPick(teamId, pokemon) {
+    const clean = {
+      name: pokemon.name, name_en: pokemon.name_en || null, dex: pokemon.dex ?? null,
+      types: pokemon.types || [], tier: pokemon.tier, cost: pokemon.cost ?? null, image: pokemon.image || null,
+    };
+    const round = this._transferRound();
+    const batch = writeBatch(db);
+    batch.update(doc(db, 'teams', teamId), { pokemon: arrayUnion(clean) });
+    this._transferAdvance(batch, { added: arrayUnion({ teamId, name: clean.name, tier: clean.tier, round }) });
+    await batch.commit();
+  },
 });
 
 // Einfacher Navigations-Übergabepuffer: ein Klick setzt ein Ziel, die Ziel-View liest
 // es beim init() aus und räumt auf.
-Alpine.store('nav', { teamId: null, matchId: null, pokemonName: null, from: null });
+Alpine.store('nav', { teamId: null, matchId: null, pokemonName: null, from: null, teamAId: null, teamBId: null });
 
 Alpine.data('gate', gate);
 Alpine.data('app', app);
@@ -2196,4 +2459,5 @@ Alpine.data('standingsView', standingsView);
 Alpine.data('pokemonView', pokemonView);
 Alpine.data('spielerView', spielerView);
 Alpine.data('teambuildingView', teambuildingView);
+Alpine.data('transferView', transferView);
 Alpine.start();

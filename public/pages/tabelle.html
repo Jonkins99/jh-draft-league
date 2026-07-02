@@ -66,7 +66,7 @@
         <tbody class="divide-y divide-line">
           <template x-for="(row, idx) in rows" :key="row.team.id">
             <tr class="cursor-pointer transition-colors hover:bg-elevated/40"
-                :class="idx === 0 ? 'bg-flame-500/[0.07]' : ''"
+                :class="(idx === 0 ? 'bg-flame-500/[0.07] ' : '') + (rows.length > 2 && idx === rows.length - 2 ? 'border-t-2 border-flame-500/70' : '')"
                 @click="$dispatch('navigate', { key:'teams', teamId: row.team.id })">
               <td class="px-5 py-4">
                 <span class="font-display text-lg font-bold" :class="idx < 3 ? (idx === 0 ? 'text-flame-400' : 'text-volt-400') : 'text-mist'" x-text="idx + 1"></span>
@@ -93,6 +93,7 @@
       </table>
     </div>
     <p x-show="rows.length === 0" class="px-5 py-8 text-center text-mist">Noch keine Teams.</p>
+    <p x-show="rows.length > 2" class="border-t border-line px-5 py-2.5 text-xs text-mist">Die dicke Linie markiert die Abstiegsplätze (die letzten zwei).</p>
   </section>
 
   <!-- MODUL: Platzierungsverlauf aller Teams -->
@@ -130,15 +131,21 @@
         </select>
         <button type="button" x-show="hasFilters" @click="clearFilters()"
                 class="rounded-lg border border-line px-2.5 py-2 text-sm font-semibold text-mist transition-colors hover:text-flame-400">Filter&nbsp;×</button>
-        <button type="button" popovertarget="cols-league"
+        <button type="button" @click="toggleView()" :title="viewMode === 'table' ? 'Zur Kachel-Ansicht' : 'Zur Tabellen-Ansicht'"
                 class="ml-auto inline-flex items-center gap-1.5 rounded-lg border border-line px-3 py-2 text-sm font-semibold text-mist transition-colors hover:text-flame-400">
+          <svg x-show="viewMode === 'table'" viewBox="0 0 24 24" class="size-4" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="7" height="7" rx="1"/><rect x="14" y="3" width="7" height="7" rx="1"/><rect x="3" y="14" width="7" height="7" rx="1"/><rect x="14" y="14" width="7" height="7" rx="1"/></svg>
+          <svg x-show="viewMode === 'cards'" viewBox="0 0 24 24" class="size-4" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M3 5h18M3 12h18M3 19h18"/></svg>
+          <span x-text="viewMode === 'table' ? 'Kacheln' : 'Tabelle'"></span>
+        </button>
+        <button type="button" popovertarget="cols-league"
+                class="inline-flex items-center gap-1.5 rounded-lg border border-line px-3 py-2 text-sm font-semibold text-mist transition-colors hover:text-flame-400">
           <svg viewBox="0 0 24 24" class="size-4" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M3 6h18M3 12h18M3 18h18"/></svg>
           Spalten
         </button>
       </div>
     </div>
 
-    <div class="-mx-1 overflow-x-auto px-1">
+    <div x-show="viewMode === 'table'" class="-mx-1 overflow-x-auto px-1">
       <table class="min-w-max border-collapse text-sm">
         <thead>
           <tr class="border-b border-line">
@@ -168,7 +175,7 @@
                   <img :src="s.pokemon.image" :alt="s.pokemon.name" loading="lazy" class="size-8 shrink-0 object-contain" />
                   <div class="min-w-0">
                     <p class="max-w-[8rem] truncate font-semibold text-ink" x-text="s.pokemon.name" :title="s.pokemon.name"></p>
-                    <p class="max-w-[8rem] truncate text-xs" :style="`color:${playerColor(s.team?.player)}`" x-text="s.team?.name" :title="s.team?.name"></p>
+                    <p class="max-w-[8rem] truncate text-xs" :style="`color:${s.team ? playerColor(s.team.player) : '#98a2b3'}`" x-text="s.team?.name || 'Frei'" :title="s.team?.name || 'Frei'"></p>
                   </div>
                 </div>
               </td>
@@ -181,6 +188,32 @@
         </tbody>
       </table>
     </div>
+
+    <!-- Kachel-Ansicht -->
+    <div x-show="viewMode === 'cards'" class="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5">
+      <template x-for="(s, i) in ranking" :key="'card-'+s.pokemon.name">
+        <div class="cursor-pointer rounded-xl border border-line bg-elevated/40 p-3 transition-colors hover:border-flame-500/50" @click="goMon(s.pokemon.name)">
+          <div class="flex items-center gap-2">
+            <span class="w-5 shrink-0 text-right font-display text-xs font-bold tabular-nums text-mist/60" x-text="i + 1"></span>
+            <img :src="s.pokemon.image" :alt="s.pokemon.name" loading="lazy" class="size-10 shrink-0 object-contain" />
+            <div class="min-w-0 flex-1">
+              <p class="truncate font-semibold text-ink" x-text="s.pokemon.name" :title="s.pokemon.name"></p>
+              <p class="truncate text-xs" :style="`color:${s.team ? playerColor(s.team.player) : '#98a2b3'}`" x-text="s.team?.name || 'Frei'" :title="s.team?.name || 'Frei'"></p>
+            </div>
+          </div>
+          <div class="mt-3 grid grid-cols-2 gap-1.5">
+            <template x-for="c in visibleCols()" :key="s.pokemon.name+'-c-'+c.key">
+              <div class="flex items-baseline justify-between rounded-lg bg-panel px-2 py-1"
+                   :class="sortKey === c.key ? 'ring-1 ring-flame-500/50' : ''">
+                <span class="truncate text-[11px] uppercase tracking-wide text-mist" x-text="c.short" :title="c.label"></span>
+                <span class="font-display text-sm font-bold tabular-nums" :class="sortKey === c.key ? 'text-flame-400' : 'text-ink'" x-text="colValue(s, c.key)"></span>
+              </div>
+            </template>
+          </div>
+        </div>
+      </template>
+    </div>
+
     <p x-show="ranking.length === 0" class="mt-2 text-sm text-mist">Keine Pokémon für diese Filter.</p>
   </section>
 

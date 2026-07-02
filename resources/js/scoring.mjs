@@ -98,6 +98,7 @@ function withDerivedStats(st) {
     kd: st.kills / Math.max(1, st.deaths),
     killsPerBattle: st.kills / Math.max(1, battles),
     deathsPerBattle: st.deaths / Math.max(1, battles),
+    kpfPerMu: battles / Math.max(1, st.matchups),
     survivalRate: Math.max(0, Math.min(1, (battles - st.deaths) / Math.max(1, battles))),
     battleWinPct: battleDecided ? st.battleWins / battleDecided : 0,
     matchWinPct: matchesDecided ? st.matchWins / matchesDecided : 0,
@@ -106,18 +107,50 @@ function withDerivedStats(st) {
   };
 }
 
-export function pokemonStats(teams, results) {
+// Attribution ist result-getrieben: ein Beitrag zählt für die Seite (home/away), die das
+// Pokémon in DIESEM Ergebnis aufgestellt hat — nicht für den aktuellen Roster-Besitzer.
+// Dadurch bleiben Leistungen nach einem Team-Wechsel korrekt beim damaligen Team.
+//   pokedex — Stammdaten [{name, image, types, tier, ...}] zum Auflösen von Meta für
+//             Pokémon, die (nach Abgabe) in keinem Roster mehr stehen.
+//   opts.scopeTeamId — nur Ergebnisse dieses Teams und nur dessen Seite zählen (Team-Detail);
+//                      Universum = aktuelles Roster des Teams.
+export function pokemonStats(teams, results, pokedex = [], opts = {}) {
+  const scopeTeamId = opts.scopeTeamId ?? null;
+  const byName = {};
+  (pokedex || []).forEach((p) => { if (p?.name) byName[p.name] = p; });
+
   const stats = {};
+  const ownerByName = {};
+  const mkStat = (name, pokemon, team) => {
+    if (stats[name]) return stats[name];
+    stats[name] = {
+      pokemon: pokemon || byName[name] || { name }, team: team || null,
+      kills: 0, deaths: 0, matchups: 0, battles: 0,
+      battleWins: 0, battleDraws: 0, battleLosses: 0,
+      matchWins: 0, matchDraws: 0, matchLosses: 0,
+    };
+    return stats[name];
+  };
+
   (teams || []).forEach((t) => {
     (t.pokemon || []).forEach((p) => {
-      stats[p.name] = {
-        pokemon: p, team: t,
-        kills: 0, deaths: 0, matchups: 0, battles: 0,
-        battleWins: 0, battleDraws: 0, battleLosses: 0,
-        matchWins: 0, matchDraws: 0, matchLosses: 0,
-      };
+      ownerByName[p.name] = t;
+      mkStat(p.name, p, t);
     });
   });
+
+  // Ohne Team-Scope: auch abgegebene/ungerosterte Pokémon aufnehmen, die in Ergebnissen
+  // vorkommen (Career-Sicht für das Liga-Ranking). team bleibt dann null ("frei").
+  if (!scopeTeamId) {
+    (results || []).forEach((r) => {
+      if (!r) return;
+      ['home', 'away'].forEach((side) => {
+        (r.squads?.[side] || []).forEach((name) => {
+          if (name && !stats[name]) mkStat(name, byName[name], ownerByName[name] || null);
+        });
+      });
+    });
+  }
 
   (results || []).forEach((r) => {
     if (!r) return;
@@ -133,7 +166,14 @@ export function pokemonStats(teams, results) {
     });
     const matchWinner = !anyDone ? null : hoWins > awWins ? 'home' : awWins > hoWins ? 'away' : 'draw';
 
-    ['home', 'away'].forEach((side) => {
+    // Bei Team-Scope nur die Seite des gescopten Teams verarbeiten (und nur dessen Matches).
+    let sides = ['home', 'away'];
+    if (scopeTeamId) {
+      const own = r.home === scopeTeamId ? 'home' : r.away === scopeTeamId ? 'away' : null;
+      if (!own) return;
+      sides = [own];
+    }
+    sides.forEach((side) => {
       (r.squads?.[side] || []).forEach((name) => {
         const st = stats[name];
         if (!st) return;
@@ -294,9 +334,9 @@ export function offensiveChart(types) {
 //  - Nur Kämpfe mit b.done === true zählen.
 //  - kills:  k.killer === name && k.killerSide !== k.victimSide (kein Self-Kill).
 //  - deaths: k.victim === name (inkl. Self-Kill und ohne Verursacher).
-export function pokemonProfile(name, teams, results) {
+export function pokemonProfile(name, teams, results, pokedex = []) {
   // Team des Pokémon und dessen Gegner-Name je result ermitteln.
-  const team = (teams || []).find((t) => (t?.pokemon || []).some((p) => p?.name === name)) || null;
+  const currentTeam = (teams || []).find((t) => (t?.pokemon || []).some((p) => p?.name === name)) || null;
   const teamById = {};
   (teams || []).forEach((t) => { if (t?.id != null) teamById[t.id] = t; });
   const teamName = (id) => teamById[id]?.name || null;
@@ -338,7 +378,26 @@ export function pokemonProfile(name, teams, results) {
     timeline: [],
   };
 
-  if (!team) return empty;
+  // Career: alle Ergebnisse, in denen das Pokémon in einem Aufgebot stand — plus die Matches
+  // des aktuellen Teams (für Bank-/Ohne-Bilanz). So bleibt die Historie nach einem Team-Wechsel
+  // erhalten (kills/deaths/history spannen über alle Teams), während team-relative Kennzahlen
+  // (matchupPct, Ohne-Bilanz) sich auf das aktuelle Team beziehen.
+  const appears = (r) => (r?.squads?.home || []).includes(name) || (r?.squads?.away || []).includes(name);
+  const merged = (results || []).filter(
+    (r) => r && (appears(r) || (currentTeam && (r.home === currentTeam.id || r.away === currentTeam.id))),
+  );
+  if (!currentTeam && merged.length === 0) return empty;
+
+  // Anzeige-Team: aktueller Besitzer, sonst das Team der jüngsten Aufstellung.
+  let team = currentTeam;
+  if (!team) {
+    const sorted = [...merged].sort((a, b) => (a.day ?? 0) - (b.day ?? 0));
+    const last = sorted[sorted.length - 1];
+    if (last) {
+      const side = (last.squads?.home || []).includes(name) ? 'home' : 'away';
+      team = teamById[side === 'home' ? last.home : last.away] || null;
+    }
+  }
 
   let teamMatchesPlayed = 0;
   let matchups = 0;
@@ -363,16 +422,17 @@ export function pokemonProfile(name, teams, results) {
 
   const timeline = [];
 
-  // results des Teams chronologisch (day asc) sortieren.
-  const myResults = (results || [])
-    .filter((r) => r && (r.home === team.id || r.away === team.id))
-    .slice()
-    .sort((a, b) => (a.day ?? 0) - (b.day ?? 0));
+  // Zusammengeführte Ergebnisse chronologisch (day asc) sortieren.
+  const myResults = merged.slice().sort((a, b) => (a.day ?? 0) - (b.day ?? 0));
 
   myResults.forEach((r) => {
-    const ownSide = r.home === team.id ? 'home' : 'away';
+    // Eigene Seite je Ergebnis über die Aufgebots-Zugehörigkeit bestimmen (Team-Wechsel-fest);
+    // Bank-Matches des aktuellen Teams fallen auf dessen Seite zurück.
+    const ownSide = (r.squads?.home || []).includes(name) ? 'home'
+      : (r.squads?.away || []).includes(name) ? 'away'
+      : (r.home === currentTeam?.id ? 'home' : 'away');
     const oppSide = ownSide === 'home' ? 'away' : 'home';
-    const oppTeamName = teamName(oppSide === 'home' ? r.home : r.away);
+    const oppTeamName = teamName(ownSide === 'home' ? r.away : r.home);
 
     const doneBattles = (r.battles || []).filter((b) => b && b.done === true);
     if (doneBattles.length === 0) return; // Match gilt nur mit >=1 done-battle als gespielt.
@@ -617,4 +677,37 @@ export function playerDuel(teams, results) {
     totalMatches: janik.matchWins + janik.matchDraws + janik.matchLosses,
     totalBattles: janik.battleWins + janik.battleDraws + janik.battleLosses,
   };
+}
+
+// === Pokémon-Showdown-Export ================================================
+// Wandelt einen englischen Anzeigenamen (name_en) in eine gültige Showdown-Species um.
+// Nur die Species (keine Attacken/Items/Wesen/EVs). Sonderformen werden an das
+// Showdown-Namensschema angepasst (Mega/Primal/Regionalformen).
+export function showdownSpecies(nameEn) {
+  if (!nameEn) return '';
+  const s = String(nameEn).trim();
+  let m = /^Mega (.+) ([XY])$/.exec(s);
+  if (m) return `${m[1]}-Mega-${m[2]}`;
+  m = /^Mega (.+)$/.exec(s);
+  if (m) return `${m[1]}-Mega`;
+  m = /^Primal (.+)$/.exec(s);
+  if (m) return `${m[1]}-Primal`;
+  const regions = [
+    [/^Alolan (.+)$/, 'Alola'], [/^Galarian (.+)$/, 'Galar'],
+    [/^Hisuian (.+)$/, 'Hisui'], [/^Paldean (.+)$/, 'Paldea'],
+  ];
+  for (const [re, suffix] of regions) {
+    const mm = re.exec(s);
+    if (mm) return `${mm[1]}-${suffix}`;
+  }
+  return s;
+}
+
+// Baut einen Showdown-Teambuilder-Import (nur Species, je Pokémon eine Zeile,
+// durch Leerzeilen getrennt). Erwartet Objekte mit name_en (Fallback: name).
+export function showdownExport(pokemonList) {
+  return (pokemonList || [])
+    .map((p) => showdownSpecies(p.name_en || p.name))
+    .filter(Boolean)
+    .join('\n\n');
 }

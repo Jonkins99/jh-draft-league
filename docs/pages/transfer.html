@@ -1,0 +1,186 @@
+<div x-data="transferView">
+  <header class="mb-8">
+    <p class="font-display text-xs font-semibold uppercase tracking-[0.3em] text-flame-400">Wintertransfer</p>
+    <h1 class="mt-1 font-display text-4xl font-bold tracking-wide text-ink md:text-5xl">Transfer-Draft</h1>
+    <p class="mt-2 text-mist">Vier Runden Snake. Reihenfolge nach Tabellenplatz (schlechtester zuerst). Runde 1–2: je ein Pokémon abgeben oder verzichten. Runde 3–4: aus einem abgegebenen Tier ein freies Pokémon picken oder verzichten.</p>
+  </header>
+
+  <div x-show="!loaded" class="py-12 text-center text-mist">Lade Transfer…</div>
+
+  <!-- Voraussetzung: Draft abgeschlossen -->
+  <div x-show="loaded && !draftDone" class="rounded-2xl border border-line bg-panel p-10 text-center text-mist">
+    Der Wintertransfer ist erst nach abgeschlossenem Draft verfügbar.
+  </div>
+
+  <!-- IDLE: Transfer starten -->
+  <div x-show="loaded && draftDone && status === 'idle'"
+       class="mb-8 flex flex-col items-center gap-4 rounded-2xl border border-line bg-panel p-10 text-center">
+    <span class="grid size-14 place-items-center rounded-2xl bg-flame-500/10 text-flame-400">
+      <svg viewBox="0 0 24 24" class="size-7" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M4 8h13"/><path d="m14 5 3 3-3 3"/><path d="M20 16H7"/><path d="m10 13-3 3 3 3"/></svg>
+    </span>
+    <div>
+      <h2 class="font-display text-2xl font-bold tracking-wide text-ink">Bereit für den Wintertransfer</h2>
+      <p class="mt-1 text-mist">Die Reihenfolge wird aus der aktuellen Tabelle bestimmt (letzter Platz zuerst). Bestehende Ergebnisse bleiben erhalten.</p>
+    </div>
+    <button type="button" popovertarget="transfer-start-confirm"
+            class="rounded-xl bg-flame-500 px-6 py-3 font-display font-bold uppercase tracking-wide text-white transition-colors hover:bg-flame-600">
+      Transfer starten
+    </button>
+  </div>
+
+  <!-- RUNNING: Wer ist dran -->
+  <section x-show="loaded && running" class="mb-8 rounded-2xl border border-flame-500/30 bg-gradient-to-br from-flame-500/10 to-panel p-6 md:p-7">
+    <template x-if="currentTeam">
+      <div>
+        <div class="flex flex-wrap items-center gap-5">
+          <img :src="logoUrl(currentTeam.logo)" :alt="currentTeam.name"
+               @click="$dispatch('navigate', { key: 'teams', teamId: currentTeam.id })"
+               class="size-16 shrink-0 cursor-pointer rounded-xl object-contain transition-transform hover:scale-105" />
+          <div class="min-w-0">
+            <p class="font-display text-xs font-semibold uppercase tracking-[0.25em] text-flame-400"
+               x-text="`Runde ${currentPick.round} / 4 · ${currentPick.phase === 'remove' ? 'Abgabe' : 'Pick'}`"></p>
+            <h2 class="mt-0.5 font-display text-3xl font-bold tracking-wide text-ink" x-text="`${currentTeam.player} ist dran!`"></h2>
+            <p class="text-mist" x-text="currentTeam.name"></p>
+          </div>
+          <button type="button" @click="skip()" :disabled="busy"
+                  class="ml-auto rounded-xl border border-line px-4 py-2.5 text-sm font-semibold text-mist transition-colors hover:text-flame-400 disabled:opacity-50">
+            Verzichten
+          </button>
+        </div>
+
+        <!-- Reihenfolge -->
+        <div class="mt-5 border-t border-line pt-4">
+          <p class="font-display text-xs font-semibold uppercase tracking-wider text-mist">Reihenfolge</p>
+          <div class="mt-2 flex flex-wrap items-center gap-2">
+            <template x-for="t in orderTeams" :key="'ord-'+t.id">
+              <img :src="logoUrl(t.logo)" :alt="t.name" :title="`${t.name} (${t.player})`"
+                   @click="$dispatch('navigate', { key: 'teams', teamId: t.id })"
+                   class="size-9 cursor-pointer rounded-lg object-contain transition"
+                   :class="t.id === currentPick.teamId ? 'ring-2 ring-flame-500 scale-110' : 'opacity-50 hover:opacity-100'" />
+            </template>
+          </div>
+        </div>
+      </div>
+    </template>
+  </section>
+
+  <!-- ABGABE-PHASE (Runde 1–2): Roster des aktuellen Teams -->
+  <section x-show="loaded && running && currentPick && currentPick.phase === 'remove'" class="mb-8">
+    <h3 class="mb-3 font-display text-lg font-bold uppercase tracking-wider text-ink">Pokémon abgeben</h3>
+    <div class="grid grid-cols-2 gap-3 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5">
+      <template x-for="mon in currentRoster" :key="'rm-'+mon.name">
+        <div @click="askRemove(mon)" class="cursor-pointer rounded-xl border border-line bg-panel p-2.5 transition hover:border-flame-500/50 hover:-translate-y-0.5">
+          <span class="grid size-5 place-items-center rounded font-display text-[10px] font-bold" :style="`color:${tierColor(mon.tier)}; background:${tierColor(mon.tier)}1f`" x-text="mon.tier"></span>
+          <div class="mt-1 grid aspect-square place-items-center rounded-lg bg-elevated/60">
+            <img :src="mon.image" :alt="mon.name" loading="lazy" class="h-4/5 w-4/5 object-contain" />
+          </div>
+          <p class="mt-2 truncate text-sm font-semibold text-ink" x-text="mon.name" :title="mon.name"></p>
+        </div>
+      </template>
+    </div>
+  </section>
+
+  <!-- PICK-PHASE (Runde 3–4): Pool je offenem Tier -->
+  <section x-show="loaded && running && currentPick && currentPick.phase === 'pick'" class="mb-8">
+    <div class="mb-4 flex flex-wrap items-end justify-between gap-4">
+      <div>
+        <h3 class="font-display text-lg font-bold uppercase tracking-wider text-ink">Pokémon picken</h3>
+        <p class="mt-0.5 text-sm text-mist">Nur aus abgegebenen Tiers:
+          <template x-for="t in pickableTiers" :key="'pt-'+t">
+            <span class="ml-1 inline-block rounded px-1.5 py-0.5 text-xs font-bold" :style="`color:${tierColor(t)}; background:${tierColor(t)}1f`" x-text="`Tier ${t} (${currentCredits[t]})`"></span>
+          </template>
+        </p>
+      </div>
+      <input type="search" x-model.debounce.200ms="q" placeholder="Pokémon oder Typ suchen…"
+             class="w-full rounded-xl border border-line bg-elevated px-4 py-2.5 text-ink placeholder:text-mist focus:border-flame-500 focus:outline-none sm:w-72" />
+    </div>
+
+    <div x-show="!canPickAny" class="rounded-xl border border-line bg-panel p-6 text-center text-mist">
+      Kein offenes Tier – dieses Team hat keine (weiteren) Abgaben. Nur Verzicht möglich.
+    </div>
+
+    <template x-for="group in poolGroups()" :key="'pg-'+group.tier">
+      <div class="mb-6">
+        <div class="mb-3 flex items-center gap-3">
+          <span class="grid size-9 place-items-center rounded-lg font-display text-lg font-bold" :style="`color:${tierColor(group.tier)}; background:${tierColor(group.tier)}1f; box-shadow: inset 0 0 0 1px ${tierColor(group.tier)}55`" x-text="group.tier"></span>
+          <h4 class="font-display text-base font-bold uppercase tracking-wider text-ink" x-text="`Tier ${group.tier}`"></h4>
+          <span class="text-sm text-mist" x-text="group.mons.length"></span>
+        </div>
+        <div class="grid grid-cols-2 gap-3 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6">
+          <template x-for="p in group.mons" :key="group.tier+'-'+p.dex+'-'+p.name">
+            <div @click="askPick(p)" class="cursor-pointer rounded-xl border border-line bg-panel p-2.5 transition hover:border-flame-500/50 hover:-translate-y-0.5">
+              <div class="grid aspect-square place-items-center rounded-lg bg-elevated/60">
+                <img :src="p.image" :alt="p.name" loading="lazy" decoding="async" class="h-4/5 w-4/5 object-contain" />
+              </div>
+              <p class="mt-2 truncate text-sm font-semibold text-ink" x-text="p.name" :title="p.name"></p>
+              <div class="mt-1.5 flex flex-wrap gap-1">
+                <template x-for="t in p.types" :key="p.name+'-'+t">
+                  <span class="rounded px-1.5 py-0.5 text-[10px] font-bold uppercase tracking-wide" :style="`color:${typeColor(t)}; background:${typeColor(t)}22`" x-text="t"></span>
+                </template>
+              </div>
+            </div>
+          </template>
+        </div>
+      </div>
+    </template>
+  </section>
+
+  <!-- DONE -->
+  <div x-show="loaded && status === 'done'" class="mb-6 rounded-xl border border-line bg-panel px-5 py-3">
+    <span class="font-semibold text-ink">Wintertransfer abgeschlossen.</span>
+  </div>
+
+  <!-- VERLAUF -->
+  <section x-show="loaded && status !== 'idle' && log.length" class="mb-8">
+    <h3 class="mb-3 font-display text-sm font-bold uppercase tracking-wider text-mist">Verlauf</h3>
+    <div class="overflow-hidden rounded-2xl border border-line bg-panel">
+      <ul class="divide-y divide-line">
+        <template x-for="(row, i) in log" :key="'log-'+i">
+          <li class="flex items-center gap-3 px-4 py-2.5">
+            <span class="grid size-6 shrink-0 place-items-center rounded font-display text-[10px] font-bold" :style="`color:${tierColor(row.tier)}; background:${tierColor(row.tier)}1f`" x-text="row.tier"></span>
+            <img :src="monImage(row.name)" :alt="row.name" class="size-8 shrink-0 object-contain" />
+            <button type="button" @click="goMon(row.name)" class="min-w-0 flex-1 truncate text-left text-sm font-semibold text-ink transition-colors hover:text-flame-400" x-text="row.name" :title="row.name"></button>
+            <span class="shrink-0 text-xs font-semibold" :class="row.kind === 'remove' ? 'text-flame-400' : 'text-volt-400'" x-text="row.kind === 'remove' ? 'abgegeben' : 'gepickt'"></span>
+            <span class="shrink-0 text-xs text-mist" x-text="teamById(row.teamId)?.name"></span>
+            <span class="shrink-0 text-[11px] text-mist/60" x-text="`R${row.round}`"></span>
+          </li>
+        </template>
+      </ul>
+    </div>
+  </section>
+
+  <!-- Bestätigung: Transfer starten -->
+  <div popover="manual" id="transfer-start-confirm" class="modal-pop w-[22rem] max-w-[90vw] rounded-2xl border border-line bg-panel p-6 text-center">
+    <h3 class="font-display text-xl font-bold tracking-wide text-ink">Wintertransfer starten?</h3>
+    <p class="mt-2 text-sm text-mist">Die Reihenfolge wird aus der aktuellen Tabelle bestimmt (letzter Platz zuerst).</p>
+    <div class="mt-5 flex gap-3">
+      <button type="button" popovertarget="transfer-start-confirm" popovertargetaction="hide"
+              class="flex-1 rounded-xl border border-line px-4 py-2.5 font-semibold text-mist transition-colors hover:text-ink">Abbrechen</button>
+      <button type="button" @click="start()" :disabled="busy"
+              class="flex-1 rounded-xl bg-flame-500 px-4 py-2.5 font-display font-bold uppercase tracking-wide text-white transition-colors hover:bg-flame-600 disabled:opacity-60">Starten</button>
+    </div>
+  </div>
+
+  <!-- Bestätigung: Abgabe / Pick -->
+  <div popover="manual" id="transfer-confirm" class="modal-pop w-[22rem] max-w-[90vw] rounded-2xl border border-line bg-panel p-6 text-center">
+    <template x-if="candidate">
+      <div>
+        <div class="mx-auto grid size-24 place-items-center rounded-xl bg-elevated">
+          <img :src="candidate.mon.image" :alt="candidate.mon.name" class="size-20 object-contain" />
+        </div>
+        <h3 class="mt-4 font-display text-xl font-bold tracking-wide text-ink" x-text="candidate.mon.name"></h3>
+        <p class="mt-1 text-sm text-mist"
+           x-text="candidate.type === 'remove'
+             ? `Für ${currentTeam?.name} abgeben? Das Pokémon verlässt das Team und wandert in den Pool.`
+             : `Für ${currentTeam?.name} picken? (Tier ${candidate.mon.tier})`"></p>
+        <div class="mt-5 flex gap-3">
+          <button type="button" @click="closeConfirm('transfer-confirm')"
+                  class="flex-1 rounded-xl border border-line px-4 py-2.5 font-semibold text-mist transition-colors hover:text-ink">Abbrechen</button>
+          <button type="button" @click="confirmAction()" :disabled="busy"
+                  class="flex-1 rounded-xl bg-flame-500 px-4 py-2.5 font-display font-bold uppercase tracking-wide text-white transition-colors hover:bg-flame-600 disabled:opacity-60"
+                  x-text="candidate.type === 'remove' ? 'Abgeben' : 'Picken'"></button>
+        </div>
+      </div>
+    </template>
+  </div>
+</div>
