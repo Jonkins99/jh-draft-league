@@ -136,6 +136,46 @@
         </div>
       </section>
 
+      <!-- ELO / TIER-PROGNOSE -->
+      <section class="mt-6 rounded-2xl border border-line bg-panel p-5 sm:p-6">
+        <h2 class="font-display text-xl font-bold uppercase tracking-wider text-ink">Elo &amp; Tier-Prognose</h2>
+        <p class="mt-0.5 text-sm text-mist">Errechnetes Tier für die nächste Saison anhand des aktuellen Elo-Werts.</p>
+
+        <template x-if="elo">
+          <div class="mt-4 flex flex-wrap items-center gap-3">
+            <div class="rounded-xl border border-line bg-elevated/40 px-4 py-3 text-center">
+              <p class="font-display text-[10px] font-semibold uppercase tracking-wider text-mist">Rang</p>
+              <p class="font-display text-2xl font-bold tabular-nums text-ink" x-text="elo.rang != null ? `#${elo.rang}` : '—'"></p>
+            </div>
+            <div class="rounded-xl border border-line bg-elevated/40 px-4 py-3 text-center">
+              <p class="font-display text-[10px] font-semibold uppercase tracking-wider text-mist">Elo</p>
+              <p class="font-display text-2xl font-bold tabular-nums text-ink" x-text="elo.elo != null ? elo.elo : '—'"></p>
+            </div>
+            <div class="flex items-center gap-3 rounded-xl border border-line bg-elevated/40 px-4 py-3"
+                 :style="elo.delta > 0 ? 'border-color:rgba(99,188,90,0.5)' : (elo.delta < 0 ? 'border-color:rgba(227,53,13,0.5)' : '')">
+              <div class="text-center">
+                <p class="font-display text-[10px] font-semibold uppercase tracking-wider text-mist">Aktuell</p>
+                <span class="mt-0.5 inline-block rounded-full px-2.5 py-0.5 text-sm font-bold" :style="`color:${tierColor(elo.currentTier)};background:${tierColor(elo.currentTier)}26`" x-text="elo.currentTier || '—'"></span>
+              </div>
+              <svg viewBox="0 0 24 24" class="size-5 shrink-0" :style="`color:${elo.delta > 0 ? '#63bc5a' : (elo.delta < 0 ? '#e3350d' : '#98a2b3')}`" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12h14"/><path d="m13 6 6 6-6 6"/></svg>
+              <div class="text-center">
+                <p class="font-display text-[10px] font-semibold uppercase tracking-wider text-mist">Prognose</p>
+                <span class="mt-0.5 inline-flex items-center gap-1 rounded-full px-2.5 py-0.5 text-sm font-bold" :style="`color:${tierColor(elo.projectedTier)};background:${tierColor(elo.projectedTier)}26`">
+                  <span x-text="elo.projectedTier || '—'"></span>
+                  <span x-show="elo.delta > 0" style="color:#63bc5a">▲</span>
+                  <span x-show="elo.delta < 0" style="color:#e3350d">▼</span>
+                </span>
+              </div>
+            </div>
+            <span x-show="elo.delta !== 0" class="rounded-full px-3 py-1 text-xs font-bold uppercase tracking-wider"
+                  :style="elo.delta > 0 ? 'color:#63bc5a;background:rgba(99,188,90,0.15)' : 'color:#ff5a36;background:rgba(227,53,13,0.15)'"
+                  x-text="elo.delta > 0 ? 'Aufstieg' : 'Abstieg'"></span>
+          </div>
+        </template>
+        <p x-show="!elo && eloLoading" class="mt-3 text-sm text-mist">Lade Elo-Daten…</p>
+        <p x-show="!elo && !eloLoading" class="mt-3 text-sm text-mist">Keine Elo-Daten für dieses Pokémon.</p>
+      </section>
+
       <!-- STATISTIK-KACHELN -->
       <template x-if="profile">
         <div>
