@@ -99,6 +99,9 @@ function withDerivedStats(st) {
     killsPerBattle: st.kills / Math.max(1, battles),
     deathsPerBattle: st.deaths / Math.max(1, battles),
     kpfPerMu: battles / Math.max(1, st.matchups),
+    // Einsatzquote im Matchup: bei Nominierung (6er-Aufgebot) Anteil der bis zu 3 Kämpfe,
+    // in denen es tatsächlich stand. battles / (matchups × 3), auf 0..1 begrenzt.
+    battleShareInMu: Math.max(0, Math.min(1, battles / Math.max(1, st.matchups * 3))),
     survivalRate: Math.max(0, Math.min(1, (battles - st.deaths) / Math.max(1, battles))),
     battleWinPct: battleDecided ? st.battleWins / battleDecided : 0,
     matchWinPct: matchesDecided ? st.matchWins / matchesDecided : 0,

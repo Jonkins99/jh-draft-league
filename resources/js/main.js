@@ -6,6 +6,7 @@ import {
   exportDataset, buildScheduleExport, buildBattleDetailsExport, buildStandingsExport,
   buildRankingExport, buildTeamsExport, buildDraftpoolExport,
 } from './export.mjs';
+import { fetchEloRows, readEloCache, writeEloCache, resolveEloName } from './elo.mjs';
 
 const PICKS_PER_TEAM = 10;
 const TIER_ORDER = ['S', 'A', 'B', 'C', 'D'];
@@ -19,6 +20,7 @@ const ICONS = {
   build: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M3 7h7"/><path d="M3 12h7"/><path d="M3 17h7"/><path d="M14 7h7"/><path d="M14 12h7"/><path d="M14 17h7"/><circle cx="14" cy="7" r="0.5"/></svg>`,
   search: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="7"/><path d="m21 21-4.3-4.3"/></svg>`,
   transfer: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M4 8h13"/><path d="m14 5 3 3-3 3"/><path d="M20 16H7"/><path d="m10 13-3 3 3 3"/></svg>`,
+  stats: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M4 19V5"/><path d="M4 19h16"/><rect x="7" y="11" width="3" height="5" rx="0.5"/><rect x="12" y="7" width="3" height="9" rx="0.5"/><rect x="17" y="13" width="3" height="3" rx="0.5"/></svg>`,
 };
 
 const TYPE_COLORS = {
@@ -63,6 +65,12 @@ const MATCHUP_MARKS_KEY = 'jhdl-matchup-marks-v1'; // { [pairKey]: { [monName]: 
 const MARK_CYCLE = [null, 'green', 'yellow', 'orange', 'red'];
 const MARK_COLORS = { green: '#63bc5a', yellow: '#ffcb05', orange: '#ff9d55', red: '#e3350d' };
 
+// Teambuilding: zuletzt geöffnetes Matchup + letzte 6 (gerätelokal).
+const TB_RECENT_KEY = 'jhdl-tb-recent-v1';   // { last: {a,b}, recent: [{a,b}, …≤6] }
+// Notizen & Moveset je Pokémon PRO Matchup (reihenfolge-unabhängiger markPairKey).
+const TB_NOTES_KEY = 'jhdl-tb-notes-v1';     // { [markPairKey]: { [monName]: { note, moveset } } }
+const TB_TILEVIEW_KEY = 'jhdl-tb-tileview-v1'; // { v: 'nur'|'notes'|'moves'|'all' }
+
 // Kurzkürzel je Typ für die kompakte Schwächen-Matrix.
 const TYPE_ABBR = {
   Normal: 'NOR', Feuer: 'FEU', Wasser: 'WAS', Elektro: 'ELE', Pflanze: 'PFL',
@@ -92,8 +100,8 @@ const STAT_CATALOG = [
   { key: 'deaths', label: 'Deaths', short: 'D', fmt: 'int', info: 'Wie oft dieses Pokémon besiegt wurde – inklusive Self-Kills und ohne Verursacher.' },
   { key: 'kd', label: 'K/D', short: 'K/D', fmt: 'num2', info: 'Verhältnis Kills zu Deaths (Kills geteilt durch Deaths, Nenner mindestens 1).' },
   { key: 'killsPerBattle', label: 'Kills/Kampf', short: 'K/Kpf', fmt: 'num2', info: 'Durchschnittliche Kills pro eingesetztem Kampf.' },
-  { key: 'deathsPerBattle', label: 'Deaths/Kampf', short: 'D/Kpf', fmt: 'num2', info: 'Durchschnittliche Deaths pro eingesetztem Kampf.' },
   { key: 'kpfPerMu', label: 'Kämpfe/Matchup', short: 'Kpf/MU', fmt: 'num2', info: 'Durchschnittliche Kampf-Einsätze pro Match-Aufgebot (0–3): Wie oft ein nominiertes Pokémon tatsächlich in einem der bis zu drei Kämpfe steht.' },
+  { key: 'battleShareInMu', label: 'Kämpfe %', short: 'Kpf %', fmt: 'pct', info: 'Einsatzquote im Matchup: Wenn nominiert (6er-Aufgebot), Anteil der bis zu drei Kämpfe, in denen dieses Pokémon tatsächlich stand.' },
   { key: 'matchups', label: 'Matchups', short: 'MU', fmt: 'int', info: 'In wie vielen Match-Aufgeboten (6 von 10) dieses Pokémon stand.' },
   { key: 'battles', label: 'Kämpfe', short: 'Kpf', fmt: 'int', info: 'In wie vielen ausgetragenen Kämpfen (4er-Einsatz) es stand.' },
   { key: 'battleWinPct', label: 'Kampf-Siegquote', short: 'Kpf-SQ', fmt: 'pct', info: 'Anteil gewonnener Kämpfe an allen Kämpfen, in denen es eingesetzt wurde.' },
@@ -120,6 +128,26 @@ function fmtStat(value, fmt) {
   if (fmt === 'pct') return `${Math.round(v * 100)} %`;
   if (fmt === 'num2') return v.toFixed(2);
   return String(v);
+}
+
+// Rang eines Tiers (S bester). Unbekannt/leer -> hinten.
+function tierRank(t) {
+  const i = TIER_ORDER.indexOf(t);
+  return i < 0 ? 99 : i;
+}
+
+// Relative Zeit („vor 3 min") für den Elo-Aktualisierungs-Zeitstempel.
+function fmtAgo(iso) {
+  if (!iso) return '—';
+  const then = new Date(iso).getTime();
+  if (!Number.isFinite(then)) return '—';
+  const sec = Math.max(0, Math.round((Date.now() - then) / 1000));
+  if (sec < 45) return 'gerade eben';
+  const min = Math.round(sec / 60);
+  if (min < 60) return `vor ${min} min`;
+  const h = Math.round(min / 60);
+  if (h < 24) return `vor ${h} h`;
+  return `vor ${Math.round(h / 24)} d`;
 }
 
 // Spalten-Steuerung (Sichtbarkeit, Reihenfolge, Sortierung, Drag&Drop) als
@@ -464,6 +492,7 @@ function app() {
         { key: 'teambuilding', label: 'Teambuilding', file: './pages/teambuilding.html', icon: ICONS.build },
         { key: 'spieltag', label: 'Spielplan', file: './pages/spieltag.html', icon: ICONS.bolt },
         { key: 'tabelle', label: 'Tabelle', file: './pages/tabelle.html', icon: ICONS.standings },
+        { key: 'stats', label: 'Statistiken', file: './pages/statistiken.html', icon: ICONS.stats },
         { key: 'spieler', label: 'Spieler', file: './pages/spieler.html', icon: ICONS.player },
       ];
       const done = this.$store.league.draft?.status === 'done';
@@ -1537,17 +1566,7 @@ function scheduleView() {
 
 function standingsView() {
   return {
-    ...columnsMixin('jhdl-cols-leaguerank-v1'),
-    // Ranking-Filter (nur Tabelle-View)
-    fType: '',
-    fTier: '',
-    fTeam: '',
-    allTypes: ALL_TYPES,
-    tiers: TIER_ORDER,
-
-    init() {
-      this.initColumns();
-    },
+    init() {},
 
     get league() {
       return this.$store.league;
@@ -1574,7 +1593,72 @@ function standingsView() {
       return chartSvgString(this.curve);
     },
 
-    // --- Liga-weites Pokémon-Ranking (konfigurierbare, filterbare Tabelle) ---
+    statInfo(key) {
+      const s = STAT_BY_KEY[key];
+      if (s) return openStatInfo(null, s.label, s.info);
+      if (EXTRA_INFO[key]) openStatInfo(null, key, EXTRA_INFO[key]);
+    },
+    info(title, text) { openStatInfo(null, title, text); },
+    // Export: Tabelle
+    runExport(fmt) {
+      const l = this.league;
+      exportDataset(buildStandingsExport(l.seasonTeams, l.results), fmt);
+      const el = document.getElementById('exp-tabelle');
+      if (el && el.matches(':popover-open')) el.hidePopover();
+    },
+
+    teamById(id) {
+      return this.league.teams.find((t) => t.id === id) || null;
+    },
+    logoUrl(file) {
+      return `./img/teams/${file}`;
+    },
+    playerColor(player) {
+      return player === 'Henrik' ? '#4d90d5' : '#e3350d';
+    },
+    fmtDiff(d) {
+      return d > 0 ? `+${d}` : `${d}`;
+    },
+  };
+}
+
+// === Statistiken: Pokémon-Ranking (Stats) + Elo-/Tier-Prognose (Elo) ========
+function statsView() {
+  return {
+    ...columnsMixin('jhdl-cols-leaguerank-v1'),
+    tab: 'stats', // 'stats' | 'elo'
+    // Ranking-Filter (Stats-Tab)
+    fType: '',
+    fTier: '',
+    fTeam: '',
+    allTypes: ALL_TYPES,
+    tiers: TIER_ORDER,
+    // Elo-Tabellen-Sortierung
+    eloSortKey: 'rang',
+    eloSortDir: 'asc',
+
+    init() {
+      this.initColumns();
+      const saved = loadJson('jhdl-stats-tab-v1');
+      if (saved && (saved.tab === 'stats' || saved.tab === 'elo')) this.tab = saved.tab;
+      const es = loadJson('jhdl-elo-sort-v1');
+      if (es && es.key) { this.eloSortKey = es.key; this.eloSortDir = es.dir === 'desc' ? 'desc' : 'asc'; }
+      this.$store.elo.ensureLoaded();
+    },
+    setTab(t) {
+      this.tab = t;
+      saveJson('jhdl-stats-tab-v1', { tab: t });
+      if (t === 'elo') this.$store.elo.ensureLoaded();
+    },
+
+    get league() {
+      return this.$store.league;
+    },
+    get loaded() {
+      return this.league.teamsLoaded && this.league.resultsLoaded && this.league.pokemonLoaded;
+    },
+
+    // --- Stats-Tab: filterbares Pokémon-Ranking ---
     get baseRanking() {
       const speed = this.league.pokemon;
       return pokemonStats(this.league.seasonTeams, this.league.results, this.league.pokemon).map((s) => ({
@@ -1606,23 +1690,91 @@ function standingsView() {
     sortByCol(key) {
       withReorderTransition(() => this.setSort(key), () => this.$nextTick());
     },
+    // Team-Wappen (URL) für den Kachel-Hintergrund, sonst null.
+    teamLogo(s) {
+      return s.team ? this.logoUrl(s.team.logo) : null;
+    },
+    runExport(fmt) {
+      const l = this.league;
+      exportDataset(buildRankingExport(l.seasonTeams, l.results, l.pokemon), fmt);
+      const el = document.getElementById('exp-stats');
+      if (el && el.matches(':popover-open')) el.hidePopover();
+    },
+
+    // --- Elo-Tab ---
+    get eloStore() { return this.$store.elo; },
+    get eloLoading() { return this.$store.elo.loading; },
+    get eloError() { return this.$store.elo.error; },
+    get hasElo() { return (this.$store.elo.rows || []).length > 0; },
+    get eloUpdatedText() { return fmtAgo(this.$store.elo.fetchedAt); },
+    refreshElo() { this.$store.elo.refresh(); },
+
+    // Tier-Delta: >0 = Aufstieg (Prognose-Tier besser), <0 = Abstieg, 0 = gleich/unbekannt.
+    tierDelta(cur, proj) {
+      if (!cur || !proj) return 0;
+      const a = tierRank(cur), b = tierRank(proj);
+      if (a === 99 || b === 99) return 0;
+      return a - b;
+    },
+    // Sheet-Zeilen mit Stammdaten (Bild, aktuelles Tier) + aktuellem Team anreichern.
+    eloEnriched() {
+      const rows = this.$store.elo.rows || [];
+      const monByName = {};
+      (this.league.pokemon || []).forEach((p) => { monByName[p.name] = p; });
+      const teamByMon = {};
+      (this.league.teams || []).forEach((t) => (t.pokemon || []).forEach((p) => { teamByMon[p.name] = t; }));
+      return rows.map((r) => {
+        const mon = monByName[r.resolved] || null;
+        const currentTier = mon?.tier || null;
+        const team = teamByMon[r.resolved] || null;
+        return {
+          rang: r.rang, name: r.resolved, sheetName: r.name, elo: r.elo,
+          image: mon?.image || null,
+          currentTier, projectedTier: r.projectedTier, team,
+          delta: this.tierDelta(currentTier, r.projectedTier),
+        };
+      });
+    },
+    sortEloRows(rows) {
+      const key = this.eloSortKey, dir = this.eloSortDir === 'asc' ? 1 : -1;
+      const val = (r) => {
+        if (key === 'name') return r.name || '';
+        if (key === 'team') return r.team?.name || '';
+        if (key === 'currentTier') return tierRank(r.currentTier);
+        if (key === 'projectedTier') return tierRank(r.projectedTier);
+        if (key === 'elo') return Number.isFinite(r.elo) ? r.elo : -1;
+        return Number.isFinite(r.rang) ? r.rang : 9999;
+      };
+      return [...rows].sort((a, b) => {
+        const va = val(a), vb = val(b);
+        if (typeof va === 'string') return dir * va.localeCompare(vb) || (a.rang ?? 0) - (b.rang ?? 0);
+        return dir * (va - vb) || (a.rang ?? 0) - (b.rang ?? 0);
+      });
+    },
+    get eloRows() { return this.sortEloRows(this.eloEnriched()); },
+    setEloSort(key) {
+      if (this.eloSortKey === key) this.eloSortDir = this.eloSortDir === 'asc' ? 'desc' : 'asc';
+      else { this.eloSortKey = key; this.eloSortDir = key === 'elo' ? 'desc' : 'asc'; }
+      saveJson('jhdl-elo-sort-v1', { key: this.eloSortKey, dir: this.eloSortDir });
+    },
+    eloSortIndicator(key) {
+      if (this.eloSortKey !== key) return '';
+      return this.eloSortDir === 'desc' ? '↓' : '↑';
+    },
+    get tierChanges() {
+      const changed = this.eloEnriched().filter((r) => r.delta !== 0);
+      return {
+        up: changed.filter((r) => r.delta > 0).sort((a, b) => b.delta - a.delta || (b.elo ?? 0) - (a.elo ?? 0)),
+        down: changed.filter((r) => r.delta < 0).sort((a, b) => a.delta - b.delta || (b.elo ?? 0) - (a.elo ?? 0)),
+      };
+    },
+
     statInfo(key) {
       const s = STAT_BY_KEY[key];
       if (s) return openStatInfo(null, s.label, s.info);
       if (EXTRA_INFO[key]) openStatInfo(null, key, EXTRA_INFO[key]);
     },
     info(title, text) { openStatInfo(null, title, text); },
-    // Export: Tabelle bzw. Ranking
-    runExport(kind, fmt) {
-      const l = this.league;
-      const ds = kind === 'standings'
-        ? buildStandingsExport(l.seasonTeams, l.results)
-        : buildRankingExport(l.seasonTeams, l.results, l.pokemon);
-      exportDataset(ds, fmt);
-      const el = document.getElementById('exp-tabelle');
-      if (el && el.matches(':popover-open')) el.hidePopover();
-    },
-
     teamById(id) {
       return this.league.teams.find((t) => t.id === id) || null;
     },
@@ -1659,6 +1811,7 @@ function pokemonView() {
       const nav = this.$store.nav;
       this.name = nav?.pokemonName || null;
       this.from = nav?.from || null;
+      this.$store.elo.ensureLoaded();
       // Falls die Daten beim ersten Render noch nicht da sind, neu auswerten sobald geladen.
       if (!this.loaded) {
         this.$watch('loaded', () => { /* Getter re-evaluieren automatisch */ });
@@ -1691,6 +1844,21 @@ function pokemonView() {
     get team() {
       return this.profile?.team || null;
     },
+
+    // Elo-/Tier-Prognose dieses Pokémon aus dem Sheet-Store (oder null).
+    get elo() {
+      const row = (this.$store.elo.rows || []).find((r) => r.resolved === this.name);
+      if (!row) return null;
+      const cur = this.mon?.tier || null;
+      const proj = row.projectedTier || null;
+      let delta = 0;
+      if (cur && proj) {
+        const a = tierRank(cur), b = tierRank(proj);
+        if (a !== 99 && b !== 99) delta = a - b;
+      }
+      return { rang: row.rang, elo: row.elo, currentTier: cur, projectedTier: proj, delta };
+    },
+    get eloLoading() { return this.$store.elo.loading; },
 
     back() {
       this.$dispatch('navigate', { key: this.from || 'teams' });
@@ -1894,6 +2062,9 @@ function teambuildingView() {
     inactive: {}, // name -> true (deaktiviert)
     mods: {},     // name -> { x15, x2 }
     marks: {},    // name -> Markierungsfarbe (pro Paarung)
+    notes: {},    // name -> { note, moveset } (pro Matchup)
+    tileView: 'nur', // 'nur' | 'notes' | 'moves' | 'all'
+    recent: [],   // [{a,b}] zuletzt geöffnete Matchups
     spdSort: 'desc',
     allTypes: ALL_TYPES,
     // Showdown-Export
@@ -1903,12 +2074,17 @@ function teambuildingView() {
     exportText: '',
 
     init() {
+      const tv = loadJson(TB_TILEVIEW_KEY);
+      if (['nur', 'notes', 'moves', 'all'].includes(tv.v)) this.tileView = tv.v;
+      const store = loadJson(TB_RECENT_KEY);
+      this.recent = Array.isArray(store.recent) ? store.recent : [];
       const nav = this.$store.nav;
       const preA = nav?.teamAId || null;
       const preB = nav?.teamBId || null;
       if (nav) { nav.teamAId = null; nav.teamBId = null; }
       const start = () => {
         if (preA || preB) this.applyPair(preA, preB);
+        else if (store.last && this.teamById(store.last.a) && this.teamById(store.last.b)) this.applyPair(store.last.a, store.last.b);
         else this.pickDefaults();
       };
       if (this.loaded) start();
@@ -1946,10 +2122,75 @@ function teambuildingView() {
       this.inactive = s.inactive || {};
       this.mods = s.mods || {};
       this.marks = loadJson(MATCHUP_MARKS_KEY)[this.markPairKey()] || {};
+      this.loadNotes();
+      this.recordRecent();
       this.exportExtra = {};
       this.exportText = '';
     },
     savePair() { saveJson(this.pairKey(), { inactive: this.inactive, mods: this.mods }); },
+
+    // === Notizen & Moveset (pro Matchup) ====================================
+    loadNotes() {
+      const stored = loadJson(TB_NOTES_KEY)[this.markPairKey()] || {};
+      const names = [...this.allMons(this.teamA), ...this.allMons(this.teamB)].map((m) => m.name);
+      const notes = {};
+      names.forEach((n) => {
+        const d = stored[n] || {};
+        const ms = d.moveset || {};
+        notes[n] = {
+          note: d.note || '',
+          moveset: {
+            item: ms.item || '',
+            ability: ms.ability || '',
+            moves: [0, 1, 2, 3].map((i) => (ms.moves && ms.moves[i]) || ''),
+            evs: ms.evs || '',
+          },
+        };
+      });
+      this.notes = notes;
+    },
+    saveNotes() {
+      const all = loadJson(TB_NOTES_KEY);
+      all[this.markPairKey()] = this.notes;
+      saveJson(TB_NOTES_KEY, all);
+    },
+    // Ob ein Pokémon bereits Notiz/Moveset-Inhalt hat (für einen dezenten Marker).
+    hasNote(name) {
+      const d = this.notes[name];
+      if (!d) return false;
+      const ms = d.moveset || {};
+      return !!(d.note || ms.item || ms.ability || ms.evs || (ms.moves || []).some((m) => m));
+    },
+    setTileView(v) {
+      this.tileView = v;
+      saveJson(TB_TILEVIEW_KEY, { v });
+    },
+    get tileGridClass() {
+      return this.tileView === 'nur'
+        ? 'grid-cols-5 sm:grid-cols-10'
+        : 'grid-cols-1 sm:grid-cols-2 xl:grid-cols-3';
+    },
+
+    // === Zuletzt geöffnete Matchups =========================================
+    recordRecent() {
+      const a = this.teamAId, b = this.teamBId;
+      if (!a || !b) return;
+      const store = loadJson(TB_RECENT_KEY);
+      const prev = Array.isArray(store.recent) ? store.recent : [];
+      const key = [a, b].slice().sort().join('|');
+      const filtered = prev.filter((p) => [p.a, p.b].slice().sort().join('|') !== key);
+      const recent = [{ a, b }, ...filtered].slice(0, 6);
+      saveJson(TB_RECENT_KEY, { last: { a, b }, recent });
+      this.recent = recent;
+    },
+    applyRecent(val) {
+      if (!val) return;
+      const [a, b] = String(val).split('>');
+      if (a && b) this.applyPair(a, b);
+    },
+    recentLabel(p) {
+      return `${this.teamById(p.a)?.name || '?'} vs ${this.teamById(p.b)?.name || '?'}`;
+    },
 
     // === Matchup-Markierungen ===============================================
     markGet(name) { return this.marks[name] || null; },
@@ -2450,12 +2691,51 @@ Alpine.store('league', {
 // es beim init() aus und räumt auf.
 Alpine.store('nav', { teamId: null, matchId: null, pokemonName: null, from: null, teamAId: null, teamBId: null });
 
+// Elo-/Tier-Prognose aus dem öffentlichen Sheet (clientseitig, ohne Key). Cache im
+// localStorage; per Knopfdruck (refresh) live neu geladen.
+Alpine.store('elo', {
+  rows: [],
+  fetchedAt: null,
+  loading: false,
+  error: false,
+  loaded: false,
+
+  init() {
+    const cache = readEloCache();
+    if (cache) { this.rows = cache.rows || []; this.fetchedAt = cache.fetchedAt || null; }
+    this.loaded = true;
+  },
+  // Beim ersten Bedarf einmalig live nachladen, falls noch kein Stand vorliegt.
+  ensureLoaded() {
+    if (!this.fetchedAt && !this.loading) this.refresh();
+  },
+  async refresh() {
+    if (this.loading) return;
+    this.loading = true;
+    this.error = false;
+    try {
+      const data = await fetchEloRows();
+      this.rows = data.rows;
+      this.fetchedAt = data.fetchedAt;
+      writeEloCache({ rows: this.rows, fetchedAt: this.fetchedAt });
+      window.dispatchEvent(new CustomEvent('toast', { detail: { msg: 'Elo-Daten aktualisiert.' } }));
+    } catch (e) {
+      this.error = true;
+      console.error('Elo-Daten konnten nicht geladen werden:', e);
+      window.dispatchEvent(new CustomEvent('toast', { detail: { msg: 'Elo-Daten konnten nicht geladen werden.' } }));
+    } finally {
+      this.loading = false;
+    }
+  },
+});
+
 Alpine.data('gate', gate);
 Alpine.data('app', app);
 Alpine.data('draftBoard', draftBoard);
 Alpine.data('teamsView', teamsView);
 Alpine.data('scheduleView', scheduleView);
 Alpine.data('standingsView', standingsView);
+Alpine.data('statsView', statsView);
 Alpine.data('pokemonView', pokemonView);
 Alpine.data('spielerView', spielerView);
 Alpine.data('teambuildingView', teambuildingView);
