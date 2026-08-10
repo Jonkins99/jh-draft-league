@@ -264,6 +264,35 @@ export function speedTiers(base) {
   };
 }
 
+// SP auf den erlaubten Bereich 0–32 begrenzen (ganzzahlig).
+export function clampSp(value) {
+  const n = Math.round(Number(value));
+  if (!Number.isFinite(n)) return 0;
+  return Math.max(0, Math.min(32, n));
+}
+
+// Anzeige-Fälle für die Speed-Tier-Tabellen, je Pokémon konfigurierbar:
+//  sp  = null/undefined -> beide Standardannahmen 0 UND 32 SP,
+//        Zahl           -> genau dieser SP-Wert (0–32).
+//  nat = 'both' (Default) | 'neutral' | 'up' -> welche Wesen gezeigt werden.
+export function speedCases(base, opts = {}) {
+  const sps = opts.sp == null ? [0, 32] : [clampSp(opts.sp)];
+  const natures = opts.nat === 'neutral' ? [false] : opts.nat === 'up' ? [true] : [false, true];
+  const out = [];
+  for (const sp of sps) {
+    for (const natureUp of natures) {
+      out.push({
+        key: `sp${sp}${natureUp ? 'n' : ''}`,
+        label: `${sp}${natureUp ? '+' : ''}`,
+        sp,
+        natureUp,
+        speed: speedAt(base, sp, natureUp),
+      });
+    }
+  }
+  return out;
+}
+
 // In-Battle-Multiplikator (Initiative-Boost/Wahlschal = x1,5,
 // Rückenwind/Wassertempo = x2). In den Spielen wird abgerundet.
 export function applySpeedMod(value, mult) {

@@ -1,7 +1,7 @@
 import Alpine from 'alpinejs';
 import { db } from './firebase.js';
 import { collection, doc, onSnapshot, writeBatch, arrayUnion, setDoc } from 'firebase/firestore';
-import { battleStats, computeStandings, pokemonStats, placementHistory, speedTiers, applySpeedMod, typeMultiplier, ALL_TYPES, pokemonProfile, defensiveChart, offensiveChart, playerDuel, showdownExport } from './scoring.mjs';
+import { battleStats, computeStandings, pokemonStats, placementHistory, speedTiers, speedCases, clampSp, applySpeedMod, typeMultiplier, ALL_TYPES, pokemonProfile, defensiveChart, offensiveChart, playerDuel, showdownExport } from './scoring.mjs';
 import {
   exportDataset, buildScheduleExport, buildBattleDetailsExport, buildStandingsExport,
   buildRankingExport, buildTeamsExport, buildDraftpoolExport,
@@ -56,7 +56,7 @@ const ACCESS_KEY = 'jhdl-access-v1';
 const ACCESS_HASH = 'b1cf8aac575a8627eb910e7df1962aa0d50621d7f1007fdeaa838d6fdce66883';
 
 // Persistente, gerätelokale Anzeige-Einstellungen der Team-Analyse-Bereiche.
-const SPEED_SETTINGS_KEY = 'jhdl-speedtiers-v1'; // { [monName]: { show, x15, x2 } }
+const SPEED_SETTINGS_KEY = 'jhdl-speedtiers-v1'; // { [monName]: { show, x15, x2, sp, nat } }
 const WEAK_SETTINGS_KEY = 'jhdl-weakness-v1';   // { [monName]: true }  (ausgeschlossen)
 
 // Matchup-Markierungen: pro Team-Paarung (reihenfolge-unabhängig) je Pokémon eine Farbe,
@@ -70,6 +70,8 @@ const TB_RECENT_KEY = 'jhdl-tb-recent-v1';   // { last: {a,b}, recent: [{a,b}, �
 // Notizen & Moveset je Pokémon PRO Matchup (reihenfolge-unabhängiger markPairKey).
 const TB_NOTES_KEY = 'jhdl-tb-notes-v1';     // { [markPairKey]: { [monName]: { note, moveset } } }
 const TB_TILEVIEW_KEY = 'jhdl-tb-tileview-v1'; // { v: 'nur'|'notes'|'moves'|'all' }
+// Filter „nur grün markierte" – getrennt für Kader-Kacheln und Initiative-Tierlist.
+const TB_GREENONLY_KEY = 'jhdl-tb-greenonly-v1'; // { tiles: bool, speed: bool }
 
 // Kurzkürzel je Typ für die kompakte Schwächen-Matrix.
 const TYPE_ABBR = {
@@ -90,6 +92,36 @@ function saveJson(key, value) {
   try {
     localStorage.setItem(key, JSON.stringify(value));
   } catch (e) {}
+}
+
+// === Speed-Tier-Einstellungen (geteilt) =====================================
+// Anzeige-Konfiguration eines Pokémon in den Initiative-Tabellen. `sp = null`
+// bedeutet „Standardannahme": 0 UND 32 SP. `nat` wählt die Wesen-Varianten.
+const NAT_MODES = ['both', 'neutral', 'up'];
+const NAT_LABELS = { both: 'neutral & Init+', neutral: 'nur neutral', up: 'nur Init+' };
+
+function normalizeSpd(raw) {
+  const s = raw || {};
+  return {
+    sp: s.sp == null ? null : clampSp(s.sp),
+    nat: NAT_MODES.includes(s.nat) ? s.nat : 'both',
+  };
+}
+// Kurzform für den Konfigurations-Knopf: „0/32" (Standard) oder der SP-Wert.
+function spdBadge(cfg) {
+  return cfg.sp == null ? '0/32' : String(cfg.sp);
+}
+// Farbe eines Investment-Falls: 0 SP neutral grau, investiert orange, Init+-Wesen gelb.
+function invTone(sp, natureUp) {
+  if (natureUp) return '#ffcb05';
+  return sp > 0 ? '#ff5a36' : '#98a2b3';
+}
+// Aktive In-Battle-Modifikatoren eines Pokémon (×1 immer, ×1,5/×2 optional).
+function speedMods(cfg) {
+  const mods = [{ key: 'x1', label: '×1', mult: 1 }];
+  if (cfg.x15) mods.push({ key: 'x15', label: '×1,5', mult: 1.5 });
+  if (cfg.x2) mods.push({ key: 'x2', label: '×2', mult: 2 });
+  return mods;
 }
 
 // === Statistik-Katalog ======================================================
@@ -433,9 +465,10 @@ function gate() {
 
 function app() {
   return {
-    current: 'draft',
+    current: null,
     toasts: [],
     _toastSeq: 0,
+    _booted: false,
 
     // Globale Suche (Strg/⌘ + K)
     searchQ: '',
@@ -451,6 +484,34 @@ function app() {
         }
       });
       window.addEventListener('stat-info', (e) => this.showInfo(e.detail));
+      this.bootView();
+    },
+
+    // === Startansicht ======================================================
+    // Sie hängt vom Liga-Zustand ab, also erst entscheiden, wenn Draft-, Transfer-
+    // und Spielplan-Snapshot da sind. Falls Firestore nicht antwortet, nach einem
+    // kurzen Timeout trotzdem starten (Fallback-Reihenfolge in startKey()).
+    bootView() {
+      if (this.bootReady) return this.boot();
+      this.$watch('bootReady', () => { if (this.bootReady) this.boot(); });
+      setTimeout(() => this.boot(), 4000);
+    },
+    boot() {
+      if (this._booted) return;
+      this._booted = true;
+      this.load(this.startKey(), { animate: false });
+    },
+    get bootReady() {
+      const l = this.$store.league;
+      return !!(l.draftLoaded && l.transferLoaded && l.scheduleLoaded);
+    },
+    // Laufender Transfer > laufender Draft > Spielplan (sobald ausgelost) > Draft.
+    startKey() {
+      const l = this.$store.league;
+      if (l.transfer?.status === 'running') return 'transfer';
+      if (l.draft?.status === 'running') return 'draft';
+      if ((l.schedule?.matchdays || []).length) return 'spieltag';
+      return 'draft';
     },
     get isMac() {
       return typeof navigator !== 'undefined' && /Mac|iPhone|iPad/.test(navigator.platform || navigator.userAgent || '');
@@ -833,6 +894,7 @@ function teamsView() {
     // Speed-Tiers: gerätelokal persistierte Anzeige-Einstellungen je Pokémon.
     spdSort: 'desc',
     spdSettings: {},
+    spdEdit: null, // Pokémon-Name im SP-/Wesen-Dialog
     // Schwächen/Resistenzen: ausgeschlossene Pokémon (gerätelokal).
     weakExcluded: {},
     allTypes: ALL_TYPES,
@@ -988,13 +1050,53 @@ function teamsView() {
     },
     spdGet(name) {
       const s = this.spdSettings[name] || {};
-      return { show: s.show !== false, x15: !!s.x15, x2: !!s.x2 };
+      return { show: s.show !== false, x15: !!s.x15, x2: !!s.x2, ...normalizeSpd(s) };
     },
     spdToggle(name, key) {
       const cur = this.spdGet(name);
       cur[key] = !cur[key];
-      this.spdSettings = { ...this.spdSettings, [name]: cur };
+      this.spdSave(name, cur);
+    },
+    spdSave(name, cfg) {
+      this.spdSettings = { ...this.spdSettings, [name]: cfg };
       saveJson(SPEED_SETTINGS_KEY, this.spdSettings);
+    },
+    // Eigener SP-Wert (0–32) statt der Standardannahme 0 & 32.
+    spdSetSp(name, value) {
+      this.spdSave(name, { ...this.spdGet(name), sp: clampSp(value) });
+    },
+    spdResetSp(name) {
+      this.spdSave(name, { ...this.spdGet(name), sp: null });
+    },
+    spdSetNat(name, nat) {
+      this.spdSave(name, { ...this.spdGet(name), nat: NAT_MODES.includes(nat) ? nat : 'both' });
+    },
+    spdBadge(name) {
+      return spdBadge(this.spdGet(name));
+    },
+    natLabel(nat) {
+      return NAT_LABELS[nat] || NAT_LABELS.both;
+    },
+    // Konfigurations-Dialog (ein geteiltes Popover, Pokémon über spdEdit gewählt).
+    openSpdConfig(name) {
+      this.spdEdit = name;
+      this.$nextTick(() => document.getElementById('spd-config')?.showPopover());
+    },
+    closeSpdConfig() {
+      const el = document.getElementById('spd-config');
+      if (el && el.matches(':popover-open')) el.hidePopover();
+      this.spdEdit = null;
+    },
+    get spdEditMon() {
+      if (!this.spdEdit) return null;
+      return (this.selectedTeam?.pokemon || []).find((p) => p.name === this.spdEdit) || null;
+    },
+    // Vorschau der Zeilen, die für das gewählte Pokémon entstehen.
+    get spdEditPreview() {
+      const mon = this.spdEditMon;
+      const base = mon ? this.baseSpeedFor(mon) : null;
+      if (base == null) return [];
+      return speedCases(base, this.spdGet(mon.name)).map((c) => ({ ...c, color: invTone(c.sp, c.natureUp) }));
     },
     toggleSpdSort() {
       this.spdSort = this.spdSort === 'desc' ? 'asc' : 'desc';
@@ -1007,31 +1109,24 @@ function teamsView() {
     get speedRows() {
       const team = this.selectedTeam;
       if (!team || !this.speedReady) return [];
-      const invs = [
-        { key: 's0', label: '0' },
-        { key: 's32', label: '32' },
-        { key: 's32n', label: '32+' },
-      ];
       const rows = [];
       for (const mon of (team.pokemon || [])) {
-        const s = this.spdGet(mon.name);
-        if (!s.show) continue;
+        const cfg = this.spdGet(mon.name);
+        if (!cfg.show) continue;
         const base = this.baseSpeedFor(mon);
         if (base == null) continue;
-        const tiers = speedTiers(base);
-        const mods = [{ key: 'x1', label: '×1', mult: 1 }];
-        if (s.x15) mods.push({ key: 'x15', label: '×1,5', mult: 1.5 });
-        if (s.x2) mods.push({ key: 'x2', label: '×2', mult: 2 });
-        for (const inv of invs) {
+        const mods = speedMods(cfg);
+        for (const inv of speedCases(base, cfg)) {
           for (const mod of mods) {
             rows.push({
               id: `${mon.name}|${inv.key}|${mod.key}`,
               mon,
               inv: inv.label,
               invKey: inv.key,
+              invColor: invTone(inv.sp, inv.natureUp),
               mod: mod.label,
               modKey: mod.key,
-              speed: applySpeedMod(tiers[inv.key], mod.mult),
+              speed: applySpeedMod(inv.speed, mod.mult),
             });
           }
         }
@@ -1039,9 +1134,6 @@ function teamsView() {
       const dir = this.spdSort === 'asc' ? 1 : -1;
       rows.sort((a, b) => dir * (a.speed - b.speed) || a.mon.name.localeCompare(b.mon.name));
       return rows;
-    },
-    invColor(key) {
-      return key === 's32n' ? '#ffcb05' : key === 's32' ? '#ff5a36' : '#98a2b3';
     },
     modColor(key) {
       return key === 'x2' ? '#63bc5a' : key === 'x15' ? '#4d90d5' : '#98a2b3';
@@ -1274,9 +1366,12 @@ function scheduleView() {
     },
 
     // --- Match-Detailansicht (read-only) ---
+    // Nach dem Wintertransfer stehen in alten Ergebnissen Pokémon, die dem Team
+    // nicht mehr gehören — dann aus den Stammdaten (pokemon.json) auflösen.
     monImageFor(teamId, name) {
       const t = this.teamById(teamId);
-      return (t?.pokemon || []).find((p) => p.name === name)?.image || '';
+      const own = (t?.pokemon || []).find((p) => p.name === name)?.image;
+      return own || this.league.pokemon.find((p) => p.name === name)?.image || '';
     },
     openDetail(day, matchIndex, home, away) {
       // Nur öffnen, wenn ein Ergebnis existiert; sonst direkt in die Eingabe.
@@ -1358,7 +1453,8 @@ function scheduleView() {
       return [...(t?.pokemon || [])].sort((a, b) => (rank[a.tier] ?? 9) - (rank[b.tier] ?? 9));
     },
     monImage(side, name) {
-      return this.roster(side).find((p) => p.name === name)?.image || '';
+      const own = this.roster(side).find((p) => p.name === name)?.image;
+      return own || this.league.pokemon.find((p) => p.name === name)?.image || '';
     },
 
     // Sieger, Ergebnis (Überlebende je Seite) und Kill-Log sind entkoppelt.
@@ -2064,8 +2160,10 @@ function teambuildingView() {
     marks: {},    // name -> Markierungsfarbe (pro Paarung)
     notes: {},    // name -> { note, moveset } (pro Matchup)
     tileView: 'nur', // 'nur' | 'notes' | 'moves' | 'all'
+    greenOnly: { tiles: false, speed: false }, // Filter „nur grün markierte"
     recent: [],   // [{a,b}] zuletzt geöffnete Matchups
     spdSort: 'desc',
+    spdEdit: null, // Pokémon-Name im SP-/Wesen-Dialog
     allTypes: ALL_TYPES,
     // Showdown-Export
     exportSide: 'a',
@@ -2076,6 +2174,8 @@ function teambuildingView() {
     init() {
       const tv = loadJson(TB_TILEVIEW_KEY);
       if (['nur', 'notes', 'moves', 'all'].includes(tv.v)) this.tileView = tv.v;
+      const go = loadJson(TB_GREENONLY_KEY);
+      this.greenOnly = { tiles: !!go.tiles, speed: !!go.speed };
       const store = loadJson(TB_RECENT_KEY);
       this.recent = Array.isArray(store.recent) ? store.recent : [];
       const nav = this.$store.nav;
@@ -2171,6 +2271,22 @@ function teambuildingView() {
         : 'grid-cols-1 sm:grid-cols-2 xl:grid-cols-3';
     },
 
+    // === Filter „nur grün markierte" ========================================
+    // Gilt getrennt für die Kader-Kacheln (alle vier Ansichten) und die
+    // Initiative-Tierlist; gerätelokal, unabhängig von der Paarung.
+    toggleGreenOnly(which) {
+      this.greenOnly = { ...this.greenOnly, [which]: !this.greenOnly[which] };
+      saveJson(TB_GREENONLY_KEY, this.greenOnly);
+    },
+    isGreen(name) { return this.marks[name] === 'green'; },
+    // Kacheln des Matchup-Bereichs (optional auf grün markierte reduziert).
+    tileMons(team) {
+      const mons = this.allMons(team);
+      return this.greenOnly.tiles ? mons.filter((m) => this.isGreen(m.name)) : mons;
+    },
+    greenCount(team) { return this.greenMons(team).length; },
+    get greenTotal() { return this.greenCount(this.teamA) + this.greenCount(this.teamB); },
+
     // === Zuletzt geöffnete Matchups =========================================
     recordRecent() {
       const a = this.teamAId, b = this.teamBId;
@@ -2251,13 +2367,56 @@ function teambuildingView() {
     },
     modGet(name) {
       const m = this.mods[name] || {};
-      return { x15: !!m.x15, x2: !!m.x2 };
+      return { x15: !!m.x15, x2: !!m.x2, ...normalizeSpd(m) };
     },
     modToggle(name, key) {
       const cur = this.modGet(name);
       cur[key] = !cur[key];
-      this.mods = { ...this.mods, [name]: cur };
+      this.modSave(name, cur);
+    },
+    modSave(name, cfg) {
+      this.mods = { ...this.mods, [name]: cfg };
       this.savePair();
+    },
+    // Eigener SP-Wert (0–32) statt der Standardannahme 0 & 32 – je Matchup.
+    modSetSp(name, value) {
+      this.modSave(name, { ...this.modGet(name), sp: clampSp(value) });
+    },
+    modResetSp(name) {
+      this.modSave(name, { ...this.modGet(name), sp: null });
+    },
+    modSetNat(name, nat) {
+      this.modSave(name, { ...this.modGet(name), nat: NAT_MODES.includes(nat) ? nat : 'both' });
+    },
+    spdBadge(name) {
+      return spdBadge(this.modGet(name));
+    },
+    natLabel(nat) {
+      return NAT_LABELS[nat] || NAT_LABELS.both;
+    },
+    // Dialog-Aliase, damit das SP-/Wesen-Popover in beiden Views identisch ist.
+    spdGet(name) { return this.modGet(name); },
+    spdSetSp(name, value) { this.modSetSp(name, value); },
+    spdResetSp(name) { this.modResetSp(name); },
+    spdSetNat(name, nat) { this.modSetNat(name, nat); },
+    openSpdConfig(name) {
+      this.spdEdit = name;
+      this.$nextTick(() => document.getElementById('spd-config')?.showPopover());
+    },
+    closeSpdConfig() {
+      const el = document.getElementById('spd-config');
+      if (el && el.matches(':popover-open')) el.hidePopover();
+      this.spdEdit = null;
+    },
+    get spdEditMon() {
+      if (!this.spdEdit) return null;
+      return [...this.allMons(this.teamA), ...this.allMons(this.teamB)].find((p) => p.name === this.spdEdit) || null;
+    },
+    get spdEditPreview() {
+      const mon = this.spdEditMon;
+      const base = mon ? this.baseSpeedFor(mon) : null;
+      if (base == null) return [];
+      return speedCases(base, this.modGet(mon.name)).map((c) => ({ ...c, color: invTone(c.sp, c.natureUp) }));
     },
     allMons(team) {
       const rank = { S: 0, A: 1, B: 2, C: 3, D: 4 };
@@ -2278,26 +2437,28 @@ function teambuildingView() {
     goMon(name) { this.$dispatch('navigate', { key: 'pokemon', pokemonName: name }); },
     toggleSpdSort() { this.spdSort = this.spdSort === 'desc' ? 'asc' : 'desc'; },
 
+    // Pokémon der Initiative-Tierlist: aktive (optional nur grün markierte).
+    speedMons(team) {
+      const mons = this.activeMons(team);
+      return this.greenOnly.speed ? mons.filter((m) => this.isGreen(m.name)) : mons;
+    },
     // Gemeinsame Initiative-Tierlist beider Teams, nach Team eingefärbt.
     get combinedSpeedRows() {
-      const invs = [{ key: 's0', label: '0' }, { key: 's32', label: '32' }, { key: 's32n', label: '32+' }];
       const rows = [];
       [['a', this.teamA], ['b', this.teamB]].forEach(([side, team]) => {
         if (!team) return;
-        this.activeMons(team).forEach((mon) => {
+        this.speedMons(team).forEach((mon) => {
           const base = this.baseSpeedFor(mon);
           if (base == null) return;
-          const tiers = speedTiers(base);
-          const m = this.modGet(mon.name);
-          const mods = [{ key: 'x1', label: '×1', mult: 1 }];
-          if (m.x15) mods.push({ key: 'x15', label: '×1,5', mult: 1.5 });
-          if (m.x2) mods.push({ key: 'x2', label: '×2', mult: 2 });
-          invs.forEach((inv) => mods.forEach((mod) => {
+          const cfg = this.modGet(mon.name);
+          const mods = speedMods(cfg);
+          speedCases(base, cfg).forEach((inv) => mods.forEach((mod) => {
             rows.push({
               id: `${side}|${mon.name}|${inv.key}|${mod.key}`,
               side, team, mon,
-              inv: inv.label, invKey: inv.key, mod: mod.label, modKey: mod.key,
-              speed: applySpeedMod(tiers[inv.key], mod.mult),
+              inv: inv.label, invKey: inv.key, invColor: invTone(inv.sp, inv.natureUp),
+              mod: mod.label, modKey: mod.key,
+              speed: applySpeedMod(inv.speed, mod.mult),
               color: this.playerColor(team.player),
             });
           }));
@@ -2307,7 +2468,6 @@ function teambuildingView() {
       rows.sort((a, b) => dir * (a.speed - b.speed) || a.mon.name.localeCompare(b.mon.name));
       return rows;
     },
-    invColor(key) { return key === 's32n' ? '#ffcb05' : key === 's32' ? '#ff5a36' : '#98a2b3'; },
     modColor(key) { return key === 'x2' ? '#63bc5a' : key === 'x15' ? '#4d90d5' : '#98a2b3'; },
 
     // Bedrohungs-Matrix: bester Multiplikator, den attackerSide gegen jedes aktive
@@ -2418,12 +2578,20 @@ function transferView() {
       })).filter((g) => g.mons.length > 0);
     },
 
-    // Verlauf (Abgaben + Picks) nach Runde.
+    // Verlauf (Abgaben, Picks und Verzichte) in Zug-Reihenfolge. `at` = pickIndex des
+    // Zugs; Alt-Einträge ohne `at` behalten über die stabile Sortierung ihre Ordnung.
     get log() {
       const rows = [];
       (this.transfer.removed || []).forEach((r) => rows.push({ ...r, kind: 'remove' }));
       (this.transfer.added || []).forEach((a) => rows.push({ ...a, kind: 'pick' }));
-      return rows.sort((a, b) => (a.round || 0) - (b.round || 0));
+      (this.transfer.skipped || []).forEach((s) => rows.push({ ...s, kind: 'skip', name: null, tier: null }));
+      return rows.sort((a, b) => (a.round || 0) - (b.round || 0) || (a.at ?? 0) - (b.at ?? 0));
+    },
+    // Beschriftung eines Verlaufs-Eintrags.
+    logLabel(row) {
+      if (row.kind === 'remove') return 'abgegeben';
+      if (row.kind === 'pick') return 'gepickt';
+      return row.phase === 'pick' ? 'kein Pick' : 'keine Abgabe';
     },
     monImage(name) { return this.league.pokemon.find((p) => p.name === name)?.image || ''; },
 
@@ -2442,7 +2610,13 @@ function transferView() {
       this.candidate = null;
       this.busy = false;
     },
-    async skip() { if (this.busy) return; this.busy = true; try { await this.league.transferSkip(); } catch (e) { console.error(e); } this.busy = false; },
+    async skip() {
+      if (this.busy || !this.currentTeam) return;
+      this.busy = true;
+      try { await this.league.transferSkip(this.currentTeam.id, this.currentPick?.phase || 'remove'); }
+      catch (e) { console.error(e); }
+      this.busy = false;
+    },
     async start() { this.closeConfirm('transfer-start-confirm'); if (this.busy || !this.draftDone) return; this.busy = true; try { await this.league.startTransfer(); } catch (e) { console.error(e); } this.busy = false; },
 
     logoUrl(file) { return `./img/teams/${file}`; },
@@ -2461,7 +2635,7 @@ Alpine.store('league', {
   draft: { status: 'idle', order: [], pickIndex: 0 },
   schedule: { matchdays: [] },
   results: [],
-  transfer: { status: 'idle', order: [], pickIndex: 0, removed: [], added: [] },
+  transfer: { status: 'idle', order: [], pickIndex: 0, removed: [], added: [], skipped: [] },
   teamsLoaded: false,
   pokemonLoaded: false,
   draftLoaded: false,
@@ -2506,7 +2680,7 @@ Alpine.store('league', {
     });
 
     onSnapshot(doc(db, 'drafts', 'transfer-s1'), (snap) => {
-      this.transfer = snap.exists() ? snap.data() : { status: 'idle', order: [], pickIndex: 0, removed: [], added: [] };
+      this.transfer = snap.exists() ? snap.data() : { status: 'idle', order: [], pickIndex: 0, removed: [], added: [], skipped: [] };
       this.transferLoaded = true;
     });
   },
@@ -2640,7 +2814,7 @@ Alpine.store('league', {
     const order = computeStandings(this.seasonTeams, this.results).map((r) => r.team.id).reverse();
     if (!order.length) return;
     await setDoc(doc(db, 'drafts', 'transfer-s1'), {
-      season: 1, status: 'running', order, pickIndex: 0, removed: [], added: [],
+      season: 1, status: 'running', order, pickIndex: 0, removed: [], added: [], skipped: [],
     });
   },
 
@@ -2661,16 +2835,22 @@ Alpine.store('league', {
     const mon = (team?.pokemon || []).find((p) => p.name === monName);
     if (!mon) return;
     const round = this._transferRound();
+    const at = this.transfer.pickIndex || 0;
     const nextRoster = team.pokemon.filter((p) => p.name !== monName);
     const batch = writeBatch(db);
     batch.update(doc(db, 'teams', teamId), { pokemon: nextRoster });
-    this._transferAdvance(batch, { removed: arrayUnion({ teamId, name: monName, tier: mon.tier, round }) });
+    this._transferAdvance(batch, { removed: arrayUnion({ teamId, name: monName, tier: mon.tier, round, at }) });
     await batch.commit();
   },
 
-  async transferSkip() {
+  // Verzicht wird protokolliert, damit er im Verlauf sichtbar bleibt.
+  async transferSkip(teamId, phase) {
+    const round = this._transferRound();
+    const at = this.transfer.pickIndex || 0;
     const batch = writeBatch(db);
-    this._transferAdvance(batch);
+    this._transferAdvance(batch, {
+      skipped: arrayUnion({ teamId: teamId || null, round, at, phase: phase === 'pick' ? 'pick' : 'remove' }),
+    });
     await batch.commit();
   },
 
@@ -2680,9 +2860,10 @@ Alpine.store('league', {
       types: pokemon.types || [], tier: pokemon.tier, cost: pokemon.cost ?? null, image: pokemon.image || null,
     };
     const round = this._transferRound();
+    const at = this.transfer.pickIndex || 0;
     const batch = writeBatch(db);
     batch.update(doc(db, 'teams', teamId), { pokemon: arrayUnion(clean) });
-    this._transferAdvance(batch, { added: arrayUnion({ teamId, name: clean.name, tier: clean.tier, round }) });
+    this._transferAdvance(batch, { added: arrayUnion({ teamId, name: clean.name, tier: clean.tier, round, at }) });
     await batch.commit();
   },
 });

@@ -18,7 +18,7 @@ const app = initializeApp(firebaseConfig);
 const db = getFirestore(app);
 
 await setDoc(doc(db, 'drafts', 'transfer-s1'), {
-  season: 1, status: 'idle', order: [], pickIndex: 0, removed: [], added: [],
+  season: 1, status: 'idle', order: [], pickIndex: 0, removed: [], added: [], skipped: [],
 });
 
 console.log('Wintertransfer zurückgesetzt (transfers/s1 = idle).');

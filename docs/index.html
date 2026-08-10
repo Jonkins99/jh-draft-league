@@ -13,12 +13,12 @@
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Roboto:ital,wght@0,100..900;1,100..900&display=swap" rel="stylesheet">
-  <script type="module" crossorigin src="./assets/index-BcEroX8j.js"></script>
-  <link rel="stylesheet" crossorigin href="./assets/index-DaC2Fqwg.css">
+  <script type="module" crossorigin src="./assets/index-BdR3mly0.js"></script>
+  <link rel="stylesheet" crossorigin href="./assets/index-0TCl2vXd.css">
 </head>
 <body class="min-h-screen bg-void font-sans text-ink antialiased selection:bg-flame-500/30">
   <div class="pointer-events-none fixed inset-0 -z-10 bg-[radial-gradient(75%_45%_at_88%_-8%,rgba(227,53,13,0.12),transparent_60%)]"></div>
-  <!-- Gate -->
+
   <div x-data="gate()" x-cloak>
 
     <div x-show="!unlocked" class="fixed inset-0 z-100 grid place-items-center bg-void px-6">
@@ -40,7 +40,7 @@
       </form>
     </div>
 
-  <div x-show="unlocked" id="app" x-data="app()" x-init="initApp(); load(current, { animate: false })"
+  <div x-show="unlocked" id="app" x-data="app()" x-init="initApp()"
        @navigate.window="onNavigate($event.detail)" @toast.window="pushToast($event.detail)">
 
     <header class="fixed inset-x-0 top-0 z-40 flex h-16 items-center justify-between border-b border-line bg-void/85 px-4 backdrop-blur md:hidden">
@@ -120,7 +120,9 @@
       </aside>
 
       <main class="min-w-0 px-4 pb-16 pt-20 md:px-8 md:pt-10 lg:px-12">
-        <div class="view mx-auto max-w-6xl" x-ref="view"></div>
+        <div class="view mx-auto max-w-6xl" x-ref="view">
+          <div class="py-16 text-center text-mist">Lade Liga…</div>
+        </div>
       </main>
 
     </div>

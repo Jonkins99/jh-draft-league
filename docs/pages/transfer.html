@@ -136,11 +136,33 @@
     <div class="overflow-hidden rounded-2xl border border-line bg-panel">
       <ul class="divide-y divide-line">
         <template x-for="(row, i) in log" :key="'log-'+i">
-          <li class="flex items-center gap-3 px-4 py-2.5">
-            <span class="grid size-6 shrink-0 place-items-center rounded font-display text-[10px] font-bold" :style="`color:${tierColor(row.tier)}; background:${tierColor(row.tier)}1f`" x-text="row.tier"></span>
-            <img :src="monImage(row.name)" :alt="row.name" class="size-8 shrink-0 object-contain" />
-            <button type="button" @click="goMon(row.name)" class="min-w-0 flex-1 truncate text-left text-sm font-semibold text-ink transition-colors hover:text-flame-400" x-text="row.name" :title="row.name"></button>
-            <span class="shrink-0 text-xs font-semibold" :class="row.kind === 'remove' ? 'text-flame-400' : 'text-volt-400'" x-text="row.kind === 'remove' ? 'abgegeben' : 'gepickt'"></span>
+          <li class="flex items-center gap-3 px-4 py-2.5" :class="row.kind === 'skip' ? 'opacity-70' : ''">
+            <template x-if="row.kind !== 'skip'">
+              <span class="grid size-6 shrink-0 place-items-center rounded font-display text-[10px] font-bold" :style="`color:${tierColor(row.tier)}; background:${tierColor(row.tier)}1f`" x-text="row.tier"></span>
+            </template>
+            <template x-if="row.kind === 'skip'">
+              <span class="grid size-6 shrink-0 place-items-center rounded bg-elevated text-mist" aria-hidden="true">
+                <svg viewBox="0 0 24 24" class="size-3.5" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="12" cy="12" r="9"/><path d="M6 18 18 6"/></svg>
+              </span>
+            </template>
+
+            <template x-if="row.kind !== 'skip'">
+              <img :src="monImage(row.name)" :alt="row.name" class="size-8 shrink-0 object-contain" />
+            </template>
+            <template x-if="row.kind === 'skip'">
+              <span class="grid size-8 shrink-0 place-items-center text-mist/50" aria-hidden="true">–</span>
+            </template>
+
+            <template x-if="row.kind !== 'skip'">
+              <button type="button" @click="goMon(row.name)" class="min-w-0 flex-1 truncate text-left text-sm font-semibold text-ink transition-colors hover:text-flame-400" x-text="row.name" :title="row.name"></button>
+            </template>
+            <template x-if="row.kind === 'skip'">
+              <span class="min-w-0 flex-1 truncate text-sm font-semibold text-mist">Verzicht</span>
+            </template>
+
+            <span class="shrink-0 text-xs font-semibold"
+                  :class="row.kind === 'remove' ? 'text-flame-400' : row.kind === 'pick' ? 'text-volt-400' : 'text-mist'"
+                  x-text="logLabel(row)"></span>
             <span class="shrink-0 text-xs text-mist" x-text="teamById(row.teamId)?.name"></span>
             <span class="shrink-0 text-[11px] text-mist/60" x-text="`R${row.round}`"></span>
           </li>

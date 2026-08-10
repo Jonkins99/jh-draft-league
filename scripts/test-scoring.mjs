@@ -3,6 +3,7 @@ import assert from 'node:assert/strict';
 import {
   pokemonStats, pokemonProfile,
   showdownSpecies, showdownExport,
+  speedAt, speedTiers, speedCases, clampSp, applySpeedMod,
 } from '../resources/js/scoring.mjs';
 
 let passed = 0;
@@ -108,6 +109,47 @@ test('showdownSpecies mappt Mega/Regional', () => {
 test('showdownExport: je Species eine Zeile, Leerzeile dazwischen', () => {
   const txt = showdownExport([{ name_en: 'Charizard' }, { name_en: 'Mega Gengar' }]);
   assert.equal(txt, 'Charizard\n\nGengar-Mega');
+});
+
+test('clampSp begrenzt auf 0..32 und rundet', () => {
+  assert.equal(clampSp(-5), 0);
+  assert.equal(clampSp(99), 32);
+  assert.equal(clampSp('18'), 18);
+  assert.equal(clampSp(17.6), 18);
+  assert.equal(clampSp('abc'), 0);
+});
+
+test('speedCases: Default sind 0 UND 32 SP, je beide Wesen', () => {
+  const cases = speedCases(100);
+  assert.deepEqual(cases.map((c) => c.label), ['0', '0+', '32', '32+']);
+  const t = speedTiers(100);
+  assert.equal(cases[0].speed, t.s0, 'Default-Fall 0 SP neutral wie speedTiers');
+  assert.equal(cases[2].speed, t.s32);
+  assert.equal(cases[3].speed, t.s32n);
+});
+
+test('speedCases: eigener SP-Wert ersetzt 0/32, Wesen-Auswahl filtert', () => {
+  const cases = speedCases(100, { sp: 18 });
+  assert.deepEqual(cases.map((c) => c.label), ['18', '18+']);
+  assert.equal(cases[0].speed, speedAt(100, 18, false));
+  assert.equal(cases[1].speed, speedAt(100, 18, true));
+
+  assert.deepEqual(speedCases(100, { sp: 18, nat: 'neutral' }).map((c) => c.label), ['18']);
+  assert.deepEqual(speedCases(100, { sp: 18, nat: 'up' }).map((c) => c.label), ['18+']);
+  assert.deepEqual(speedCases(100, { nat: 'up' }).map((c) => c.label), ['0+', '32+']);
+});
+
+test('speedCases: SP ausserhalb 0..32 wird begrenzt, Boosts bleiben anwendbar', () => {
+  assert.equal(speedCases(100, { sp: 40, nat: 'neutral' })[0].sp, 32);
+  const base = speedCases(100, { sp: 18, nat: 'neutral' })[0].speed;
+  assert.equal(applySpeedMod(base, 1.5), Math.floor(base * 1.5));
+  assert.equal(applySpeedMod(base, 2), base * 2);
+});
+
+test('speedCases: Schluessel je Fall eindeutig', () => {
+  const keys = speedCases(100).map((c) => c.key);
+  assert.deepEqual(keys, ['sp0', 'sp0n', 'sp32', 'sp32n']);
+  assert.equal(new Set(keys).size, keys.length);
 });
 
 console.log(`\n${passed} Tests bestanden.`);

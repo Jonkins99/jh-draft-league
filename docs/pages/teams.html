@@ -118,20 +118,20 @@
       <section x-show="(selectedTeam.pokemon || []).length" class="mt-6 rounded-2xl border border-line bg-panel p-5 sm:p-6">
         <div class="mb-4">
           <h2 class="font-display text-xl font-bold uppercase tracking-wider text-ink">Speed-Tiers</h2>
-          <p class="mt-1 text-sm text-mist">Errechnete Initiative (Lvl 50): <b>0</b> SP, <b>32</b> SP und <b>32+</b> (32 SP mit positivem Wesen). Pro Pokémon optional ×1,5 (Boost/Wahlschal) und ×2 (Rückenwind/Wassertempo).</p>
+          <p class="mt-1 text-sm text-mist">Errechnete Initiative (Lvl 50). Standard je Pokémon: <b>0</b> und <b>32</b> SP, jeweils mit neutralem und positivem Wesen (<b>+</b>). Über den Regler-Knopf lassen sich ein eigener SP-Wert und die Wesen-Auswahl setzen; optional ×1,5 (Boost/Wahlschal) und ×2 (Rückenwind/Wassertempo).</p>
         </div>
 
         <!-- Steuerung je Pokémon -->
         <div class="mb-5 grid gap-2 sm:grid-cols-2">
           <template x-for="mon in speedMons" :key="'spd-'+mon.name">
-            <div class="flex min-w-0 items-center gap-2 rounded-xl border border-line bg-elevated/60 p-2 transition-opacity"
+            <div class="flex min-w-0 flex-wrap items-center gap-2 rounded-xl border border-line bg-elevated/60 p-2 transition-opacity"
                  :class="spdGet(mon.name).show ? '' : 'opacity-50'">
               <button type="button" @click.stop="goMon(mon.name)"
-                      class="flex min-w-0 flex-1 cursor-pointer items-center gap-2 text-left transition-colors hover:text-flame-400">
+                      class="flex min-w-32 flex-1 cursor-pointer items-center gap-2 text-left transition-colors hover:text-flame-400">
                 <img :src="mon.image" :alt="mon.name" loading="lazy" class="size-9 shrink-0 object-contain" />
                 <span class="min-w-0 flex-1 truncate text-sm font-semibold text-ink" x-text="mon.name" :title="mon.name"></span>
               </button>
-              <div class="flex shrink-0 gap-1">
+              <div class="ml-auto flex shrink-0 gap-1">
                 <button type="button" @click="spdToggle(mon.name,'show')"
                         class="grid size-8 place-items-center rounded-lg border border-line text-mist transition-colors"
                         :style="spdGet(mon.name).show ? 'border-color:#e3350d;background:#e3350d22;color:#ff5a36' : ''"
@@ -141,6 +141,16 @@
                     <circle x-show="spdGet(mon.name).show" cx="12" cy="12" r="3"/>
                     <path x-show="!spdGet(mon.name).show" d="M3 3l18 18M10.6 10.6a3 3 0 0 0 4.2 4.2M9.9 5.2A9.5 9.5 0 0 1 12 5c6.5 0 10 7 10 7a17 17 0 0 1-3.2 3.9M6.6 6.6A17 17 0 0 0 2 12s3.5 7 10 7a9.6 9.6 0 0 0 3-.5"/>
                   </svg>
+                </button>
+                <button type="button" @click="openSpdConfig(mon.name)"
+                        class="flex h-8 items-center gap-1 rounded-lg border border-line px-1.5 text-xs font-bold text-mist transition-colors hover:border-flame-500/40 hover:text-flame-400"
+                        :style="spdGet(mon.name).sp !== null || spdGet(mon.name).nat !== 'both' ? 'border-color:#e3350d66;color:#ff5a36' : ''"
+                        :title="`Initiative-SP & Wesen – ${mon.name}`" :aria-label="`Initiative-SP und Wesen für ${mon.name} einstellen`">
+                  <svg viewBox="0 0 24 24" class="size-3.5 shrink-0" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round">
+                    <path d="M4 21v-6M4 11V3M12 21v-9M12 8V3M20 21v-4M20 13V3"/><path d="M1.5 15h5M9.5 12h5M17.5 17h5"/>
+                  </svg>
+                  <span class="tabular-nums" x-text="spdBadge(mon.name)"></span>
+                  <span x-show="spdGet(mon.name).nat !== 'both'" x-text="spdGet(mon.name).nat === 'up' ? '▲' : '·'"></span>
                 </button>
                 <button type="button" @click="spdToggle(mon.name,'x15')"
                         class="h-8 rounded-lg border border-line px-2 text-xs font-bold text-mist transition-colors"
@@ -187,7 +197,7 @@
                     </div>
                   </td>
                   <td class="px-1 py-1.5 sm:px-2">
-                    <span class="inline-block rounded px-1.5 py-0.5 text-xs font-bold" :style="`color:${invColor(r.invKey)};background:${invColor(r.invKey)}1f`" x-text="r.inv"></span>
+                    <span class="inline-block rounded px-1.5 py-0.5 text-xs font-bold" :style="`color:${r.invColor};background:${r.invColor}1f`" x-text="r.inv"></span>
                   </td>
                   <td class="px-1 py-1.5 sm:px-2">
                     <span class="inline-block rounded px-1.5 py-0.5 text-xs font-bold" :style="`color:${modColor(r.modKey)};background:${modColor(r.modKey)}1f`" x-text="r.mod"></span>
@@ -464,6 +474,94 @@
             </li>
           </template>
         </ul>
+      </div>
+
+      <!-- Initiative-SP & Wesen je Pokémon -->
+      <div popover id="spd-config" @toggle="if ($event.newState === 'closed') spdEdit = null"
+           class="modal-pop w-[24rem] max-w-[calc(100vw-2rem)] rounded-2xl border border-line bg-panel p-0 text-ink">
+        <template x-if="spdEditMon">
+          <div>
+            <div class="flex items-center gap-3 border-b border-line px-4 py-3">
+              <img :src="spdEditMon.image" :alt="spdEditMon.name" class="size-10 shrink-0 object-contain" />
+              <div class="min-w-0 flex-1">
+                <p class="truncate font-display text-sm font-bold uppercase tracking-wider text-ink" x-text="spdEditMon.name"></p>
+                <p class="text-xs text-mist" x-text="`Basis-Initiative ${baseSpeedFor(spdEditMon) ?? '–'}`"></p>
+              </div>
+              <button type="button" @click="closeSpdConfig()" class="grid size-9 shrink-0 place-items-center rounded-lg text-mist transition-colors hover:text-ink" aria-label="Schließen">
+                <svg viewBox="0 0 24 24" class="size-5" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M6 6l12 12M18 6L6 18"/></svg>
+              </button>
+            </div>
+
+            <div class="space-y-4 px-4 py-4">
+              <div>
+                <div class="mb-2 flex items-center justify-between gap-2">
+                  <p class="font-display text-xs font-semibold uppercase tracking-wider text-mist">Initiative-SP</p>
+                  <button type="button" @click="spdResetSp(spdEdit)"
+                          class="rounded-lg border px-2 py-1 text-[11px] font-bold transition-colors"
+                          :class="spdGet(spdEdit).sp === null ? 'border-flame-500 bg-flame-500/10 text-flame-300' : 'border-line text-mist hover:text-ink'">
+                    Standard 0 &amp; 32
+                  </button>
+                </div>
+                <div class="flex items-center gap-3">
+                  <input type="range" min="0" max="32" step="1" :value="spdGet(spdEdit).sp ?? 0"
+                         @input="spdSetSp(spdEdit, $event.target.value)"
+                         class="h-6 min-w-0 flex-1 accent-flame-500" aria-label="Initiative-SP" />
+                  <input type="number" min="0" max="32" step="1" :value="spdGet(spdEdit).sp ?? 0"
+                         @change="spdSetSp(spdEdit, $event.target.value)"
+                         class="w-16 shrink-0 rounded-lg border border-line bg-elevated px-2 py-1.5 text-center font-display text-sm font-bold tabular-nums text-ink focus:border-flame-500 focus:outline-none" />
+                </div>
+                <div class="mt-2 flex flex-wrap gap-1.5">
+                  <template x-for="v in [0,8,16,24,32]" :key="'spq-'+v">
+                    <button type="button" @click="spdSetSp(spdEdit, v)"
+                            class="min-w-9 rounded-lg border px-2.5 py-1.5 text-xs font-bold tabular-nums transition-colors"
+                            :class="spdGet(spdEdit).sp === v ? 'border-flame-500 bg-flame-500/10 text-flame-300' : 'border-line text-mist hover:text-ink'"
+                            x-text="v"></button>
+                  </template>
+                </div>
+              </div>
+
+              <div>
+                <p class="mb-2 font-display text-xs font-semibold uppercase tracking-wider text-mist">Wesen</p>
+                <div class="grid grid-cols-3 gap-1.5">
+                  <button type="button" @click="spdSetNat(spdEdit,'both')"
+                          class="flex flex-col items-center gap-1 rounded-lg border px-2 py-2 text-[11px] font-bold transition-colors"
+                          :class="spdGet(spdEdit).nat === 'both' ? 'border-flame-500 bg-flame-500/10 text-flame-300' : 'border-line text-mist hover:text-ink'"
+                          :aria-pressed="spdGet(spdEdit).nat === 'both'">
+                    <svg viewBox="0 0 24 24" class="size-4" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 17h7"/><path d="M17 21V7"/><path d="m13.5 10.5 3.5-3.5 3.5 3.5"/></svg>
+                    Beide
+                  </button>
+                  <button type="button" @click="spdSetNat(spdEdit,'neutral')"
+                          class="flex flex-col items-center gap-1 rounded-lg border px-2 py-2 text-[11px] font-bold transition-colors"
+                          :class="spdGet(spdEdit).nat === 'neutral' ? 'border-flame-500 bg-flame-500/10 text-flame-300' : 'border-line text-mist hover:text-ink'"
+                          :aria-pressed="spdGet(spdEdit).nat === 'neutral'">
+                    <svg viewBox="0 0 24 24" class="size-4" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M5 12h14"/></svg>
+                    Neutral
+                  </button>
+                  <button type="button" @click="spdSetNat(spdEdit,'up')"
+                          class="flex flex-col items-center gap-1 rounded-lg border px-2 py-2 text-[11px] font-bold transition-colors"
+                          :class="spdGet(spdEdit).nat === 'up' ? 'border-flame-500 bg-flame-500/10 text-flame-300' : 'border-line text-mist hover:text-ink'"
+                          :aria-pressed="spdGet(spdEdit).nat === 'up'">
+                    <svg viewBox="0 0 24 24" class="size-4" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 20V5"/><path d="m5.5 11.5 6.5-6.5 6.5 6.5"/></svg>
+                    Init +
+                  </button>
+                </div>
+              </div>
+
+              <div class="border-t border-line pt-3">
+                <p class="mb-2 font-display text-xs font-semibold uppercase tracking-wider text-mist">Ergibt in der Tabelle</p>
+                <div class="flex flex-wrap gap-1.5">
+                  <template x-for="c in spdEditPreview" :key="'pv-'+c.key">
+                    <span class="inline-flex items-center gap-1.5 rounded-lg border border-line bg-elevated/60 px-2 py-1">
+                      <span class="rounded px-1.5 py-0.5 text-[11px] font-bold" :style="`color:${c.color};background:${c.color}1f`" x-text="c.label"></span>
+                      <span class="font-display text-sm font-bold tabular-nums text-ink" x-text="c.speed"></span>
+                    </span>
+                  </template>
+                </div>
+                <p class="mt-2 text-[11px] leading-relaxed text-mist" x-text="`Wesen: ${natLabel(spdGet(spdEdit).nat)}. Aktive Modifikatoren (×1,5 / ×2) ergeben je Fall eine weitere Zeile.`"></p>
+              </div>
+            </div>
+          </div>
+        </template>
       </div>
     </div>
   </template>
