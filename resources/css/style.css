@@ -1,10 +1,12 @@
 @import "./base/reset.css";
 @import "tailwindcss";
 @import "./font/font.css";
+@import "./awards.css";
 
 @source "../../index.html";
+@source "../../awards-entwurf.html";
 @source "../../public/pages/*.html";
-@source "../js/*.js";
+@source "../js/*.{js,mjs}";
 
 @theme {
   --color-void: #0b0d12;

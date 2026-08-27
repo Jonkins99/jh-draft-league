@@ -30,6 +30,7 @@
                    class="pointer-events-none absolute inset-0 size-full object-contain p-5 opacity-20" />
             </template>
             <img :src="mon.image" :alt="mon.name" class="relative z-10 h-4/5 w-4/5 object-contain" />
+            <span class="absolute bottom-2 right-2 z-20" x-html="$store.awards.pinHtml('pokemon', mon.name, 'lg')"></span>
           </div>
 
           <!-- Kopf-Infos -->
@@ -93,24 +94,24 @@
 
           <!-- Varianten-Raster -->
           <div x-show="speedRows.length" class="-mx-1 overflow-x-auto px-1">
-            <table class="w-full min-w-[20rem] border-collapse text-center text-sm">
+            <table class="w-full min-w-[22rem] border-collapse text-center text-sm">
               <thead>
                 <tr class="border-b border-line">
                   <th class="py-2 pr-2 text-left font-display text-[10px] font-semibold uppercase tracking-wider text-mist">Invest.</th>
-                  <th class="px-2 py-2 font-display text-[10px] font-semibold uppercase tracking-wider"  :style="`color:${modColor('x1')}`">×1</th>
-                  <th class="px-2 py-2 font-display text-[10px] font-semibold uppercase tracking-wider" :style="`color:${modColor('x15')}`">×1,5</th>
-                  <th class="px-2 py-2 font-display text-[10px] font-semibold uppercase tracking-wider" :style="`color:${modColor('x2')}`">×2</th>
+                  <template x-for="m in [{k:'x05',l:'×0,5'},{k:'x1',l:'×1'},{k:'x15',l:'×1,5'},{k:'x2',l:'×2'}]" :key="'sh-'+m.k">
+                    <th class="px-2 py-2 font-display text-[10px] font-semibold uppercase tracking-wider" :style="`color:${modColor(m.k)}`" x-text="m.l"></th>
+                  </template>
                 </tr>
               </thead>
               <tbody>
-                <template x-for="invKey in ['s0','s32','s32n']" :key="invKey">
+                <template x-for="invKey in ['s0d','s0','s32','s32n']" :key="invKey">
                   <tr class="border-b border-line/40">
                     <td class="py-1.5 pr-2 text-left">
                       <span class="inline-block rounded px-1.5 py-0.5 text-xs font-bold" :style="`color:${invColor(invKey)};background:${invColor(invKey)}1f`" x-text="speedRows.find(r => r.invKey === invKey)?.inv"></span>
                     </td>
-                    <td class="px-2 py-1.5 font-display text-base font-bold tabular-nums text-ink" x-text="speedRows.find(r => r.invKey === invKey && r.modKey === 'x1')?.speed"></td>
-                    <td class="px-2 py-1.5 font-display text-base font-bold tabular-nums text-ink" x-text="speedRows.find(r => r.invKey === invKey && r.modKey === 'x15')?.speed"></td>
-                    <td class="px-2 py-1.5 font-display text-base font-bold tabular-nums text-ink" x-text="speedRows.find(r => r.invKey === invKey && r.modKey === 'x2')?.speed"></td>
+                    <template x-for="mk in ['x05','x1','x15','x2']" :key="invKey+'-'+mk">
+                      <td class="px-2 py-1.5 font-display text-base font-bold tabular-nums text-ink" x-text="speedRows.find(r => r.invKey === invKey && r.modKey === mk)?.speed"></td>
+                    </template>
                   </tr>
                 </template>
               </tbody>
@@ -341,6 +342,58 @@
                   <p x-show="!grp.list.length" class="text-sm text-mist">—</p>
                 </div>
               </template>
+            </div>
+
+            <!-- Bilanz je Partner / Gegner (Siege und Niederlagen) -->
+            <div x-show="hasRecords" class="mt-6 rounded-2xl border border-line bg-panel p-5">
+              <div class="mb-4 flex flex-wrap items-end justify-between gap-3">
+                <div class="min-w-0">
+                  <h3 class="font-display text-base font-bold uppercase tracking-wider text-ink">Bilanz je Partner &amp; Gegner</h3>
+                  <p class="mt-0.5 text-xs text-mist">Auf Kampf-Ebene: mit wem wurde gewonnen bzw. verloren – und gegen wen.</p>
+                </div>
+                <div class="flex flex-wrap items-center gap-2">
+                  <div class="flex rounded-lg border border-line p-0.5">
+                    <template x-for="m in [{v:'abs',l:'Absolut'},{v:'pct',l:'Prozent'}]" :key="'rm-'+m.v">
+                      <button type="button" @click="setRecMode(m.v)"
+                              class="rounded-md px-2.5 py-1.5 text-xs font-semibold transition-colors"
+                              :class="recMode === m.v ? 'bg-flame-500/15 text-flame-300' : 'text-mist hover:text-ink'"
+                              x-text="m.l"></button>
+                    </template>
+                  </div>
+                  <label class="inline-flex items-center gap-1.5 text-xs text-mist">
+                    ab
+                    <input type="number" min="1" max="30" step="1" :value="recMin" @change="setRecMin($event.target.value)"
+                           class="w-14 rounded-lg border border-line bg-elevated px-2 py-1.5 text-center font-display text-xs font-bold tabular-nums text-ink focus:border-flame-500 focus:outline-none" />
+                    Kämpfen
+                  </label>
+                </div>
+              </div>
+              <div class="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-4">
+                <template x-for="blk in recBlocks" :key="blk.kind+blk.outcome">
+                  <div class="rounded-xl border border-line bg-elevated/40 p-4">
+                    <div class="mb-3">
+                      <p class="font-display text-xs font-bold uppercase tracking-wider" :style="`color:${blk.accent}`" x-text="blk.label"></p>
+                      <p class="text-[11px] font-semibold uppercase tracking-wider text-mist" x-text="blk.hint"></p>
+                    </div>
+                    <ul x-show="recList(blk.kind, blk.outcome).length" class="space-y-2">
+                      <template x-for="row in recList(blk.kind, blk.outcome)" :key="blk.kind+blk.outcome+'-'+row.name">
+                        <li class="flex items-center gap-2.5">
+                          <button type="button" @click.stop="goMon(row.name)"
+                                  class="relative grid size-9 shrink-0 place-items-center rounded-lg border border-line bg-panel transition-colors hover:border-flame-500/40">
+                            <img :src="monImage(row.name)" :alt="row.name" loading="lazy" class="size-7 object-contain" />
+                          </button>
+                          <span class="min-w-0 flex-1">
+                            <span class="block cursor-pointer truncate text-sm font-medium text-ink transition-colors hover:text-flame-400" @click.stop="goMon(row.name)" x-text="row.name" :title="row.name"></span>
+                            <span class="block truncate text-[11px] text-mist" x-text="recSub(row, blk.outcome)"></span>
+                          </span>
+                          <span class="shrink-0 font-display text-sm font-bold tabular-nums" :style="`color:${blk.accent}`" x-text="recValue(row, blk.outcome)"></span>
+                        </li>
+                      </template>
+                    </ul>
+                    <p x-show="!recList(blk.kind, blk.outcome).length" class="text-sm text-mist" x-text="blk.empty"></p>
+                  </div>
+                </template>
+              </div>
             </div>
 
             <!-- Lieblingsopfer / Angstgegner -->

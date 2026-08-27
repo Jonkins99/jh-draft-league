@@ -1,0 +1,304 @@
+<div x-data="awardsView">
+  <header class="mb-6 flex flex-col gap-4">
+    <div class="flex flex-wrap items-start justify-between gap-4">
+      <div>
+        <p class="font-display text-xs font-semibold uppercase tracking-[0.3em] text-flame-400">Ehrungen</p>
+        <h1 class="mt-1 font-display text-4xl font-bold tracking-wide text-ink md:text-5xl">Awards</h1>
+        <p class="mt-2 text-mist">Nominieren, bewerten, feiern. Beide Spieler schlagen bis zu drei Kandidaten vor, bewerten alle Vorschläge von 0 bis 10 – der Mittelwert entscheidet.</p>
+      </div>
+      <!-- Wer sitzt an diesem Gerät? Steuert, wessen Stimmen gespeichert werden. -->
+      <div class="rounded-2xl border border-line bg-panel p-3">
+        <p class="mb-2 font-display text-[11px] font-semibold uppercase tracking-wider text-mist">Ich bin</p>
+        <div class="flex gap-2">
+          <template x-for="p in $store.awards.players" :key="'me-'+p">
+            <button type="button" @click="$store.awards.setMe(p)"
+                    class="rounded-xl border px-4 py-2 font-display text-sm font-bold transition-colors"
+                    :style="$store.awards.me === p ? `border-color:${playerColor(p)};background:${playerColor(p)}1a;color:${playerColor(p)}` : ''"
+                    :class="$store.awards.me === p ? '' : 'border-line text-mist hover:text-ink'"
+                    x-text="p"></button>
+          </template>
+        </div>
+      </div>
+    </div>
+
+    <div class="flex flex-wrap gap-2">
+      <template x-for="t in [
+        {v:'open', l:'Jetzt dran', n: openInstances.length},
+        {v:'done', l:'Vergeben', n: doneInstances.length},
+        {v:'next', l:'Als nächstes', n: upcoming.length}
+      ]" :key="'atab-'+t.v">
+        <button type="button" @click="setTab(t.v)"
+                class="inline-flex items-center gap-2 rounded-xl border px-4 py-2 font-display text-sm font-semibold uppercase tracking-wider transition-colors"
+                :class="tab === t.v ? 'border-flame-500 bg-flame-500/10 text-flame-300' : 'border-line text-mist hover:text-ink'">
+          <span x-text="t.l"></span>
+          <span class="font-display text-xs tabular-nums opacity-70" x-text="`(${t.n})`"></span>
+        </button>
+      </template>
+    </div>
+  </header>
+
+  <div x-show="!loaded" class="py-12 text-center text-mist">Lade Awards…</div>
+
+  <!-- Firestore-Regeln: die Collection `awards` braucht eine eigene Freigabe. -->
+  <div x-show="loaded && $store.awards.blocked" class="mb-6 rounded-2xl border border-flame-500/50 bg-flame-500/10 p-5">
+    <p class="font-display text-sm font-bold uppercase tracking-wider text-flame-300">Firestore blockiert die Awards</p>
+    <p class="mt-1.5 text-sm text-mist">Die Collection <code class="rounded bg-void px-1.5 py-0.5 text-xs">awards</code> ist in den Sicherheitsregeln nicht freigegeben – Nominierungen und Stimmen können nicht gespeichert werden. In der Firebase-Konsole ergänzen:</p>
+    <pre class="mt-2 overflow-x-auto rounded-xl border border-line bg-void p-3 text-xs text-ink"><code>match /awards/{doc} {
+  allow read, write: if true;
+}</code></pre>
+  </div>
+
+  <template x-if="loaded">
+    <div>
+      <!-- ============================ JETZT DRAN ============================ -->
+      <section x-show="tab === 'open'">
+        <p x-show="!openInstances.length" class="rounded-2xl border border-line bg-panel p-8 text-center text-mist">
+          Aktuell ist keine Abstimmung offen. Spieltag-Awards erscheinen hier, sobald ein Spieltag Ergebnisse hat.
+        </p>
+        <!-- Das Feature ist mitten in der Saison dazugekommen. -->
+        <p x-show="skippedDays" class="mb-3 rounded-xl border border-line bg-elevated/40 px-4 py-3 text-sm text-mist">
+          Spieltag-Awards gibt es ab <b class="text-ink" x-text="`Spieltag ${firstAwardDay}`"></b> – die
+          <span x-text="skippedDays"></span> Spieltage davor werden nicht nachträglich ausgezeichnet.
+        </p>
+        <div class="grid grid-cols-1 gap-3 lg:grid-cols-2">
+          <template x-for="inst in openInstances" :key="inst.id">
+            <div class="flex gap-4 rounded-2xl border bg-panel p-4"
+                 :style="`border-color:${color(inst.key)}40`">
+              <span class="block w-12 shrink-0" style="aspect-ratio:112/152" x-html="medal(inst.key)"></span>
+              <div class="flex min-w-0 flex-1 flex-col">
+                <p class="font-display text-base font-bold leading-tight text-ink" x-text="inst.def?.label"></p>
+                <p class="mt-0.5 text-xs text-mist">
+                  <span x-text="subtitle(inst)"></span> · <span x-text="stateHint(inst)"></span>
+                </p>
+                <p class="mt-1 text-[11px] leading-snug text-mist/70" x-text="inst.def?.hint"></p>
+                <div class="mt-3 flex flex-wrap items-center gap-2">
+                  <button type="button" @click="actOn(inst)"
+                          class="rounded-lg px-3 py-2 font-display text-xs font-bold uppercase tracking-wider transition-opacity hover:opacity-80"
+                          :style="`color:${stateColor(inst)};background:${stateColor(inst)}1f;border:1px solid ${stateColor(inst)}66`"
+                          x-text="stateLabel(inst)"></button>
+                  <button type="button" x-show="stateOf(inst) === 'waitNom'" @click="openNominate(inst)"
+                          class="rounded-lg border border-line px-3 py-2 text-xs font-semibold text-mist transition-colors hover:text-flame-400">Nominierungen ändern</button>
+                </div>
+              </div>
+            </div>
+          </template>
+        </div>
+      </section>
+
+      <!-- ============================= VERGEBEN ============================= -->
+      <section x-show="tab === 'done'">
+        <p x-show="!doneInstances.length" class="rounded-2xl border border-line bg-panel p-8 text-center text-mist">
+          Noch keine Abstimmung abgeschlossen.
+        </p>
+        <div class="grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-3">
+          <template x-for="d in doneInstances" :key="'done-'+d.inst.id">
+            <div class="rounded-2xl border border-line bg-panel p-4">
+              <div class="flex items-start gap-3">
+                <span class="block w-9 shrink-0" style="aspect-ratio:112/152" x-html="medal(d.inst.key)"></span>
+                <div class="min-w-0 flex-1">
+                  <p class="font-display text-sm font-bold leading-tight" :style="`color:${color(d.inst.key)}`" x-text="d.inst.def?.label"></p>
+                  <p class="text-[11px] text-mist" x-text="subtitle(d.inst)"></p>
+                </div>
+              </div>
+
+              <!-- Ergebnis erst nach der eigenen Siegerehrung zeigen (Spoilerschutz). -->
+              <template x-if="d.inst.seen?.[$store.awards.me]">
+                <div class="mt-3 space-y-2">
+                  <p x-show="d.winners.length > 1" class="text-[11px] font-bold uppercase tracking-wider" :style="`color:${color(d.inst.key)}`">
+                    Gleichstand · <span x-text="d.winners.length"></span> Sieger
+                  </p>
+                  <template x-for="w in d.winners" :key="'win-'+d.inst.id+'-'+w.id">
+                    <div class="flex items-center gap-3">
+                      <span class="relative block shrink-0">
+                        <span class="flex items-center">
+                          <template x-for="(src, si) in w.images" :key="'wi-'+w.id+'-'+si">
+                            <img :src="src" :alt="w.label" loading="lazy" class="size-14 object-contain" :class="si ? '-ml-4' : ''" />
+                          </template>
+                        </span>
+                        <span class="pin-corner" x-html="pinSvg(d.inst)"></span>
+                      </span>
+                      <div class="min-w-0">
+                        <p class="truncate font-display text-sm font-bold text-ink" x-text="w.label"></p>
+                        <p class="text-xs text-mist">
+                          Ø <span class="font-display font-bold" :style="`color:${color(d.inst.key)}`" x-text="fmtAvg(w.avg)"></span>
+                          · <span x-text="Object.entries(w.scores || {}).map(([p,v]) => `${p} ${v}`).join(' · ')"></span>
+                        </p>
+                      </div>
+                    </div>
+                  </template>
+                </div>
+              </template>
+              <p x-show="!d.inst.seen?.[$store.awards.me]" class="mt-3 rounded-xl border border-dashed border-line px-3 py-2.5 text-xs text-mist">
+                Ergebnis noch verdeckt – erst die Siegerehrung ansehen.
+              </p>
+
+              <button type="button" @click="openCeremony(d.inst)"
+                      class="mt-3 w-full rounded-lg border border-line px-3 py-2 font-display text-xs font-bold uppercase tracking-wider text-mist transition-colors hover:border-flame-500/40 hover:text-flame-400"
+                      x-text="d.inst.seen?.[$store.awards.me] ? 'Siegerehrung erneut ansehen' : 'Siegerehrung starten'"></button>
+            </div>
+          </template>
+        </div>
+      </section>
+
+      <!-- =========================== ALS NÄCHSTES =========================== -->
+      <section x-show="tab === 'next'">
+        <p x-show="!upcoming.length" class="rounded-2xl border border-line bg-panel p-8 text-center text-mist">
+          Alles vergeben oder in Arbeit – hier steht nichts mehr aus.
+        </p>
+        <p x-show="!seasonComplete && openMatches" class="mb-3 rounded-xl border border-line bg-elevated/40 px-4 py-3 text-sm text-mist">
+          Die Saison-Awards starten, sobald <b class="text-ink">alle Spiele aller Spieltage</b> ein Ergebnis haben –
+          es fehlen noch <b class="text-ink" x-text="openMatches"></b>.
+        </p>
+        <div x-show="upcoming.length" class="rounded-2xl border border-line bg-panel p-2">
+          <template x-for="(u, ui) in upcoming" :key="'next-'+ui">
+            <div class="flex items-center gap-3 rounded-xl px-3 py-2.5">
+              <span class="block w-7 shrink-0 opacity-60" style="aspect-ratio:108/128" x-html="$store.awards.medalHtml(u.key)"></span>
+              <div class="min-w-0 flex-1">
+                <p class="truncate text-sm font-semibold text-ink" x-text="u.title"></p>
+                <p class="truncate text-xs text-mist"><span x-text="u.when"></span> — <span x-text="u.why"></span></p>
+              </div>
+              <span class="shrink-0 font-display text-[10px] font-bold uppercase tracking-wider text-mist/60">geplant</span>
+            </div>
+          </template>
+        </div>
+      </section>
+
+      <!-- ======================= NOMINIERUNGS-DIALOG ======================= -->
+      <div popover="manual" id="award-nominate"
+           class="modal-pop w-[34rem] max-w-[calc(100vw-1.5rem)] rounded-2xl border border-line bg-panel p-0 text-ink">
+        <template x-if="dialog && dialog.mode === 'nominate'">
+          <div class="flex max-h-[85vh] flex-col">
+            <div class="flex items-start gap-3 border-b border-line px-5 py-4">
+              <span class="block w-10 shrink-0" style="aspect-ratio:112/152" x-html="medal(dialog.inst.key)"></span>
+              <div class="min-w-0 flex-1">
+                <p class="font-display text-base font-bold leading-tight text-ink" x-text="dialog.inst.def?.label"></p>
+                <p class="text-xs text-mist"><span x-text="subtitle(dialog.inst)"></span> · bis zu <span x-text="3"></span> Vorschläge</p>
+              </div>
+              <button type="button" @click="closeDialog()" class="grid size-9 shrink-0 place-items-center rounded-lg text-mist transition-colors hover:text-ink" aria-label="Schließen">
+                <svg viewBox="0 0 24 24" class="size-5" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M6 6l12 12M18 6L6 18"/></svg>
+              </button>
+            </div>
+
+            <div class="min-h-0 flex-1 overflow-y-auto px-5 py-4">
+              <!-- Bereits gewählte Vorschläge -->
+              <div class="mb-3 flex flex-wrap gap-2">
+                <template x-for="d in draft" :key="'dr-'+d.id">
+                  <button type="button" @click="removeDraft(d.id)"
+                          class="inline-flex items-center gap-2 rounded-xl border border-flame-500/50 bg-flame-500/10 px-2 py-1.5 text-sm text-flame-200 transition-colors hover:bg-flame-500/20"
+                          :title="`${d.label} entfernen`">
+                    <span class="flex items-center">
+                      <template x-for="(src, si) in (d.images && d.images.length ? d.images : (d.image ? [d.image] : []))" :key="'ci-'+d.id+'-'+si">
+                        <img :src="src" alt="" class="size-6 object-contain" :class="si ? '-ml-2' : ''" />
+                      </template>
+                    </span>
+                    <span class="max-w-[12rem] truncate" x-text="d.label"></span>
+                    <svg viewBox="0 0 24 24" class="size-3.5" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"><path d="M6 6l12 12M18 6L6 18"/></svg>
+                  </button>
+                </template>
+                <p x-show="!draft.length" class="text-sm text-mist">Noch nichts nominiert – 0 Vorschläge sind erlaubt.</p>
+              </div>
+
+              <!-- Duo-Awards: zwei Pokémon zu einer Option verbinden -->
+              <div x-show="dialog.inst.entity === 'pair'" class="mb-3 rounded-xl border border-line bg-elevated/50 px-3 py-2.5">
+                <p class="text-xs text-mist">Zwei Pokémon antippen – daraus wird ein Duo.
+                  <span x-show="pair.length" class="font-semibold text-ink" x-text="`Gewählt: ${pair.map(p => p.label).join(' + ')}`"></span>
+                </p>
+              </div>
+
+              <div class="mb-3 flex items-center gap-2 rounded-xl border border-line bg-elevated px-3 py-2">
+                <svg viewBox="0 0 24 24" class="size-4 shrink-0 text-mist" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="7"/><path d="m21 21-4.3-4.3"/></svg>
+                <input x-model="q" type="text" placeholder="Suchen…" class="min-w-0 flex-1 bg-transparent text-sm text-ink placeholder:text-mist focus:outline-none" />
+                <span class="shrink-0 font-display text-xs tabular-nums text-mist" x-text="`${draft.length}/3`"></span>
+              </div>
+
+              <div class="grid grid-cols-1 gap-1.5 sm:grid-cols-2">
+                <template x-for="o in dialogOptions" :key="'opt-'+o.id">
+                  <button type="button" @click="toggleDraft(o)"
+                          :disabled="!isDrafted(o.id) && !isPaired(o.id) && draftFull && dialog.inst.entity !== 'pair'"
+                          class="flex items-center gap-2.5 rounded-xl border px-2.5 py-2 text-left transition-colors disabled:opacity-40"
+                          :class="isDrafted(o.id) || isPaired(o.id) ? 'border-flame-500 bg-flame-500/10' : 'border-line hover:border-flame-500/40'">
+                    <img x-show="o.image" :src="o.image" :alt="o.label" loading="lazy" class="size-9 shrink-0 object-contain" />
+                    <span class="min-w-0 flex-1">
+                      <span class="block truncate text-sm font-semibold text-ink" x-text="o.label"></span>
+                      <span class="block truncate text-[11px] text-mist" x-text="o.sub"></span>
+                    </span>
+                    <svg x-show="isDrafted(o.id) || isPaired(o.id)" viewBox="0 0 24 24" class="size-4 shrink-0 text-flame-400" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"><path d="m5 12 5 5L19 7"/></svg>
+                  </button>
+                </template>
+              </div>
+              <p x-show="!dialogOptions.length" class="py-6 text-center text-sm text-mist">Keine Kandidaten für diese Auszeichnung.</p>
+            </div>
+
+            <div class="flex flex-col gap-2 border-t border-line px-5 py-4 sm:flex-row">
+              <button type="button" @click="startVote()" :disabled="busy"
+                      class="flex-1 rounded-xl bg-flame-500 px-4 py-3 font-display text-sm font-bold uppercase tracking-wide text-white transition-colors hover:bg-flame-600 disabled:opacity-60">
+                Abstimmung starten
+              </button>
+              <button type="button" @click="confirmNoms()" :disabled="busy"
+                      class="flex-1 rounded-xl border border-line px-4 py-3 font-display text-sm font-bold uppercase tracking-wide text-mist transition-colors hover:border-flame-500/40 hover:text-flame-400 disabled:opacity-60"
+                      x-text="`Auf ${$store.awards.other} warten`"></button>
+            </div>
+          </div>
+        </template>
+      </div>
+
+      <!-- ======================== ABSTIMMUNGS-DIALOG ======================== -->
+      <div popover="manual" id="award-vote"
+           class="modal-pop w-[34rem] max-w-[calc(100vw-1.5rem)] rounded-2xl border border-line bg-panel p-0 text-ink">
+        <template x-if="dialog && dialog.mode === 'vote'">
+          <div class="flex max-h-[85vh] flex-col">
+            <div class="flex items-start gap-3 border-b border-line px-5 py-4">
+              <span class="block w-10 shrink-0" style="aspect-ratio:112/152" x-html="medal(dialog.inst.key)"></span>
+              <div class="min-w-0 flex-1">
+                <p class="font-display text-base font-bold leading-tight text-ink" x-text="dialog.inst.def?.label"></p>
+                <p class="text-xs text-mist"><span x-text="subtitle(dialog.inst)"></span> · jede Option von 0 bis 10</p>
+              </div>
+              <button type="button" @click="closeDialog()" class="grid size-9 shrink-0 place-items-center rounded-lg text-mist transition-colors hover:text-ink" aria-label="Schließen">
+                <svg viewBox="0 0 24 24" class="size-5" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M6 6l12 12M18 6L6 18"/></svg>
+              </button>
+            </div>
+
+            <div class="min-h-0 flex-1 space-y-2 overflow-y-auto px-5 py-4">
+              <p x-show="myVoteDone" class="rounded-xl border border-line bg-elevated/50 px-3 py-2.5 text-sm text-mist">
+                Du hast schon abgeschickt. Änderungen überschreiben deine Bewertung.
+              </p>
+              <template x-for="o in voteOptions" :key="'vo-'+o.id">
+                <div class="rounded-xl border border-line bg-elevated/40 p-3">
+                  <div class="flex items-center gap-2.5">
+                    <span class="flex shrink-0 items-center">
+                      <template x-for="(src, si) in (o.images && o.images.length ? o.images : (o.image ? [o.image] : []))" :key="'vi-'+o.id+'-'+si">
+                        <img :src="src" :alt="o.label" loading="lazy" class="size-10 object-contain" :class="si ? '-ml-3' : ''" />
+                      </template>
+                    </span>
+                    <div class="min-w-0 flex-1">
+                      <p class="truncate text-sm font-semibold text-ink" x-text="o.label"></p>
+                      <p class="truncate text-[11px] text-mist" x-text="`vorgeschlagen von ${o.by.join(' & ')}`"></p>
+                    </div>
+                    <span class="grid size-10 shrink-0 place-items-center rounded-lg font-display text-lg font-black tabular-nums"
+                          :style="`color:${voteColor(votes[o.id] ?? 5)};background:${voteColor(votes[o.id] ?? 5)}1f`"
+                          x-text="votes[o.id] ?? 5"></span>
+                  </div>
+                  <input type="range" min="0" max="10" step="1" :value="votes[o.id] ?? 5"
+                         @input="setVote(o.id, $event.target.value)"
+                         class="mt-2.5 h-6 w-full accent-flame-500" :aria-label="`Bewertung für ${o.label}`" />
+                </div>
+              </template>
+              <p x-show="!voteOptions.length" class="py-6 text-center text-sm text-mist">Keine Optionen – es wurde nichts nominiert.</p>
+            </div>
+
+            <div class="border-t border-line px-5 py-4">
+              <button type="button" @click="submitVote()" :disabled="busy || !voteOptions.length"
+                      class="w-full rounded-xl bg-flame-500 px-4 py-3 font-display text-sm font-bold uppercase tracking-wide text-white transition-colors hover:bg-flame-600 disabled:opacity-60">
+                Bewertung abschicken
+              </button>
+            </div>
+          </div>
+        </template>
+      </div>
+
+      <!-- ========================== SIEGEREHRUNG ========================== -->
+      <div popover="manual" id="award-ceremony" class="cer"
+           @toggle="if ($event.newState === 'closed') closeCeremony()"></div>
+    </div>
+  </template>
+</div>

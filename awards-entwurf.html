@@ -1,0 +1,519 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Awards – Optischer Entwurf · JH Draft League</title>
+  <link rel="stylesheet" href="./resources/css/style.css">
+  <meta name="robots" content="noindex,nofollow" />
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Roboto:ital,wght@0,100..900;1,100..900&display=swap" rel="stylesheet">
+</head>
+<body class="min-h-screen bg-void font-sans text-ink antialiased selection:bg-flame-500/30">
+  <div class="pointer-events-none fixed inset-0 -z-10 bg-[radial-gradient(75%_45%_at_88%_-8%,rgba(227,53,13,0.12),transparent_60%)]"></div>
+
+  <main class="mx-auto max-w-6xl px-4 py-12 md:px-8">
+
+    <header class="mb-14 max-w-3xl">
+      <h1 class="font-display text-4xl font-bold tracking-wide text-ink md:text-6xl">Awards</h1>
+      <p class="mt-4 text-lg leading-relaxed text-mist">
+        Entwurf der Optik: gezeichnete Siegel je Auszeichnung, ihre Platzierung an Pokémon,
+        Teams und Matches — und die Siegerehrung als eine durchkomponierte Sequenz.
+        Alles unten ist der echte Code, kein Bild.
+      </p>
+      <div class="mt-6 flex flex-wrap gap-2 font-display text-xs font-semibold uppercase tracking-wider">
+        <a href="#siegel" class="rounded-lg border border-line px-3 py-2 text-mist transition-colors hover:border-flame-500/40 hover:text-flame-400">Siegel</a>
+        <a href="#pins" class="rounded-lg border border-line px-3 py-2 text-mist transition-colors hover:border-flame-500/40 hover:text-flame-400">Am Pokémon</a>
+        <a href="#teams" class="rounded-lg border border-line px-3 py-2 text-mist transition-colors hover:border-flame-500/40 hover:text-flame-400">An Teams</a>
+        <a href="#ehrung" class="rounded-lg border border-line px-3 py-2 text-mist transition-colors hover:border-flame-500/40 hover:text-flame-400">Siegerehrung</a>
+        <a href="#seite" class="rounded-lg border border-line px-3 py-2 text-mist transition-colors hover:border-flame-500/40 hover:text-flame-400">Awards-Seite</a>
+        <a href="#fragen" class="rounded-lg border border-flame-500/50 bg-flame-500/10 px-3 py-2 text-flame-300 transition-colors hover:bg-flame-500/20">Offene Fragen</a>
+      </div>
+    </header>
+
+    <!-- ================================ SIEGEL ================================ -->
+    <section id="ehrung" class="mb-16 scroll-mt-8">
+      <h2 class="font-display text-2xl font-bold uppercase tracking-wider text-ink">Siegerehrung</h2>
+      <p class="mt-2 max-w-2xl text-mist">
+        Ein Bühnenlicht, das im Takt der Enthüllungen atmet. Von der letzten Platzierung
+        aufwärts bis Platz 3 — jede Zeile wird von links freigelegt, der Mittelwert zählt
+        hoch, ein Lichtstreif läuft einmal darüber. Dann fällt das Licht, Platz 2 und 1
+        erscheinen gleichzeitig, das Siegel materialisiert aus der Unschärfe, Konfetti.
+        Bei Gleichstand auf Platz 1 stehen alle Sieger gemeinsam auf dem Podest –
+        jeder mit Siegel. Duo-Awards zeigen beide Sprites.
+      </p>
+      <div class="mt-5 flex flex-wrap gap-2">
+        <button type="button" data-demo="best-mon" class="rounded-xl bg-flame-500 px-5 py-3 font-display text-sm font-bold uppercase tracking-wide text-white transition-colors hover:bg-flame-600">
+          Bestes Pokémon · 6 Nominierungen
+        </button>
+        <button type="button" data-demo="mon-of-day" class="rounded-xl border border-line px-5 py-3 font-display text-sm font-bold uppercase tracking-wide text-mist transition-colors hover:border-flame-500/40 hover:text-flame-400">
+          Pokémon des Spieltags · 4
+        </button>
+        <button type="button" data-demo="best-partners" class="rounded-xl border border-line px-5 py-3 font-display text-sm font-bold uppercase tracking-wide text-mist transition-colors hover:border-flame-500/40 hover:text-flame-400">
+          Beste Partner · nur 2
+        </button>
+        <button type="button" data-demo="best-offense" class="rounded-xl border border-line px-5 py-3 font-display text-sm font-bold uppercase tracking-wide text-mist transition-colors hover:border-flame-500/40 hover:text-flame-400">
+          Beste Offensive · Teams
+        </button>
+        <button type="button" data-demo="killking" class="rounded-xl border border-volt-400/50 bg-volt-400/10 px-5 py-3 font-display text-sm font-bold uppercase tracking-wide text-volt-400 transition-colors hover:bg-volt-400/20">
+          Killkönig · Gleichstand
+        </button>
+      </div>
+      <p class="mt-3 text-sm text-mist">
+        Bei <code class="rounded bg-elevated px-1.5 py-0.5 text-xs">prefers-reduced-motion</code>
+        laufen dieselben Schritte, aber ohne Flug, Unschärfe und Konfetti — nur Ein-/Ausblenden
+        und kürzere Pausen.
+      </p>
+    </section>
+
+    <section id="siegel" class="mb-16 scroll-mt-8">
+      <h2 class="font-display text-2xl font-bold uppercase tracking-wider text-ink">Die Siegel</h2>
+      <p class="mt-2 max-w-2xl text-mist">
+        Jedes Siegel ist über drei Achsen unterscheidbar: Emaille-Farbe, Grundform
+        (Rund · Orden · Schild · Hexagon · Barren) und Gravur. Darum bleiben sie auch
+        als 18-Pixel-Pin am Pokémon-Bild auseinanderzuhalten.
+      </p>
+
+      <h3 class="mt-8 font-display text-sm font-bold uppercase tracking-[0.28em] text-flame-400">Nach jedem Spieltag</h3>
+      <div class="mt-4 grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-4" data-catalog="matchday"></div>
+
+      <h3 class="mt-10 font-display text-sm font-bold uppercase tracking-[0.28em] text-flame-400">Zum Saisonende</h3>
+      <div class="mt-4 grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-4" data-catalog="season"></div>
+    </section>
+
+    <!-- ================================ PINS ================================ -->
+    <section id="pins" class="mb-16 scroll-mt-8">
+      <h2 class="font-display text-2xl font-bold uppercase tracking-wider text-ink">Am Pokémon</h2>
+      <p class="mt-2 max-w-2xl text-mist">
+        Der Pin sitzt unten rechts über dem Bild, in drei Größen je nach Bildfläche.
+        Mehrere Auszeichnungen überlappen und kippen abwechselnd; ab vier Pins zählt
+        eine Plakette weiter. Im Teambuilding bleiben sie ausgeblendet.
+      </p>
+      <p class="mt-2 max-w-2xl text-sm text-mist">
+        Jeder Pin nennt beim Überfahren <b>welcher Award von wann</b> – mobil per Tap
+        im Info-Fenster. Die Plakette <b>+n</b> listet die restlichen auf.
+        Probier es an den Pins unten aus.
+      </p>
+
+      <div class="mt-6 grid grid-cols-1 gap-4 lg:grid-cols-3">
+        <div class="rounded-2xl border border-line bg-panel p-5">
+          <p class="mb-4 font-display text-xs font-bold uppercase tracking-wider text-mist">Detailansicht · groß</p>
+          <div class="flex justify-center" data-demo-tile="hero"></div>
+        </div>
+        <div class="rounded-2xl border border-line bg-panel p-5">
+          <p class="mb-4 font-display text-xs font-bold uppercase tracking-wider text-mist">Kader-Kachel · normal</p>
+          <div class="grid grid-cols-3 gap-3" data-demo-tile="grid"></div>
+        </div>
+        <div class="rounded-2xl border border-line bg-panel p-5">
+          <p class="mb-4 font-display text-xs font-bold uppercase tracking-wider text-mist">Tabellenzeile · klein</p>
+          <div class="space-y-1" data-demo-tile="rows"></div>
+        </div>
+      </div>
+
+      <div class="mt-4 rounded-2xl border border-line bg-panel p-5">
+        <p class="mb-4 font-display text-xs font-bold uppercase tracking-wider text-mist">Spieltag-Awards mehrfach am gleichen Pokémon</p>
+        <div class="flex flex-wrap items-end gap-6" data-demo-tile="stack"></div>
+      </div>
+    </section>
+
+    <!-- ================================ TEAMS ================================ -->
+    <section id="teams" class="mb-16 scroll-mt-8">
+      <h2 class="font-display text-2xl font-bold uppercase tracking-wider text-ink">An Teams &amp; Matches</h2>
+      <p class="mt-2 max-w-2xl text-mist">
+        Am Wappen in der Tabelle, an den Team-Karten und am Match im Spielplan —
+        immer als dieselbe Pin-Ecke, nur kleiner.
+      </p>
+
+      <div class="mt-6 overflow-hidden rounded-2xl border border-line bg-panel">
+        <table class="w-full min-w-[34rem] text-left">
+          <thead>
+            <tr class="border-b border-line font-display text-xs font-semibold uppercase tracking-wider text-mist">
+              <th class="px-5 py-4">#</th>
+              <th class="px-5 py-4">Team</th>
+              <th class="px-5 py-4 text-center">S</th>
+              <th class="px-5 py-4 text-center">Diff</th>
+              <th class="px-5 py-4 text-right">Pkt</th>
+            </tr>
+          </thead>
+          <tbody data-demo-standings></tbody>
+        </table>
+      </div>
+
+      <div class="mt-4 rounded-2xl border border-line bg-panel p-5" data-demo-match></div>
+    </section>
+
+    <!-- ============================== AWARDS-SEITE ============================== -->
+    <section id="seite" class="mb-16 scroll-mt-8">
+      <h2 class="font-display text-2xl font-bold uppercase tracking-wider text-ink">Awards-Seite</h2>
+      <p class="mt-2 max-w-2xl text-mist">
+        Vier Zonen: was jetzt dran ist, was gerade läuft, was schon vergeben wurde und
+        was als nächstes kommt. Der eigene Spieler wird oben rechts gewählt — das
+        entscheidet, wessen Nominierungen und Stimmen gespeichert werden.
+      </p>
+
+      <div class="mt-6 space-y-6">
+        <div class="flex flex-wrap items-center justify-between gap-3 rounded-2xl border border-line bg-panel p-4">
+          <p class="font-display text-sm font-bold uppercase tracking-wider text-mist">Ich bin</p>
+          <div class="flex gap-2">
+            <button type="button" class="rounded-xl border border-flame-500 bg-flame-500/10 px-4 py-2 font-display text-sm font-bold text-flame-300">Janik</button>
+            <button type="button" class="rounded-xl border border-line px-4 py-2 font-display text-sm font-bold text-mist transition-colors hover:text-ink">Henrik</button>
+          </div>
+        </div>
+
+        <div>
+          <h3 class="mb-3 font-display text-lg font-bold uppercase tracking-wider text-ink">Jetzt dran</h3>
+          <div class="grid grid-cols-1 gap-3 md:grid-cols-2" data-demo-due></div>
+        </div>
+
+        <div>
+          <h3 class="mb-3 font-display text-lg font-bold uppercase tracking-wider text-ink">Vergeben</h3>
+          <div class="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3" data-demo-past></div>
+        </div>
+
+        <div>
+          <h3 class="mb-3 font-display text-lg font-bold uppercase tracking-wider text-ink">Als nächstes</h3>
+          <div class="rounded-2xl border border-line bg-panel p-2" data-demo-next></div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ================================ FRAGEN ================================ -->
+    <section id="fragen" class="mb-8 scroll-mt-8">
+      <h2 class="font-display text-2xl font-bold uppercase tracking-wider text-ink">Offene Fragen</h2>
+      <p class="mt-2 max-w-2xl text-mist">Umgesetzt ist alles mit der jeweils erstgenannten Annahme — eine Antwort ändert nur noch Details.</p>
+      <ol class="mt-5 space-y-3" data-demo-questions></ol>
+    </section>
+
+  </main>
+
+  <!-- Siegerehrung -->
+  <div popover="manual" id="ceremony" class="cer"></div>
+
+  <!-- Kurztext eines Pins (in der App das geteilte Info-Popover) -->
+  <div popover id="pin-info" class="modal-pop w-[20rem] max-w-[calc(100vw-2rem)] rounded-2xl border border-line bg-panel p-5 text-ink">
+    <p class="font-display text-sm font-bold uppercase tracking-wider text-ink" data-pi-title></p>
+    <p class="mt-1 text-sm leading-relaxed text-mist" data-pi-text></p>
+  </div>
+
+  <script type="module">
+    import { MATCHDAY_AWARDS, SEASON_AWARDS, AWARD_BY_KEY, voteResults } from './resources/js/awards.mjs';
+    import { awardSvg, awardColor } from './resources/js/award-visuals.mjs';
+    import { runCeremony } from './resources/js/ceremony.mjs';
+
+    const MON = {
+      'Mega-Gengar': 'https://www.serebii.net/pokemonhome/pokemon/094-m.png',
+      'Glurak': 'https://www.serebii.net/pokemonhome/pokemon/006.png',
+      'Mega-Despotar': 'https://www.serebii.net/pokemonhome/pokemon/248-m.png',
+      'Knakrack': 'https://www.serebii.net/pokemonhome/pokemon/445.png',
+      'Skaraborn': 'https://www.serebii.net/pokemonhome/pokemon/214.png',
+      'Ampharos': 'https://www.serebii.net/pokemonhome/pokemon/181.png',
+      'Impoleon': 'https://www.serebii.net/pokemonhome/pokemon/395.png',
+    };
+    const TEAM = {
+      'FC Chelze': { logo: './public/img/teams/fc-chelze.png', player: 'Janik' },
+      'Toxicroak Rangers': { logo: './public/img/teams/toxicroak-rangers.png', player: 'Henrik' },
+      'AC Arboliva': { logo: './public/img/teams/ac-arboliva.png', player: 'Janik' },
+      'Beast Force PC': { logo: './public/img/teams/beast-force-pc.png', player: 'Henrik' },
+      'Einkraft Frankfurt': { logo: './public/img/teams/einkraft-frankfurt.png', player: 'Janik' },
+    };
+    const playerColor = (p) => (p === 'Henrik' ? '#4d90d5' : '#e3350d');
+
+    // Pin-Ecke wie in der App: jeder Pin nennt beim Hover (mobil beim Tap) den
+    // Award und den Zeitpunkt.
+    let demoDay = 6;
+    const blurb = (k, i) => {
+      const def = AWARD_BY_KEY[k];
+      const when = MATCHDAY_AWARDS.some((a) => a.key === k) ? `Spieltag ${demoDay - i}` : 'Saison 1';
+      return { label: def?.label || k, when, hint: def?.hint || '' };
+    };
+    const pinCorner = (keys, size = '') => {
+      const shown = keys.slice(0, 3);
+      const rest = keys.slice(3);
+      const slot = (k, i) => {
+        const b = blurb(k, i);
+        return `<button type="button" class="pin-slot" data-award-pin title="${b.label} · ${b.when}"
+                  data-pin-title="${b.label}" data-pin-text="${b.hint} Vergeben: ${b.when}.">${awardSvg(k, { variant: 'pin' })}</button>`;
+      };
+      const more = rest.length
+        ? `<button type="button" class="pin-more" data-award-pin
+             title="${rest.map((k, i) => `${blurb(k, i + 3).label} (${blurb(k, i + 3).when})`).join(', ')}"
+             data-pin-title="${rest.length} weitere Auszeichnungen"
+             data-pin-text="${rest.map((k, i) => `${blurb(k, i + 3).label} (${blurb(k, i + 3).when})`).join(', ')}">+${rest.length}</button>`
+        : '';
+      return `<span class="pin-corner"${size ? ` data-size="${size}"` : ''}>
+        ${shown.map(slot).join('')}${more}
+      </span>`;
+    };
+
+    // Tap-Info wie in der App (dort das geteilte Info-Popover).
+    document.addEventListener('click', (e) => {
+      const el = e.target.closest?.('[data-award-pin]');
+      if (!el) return;
+      e.preventDefault();
+      e.stopPropagation();
+      const box = document.getElementById('pin-info');
+      box.querySelector('[data-pi-title]').textContent = el.dataset.pinTitle || '';
+      box.querySelector('[data-pi-text]').textContent = el.dataset.pinText || '';
+      box.showPopover();
+    }, true);
+
+    /* ---------- Siegel-Katalog ---------- */
+    const catalogCard = (a) => `
+      <div class="flex flex-col items-center rounded-2xl border border-line bg-panel p-4 text-center">
+        <span class="block w-16" style="aspect-ratio:112/152">${awardSvg(a.key, { variant: 'medal', title: a.label })}</span>
+        <p class="mt-3 font-display text-sm font-bold leading-tight text-ink">${a.label}</p>
+        <p class="mt-1 text-[11px] leading-snug text-mist">${a.hint}</p>
+        <span class="mt-2 rounded-full px-2 py-0.5 font-display text-[10px] font-bold uppercase tracking-wider"
+              style="color:${awardColor(a.key)};background:${awardColor(a.key)}1f">${a.entity === 'team' ? 'Team' : a.entity === 'match' ? 'Match' : a.entity === 'pair' ? 'Duo' : 'Pokémon'}</span>
+      </div>`;
+    document.querySelector('[data-catalog="matchday"]').innerHTML = MATCHDAY_AWARDS.map(catalogCard).join('');
+    document.querySelector('[data-catalog="season"]').innerHTML = SEASON_AWARDS.map(catalogCard).join('');
+
+    /* ---------- Pins am Pokémon ---------- */
+    document.querySelector('[data-demo-tile="hero"]').innerHTML = `
+      <div class="relative grid size-44 place-items-center overflow-visible rounded-2xl border border-line bg-elevated/60">
+        <img src="${MON['Mega-Gengar']}" alt="Mega-Gengar" class="h-4/5 w-4/5 object-contain" />
+        ${pinCorner(['best-mon', 'killking', 'best-tier-s'], 'lg')}
+      </div>`;
+
+    const gridMons = [
+      ['Knakrack', ['team-mvp']],
+      ['Glurak', ['surprise-of-day']],
+      ['Skaraborn', ['best-tier-d', 'surprise']],
+      ['Ampharos', []],
+      ['Impoleon', ['best-defense']],
+      ['Mega-Despotar', ['best-mega', 'biggest-threat', 'best-partners', 'best-support']],
+    ];
+    document.querySelector('[data-demo-tile="grid"]').innerHTML = gridMons.map(([name, keys]) => `
+      <div class="relative rounded-xl border border-line bg-elevated/40 p-2">
+        <div class="grid aspect-square place-items-center"><img src="${MON[name]}" alt="${name}" class="size-14 object-contain" /></div>
+        <p class="truncate text-center text-[10px] font-medium text-mist">${name}</p>
+        ${keys.length ? pinCorner(keys) : ''}
+      </div>`).join('');
+
+    document.querySelector('[data-demo-tile="rows"]').innerHTML = gridMons.slice(0, 5).map(([name, keys], i) => `
+      <div class="flex items-center gap-2 border-b border-line/40 py-1.5">
+        <span class="w-4 text-right font-display text-xs font-bold tabular-nums text-mist/60">${i + 1}</span>
+        <span class="relative block size-8 shrink-0">
+          <img src="${MON[name]}" alt="${name}" class="size-8 object-contain" />
+          ${keys.length ? pinCorner(keys, 'sm') : ''}
+        </span>
+        <span class="min-w-0 flex-1 truncate text-sm font-semibold text-ink">${name}</span>
+        <span class="font-display text-sm font-bold tabular-nums text-volt-400">${12 - i * 2} K</span>
+      </div>`).join('');
+
+    document.querySelector('[data-demo-tile="stack"]').innerHTML = [1, 2, 3, 5].map((n) => `
+      <div class="text-center">
+        <div class="relative mx-auto grid size-24 place-items-center rounded-xl border border-line bg-elevated/40">
+          <img src="${MON['Knakrack']}" alt="Knakrack" class="size-20 object-contain" />
+          ${pinCorner(Array.from({ length: n }, () => 'mon-of-day'))}
+        </div>
+        <p class="mt-2 text-xs text-mist">${n}× Pokémon des Spieltags</p>
+      </div>`).join('');
+
+    /* ---------- Teams ---------- */
+    const standings = [
+      ['FC Chelze', 14, '+21', 14, ['best-offense', 'best-draft']],
+      ['Beast Force PC', 12, '+9', 12, ['best-defense']],
+      ['AC Arboliva', 9, '-2', 9, ['best-transfer']],
+      ['Toxicroak Rangers', 5, '-14', 5, []],
+    ];
+    document.querySelector('[data-demo-standings]').innerHTML = standings.map(([name, won, diff, pts, keys], i) => `
+      <tr class="border-t border-line">
+        <td class="px-5 py-4"><span class="font-display text-lg font-bold ${i === 0 ? 'text-flame-400' : 'text-mist'}">${i + 1}</span></td>
+        <td class="px-5 py-4">
+          <div class="flex items-center gap-3">
+            <span class="relative block size-9 shrink-0">
+              <img src="${TEAM[name].logo}" alt="${name}" class="size-9 rounded-lg object-contain" />
+              ${keys.length ? pinCorner(keys, 'sm') : ''}
+            </span>
+            <span class="min-w-0">
+              <span class="block truncate font-semibold" style="color:${playerColor(TEAM[name].player)}">${name}</span>
+              <span class="block truncate text-sm text-mist">${TEAM[name].player}</span>
+            </span>
+          </div>
+        </td>
+        <td class="px-5 py-4 text-center tabular-nums text-ink">${won}</td>
+        <td class="px-5 py-4 text-center tabular-nums text-volt-400">${diff}</td>
+        <td class="px-5 py-4 text-right font-display text-lg font-bold tabular-nums text-ink">${pts}</td>
+      </tr>`).join('');
+
+    document.querySelector('[data-demo-match]').innerHTML = `
+      <p class="mb-3 font-display text-xs font-bold uppercase tracking-wider text-mist">Spielplan · Spieltag 7</p>
+      <div class="relative flex items-center justify-between gap-4 rounded-xl border border-line bg-elevated/40 p-4">
+        <span class="flex min-w-0 items-center gap-3">
+          <img src="${TEAM['FC Chelze'].logo}" alt="" class="size-10 rounded-lg object-contain" />
+          <span class="truncate font-semibold" style="color:#e3350d">FC Chelze</span>
+        </span>
+        <span class="font-display text-xl font-bold tabular-nums text-ink">2 : 1</span>
+        <span class="flex min-w-0 items-center justify-end gap-3">
+          <span class="truncate font-semibold" style="color:#4d90d5">Beast Force PC</span>
+          <img src="${TEAM['Beast Force PC'].logo}" alt="" class="size-10 rounded-lg object-contain" />
+        </span>
+        <span class="pin-corner" data-size="sm" style="right:0.4rem;bottom:0.4rem">
+          <span class="pin-slot">${awardSvg('best-match', { variant: 'pin', title: 'Bestes Match' })}</span>
+        </span>
+      </div>`;
+
+    /* ---------- Awards-Seite ---------- */
+    const dueCard = (a, sub, state) => {
+      const c = awardColor(a.key);
+      const badge = { nominate: ['Nominieren', '#ffcb05'], wait: ['Wartet auf Henrik', '#98a2b3'], vote: ['Abstimmen', '#e3350d'], ready: ['Siegerehrung', '#63bc5a'] }[state];
+      return `<div class="flex gap-4 rounded-2xl border border-line bg-panel p-4" style="border-color:${c}40">
+        <span class="block w-12 shrink-0" style="aspect-ratio:112/152">${awardSvg(a.key, { variant: 'medal' })}</span>
+        <span class="min-w-0 flex-1">
+          <span class="block font-display text-base font-bold leading-tight text-ink">${a.label}</span>
+          <span class="mt-0.5 block text-xs text-mist">${sub}</span>
+          <button type="button" class="mt-3 rounded-lg px-3 py-2 font-display text-xs font-bold uppercase tracking-wider"
+                  style="color:${badge[1]};background:${badge[1]}1f;border:1px solid ${badge[1]}66">${badge[0]}</button>
+        </span>
+      </div>`;
+    };
+    document.querySelector('[data-demo-due]').innerHTML = [
+      dueCard(AWARD_BY_KEY['mon-of-day'], 'Spieltag 7 · noch keine Nominierung', 'nominate'),
+      dueCard(AWARD_BY_KEY['flop-of-day'], 'Spieltag 7 · 2 von dir nominiert', 'wait'),
+      dueCard(AWARD_BY_KEY['surprise-of-day'], 'Spieltag 7 · Abstimmung läuft, 4 Optionen', 'vote'),
+      dueCard(AWARD_BY_KEY['best-tier-s'], 'Saison 1 · beide Stimmen liegen vor', 'ready'),
+    ].join('');
+
+    const pastCard = (key, winner, sub) => {
+      const c = awardColor(key);
+      const img = MON[winner] || TEAM[winner]?.logo;
+      return `<div class="rounded-2xl border border-line bg-panel p-4">
+        <p class="font-display text-xs font-bold uppercase tracking-wider" style="color:${c}">${AWARD_BY_KEY[key].label}</p>
+        <p class="text-[11px] text-mist">${sub}</p>
+        <div class="mt-3 flex items-center gap-3">
+          <span class="relative block size-14 shrink-0">
+            <img src="${img}" alt="${winner}" class="size-14 object-contain" />
+            <span class="pin-corner"><span class="pin-slot">${awardSvg(key, { variant: 'pin' })}</span></span>
+          </span>
+          <span class="min-w-0">
+            <span class="block truncate font-display text-sm font-bold text-ink">${winner}</span>
+            <span class="block text-xs text-mist">Ø 8,5 · Janik 9 · Henrik 8</span>
+          </span>
+        </div>
+      </div>`;
+    };
+    document.querySelector('[data-demo-past]').innerHTML = [
+      pastCard('mon-of-day', 'Mega-Gengar', 'Spieltag 6'),
+      pastCard('mon-of-day', 'Knakrack', 'Spieltag 5'),
+      pastCard('best-offense', 'FC Chelze', 'Saison 1'),
+    ].join('');
+
+    document.querySelector('[data-demo-next]').innerHTML = [
+      ['mon-of-day', 'Spieltag 8', 'sobald alle Kämpfe erfasst sind'],
+      ['best-mon', 'Saison 1', 'nach dem letzten Spieltag'],
+      ['team-mvp', 'Saison 1 · 8 Abstimmungen', 'nach dem letzten Spieltag'],
+    ].map(([key, when, why]) => `
+      <div class="flex items-center gap-3 rounded-xl px-3 py-2.5">
+        <span class="block w-7 shrink-0 opacity-60" style="aspect-ratio:108/128">${awardSvg(key, { variant: 'pin' })}</span>
+        <span class="min-w-0 flex-1">
+          <span class="block truncate text-sm font-semibold text-ink">${AWARD_BY_KEY[key].label}</span>
+          <span class="block truncate text-xs text-mist">${when} — ${why}</span>
+        </span>
+        <span class="shrink-0 font-display text-[10px] font-bold uppercase tracking-wider text-mist/60">geplant</span>
+      </div>`).join('');
+
+    /* ---------- Offene Fragen ---------- */
+    document.querySelector('[data-demo-questions]').innerHTML = [
+      ['Wer darf nominieren und abstimmen?', 'Angenommen: beide Spieler für alle Awards, auch für Pokémon des Gegners. Der eigene Spieler wird gerätelokal gewählt (kein Login) — wer das umstellt, stimmt als der andere ab.'],
+      ['Dürfen eigene Nominierungen bewertet werden?', 'Angenommen: ja, jeder bewertet alle Optionen von 0–10, auch die eigenen.'],
+      ['Wann sind die Saison-Awards „dran"?', 'Beantwortet: erst wenn ALLE Spiele ALLER Spieltage ein Ergebnis haben. Umgesetzt; die Ansicht zeigt bis dahin, wie viele Spiele noch fehlen.'],
+      ['Team-MVP: 8 Abstimmungen — Optionen nur aus dem eigenen Roster?', 'Angenommen: ja, nominierbar ist nur, wer aktuell im Kader dieses Teams steht (Wintertransfer-Abgaben also nicht mehr).'],
+      ['Sichtbarkeit der Sieger vor der eigenen Siegerehrung', 'Angenommen: Pins erscheinen erst, wenn DU die Siegerehrung gesehen hast — sonst spoilert die Tabelle das Ergebnis. Der Hinweis am Ende sagt dir, ob der andere schon geschaut hat.'],
+      ['Gleichstand auf Platz 1', 'Beantwortet: beide (bzw. alle) gewinnen und bekommen einen Pin. Umgesetzt — sie stehen gemeinsam auf dem Podest, die Karte im Archiv nennt „Gleichstand · n Sieger".'],
+      ['Spieltag-Awards nachträglich', 'Festgelegt: Spieltag-Awards starten bei Spieltag 6 (Rollout mitten in der Saison). Spieltag 1–5 werden nicht nachträglich ausgezeichnet; ein einmal offener Spieltag bleibt aber dauerhaft nachholbar. Für Saison 2 steht die Grenze als eine Konstante in awards.mjs.'],
+    ].map(([q, a]) => `
+      <li class="rounded-2xl border border-line bg-panel p-4">
+        <p class="font-display text-base font-bold text-ink">${q}</p>
+        <p class="mt-1.5 text-sm leading-relaxed text-mist">${a}</p>
+      </li>`).join('');
+
+    /* ---------- Demo-Daten der Siegerehrung ---------- */
+    const nom = (label, image, j, h) => ({ id: label, label, images: [image], votes: { Janik: j, Henrik: h } });
+    const DEMOS = {
+      'best-mon': {
+        subtitle: 'Saison 1 · 6 Nominierungen',
+        options: [
+          nom('Mega-Gengar', MON['Mega-Gengar'], 10, 9),
+          nom('Knakrack', MON['Knakrack'], 8, 9),
+          nom('Mega-Despotar', MON['Mega-Despotar'], 7, 6),
+          nom('Impoleon', MON['Impoleon'], 5, 7),
+          nom('Glurak', MON['Glurak'], 4, 3),
+          nom('Ampharos', MON['Ampharos'], 2, 1),
+        ],
+      },
+      'mon-of-day': {
+        subtitle: 'Spieltag 7 · 4 Nominierungen',
+        options: [
+          nom('Knakrack', MON['Knakrack'], 9, 10),
+          nom('Skaraborn', MON['Skaraborn'], 8, 8),
+          nom('Impoleon', MON['Impoleon'], 6, 4),
+          nom('Glurak', MON['Glurak'], 3, 5),
+        ],
+      },
+      'best-partners': {
+        subtitle: 'Saison 1 · nur 2 Nominierungen',
+        options: [
+          { id: 'Knakrack + Impoleon', label: 'Knakrack + Impoleon', images: [MON['Knakrack'], MON['Impoleon']], votes: { Janik: 9, Henrik: 8 } },
+          { id: 'Glurak + Ampharos', label: 'Glurak + Ampharos', images: [MON['Glurak'], MON['Ampharos']], votes: { Janik: 6, Henrik: 7 } },
+        ],
+      },
+      // Gleichstand auf Platz 1: beide bekommen den Award.
+      killking: {
+        subtitle: 'Saison 1 · Gleichstand auf Platz 1',
+        options: [
+          nom('Mega-Gengar', MON['Mega-Gengar'], 9, 8),
+          nom('Knakrack', MON['Knakrack'], 8, 9),
+          nom('Mega-Despotar', MON['Mega-Despotar'], 6, 6),
+          nom('Skaraborn', MON['Skaraborn'], 3, 4),
+        ],
+      },
+      'best-offense': {
+        subtitle: 'Saison 1 · 3 Teams nominiert',
+        options: [
+          nom('FC Chelze', TEAM['FC Chelze'].logo, 9, 9),
+          nom('Beast Force PC', TEAM['Beast Force PC'].logo, 7, 8),
+          nom('AC Arboliva', TEAM['AC Arboliva'].logo, 5, 4),
+        ],
+      },
+    };
+
+    const pop = document.getElementById('ceremony');
+    let running = null;
+    document.querySelectorAll('[data-demo]').forEach((btn) => {
+      btn.addEventListener('click', () => {
+        const key = btn.dataset.demo;
+        const demo = DEMOS[key];
+        const award = {
+          entity: 'pokemon',
+          status: 'done',
+          nominations: { Janik: demo.options.map((o) => ({ id: o.id, label: o.label, images: o.images })), Henrik: [] },
+          votes: {
+            Janik: Object.fromEntries(demo.options.map((o) => [o.id, o.votes.Janik])),
+            Henrik: Object.fromEntries(demo.options.map((o) => [o.id, o.votes.Henrik])),
+          },
+          seen: { Henrik: key === 'mon-of-day' },
+        };
+        const rows = voteResults(award);
+        if (running) running.stop();
+        pop.showPopover();
+        running = runCeremony(pop, {
+          title: AWARD_BY_KEY[key].label,
+          subtitle: demo.subtitle,
+          accent: awardColor(key),
+          medalSvg: awardSvg(key, { variant: 'medal' }),
+          rows,
+          note: key === 'mon-of-day'
+            ? 'Henrik hat die Siegerehrung schon gesehen – ihr könnt offen darüber reden.'
+            : 'Henrik hat die Siegerehrung noch nicht gesehen – bitte nicht spoilern!',
+        }, {
+          onClose: () => { running?.stop(); pop.hidePopover(); },
+        });
+      });
+    });
+    pop.addEventListener('toggle', (e) => { if (e.newState === 'closed') running?.stop(); });
+  </script>
+</body>
+</html>

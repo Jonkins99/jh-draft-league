@@ -1,0 +1,513 @@
+/* Awards: Siegel-Pins und die Siegerehrung. */
+
+.award-pin,
+.award-medal {
+  display: block;
+  width: 100%;
+  height: 100%;
+  overflow: visible;
+  filter: drop-shadow(0 2px 3px rgb(0 0 0 / 0.65));
+}
+
+/* Pin-Ecke an einem Pokémon-Bild / Team-Wappen. Mehrere Awards überlappen leicht
+   und kippen abwechselnd, damit ein Stapel als Stapel lesbar bleibt. */
+.pin-corner {
+  position: absolute;
+  right: -0.15rem;
+  bottom: -0.2rem;
+  z-index: 20;
+  display: flex;
+  align-items: flex-end;
+  pointer-events: none;
+}
+
+/* Der Container fängt keine Klicks ab, die Pins selbst schon: Hover zeigt den
+   Titel, Klick/Tap öffnet den Kurztext. */
+.pin-slot,
+.pin-more {
+  pointer-events: auto;
+  cursor: help;
+  background: none;
+  border: 0;
+  padding: 0;
+  appearance: none;
+}
+
+.pin-slot {
+  transition: scale 140ms cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+.pin-slot:hover,
+.pin-slot:focus-visible {
+  scale: 1.18;
+  z-index: 1;
+}
+
+.pin-corner > .pin-slot {
+  width: 1.15rem;
+  aspect-ratio: 108 / 128;
+  flex: none;
+}
+
+.pin-corner > .pin-slot + .pin-slot {
+  margin-left: -0.5rem;
+}
+
+.pin-corner > .pin-slot:nth-child(odd) {
+  rotate: -7deg;
+}
+
+.pin-corner > .pin-slot:nth-child(even) {
+  rotate: 6deg;
+}
+
+.pin-corner[data-size="lg"] > .pin-slot {
+  width: 1.9rem;
+}
+
+.pin-corner[data-size="lg"] > .pin-slot + .pin-slot {
+  margin-left: -0.8rem;
+}
+
+.pin-corner[data-size="sm"] > .pin-slot {
+  width: 0.85rem;
+}
+
+.pin-corner[data-size="sm"] > .pin-slot + .pin-slot {
+  margin-left: -0.38rem;
+}
+
+.pin-more {
+  margin-left: -0.25rem;
+  align-self: center;
+  border-radius: 9999px;
+  background: var(--color-void);
+  border: 1px solid var(--color-line);
+  cursor: pointer;
+  padding-inline: 0.25rem;
+  font-size: 0.5625rem;
+  font-weight: 700;
+  line-height: 1.1;
+  color: var(--color-mist);
+  font-variant-numeric: tabular-nums;
+}
+
+/* === Siegerehrung ========================================================= */
+
+.cer {
+  position: fixed;
+  inset: 0;
+  width: 100%;
+  max-width: none;
+  height: 100%;
+  max-height: none;
+  margin: 0;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  color: var(--color-ink);
+  overflow: hidden;
+}
+
+.cer::backdrop {
+  background: rgb(4 5 8 / 0.94);
+  backdrop-filter: blur(6px);
+}
+
+.cer-stage {
+  position: relative;
+  display: grid;
+  grid-template-rows: auto 1fr auto;
+  width: 100%;
+  height: 100%;
+  padding: 1.25rem;
+  isolation: isolate;
+}
+
+/* Bühnenlicht: ein Kegel von oben, der im Takt der Enthüllungen atmet. */
+.cer-spot {
+  position: absolute;
+  inset: 0;
+  z-index: -1;
+  pointer-events: none;
+  background:
+    radial-gradient(60% 42% at 50% 0%, rgb(255 203 5 / 0.16), transparent 70%),
+    radial-gradient(120% 80% at 50% 108%, rgb(227 53 13 / 0.14), transparent 65%);
+  opacity: 0.85;
+  transition: opacity 700ms ease;
+}
+
+.cer-stage[data-beat="hold"] .cer-spot {
+  opacity: 1;
+}
+
+.cer-stage[data-phase="curtain"] .cer-spot {
+  opacity: 0.25;
+}
+
+.cer-stage[data-phase="finale"] .cer-spot {
+  background:
+    radial-gradient(70% 55% at 50% 32%, rgb(255 203 5 / 0.3), transparent 72%),
+    radial-gradient(120% 80% at 50% 110%, rgb(227 53 13 / 0.2), transparent 65%);
+  opacity: 1;
+}
+
+.cer-body {
+  display: grid;
+  place-items: center;
+  min-height: 0;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+}
+
+.cer-inner {
+  display: grid;
+  gap: 0.75rem;
+  width: 100%;
+}
+
+.cer-slots {
+  display: grid;
+  gap: 0.5rem;
+  width: 100%;
+  max-width: 34rem;
+  margin-inline: auto;
+}
+
+/* Rückschau nach dem Finale: kleiner und ruhiger als das Podest. */
+.cer-slots--recap {
+  max-width: 30rem;
+  gap: 0.35rem;
+  opacity: 0.6;
+}
+
+.cer-slots--recap .cer-plate {
+  grid-template-columns: 2rem 2rem 1fr auto;
+  gap: 0.5rem;
+  padding: 0.35rem 0.7rem;
+}
+
+.cer-slots--recap .cer-plate img,
+.cer-slots--recap .cer-plate > span:nth-child(2) {
+  width: 2rem;
+  height: 2rem;
+}
+
+.cer-slots--recap .cer-rank,
+.cer-slots--recap .cer-score {
+  font-size: 0.95rem;
+}
+
+.cer-slots--recap .cer-plate .font-display {
+  font-size: 0.8125rem;
+}
+
+/* Leere Platzhalter-Platte: dunkel, bis die Zeile enthüllt wird. */
+.cer-slot {
+  position: relative;
+  overflow: hidden;
+  border-radius: 0.9rem;
+  border: 1px solid var(--color-line);
+  background: rgb(20 23 31 / 0.55);
+}
+
+.cer-slot[data-state="pending"] {
+  border-style: dashed;
+  border-color: rgb(42 49 61 / 0.9);
+}
+
+.cer-slot[data-state="next"] {
+  animation: cer-breath 1400ms ease-in-out infinite;
+  border-color: rgb(255 203 5 / 0.4);
+}
+
+@keyframes cer-breath {
+  0%,
+  100% {
+    box-shadow: 0 0 0 0 rgb(255 203 5 / 0);
+  }
+
+  50% {
+    box-shadow: 0 6px 26px -10px rgb(255 203 5 / 0.55);
+  }
+}
+
+.cer-plate {
+  display: grid;
+  grid-template-columns: 2.5rem 3rem 1fr auto;
+  align-items: center;
+  gap: 0.75rem;
+  padding: 0.65rem 0.9rem;
+}
+
+.cer-ghost {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  padding: 0.9rem;
+  color: rgb(152 162 179 / 0.45);
+}
+
+.cer-ghost-bar {
+  height: 0.5rem;
+  border-radius: 9999px;
+  background: rgb(42 49 61 / 0.8);
+}
+
+/* Enthüllung: Platte fährt kurz hoch und wird von links nach rechts freigelegt. */
+.cer-slot[data-state="revealed"] .cer-plate {
+  animation: cer-reveal 560ms cubic-bezier(0.16, 1, 0.3, 1) both;
+}
+
+@keyframes cer-reveal {
+  from {
+    clip-path: inset(0 100% 0 0);
+    translate: 0 14px;
+    opacity: 0;
+  }
+
+  to {
+    clip-path: inset(0 0 0 0);
+    translate: 0 0;
+    opacity: 1;
+  }
+}
+
+/* Lichtstreif, der einmal über die frisch enthüllte Zeile läuft. */
+.cer-slot[data-state="revealed"]::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  background: linear-gradient(105deg, transparent 38%, rgb(255 255 255 / 0.16) 50%, transparent 62%);
+  translate: -120% 0;
+  animation: cer-sweep 900ms 160ms ease-out both;
+}
+
+@keyframes cer-sweep {
+  to {
+    translate: 120% 0;
+  }
+}
+
+.cer-rank {
+  font-weight: 900;
+  font-size: 1.25rem;
+  line-height: 1;
+  text-align: center;
+  font-variant-numeric: tabular-nums;
+  color: var(--color-mist);
+}
+
+.cer-score {
+  font-weight: 900;
+  font-size: 1.35rem;
+  line-height: 1;
+  font-variant-numeric: tabular-nums;
+  color: var(--color-ink);
+}
+
+/* Finale: Platz 2 und 1 gleichzeitig, Platz 1 größer und beleuchtet. */
+.cer-top {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: 0.75rem;
+  width: 100%;
+  max-width: 40rem;
+  margin-inline: auto;
+}
+
+@media (min-width: 40rem) {
+  .cer-top {
+    grid-template-columns: 0.85fr 1.15fr;
+    align-items: end;
+  }
+
+  /* Gleichstand auf Platz 1: gleich große Podeste. */
+  .cer-top[data-count="1"] {
+    grid-template-columns: minmax(0, 22rem);
+    justify-content: center;
+  }
+
+  .cer-top[data-count="2"]:has(.cer-card--first + .cer-card--first) {
+    grid-template-columns: 1fr 1fr;
+    align-items: stretch;
+  }
+
+  .cer-top[data-count="3"] {
+    grid-template-columns: repeat(3, 1fr);
+    align-items: stretch;
+  }
+
+  .cer-top[data-count="4"] {
+    grid-template-columns: repeat(2, 1fr);
+    align-items: stretch;
+  }
+}
+
+/* Duo-Award: beide Sprites nebeneinander, leicht überlappend. */
+.cer-duo {
+  display: inline-flex;
+  align-items: center;
+}
+
+.cer-duo > img + img {
+  margin-left: -18%;
+}
+
+.cer-card {
+  position: relative;
+  overflow: hidden;
+  border-radius: 1.1rem;
+  border: 1px solid var(--color-line);
+  background: rgb(20 23 31 / 0.85);
+  padding: 1rem;
+  text-align: center;
+  animation: cer-rise 780ms cubic-bezier(0.16, 1, 0.3, 1) both;
+}
+
+.cer-top:has(.cer-card--first + .cer-card--first) .cer-card--first {
+  padding: 1rem;
+}
+
+.cer-card--first {
+  border-color: rgb(255 203 5 / 0.55);
+  background:
+    radial-gradient(120% 90% at 50% 0%, rgb(255 203 5 / 0.14), transparent 60%),
+    rgb(20 23 31 / 0.9);
+  box-shadow: 0 22px 60px -28px rgb(255 203 5 / 0.55);
+  padding: 1.35rem 1rem;
+  animation-delay: 120ms;
+}
+
+@keyframes cer-rise {
+  from {
+    translate: 0 42px;
+    scale: 0.94;
+    filter: blur(10px);
+    opacity: 0;
+  }
+
+  to {
+    translate: 0 0;
+    scale: 1;
+    filter: blur(0);
+    opacity: 1;
+  }
+}
+
+/* Das Siegel des Gewinners materialisiert nach den Karten. */
+.cer-seal {
+  width: 5.5rem;
+  aspect-ratio: 112 / 152;
+  margin-inline: auto;
+  animation: cer-seal 900ms 620ms cubic-bezier(0.16, 1, 0.3, 1) both;
+}
+
+@keyframes cer-seal {
+  from {
+    scale: 1.8;
+    filter: blur(14px);
+    opacity: 0;
+  }
+
+  60% {
+    opacity: 1;
+  }
+
+  to {
+    scale: 1;
+    filter: blur(0);
+    opacity: 1;
+  }
+}
+
+.cer-bloom {
+  position: absolute;
+  left: 50%;
+  top: 22%;
+  z-index: -1;
+  width: 22rem;
+  aspect-ratio: 1;
+  translate: -50% -50%;
+  border-radius: 9999px;
+  background: radial-gradient(circle, rgb(255 203 5 / 0.45), transparent 62%);
+  animation: cer-bloom 1200ms 640ms ease-out both;
+  pointer-events: none;
+}
+
+@keyframes cer-bloom {
+  from {
+    scale: 0.2;
+    opacity: 0;
+  }
+
+  35% {
+    opacity: 1;
+  }
+
+  to {
+    scale: 1.5;
+    opacity: 0;
+  }
+}
+
+.cer-confetti {
+  position: absolute;
+  inset: 0;
+  z-index: 30;
+  overflow: hidden;
+  pointer-events: none;
+}
+
+.cer-confetti i {
+  position: absolute;
+  display: block;
+  width: 0.5rem;
+  height: 0.8rem;
+  border-radius: 1px;
+  will-change: transform, opacity;
+}
+
+.cer-skip {
+  justify-self: end;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .cer-slot[data-state="revealed"] .cer-plate {
+    animation: cer-fade 240ms ease both;
+  }
+
+  .cer-slot[data-state="revealed"]::after,
+  .cer-bloom,
+  .cer-confetti {
+    display: none;
+  }
+
+  .cer-slot[data-state="next"] {
+    animation: none;
+  }
+
+  .cer-card,
+  .cer-seal {
+    animation: cer-fade 260ms ease both;
+  }
+
+  @keyframes cer-fade {
+    from {
+      opacity: 0;
+    }
+
+    to {
+      opacity: 1;
+    }
+  }
+}
+
+/* Matchup-Kachel: Gedrückthalten darf keine Textauswahl oder das
+   System-Kontextmenü auslösen (iPadOS). */
+.mark-tile {
+  -webkit-touch-callout: none;
+  user-select: none;
+  touch-action: manipulation;
+}

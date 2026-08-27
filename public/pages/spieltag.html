@@ -77,12 +77,16 @@
               <template x-for="(m, i) in day.matches" :key="i">
                 <article @click="openDetail(day.day, i, m.home, m.away)"
                          :data-match-key="`${day.day}-${i}`"
-                         class="cursor-pointer overflow-hidden rounded-2xl border border-line bg-panel transition-colors hover:border-flame-500/40">
+                         class="relative cursor-pointer rounded-2xl border border-line bg-panel transition-colors hover:border-flame-500/40">
+                  <span class="absolute right-2 top-2 z-20" x-html="$store.awards.pinHtml('match', `s1-d${day.day}-m${i}`, 'sm')"></span>
                   <div class="grid grid-cols-[1fr_auto_1fr] items-center gap-2 p-4 sm:gap-4 sm:p-5">
                     <button type="button" @click.stop="$dispatch('navigate', { key: 'teams', teamId: m.home })"
                             class="flex min-w-0 flex-col items-center gap-2 rounded-xl p-1 text-center transition-colors hover:bg-elevated">
-                      <img :src="logoUrl(teamById(m.home)?.logo)" :alt="teamById(m.home)?.name"
-                           class="size-16 shrink-0 rounded-xl object-contain sm:size-20" />
+                      <span class="relative block size-16 shrink-0 sm:size-20">
+                        <img :src="logoUrl(teamById(m.home)?.logo)" :alt="teamById(m.home)?.name"
+                             class="size-full rounded-xl object-contain" />
+                        <span x-html="$store.awards.pinHtml('team', m.home, 'sm')"></span>
+                      </span>
                       <div class="min-w-0">
                         <p class="break-words font-semibold leading-tight" :style="`color:${playerColor(teamById(m.home)?.player)}`" x-text="teamById(m.home)?.name"></p>
                         <p class="mt-0.5 text-sm font-medium text-mist" x-text="teamById(m.home)?.player"></p>
@@ -107,8 +111,11 @@
 
                     <button type="button" @click.stop="$dispatch('navigate', { key: 'teams', teamId: m.away })"
                             class="flex min-w-0 flex-col items-center gap-2 rounded-xl p-1 text-center transition-colors hover:bg-elevated">
-                      <img :src="logoUrl(teamById(m.away)?.logo)" :alt="teamById(m.away)?.name"
-                           class="size-16 shrink-0 rounded-xl object-contain sm:size-20" />
+                      <span class="relative block size-16 shrink-0 sm:size-20">
+                        <img :src="logoUrl(teamById(m.away)?.logo)" :alt="teamById(m.away)?.name"
+                             class="size-full rounded-xl object-contain" />
+                        <span x-html="$store.awards.pinHtml('team', m.away, 'sm')"></span>
+                      </span>
                       <div class="min-w-0">
                         <p class="break-words font-semibold leading-tight" :style="`color:${playerColor(teamById(m.away)?.player)}`" x-text="teamById(m.away)?.name"></p>
                         <p class="mt-0.5 text-sm font-medium text-mist" x-text="teamById(m.away)?.player"></p>

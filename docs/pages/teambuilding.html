@@ -43,7 +43,7 @@
             <div class="mb-3 flex flex-wrap items-start justify-between gap-3">
               <div class="min-w-0">
                 <h2 class="font-display text-xl font-bold uppercase tracking-wider text-ink">Matchup</h2>
-                <p class="mt-1 text-sm text-mist">Beide Kader – ideal für einen Screenshot. Klick auf ein Pokémon markiert (nur für dich, gerätelokal je Paarung), wie wahrscheinlich es gewählt wird: <span class="font-semibold" style="color:#63bc5a">Grün</span> → <span class="font-semibold" style="color:#ffcb05">Gelb</span> → <span class="font-semibold" style="color:#ff9d55">Orange</span> → <span class="font-semibold" style="color:#e3350d">Rot</span> → aus.</p>
+                <p class="mt-1 text-sm text-mist">Beide Kader – ideal für einen Screenshot. Klick auf ein Pokémon markiert (nur für dich, gerätelokal je Paarung), wie wahrscheinlich es gewählt wird: <span class="font-semibold" style="color:#63bc5a">Grün</span> → <span class="font-semibold" style="color:#ffcb05">Gelb</span> → <span class="font-semibold" style="color:#ff9d55">Orange</span> → <span class="font-semibold" style="color:#e3350d">Rot</span> → aus. Gedrückt halten setzt die Markierung sofort auf <b>aus</b>.</p>
               </div>
               <button type="button" @click="openExport()"
                       class="inline-flex shrink-0 items-center gap-1.5 rounded-lg border border-line px-3 py-2 text-sm font-semibold text-mist transition-colors hover:border-flame-500/40 hover:text-flame-400">
@@ -86,7 +86,11 @@
                   <template x-for="mon in tileMons(cfg.team)" :key="'mut-'+cfg.side+'-'+mon.name">
                     <div class="rounded-lg border-2 bg-elevated/40 p-1.5 transition-colors"
                          :style="markGet(mon.name) ? `border-color:${markColor(markGet(mon.name))}` : 'border-color:transparent'">
-                      <button type="button" @click="markCycle(mon.name)" class="block w-full" :title="'Markierung wechseln – '+mon.name">
+                      <button type="button" @click="markTap(mon.name)"
+                              @pointerdown="markHoldStart(mon.name)" @pointerup="markHoldEnd()"
+                              @pointerleave="markHoldEnd()" @pointercancel="markHoldEnd()"
+                              @contextmenu.prevent
+                              class="mark-tile block w-full" :title="'Markierung wechseln – '+mon.name+' · gedrückt halten = aus'">
                         <div class="grid place-items-center" :class="tileView === 'nur' ? 'aspect-square' : 'py-1'">
                           <img :src="mon.image" :alt="mon.name" loading="lazy" class="object-contain" :class="tileView === 'nur' ? 'size-10' : 'size-14'" />
                         </div>
@@ -186,7 +190,7 @@
             <div class="mb-4 flex flex-wrap items-start justify-between gap-3">
               <div class="min-w-0">
                 <h2 class="font-display text-xl font-bold uppercase tracking-wider text-ink">Initiative-Tierlist</h2>
-                <p class="mt-1 text-sm text-mist">Errechnete Initiative (Lvl 50) beider Teams, nach Team eingefärbt – wer überholt wen? Standard <b>0</b> und <b>32</b> SP, je mit neutralem und positivem Wesen (<b>+</b>); SP-Wert, Wesen und ×1,5 / ×2 je Pokémon oben einstellbar.</p>
+                <p class="mt-1 text-sm text-mist">Errechnete Initiative (Lvl 50) beider Teams, nach Team eingefärbt – wer überholt wen? Standard <b>0</b> und <b>32</b> SP, je mit neutralem und positivem Wesen (<b>+</b>); SP-Wert, Wesen (auch Init−) und ×0,5 / ×0,67 / ×1,5 / ×2 je Pokémon über den Regler-Knopf einstellbar; bei Megas lässt sich dort die Nicht-Mega-Variante zuschalten.</p>
               </div>
               <!-- Filter: nur grün markierte Pokémon -->
               <button type="button" @click="toggleGreenOnly('speed')" :aria-pressed="greenOnly.speed"
@@ -223,6 +227,7 @@
                           <span class="h-6 w-1 shrink-0 rounded" :style="`background:${r.color}`"></span>
                           <img :src="r.mon.image" :alt="r.mon.name" loading="lazy" class="size-7 shrink-0 object-contain" />
                           <span class="min-w-0 truncate font-medium" :style="`color:${r.color}`" x-text="r.mon.name" :title="r.mon.name"></span>
+                          <span x-show="r.tag" class="shrink-0 rounded bg-elevated px-1.5 py-0.5 text-[10px] font-bold uppercase tracking-wider text-mist" x-text="r.tag"></span>
                         </div>
                       </td>
                       <td class="px-2 py-1.5">
@@ -344,29 +349,67 @@
                   <div>
                     <p class="mb-2 font-display text-xs font-semibold uppercase tracking-wider text-mist">Wesen</p>
                     <div class="grid grid-cols-3 gap-1.5">
-                      <button type="button" @click="spdSetNat(spdEdit,'both')"
-                              class="flex flex-col items-center gap-1 rounded-lg border px-2 py-2 text-[11px] font-bold transition-colors"
-                              :class="spdGet(spdEdit).nat === 'both' ? 'border-flame-500 bg-flame-500/10 text-flame-300' : 'border-line text-mist hover:text-ink'"
-                              :aria-pressed="spdGet(spdEdit).nat === 'both'">
-                        <svg viewBox="0 0 24 24" class="size-4" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 17h7"/><path d="M17 21V7"/><path d="m13.5 10.5 3.5-3.5 3.5 3.5"/></svg>
-                        Beide
-                      </button>
-                      <button type="button" @click="spdSetNat(spdEdit,'neutral')"
-                              class="flex flex-col items-center gap-1 rounded-lg border px-2 py-2 text-[11px] font-bold transition-colors"
-                              :class="spdGet(spdEdit).nat === 'neutral' ? 'border-flame-500 bg-flame-500/10 text-flame-300' : 'border-line text-mist hover:text-ink'"
-                              :aria-pressed="spdGet(spdEdit).nat === 'neutral'">
-                        <svg viewBox="0 0 24 24" class="size-4" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M5 12h14"/></svg>
-                        Neutral
-                      </button>
-                      <button type="button" @click="spdSetNat(spdEdit,'up')"
-                              class="flex flex-col items-center gap-1 rounded-lg border px-2 py-2 text-[11px] font-bold transition-colors"
-                              :class="spdGet(spdEdit).nat === 'up' ? 'border-flame-500 bg-flame-500/10 text-flame-300' : 'border-line text-mist hover:text-ink'"
-                              :aria-pressed="spdGet(spdEdit).nat === 'up'">
-                        <svg viewBox="0 0 24 24" class="size-4" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 20V5"/><path d="m5.5 11.5 6.5-6.5 6.5 6.5"/></svg>
-                        Init +
-                      </button>
+                      <template x-for="n in [
+                        {v:'both', l:'Beide', d:'M4 17h7|M17 21V7|m13.5 10.5 3.5-3.5 3.5 3.5'},
+                        {v:'all', l:'Alle drei', d:'M4 12h6|M16 21V4|m12.5 8.5 3.5-3.5 3.5 3.5|m12.5 16.5 3.5 3.5 3.5-3.5'},
+                        {v:'neutral', l:'Neutral', d:'M5 12h14'},
+                        {v:'up', l:'Init +', d:'M12 20V5|m5.5 11.5 6.5-6.5 6.5 6.5'},
+                        {v:'down', l:'Init −', d:'M12 4v15|m5.5 12.5 6.5 6.5 6.5-6.5'}
+                      ]" :key="'nat-'+n.v">
+                        <button type="button" @click="spdSetNat(spdEdit, n.v)"
+                                class="flex flex-col items-center gap-1 rounded-lg border px-2 py-2 text-[11px] font-bold transition-colors"
+                                :class="spdGet(spdEdit).nat === n.v ? 'border-flame-500 bg-flame-500/10 text-flame-300' : 'border-line text-mist hover:text-ink'"
+                                :aria-pressed="spdGet(spdEdit).nat === n.v">
+                          <svg viewBox="0 0 24 24" class="size-4" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"
+                               x-html="natIcon(n.d)"></svg>
+                          <span x-text="n.l"></span>
+                        </button>
+                      </template>
                     </div>
                   </div>
+
+                  <div>
+                    <div class="mb-2 flex items-baseline justify-between gap-2">
+                      <p class="font-display text-xs font-semibold uppercase tracking-wider text-mist">Weitere Modifikatoren</p>
+                      <p class="text-[11px] text-mist/70">z.&nbsp;B. Grollrolle, Klebenetz</p>
+                    </div>
+                    <div class="grid grid-cols-2 gap-1.5">
+                      <template x-for="m in extraMods()" :key="'xm-'+m.key">
+                        <button type="button" @click="spdToggle(spdEdit, m.key)"
+                                class="rounded-lg border px-2 py-2 text-xs font-bold tabular-nums transition-colors"
+                                :style="spdGet(spdEdit)[m.key] ? `border-color:${m.color};background:${m.color}22;color:${m.color}` : ''"
+                                :class="spdGet(spdEdit)[m.key] ? '' : 'border-line text-mist hover:text-ink'"
+                                :aria-pressed="spdGet(spdEdit)[m.key]"
+                                x-text="m.label"></button>
+                      </template>
+                    </div>
+                  </div>
+
+                  <!-- Mega-Pokémon: Zeilen für die Nicht-Mega-Variante -->
+                  <template x-if="spdEditBase">
+                    <div class="rounded-xl border border-line bg-elevated/40 p-3">
+                      <div class="flex items-center gap-2.5">
+                        <img :src="spdEditBase.image" :alt="spdEditBase.name" class="size-9 shrink-0 object-contain" />
+                        <div class="min-w-0 flex-1">
+                          <p class="truncate font-display text-xs font-bold uppercase tracking-wider text-ink" x-text="spdEditBase.name"></p>
+                          <p class="text-[11px] text-mist" x-text="`Vor der Mega-Entwicklung · Basis ${spdEditBase.base_speed}`"></p>
+                        </div>
+                        <button type="button" @click="toggleBaseVariant(spdEdit)"
+                                class="shrink-0 rounded-lg border px-2.5 py-1.5 text-[11px] font-bold transition-colors"
+                                :class="modGet(spdEdit).baseVariant ? 'border-flame-500 bg-flame-500/10 text-flame-300' : 'border-line text-mist hover:text-ink'"
+                                :aria-pressed="modGet(spdEdit).baseVariant"
+                                x-text="modGet(spdEdit).baseVariant ? 'In Tabelle' : 'Auch anzeigen'"></button>
+                      </div>
+                      <div class="mt-2 flex flex-wrap gap-1.5">
+                        <template x-for="c in spdEditBasePreview" :key="'bpv-'+c.key">
+                          <span class="inline-flex items-center gap-1.5 rounded-lg border border-line bg-panel px-2 py-1">
+                            <span class="rounded px-1.5 py-0.5 text-[11px] font-bold" :style="`color:${c.color};background:${c.color}1f`" x-text="c.label"></span>
+                            <span class="font-display text-sm font-bold tabular-nums text-ink" x-text="c.speed"></span>
+                          </span>
+                        </template>
+                      </div>
+                    </div>
+                  </template>
 
                   <div class="border-t border-line pt-3">
                     <p class="mb-2 font-display text-xs font-semibold uppercase tracking-wider text-mist">Ergibt in der Tabelle</p>
@@ -378,7 +421,7 @@
                         </span>
                       </template>
                     </div>
-                    <p class="mt-2 text-[11px] leading-relaxed text-mist" x-text="`Wesen: ${natLabel(spdGet(spdEdit).nat)}. Aktive Modifikatoren (×1,5 / ×2) ergeben je Fall eine weitere Zeile.`"></p>
+                    <p class="mt-2 text-[11px] leading-relaxed text-mist" x-text="`Wesen: ${natLabel(spdGet(spdEdit).nat)}. Jeder aktive Modifikator ergibt je Fall eine weitere Zeile.`"></p>
                   </div>
                 </div>
               </div>

@@ -80,24 +80,62 @@
         </div>
       </section>
 
-      <!-- Top-Pokémon je Spieler -->
-      <section x-show="hasData" class="mt-6 grid grid-cols-1 gap-4 sm:grid-cols-2">
+      <!-- Top-Pokémon je Spieler: nach Kills oder nach Kampf-Siegquote -->
+      <div x-show="hasData" class="mt-6 flex flex-wrap items-end justify-between gap-3">
+        <div class="flex rounded-xl border border-line p-1">
+          <template x-for="t in [{v:'kills',l:'Nach Kills'},{v:'sq',l:'Nach Kampf-SQ'}]" :key="'tt-'+t.v">
+            <button type="button" @click="setTopTab(t.v)"
+                    class="rounded-lg px-3 py-2 font-display text-sm font-semibold uppercase tracking-wider transition-colors"
+                    :class="topTab === t.v ? 'bg-flame-500/15 text-flame-300' : 'text-mist hover:text-ink'"
+                    x-text="t.l"></button>
+          </template>
+        </div>
+        <!-- Mindest-Einsatzzahl: absolut oder als Anteil der Team-Kämpfe -->
+        <div x-show="topTab === 'sq'" class="flex flex-wrap items-center gap-2">
+          <div class="flex rounded-lg border border-line p-0.5">
+            <template x-for="m in [{v:'abs',l:'Kämpfe'},{v:'pct',l:'% der Team-Kämpfe'}]" :key="'sm-'+m.v">
+              <button type="button" @click="setSqMode(m.v)"
+                      class="rounded-md px-2.5 py-1.5 text-xs font-semibold transition-colors"
+                      :class="sqMode === m.v ? 'bg-flame-500/15 text-flame-300' : 'text-mist hover:text-ink'"
+                      x-text="m.l"></button>
+            </template>
+          </div>
+          <label class="inline-flex items-center gap-1.5 text-xs text-mist">
+            mind.
+            <input x-show="sqMode === 'abs'" type="number" min="1" max="60" step="1" :value="sqMin" @change="setSqMin($event.target.value)"
+                   class="w-14 rounded-lg border border-line bg-elevated px-2 py-1.5 text-center font-display text-xs font-bold tabular-nums text-ink focus:border-flame-500 focus:outline-none" />
+            <input x-show="sqMode === 'pct'" type="number" min="1" max="100" step="5" :value="sqPct" @change="setSqPct($event.target.value)"
+                   class="w-16 rounded-lg border border-line bg-elevated px-2 py-1.5 text-center font-display text-xs font-bold tabular-nums text-ink focus:border-flame-500 focus:outline-none" />
+            <span x-text="sqMode === 'pct' ? '%' : 'Kämpfe'"></span>
+            <button type="button" @click="info('Mindest-Einsatzzahl', 'Ohne Schwelle würde ein Pokémon mit einem einzigen gewonnenen Kampf bei 100 % stehen. Die Schwelle ist entweder eine absolute Zahl an Kämpfen oder ein Anteil an allen ausgetragenen Kämpfen des Teams.')"
+                    class="text-mist/60 hover:text-flame-400" aria-label="Erklärung"><svg viewBox="0 0 24 24" class="size-3.5" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="9"/><path d="M12 11v5" stroke-linecap="round"/><circle cx="12" cy="7.6" r="0.6" fill="currentColor"/></svg></button>
+          </label>
+        </div>
+      </div>
+
+      <section x-show="hasData" class="mt-3 grid grid-cols-1 gap-4 sm:grid-cols-2">
         <template x-for="p in [{key:'janik', player:'Janik', data:janik},{key:'henrik', player:'Henrik', data:henrik}]" :key="p.key">
           <div class="rounded-2xl border border-line bg-panel p-5">
-            <p class="mb-3 font-display text-sm font-bold uppercase tracking-wider" :style="`color:${playerColor(p.player)}`" x-text="`Top-Pokémon ${p.player}`"></p>
-            <ul x-show="p.data.top.length" class="space-y-2">
-              <template x-for="(s, i) in p.data.top" :key="p.key+'-'+s.pokemon.name">
+            <p class="font-display text-sm font-bold uppercase tracking-wider" :style="`color:${playerColor(p.player)}`" x-text="`Top-Pokémon ${p.player}`"></p>
+            <p class="mb-3 text-[11px] uppercase tracking-wider text-mist" x-text="topTab === 'sq' ? sqThresholdLabel : 'Nach besiegten Gegnern'"></p>
+            <ul x-show="topList(p).length" class="space-y-2">
+              <template x-for="(s, i) in topList(p)" :key="p.key+'-'+topTab+'-'+s.pokemon.name">
                 <li class="flex items-center gap-2.5">
                   <span class="w-4 shrink-0 text-center font-display text-xs font-bold text-mist/60" x-text="i + 1"></span>
-                  <button type="button" @click="goMon(s.pokemon.name)" class="grid size-10 shrink-0 place-items-center rounded-lg border border-line bg-elevated/60 transition-colors hover:border-flame-500/40">
+                  <button type="button" @click="goMon(s.pokemon.name)" class="relative grid size-10 shrink-0 place-items-center rounded-lg border border-line bg-elevated/60 transition-colors hover:border-flame-500/40">
                     <img :src="s.pokemon.image" :alt="s.pokemon.name" loading="lazy" class="size-8 object-contain" />
+                    <span x-html="$store.awards.pinHtml('pokemon', s.pokemon.name, 'sm')"></span>
                   </button>
-                  <button type="button" @click="goMon(s.pokemon.name)" class="min-w-0 flex-1 truncate text-left text-sm font-medium text-ink transition-colors hover:text-flame-400" x-text="s.pokemon.name" :title="s.pokemon.name"></button>
-                  <span class="shrink-0 font-display text-sm font-bold tabular-nums text-volt-400" x-text="`${s.kills} K`"></span>
+                  <button type="button" @click="goMon(s.pokemon.name)" class="min-w-0 flex-1 text-left">
+                    <span class="block truncate text-sm font-medium text-ink transition-colors hover:text-flame-400" x-text="s.pokemon.name" :title="s.pokemon.name"></span>
+                    <span class="block truncate text-[11px] text-mist" x-text="topSub(s)"></span>
+                  </button>
+                  <span class="shrink-0 font-display text-sm font-bold tabular-nums text-volt-400" x-text="topValue(s)"></span>
                 </li>
               </template>
             </ul>
-            <p x-show="!p.data.top.length" class="text-sm text-mist">Noch keine Kills.</p>
+            <p x-show="!topList(p).length" class="text-sm text-mist"
+               x-text="topTab === 'sq' ? 'Kein Pokémon erreicht die Mindest-Einsatzzahl.' : 'Noch keine Kills.'"></p>
           </div>
         </template>
       </section>

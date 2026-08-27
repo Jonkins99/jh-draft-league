@@ -1,12 +1,19 @@
 import Alpine from 'alpinejs';
 import { db } from './firebase.js';
 import { collection, doc, onSnapshot, writeBatch, arrayUnion, setDoc } from 'firebase/firestore';
-import { battleStats, computeStandings, pokemonStats, placementHistory, speedTiers, speedCases, clampSp, applySpeedMod, typeMultiplier, ALL_TYPES, pokemonProfile, defensiveChart, offensiveChart, playerDuel, showdownExport } from './scoring.mjs';
+import { battleStats, computeStandings, pokemonStats, placementHistory, speedTiers, speedCases, clampSp, applySpeedMod, typeMultiplier, ALL_TYPES, pokemonProfile, defensiveChart, offensiveChart, playerDuel, showdownExport, teamBattleTotals, isMega, baseFormOf } from './scoring.mjs';
 import {
   exportDataset, buildScheduleExport, buildBattleDetailsExport, buildStandingsExport,
   buildRankingExport, buildTeamsExport, buildDraftpoolExport,
 } from './export.mjs';
 import { fetchEloRows, readEloCache, writeEloCache, resolveEloName } from './elo.mjs';
+import {
+  PLAYERS, MAX_NOMINATIONS, MATCHDAY_AWARDS, SEASON_AWARDS, AWARD_BY_KEY,
+  awardDocId, optionId, mergedOptions, remainingNominations, hasVoted, nextStatus,
+  voteResults, awardWinner, awardWinners, spoilerNote, awardableDays, MATCHDAY_AWARDS_FROM,
+} from './awards.mjs';
+import { awardSvg, awardColor } from './award-visuals.mjs';
+import { runCeremony } from './ceremony.mjs';
 
 const PICKS_PER_TEAM = 10;
 const TIER_ORDER = ['S', 'A', 'B', 'C', 'D'];
@@ -20,6 +27,7 @@ const ICONS = {
   build: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M3 7h7"/><path d="M3 12h7"/><path d="M3 17h7"/><path d="M14 7h7"/><path d="M14 12h7"/><path d="M14 17h7"/><circle cx="14" cy="7" r="0.5"/></svg>`,
   search: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="7"/><path d="m21 21-4.3-4.3"/></svg>`,
   transfer: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M4 8h13"/><path d="m14 5 3 3-3 3"/><path d="M20 16H7"/><path d="m10 13-3 3 3 3"/></svg>`,
+  award: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="9" r="6"/><path d="M8.2 14.2 6.5 21l5.5-2.8L17.5 21l-1.7-6.8"/></svg>`,
   stats: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M4 19V5"/><path d="M4 19h16"/><rect x="7" y="11" width="3" height="5" rx="0.5"/><rect x="12" y="7" width="3" height="9" rx="0.5"/><rect x="17" y="13" width="3" height="3" rx="0.5"/></svg>`,
 };
 
@@ -65,6 +73,11 @@ const MATCHUP_MARKS_KEY = 'jhdl-matchup-marks-v1'; // { [pairKey]: { [monName]: 
 const MARK_CYCLE = [null, 'green', 'yellow', 'orange', 'red'];
 const MARK_COLORS = { green: '#63bc5a', yellow: '#ffcb05', orange: '#ff9d55', red: '#e3350d' };
 
+// Wer sitzt an diesem Gerät? Steuert, wessen Nominierungen/Stimmen gespeichert werden.
+const ME_KEY = 'jhdl-me-v1';           // { player: 'Janik'|'Henrik' }
+const SIDEBAR_KEY = 'jhdl-sidebar-v1'; // { collapsed: bool }
+const SQ_KEY = 'jhdl-spieler-sq-v1';   // { mode:'abs'|'pct', min:number }
+
 // Teambuilding: zuletzt geöffnetes Matchup + letzte 6 (gerätelokal).
 const TB_RECENT_KEY = 'jhdl-tb-recent-v1';   // { last: {a,b}, recent: [{a,b}, …≤6] }
 // Notizen & Moveset je Pokémon PRO Matchup (reihenfolge-unabhängiger markPairKey).
@@ -97,8 +110,14 @@ function saveJson(key, value) {
 // === Speed-Tier-Einstellungen (geteilt) =====================================
 // Anzeige-Konfiguration eines Pokémon in den Initiative-Tabellen. `sp = null`
 // bedeutet „Standardannahme": 0 UND 32 SP. `nat` wählt die Wesen-Varianten.
-const NAT_MODES = ['both', 'neutral', 'up'];
-const NAT_LABELS = { both: 'neutral & Init+', neutral: 'nur neutral', up: 'nur Init+' };
+const NAT_MODES = ['both', 'all', 'neutral', 'up', 'down'];
+const NAT_LABELS = {
+  both: 'neutral & Init+',
+  all: 'Init−, neutral & Init+',
+  neutral: 'nur neutral',
+  up: 'nur Init+',
+  down: 'nur Init−',
+};
 
 function normalizeSpd(raw) {
   const s = raw || {};
@@ -111,17 +130,29 @@ function normalizeSpd(raw) {
 function spdBadge(cfg) {
   return cfg.sp == null ? '0/32' : String(cfg.sp);
 }
-// Farbe eines Investment-Falls: 0 SP neutral grau, investiert orange, Init+-Wesen gelb.
-function invTone(sp, natureUp) {
-  if (natureUp) return '#ffcb05';
+// Farbe eines Investment-Falls: 0 SP neutral grau, investiert orange, Init+-Wesen gelb,
+// Init−-Wesen violett. `nature` ist 'up'|'neutral'|'down' (Boolean weiterhin erlaubt).
+function invTone(sp, nature) {
+  if (nature === true || nature === 'up') return '#ffcb05';
+  if (nature === 'down') return '#ab6ac8';
   return sp > 0 ? '#ff5a36' : '#98a2b3';
 }
-// Aktive In-Battle-Modifikatoren eines Pokémon (×1 immer, ×1,5/×2 optional).
+// Aktive In-Battle-Modifikatoren eines Pokémon. ×1 immer; ×1,5/×2 direkt an der Zeile,
+// ×0,5/×0,67 (Grollrolle/Klebenetz) nur über den Konfigurations-Dialog.
+const SPEED_MOD_DEFS = [
+  { key: 'x05', label: '×0,5', mult: 0.5, color: '#ab6ac8' },
+  { key: 'x067', label: '×0,67', mult: 2 / 3, color: '#c08552' },
+  { key: 'x15', label: '×1,5', mult: 1.5, color: '#4d90d5' },
+  { key: 'x2', label: '×2', mult: 2, color: '#63bc5a' },
+];
+const SPEED_MOD_BY_KEY = Object.fromEntries(SPEED_MOD_DEFS.map((m) => [m.key, m]));
 function speedMods(cfg) {
   const mods = [{ key: 'x1', label: '×1', mult: 1 }];
-  if (cfg.x15) mods.push({ key: 'x15', label: '×1,5', mult: 1.5 });
-  if (cfg.x2) mods.push({ key: 'x2', label: '×2', mult: 2 });
+  SPEED_MOD_DEFS.forEach((m) => { if (cfg[m.key]) mods.push({ key: m.key, label: m.label, mult: m.mult }); });
   return mods;
+}
+function modTone(key) {
+  return SPEED_MOD_BY_KEY[key]?.color || '#98a2b3';
 }
 
 // === Statistik-Katalog ======================================================
@@ -140,6 +171,7 @@ const STAT_CATALOG = [
   { key: 'matchWinPct', label: 'Match-Siegquote', short: 'M-SQ', fmt: 'pct', info: 'Anteil gewonnener Matches an allen Matches, in denen es im Aufgebot stand.' },
   { key: 'survivalRate', label: 'Überlebensrate', short: 'Überl.', fmt: 'pct', info: 'Anteil der Kämpfe, die es überlebt hat (kein Death).' },
   { key: 'base_speed', label: 'Initiative', short: 'Init', fmt: 'int', info: 'Basis-Initiative (Speed-Basiswert) aus den Stammdaten.' },
+  { key: 'elo', label: 'Elo', short: 'Elo', fmt: 'elo', info: 'Aktueller Elo-Wert aus dem öffentlichen Draft-Sheet. „—" heißt: im Sheet nicht gefunden.' },
   { key: 'cost', label: 'Kosten', short: 'Kosten', fmt: 'int', info: 'Draft-Kosten (Punkte) des Pokémon.' },
 ];
 const STAT_BY_KEY = Object.fromEntries(STAT_CATALOG.map((s) => [s.key, s]));
@@ -159,7 +191,18 @@ function fmtStat(value, fmt) {
   const v = Number.isFinite(value) ? value : 0;
   if (fmt === 'pct') return `${Math.round(v * 100)} %`;
   if (fmt === 'num2') return v.toFixed(2);
+  if (fmt === 'elo') return v > 0 ? String(Math.round(v)) : '—';
   return String(v);
+}
+
+// Elo-Werte aus dem Sheet-Store an Ranking-Zeilen hängen (0 = unbekannt).
+function withElo(list, eloRows) {
+  const byName = {};
+  (eloRows || []).forEach((r) => { if (r?.resolved) byName[r.resolved] = r.elo; });
+  return list.map((s) => {
+    const e = byName[s.pokemon?.name];
+    return { ...s, elo: Number.isFinite(e) ? e : 0 };
+  });
 }
 
 // Rang eines Tiers (S bester). Unbekannt/leer -> hinten.
@@ -191,6 +234,8 @@ function columnsMixin(storageKey) {
     colVisible: Object.fromEntries(STAT_KEYS.map((k) => [k, DEFAULT_COLS.includes(k)])),
     sortKey: 'kills',
     sortDir: 'desc',
+    sortKey2: '',      // optionale zweite Sortiermetrik ('' = aus)
+    sortDir2: 'desc',
     viewMode: 'table', // 'table' | 'cards'
     catalog: STAT_CATALOG,
     _dragKey: null,
@@ -208,6 +253,8 @@ function columnsMixin(storageKey) {
       }
       if (saved && STAT_BY_KEY[saved.sortKey]) this.sortKey = saved.sortKey;
       if (saved && (saved.sortDir === 'asc' || saved.sortDir === 'desc')) this.sortDir = saved.sortDir;
+      if (saved && STAT_BY_KEY[saved.sortKey2]) this.sortKey2 = saved.sortKey2;
+      if (saved && (saved.sortDir2 === 'asc' || saved.sortDir2 === 'desc')) this.sortDir2 = saved.sortDir2;
       if (saved && (saved.view === 'table' || saved.view === 'cards')) this.viewMode = saved.view;
       if (!this.visibleCols().length) this.colVisible[this.colOrder[0]] = true; // nie 0 Spalten
     },
@@ -217,6 +264,8 @@ function columnsMixin(storageKey) {
         visible: this.colVisible,
         sortKey: this.sortKey,
         sortDir: this.sortDir,
+        sortKey2: this.sortKey2,
+        sortDir2: this.sortDir2,
         view: this.viewMode,
       });
     },
@@ -242,6 +291,11 @@ function columnsMixin(storageKey) {
       }
       this.saveColumns();
     },
+    // Sortieren nach einer ausgeblendeten Kennzahl ist erlaubt — die Auswahl der
+    // zweiten Metrik listet daher den kompletten Katalog.
+    sortChoices() {
+      return this.orderedCatalog().filter((c) => c.key !== this.sortKey);
+    },
     setSort(key) {
       if (this.sortKey === key) {
         this.sortDir = this.sortDir === 'desc' ? 'asc' : 'desc';
@@ -249,14 +303,33 @@ function columnsMixin(storageKey) {
         this.sortKey = key;
         this.sortDir = 'desc';
       }
+      // Die zweite Metrik darf nicht die erste doppeln.
+      if (this.sortKey2 === this.sortKey) this.sortKey2 = '';
+      this.saveColumns();
+    },
+    // Zweite Sortiermetrik: greift bei Gleichstand in der ersten.
+    setSort2(key) {
+      this.sortKey2 = key === this.sortKey ? '' : (STAT_BY_KEY[key] ? key : '');
+      this.saveColumns();
+    },
+    toggleSortDir2() {
+      this.sortDir2 = this.sortDir2 === 'desc' ? 'asc' : 'desc';
       this.saveColumns();
     },
     sortRows(rows) {
       const key = this.sortKey;
       const dir = this.sortDir === 'asc' ? 1 : -1;
-      return [...rows].sort(
-        (a, b) => dir * ((a[key] ?? 0) - (b[key] ?? 0)) || a.pokemon.name.localeCompare(b.pokemon.name),
-      );
+      const key2 = STAT_BY_KEY[this.sortKey2] ? this.sortKey2 : null;
+      const dir2 = this.sortDir2 === 'asc' ? 1 : -1;
+      return [...rows].sort((a, b) => {
+        const primary = dir * ((a[key] ?? 0) - (b[key] ?? 0));
+        if (primary) return primary;
+        if (key2) {
+          const secondary = dir2 * ((a[key2] ?? 0) - (b[key2] ?? 0));
+          if (secondary) return secondary;
+        }
+        return a.pokemon.name.localeCompare(b.pokemon.name);
+      });
     },
     colValue(row, key) {
       return fmtStat(row[key], STAT_BY_KEY[key]?.fmt);
@@ -287,6 +360,20 @@ function columnsMixin(storageKey) {
       this.saveColumns();
     },
   };
+}
+
+// Text für ein HTML-Attribut in einem generierten String absichern.
+function escAttr(value) {
+  return String(value ?? '').replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+}
+
+// SVG-Pfade eines Wesen-Knopfs aus einer „d1|d2"-Kurzschreibweise (x-html).
+function natIcon(spec) {
+  return String(spec || '')
+    .split('|')
+    .filter(Boolean)
+    .map((d) => `<path d="${d}"/>`)
+    .join('');
 }
 
 // Info-Popover global öffnen (Light-Dismiss). Reicht Titel + Text an das App-Level weiter.
@@ -475,8 +562,11 @@ function app() {
     searchIndex: 0,
     // Info-Popover (geteilt)
     info: { title: '', text: '' },
+    // Sidebar ein-/ausklappbar (gerätelokal)
+    navCollapsed: false,
 
     initApp() {
+      this.navCollapsed = !!loadJson(SIDEBAR_KEY).collapsed;
       window.addEventListener('keydown', (e) => {
         if ((e.ctrlKey || e.metaKey) && (e.key === 'k' || e.key === 'K')) {
           e.preventDefault();
@@ -484,7 +574,29 @@ function app() {
         }
       });
       window.addEventListener('stat-info', (e) => this.showInfo(e.detail));
+      this.initBlurOnOutside();
       this.bootView();
+    },
+
+    toggleNav() {
+      this.navCollapsed = !this.navCollapsed;
+      saveJson(SIDEBAR_KEY, { collapsed: this.navCollapsed });
+    },
+
+    // iPadOS/Safari geben den Fokus nicht ab, wenn man neben ein Eingabefeld tippt —
+    // die Bildschirmtastatur bleibt dann offen. Ein Tap auf neutrale Fläche (kein
+    // Formularelement, kein Button, kein Label) nimmt darum aktiv den Fokus.
+    initBlurOnOutside() {
+      const interactive = 'input, textarea, select, button, a, label, [contenteditable="true"], [popover]';
+      const blurIfOutside = (e) => {
+        const el = document.activeElement;
+        if (!el || !/^(INPUT|TEXTAREA|SELECT)$/.test(el.tagName)) return;
+        if (e.target instanceof Element && e.target.closest(interactive)) return;
+        el.blur();
+      };
+      // pointerdown deckt Maus + Stift ab, touchend zusätzlich iPadOS-Gesten.
+      document.addEventListener('pointerdown', blurIfOutside, true);
+      document.addEventListener('touchend', blurIfOutside, true);
     },
 
     // === Startansicht ======================================================
@@ -554,6 +666,7 @@ function app() {
         { key: 'spieltag', label: 'Spielplan', file: './pages/spieltag.html', icon: ICONS.bolt },
         { key: 'tabelle', label: 'Tabelle', file: './pages/tabelle.html', icon: ICONS.standings },
         { key: 'stats', label: 'Statistiken', file: './pages/statistiken.html', icon: ICONS.stats },
+        { key: 'awards', label: 'Awards', file: './pages/awards.html', icon: ICONS.award },
         { key: 'spieler', label: 'Spieler', file: './pages/spieler.html', icon: ICONS.player },
       ];
       const done = this.$store.league.draft?.status === 'done';
@@ -904,6 +1017,7 @@ function teamsView() {
       this.initColumns();
       this.spdSettings = loadJson(SPEED_SETTINGS_KEY);
       this.weakExcluded = loadJson(WEAK_SETTINGS_KEY);
+      this.$store.elo.ensureLoaded();
       const nav = this.$store.nav;
       const teamId = nav?.teamId || null;
       if (nav) nav.teamId = null;
@@ -984,7 +1098,8 @@ function teamsView() {
     get teamRanking() {
       const team = this.selectedTeam;
       if (!team) return [];
-      return this.sortRows(this.enrichSpeed(pokemonStats([team], this.league.results, this.league.pokemon, { scopeTeamId: team.id })));
+      const rows = this.enrichSpeed(pokemonStats([team], this.league.results, this.league.pokemon, { scopeTeamId: team.id }));
+      return this.sortRows(withElo(rows, this.$store.elo.rows));
     },
     enrichSpeed(list) {
       return list.map((s) => ({ ...s, base_speed: this.baseSpeedFor(s.pokemon) ?? 0 }));
@@ -1050,8 +1165,15 @@ function teamsView() {
     },
     spdGet(name) {
       const s = this.spdSettings[name] || {};
-      return { show: s.show !== false, x15: !!s.x15, x2: !!s.x2, ...normalizeSpd(s) };
+      return {
+        show: s.show !== false,
+        x15: !!s.x15, x2: !!s.x2, x05: !!s.x05, x067: !!s.x067,
+        ...normalizeSpd(s),
+      };
     },
+    // Zusatz-Modifikatoren (×0,5 / ×0,67) — nur im Konfigurations-Dialog.
+    extraMods() { return SPEED_MOD_DEFS.filter((m) => m.key === 'x05' || m.key === 'x067'); },
+    natIcon(spec) { return natIcon(spec); },
     spdToggle(name, key) {
       const cur = this.spdGet(name);
       cur[key] = !cur[key];
@@ -1096,7 +1218,7 @@ function teamsView() {
       const mon = this.spdEditMon;
       const base = mon ? this.baseSpeedFor(mon) : null;
       if (base == null) return [];
-      return speedCases(base, this.spdGet(mon.name)).map((c) => ({ ...c, color: invTone(c.sp, c.natureUp) }));
+      return speedCases(base, this.spdGet(mon.name)).map((c) => ({ ...c, color: invTone(c.sp, c.nature) }));
     },
     toggleSpdSort() {
       this.spdSort = this.spdSort === 'desc' ? 'asc' : 'desc';
@@ -1123,7 +1245,7 @@ function teamsView() {
               mon,
               inv: inv.label,
               invKey: inv.key,
-              invColor: invTone(inv.sp, inv.natureUp),
+              invColor: invTone(inv.sp, inv.nature),
               mod: mod.label,
               modKey: mod.key,
               speed: applySpeedMod(inv.speed, mod.mult),
@@ -1135,9 +1257,7 @@ function teamsView() {
       rows.sort((a, b) => dir * (a.speed - b.speed) || a.mon.name.localeCompare(b.mon.name));
       return rows;
     },
-    modColor(key) {
-      return key === 'x2' ? '#63bc5a' : key === 'x15' ? '#4d90d5' : '#98a2b3';
-    },
+    modColor(key) { return modTone(key); },
 
     // === Schwächen & Resistenzen ===========================================
     weakIncluded(name) {
@@ -1757,10 +1877,11 @@ function statsView() {
     // --- Stats-Tab: filterbares Pokémon-Ranking ---
     get baseRanking() {
       const speed = this.league.pokemon;
-      return pokemonStats(this.league.seasonTeams, this.league.results, this.league.pokemon).map((s) => ({
+      const rows = pokemonStats(this.league.seasonTeams, this.league.results, this.league.pokemon).map((s) => ({
         ...s,
         base_speed: (speed.find((p) => p.name === s.pokemon.name)?.base_speed) ?? 0,
       }));
+      return withElo(rows, this.$store.elo.rows);
     },
     get filterTeams() {
       return this.league.seasonTeams;
@@ -1901,12 +2022,18 @@ function pokemonView() {
     from: null,
     _profileCache: null,
     _profileKey: null,
+    // Partner-/Gegner-Bilanzen: absolute Zahlen oder Prozent.
+    recMode: 'abs', // 'abs' | 'pct'
+    recMin: 1,      // Mindest-Anzahl gemeinsamer Kämpfe
 
     // Ziel-Pokémon + Herkunft aus dem nav-Store puffern (nicht löschen -> Reload/Watch).
     init() {
       const nav = this.$store.nav;
       this.name = nav?.pokemonName || null;
       this.from = nav?.from || null;
+      const saved = loadJson('jhdl-mon-rec-v1');
+      if (saved.mode === 'pct' || saved.mode === 'abs') this.recMode = saved.mode;
+      if (Number.isFinite(saved.min)) this.recMin = Math.max(1, saved.min);
       this.$store.elo.ensureLoaded();
       // Falls die Daten beim ersten Render noch nicht da sind, neu auswerten sobald geladen.
       if (!this.loaded) {
@@ -1956,6 +2083,56 @@ function pokemonView() {
     },
     get eloLoading() { return this.$store.elo.loading; },
 
+    // === Partner- und Gegner-Bilanzen ======================================
+    // Auf Kampf-Ebene: mit wem wurde am häufigsten gewonnen/verloren und gegen
+    // wen. Prozent-Modus bezieht sich auf die gemeinsamen Kämpfe des Paares.
+    setRecMode(mode) {
+      this.recMode = mode === 'pct' ? 'pct' : 'abs';
+      saveJson('jhdl-mon-rec-v1', { mode: this.recMode, min: this.recMin });
+    },
+    setRecMin(v) {
+      this.recMin = Math.max(1, Math.min(30, Math.round(Number(v) || 1)));
+      saveJson('jhdl-mon-rec-v1', { mode: this.recMode, min: this.recMin });
+    },
+    // kind: 'partner' | 'opponent', outcome: 'w' | 'l'
+    recList(kind, outcome) {
+      const src = (kind === 'partner' ? this.profile?.partnerRecords : this.profile?.opponentRecords) || [];
+      const pool = src.filter((r) => r.total >= this.recMin && r[outcome] > 0);
+      const pct = this.recMode === 'pct';
+      return [...pool]
+        .sort((a, b) => {
+          if (pct) {
+            const pa = a[outcome] / a.total;
+            const pb = b[outcome] / b.total;
+            return pb - pa || b[outcome] - a[outcome] || a.name.localeCompare(b.name);
+          }
+          return b[outcome] - a[outcome] || b.total - a.total || a.name.localeCompare(b.name);
+        })
+        .slice(0, 5);
+    },
+    // Anzeigewert einer Bilanz-Zeile.
+    recValue(row, outcome) {
+      if (this.recMode === 'pct') return `${Math.round((row[outcome] / Math.max(1, row.total)) * 100)} %`;
+      return `${row[outcome]}×`;
+    },
+    recSub(row, outcome) {
+      const pct = Math.round((row[outcome] / Math.max(1, row.total)) * 100);
+      return this.recMode === 'pct'
+        ? `${row[outcome]} von ${row.total} Kämpfen`
+        : `${pct} % von ${row.total} Kämpfen`;
+    },
+    get recBlocks() {
+      return [
+        { kind: 'partner', outcome: 'w', label: 'Erfolgreichste Partner', hint: 'Gemeinsam gewonnen', accent: '#63bc5a', empty: 'Noch kein gemeinsamer Sieg.' },
+        { kind: 'partner', outcome: 'l', label: 'Unglücklichste Partner', hint: 'Gemeinsam verloren', accent: '#ff9d55', empty: 'Noch keine gemeinsame Niederlage.' },
+        { kind: 'opponent', outcome: 'w', label: 'Liebste Gegner', hint: 'Gegen sie gewonnen', accent: '#4d90d5', empty: 'Noch kein Sieg gegen einen Gegner.' },
+        { kind: 'opponent', outcome: 'l', label: 'Härteste Gegner', hint: 'Gegen sie verloren', accent: '#e3350d', empty: 'Noch keine Niederlage.' },
+      ];
+    },
+    get hasRecords() {
+      return !!(this.profile?.partnerRecords?.length || this.profile?.opponentRecords?.length);
+    },
+
     back() {
       this.$dispatch('navigate', { key: this.from || 'teams' });
     },
@@ -1971,11 +2148,13 @@ function pokemonView() {
       if (!Number.isFinite(base)) return [];
       const tiers = speedTiers(base);
       const invs = [
+        { key: 's0d', label: '0−' },
         { key: 's0', label: '0' },
         { key: 's32', label: '32' },
         { key: 's32n', label: '32+' },
       ];
       const mods = [
+        { key: 'x05', label: '×0,5', mult: 0.5 },
         { key: 'x1', label: '×1', mult: 1 },
         { key: 'x15', label: '×1,5', mult: 1.5 },
         { key: 'x2', label: '×2', mult: 2 },
@@ -1996,10 +2175,13 @@ function pokemonView() {
       return rows;
     },
     invColor(key) {
-      return key === 's32n' ? '#ffcb05' : key === 's32' ? '#ff5a36' : '#98a2b3';
+      if (key === 's32n') return '#ffcb05';
+      if (key === 's32') return '#ff5a36';
+      if (key === 's0d' || key === 's32d') return '#ab6ac8';
+      return '#98a2b3';
     },
     modColor(key) {
-      return key === 'x2' ? '#63bc5a' : key === 'x15' ? '#4d90d5' : '#98a2b3';
+      return modTone(key);
     },
 
     // Rang nach base_speed über alle Pokémon mit base_speed.
@@ -2097,6 +2279,63 @@ function pokemonView() {
 // === Spieler-Duell (Janik ⚔ Henrik) ========================================
 function spielerView() {
   return {
+    // Top-Pokémon: nach Kills oder nach Kampf-Siegquote.
+    topTab: 'kills', // 'kills' | 'sq'
+    sqMode: 'abs',   // 'abs' = Mindestzahl Kämpfe | 'pct' = Anteil der Team-Kämpfe
+    sqMin: 4,
+    sqPct: 40,       // in Prozent
+
+    init() {
+      const saved = loadJson(SQ_KEY);
+      if (saved.tab === 'sq' || saved.tab === 'kills') this.topTab = saved.tab;
+      if (saved.mode === 'pct' || saved.mode === 'abs') this.sqMode = saved.mode;
+      if (Number.isFinite(saved.min)) this.sqMin = Math.max(1, Math.min(60, saved.min));
+      if (Number.isFinite(saved.pct)) this.sqPct = Math.max(1, Math.min(100, saved.pct));
+    },
+    saveSq() {
+      saveJson(SQ_KEY, { tab: this.topTab, mode: this.sqMode, min: this.sqMin, pct: this.sqPct });
+    },
+    setTopTab(t) { this.topTab = t; this.saveSq(); },
+    setSqMode(m) { this.sqMode = m === 'pct' ? 'pct' : 'abs'; this.saveSq(); },
+    setSqMin(v) { this.sqMin = Math.max(1, Math.min(60, Math.round(Number(v) || 1))); this.saveSq(); },
+    setSqPct(v) { this.sqPct = Math.max(1, Math.min(100, Math.round(Number(v) || 1))); this.saveSq(); },
+    get sqThresholdLabel() {
+      return this.sqMode === 'pct'
+        ? `ab ${this.sqPct} % der Team-Kämpfe`
+        : `ab ${this.sqMin} ${this.sqMin === 1 ? 'Kampf' : 'Kämpfen'}`;
+    },
+
+    // Kennzahlen aller Pokémon + ausgetragene Kämpfe je Team (für die relative Schwelle).
+    get monStats() {
+      return pokemonStats(this.league.seasonTeams, this.league.results, this.league.pokemon);
+    },
+    get teamBattles() {
+      return teamBattleTotals(this.league.results);
+    },
+    // Top 5 nach Kampf-Siegquote, gefiltert über die eingestellte Mindest-Einsatzzahl.
+    topBySq(player) {
+      const totals = this.teamBattles;
+      const min = this.sqMin;
+      const pct = this.sqPct / 100;
+      return this.monStats
+        .filter((s) => s.team?.player === player && s.battles > 0)
+        .map((s) => ({ ...s, teamBattles: totals[s.team.id] || 0 }))
+        .filter((s) => (this.sqMode === 'pct'
+          ? s.teamBattles > 0 && s.battles / s.teamBattles >= pct
+          : s.battles >= min))
+        .sort((a, b) => b.battleWinPct - a.battleWinPct || b.battles - a.battles || a.pokemon.name.localeCompare(b.pokemon.name))
+        .slice(0, 5);
+    },
+    topList(p) {
+      return this.topTab === 'sq' ? this.topBySq(p.player) : p.data.top;
+    },
+    topValue(s) {
+      return this.topTab === 'sq' ? this.fmtPct(s.battleWinPct) : `${s.kills} K`;
+    },
+    topSub(s) {
+      return this.topTab === 'sq' ? `${s.battleWins}/${s.battles} Kämpfe` : `${s.battles} Kämpfe`;
+    },
+
     get league() {
       return this.$store.league;
     },
@@ -2237,10 +2476,13 @@ function teambuildingView() {
       names.forEach((n) => {
         const d = stored[n] || {};
         const ms = d.moveset || {};
+        // Mega-Pokémon brauchen zwingend ihren Stein — Item einmalig vorbelegen,
+        // solange für dieses Pokémon in diesem Matchup noch nichts hinterlegt ist.
+        const preset = !d.moveset && isMega(n) ? 'Mega-Stein' : '';
         notes[n] = {
           note: d.note || '',
           moveset: {
-            item: ms.item || '',
+            item: ms.item || preset,
             ability: ms.ability || '',
             moves: [0, 1, 2, 3].map((i) => (ms.moves && ms.moves[i]) || ''),
             evs: ms.evs || '',
@@ -2313,13 +2555,40 @@ function teambuildingView() {
     markColor(c) { return MARK_COLORS[c] || 'transparent'; },
     markCycle(name) {
       const i = MARK_CYCLE.indexOf(this.markGet(name));
-      const next = MARK_CYCLE[(i + 1) % MARK_CYCLE.length];
+      this.markSet(name, MARK_CYCLE[(i + 1) % MARK_CYCLE.length]);
+    },
+    markSet(name, value) {
       const m = { ...this.marks };
-      if (next) m[name] = next; else delete m[name];
+      if (value) m[name] = value; else delete m[name];
       this.marks = m;
       const all = loadJson(MATCHUP_MARKS_KEY);
       all[this.markPairKey()] = this.marks;
       saveJson(MATCHUP_MARKS_KEY, all);
+    },
+    // Gedrückthalten auf einer Kachel setzt die Markierung direkt auf „aus" —
+    // sonst müsste man die ganze Farbfolge durchklicken. Der Klick, der auf das
+    // Loslassen folgt, wird unterdrückt.
+    _markHold: null,
+    _markSuppress: false,
+    markHoldStart(name) {
+      this.markHoldEnd();
+      this._markHold = setTimeout(() => {
+        this._markHold = null;
+        this._markSuppress = true;
+        if (this.markGet(name)) {
+          this.markSet(name, null);
+          window.dispatchEvent(new CustomEvent('toast', { detail: { msg: `Markierung entfernt – ${name}` } }));
+        }
+      }, 450);
+    },
+    markHoldEnd() {
+      if (this._markHold) clearTimeout(this._markHold);
+      this._markHold = null;
+    },
+    markTap(name) {
+      this.markHoldEnd();
+      if (this._markSuppress) { this._markSuppress = false; return; }
+      this.markCycle(name);
     },
 
     // === Showdown-Export ====================================================
@@ -2367,8 +2636,14 @@ function teambuildingView() {
     },
     modGet(name) {
       const m = this.mods[name] || {};
-      return { x15: !!m.x15, x2: !!m.x2, ...normalizeSpd(m) };
+      return {
+        x15: !!m.x15, x2: !!m.x2, x05: !!m.x05, x067: !!m.x067,
+        baseVariant: !!m.baseVariant,
+        ...normalizeSpd(m),
+      };
     },
+    extraMods() { return SPEED_MOD_DEFS.filter((m) => m.key === 'x05' || m.key === 'x067'); },
+    natIcon(spec) { return natIcon(spec); },
     modToggle(name, key) {
       const cur = this.modGet(name);
       cur[key] = !cur[key];
@@ -2396,6 +2671,7 @@ function teambuildingView() {
     },
     // Dialog-Aliase, damit das SP-/Wesen-Popover in beiden Views identisch ist.
     spdGet(name) { return this.modGet(name); },
+    spdToggle(name, key) { this.modToggle(name, key); },
     spdSetSp(name, value) { this.modSetSp(name, value); },
     spdResetSp(name) { this.modResetSp(name); },
     spdSetNat(name, nat) { this.modSetNat(name, nat); },
@@ -2416,7 +2692,29 @@ function teambuildingView() {
       const mon = this.spdEditMon;
       const base = mon ? this.baseSpeedFor(mon) : null;
       if (base == null) return [];
-      return speedCases(base, this.modGet(mon.name)).map((c) => ({ ...c, color: invTone(c.sp, c.natureUp) }));
+      return speedCases(base, this.modGet(mon.name)).map((c) => ({ ...c, color: invTone(c.sp, c.nature) }));
+    },
+
+    // === Mega-Pokémon: Nicht-Mega-Variante ==================================
+    // Vor der Mega-Entwicklung zählt die Basis-Initiative. Sie lässt sich je
+    // Matchup zusätzlich in die Tierlist aufnehmen.
+    megaBaseOf(mon) {
+      const full = this.league.pokemon.find((p) => p.name === mon?.name) || mon;
+      return baseFormOf(full, this.league.pokemon);
+    },
+    get spdEditBase() {
+      const mon = this.spdEditMon;
+      return mon ? this.megaBaseOf(mon) : null;
+    },
+    get spdEditBasePreview() {
+      const base = this.spdEditBase;
+      const mon = this.spdEditMon;
+      if (!base || !Number.isFinite(base.base_speed)) return [];
+      return speedCases(base.base_speed, this.modGet(mon.name)).map((c) => ({ ...c, color: invTone(c.sp, c.nature) }));
+    },
+    toggleBaseVariant(name) {
+      const cur = this.modGet(name);
+      this.modSave(name, { ...cur, baseVariant: !cur.baseVariant });
     },
     allMons(team) {
       const rank = { S: 0, A: 1, B: 2, C: 3, D: 4 };
@@ -2448,27 +2746,38 @@ function teambuildingView() {
       [['a', this.teamA], ['b', this.teamB]].forEach(([side, team]) => {
         if (!team) return;
         this.speedMons(team).forEach((mon) => {
-          const base = this.baseSpeedFor(mon);
-          if (base == null) return;
           const cfg = this.modGet(mon.name);
           const mods = speedMods(cfg);
-          speedCases(base, cfg).forEach((inv) => mods.forEach((mod) => {
-            rows.push({
-              id: `${side}|${mon.name}|${inv.key}|${mod.key}`,
-              side, team, mon,
-              inv: inv.label, invKey: inv.key, invColor: invTone(inv.sp, inv.natureUp),
-              mod: mod.label, modKey: mod.key,
-              speed: applySpeedMod(inv.speed, mod.mult),
-              color: this.playerColor(team.player),
-            });
-          }));
+          // Formen dieses Kader-Eintrags: das Pokémon selbst und — bei Megas mit
+          // aktivierter Basisvariante — zusätzlich die Nicht-Mega-Form.
+          const forms = [];
+          const own = this.baseSpeedFor(mon);
+          if (own != null) forms.push({ mon, base: own, tag: null, key: 'self' });
+          if (cfg.baseVariant) {
+            const bf = this.megaBaseOf(mon);
+            if (bf && Number.isFinite(bf.base_speed)) {
+              forms.push({ mon: bf, base: bf.base_speed, tag: 'vor Mega', key: 'base' });
+            }
+          }
+          forms.forEach((form) => {
+            speedCases(form.base, cfg).forEach((inv) => mods.forEach((mod) => {
+              rows.push({
+                id: `${side}|${mon.name}|${form.key}|${inv.key}|${mod.key}`,
+                side, team, mon: form.mon, tag: form.tag,
+                inv: inv.label, invKey: inv.key, invColor: invTone(inv.sp, inv.nature),
+                mod: mod.label, modKey: mod.key,
+                speed: applySpeedMod(inv.speed, mod.mult),
+                color: this.playerColor(team.player),
+              });
+            }));
+          });
         });
       });
       const dir = this.spdSort === 'asc' ? 1 : -1;
       rows.sort((a, b) => dir * (a.speed - b.speed) || a.mon.name.localeCompare(b.mon.name));
       return rows;
     },
-    modColor(key) { return key === 'x2' ? '#63bc5a' : key === 'x15' ? '#4d90d5' : '#98a2b3'; },
+    modColor(key) { return modTone(key); },
 
     // Bedrohungs-Matrix: bester Multiplikator, den attackerSide gegen jedes aktive
     // Pokémon der Gegenseite erzielt (STAB-Typen der aktiven Pokémon).
@@ -2624,6 +2933,401 @@ function transferView() {
     tierColor(tier) { return TIER_COLORS[tier] || '#6b7280'; },
     typeColor(type) { return TYPE_COLORS[type] || '#6b7280'; },
     goMon(name) { this.$dispatch('navigate', { key: 'pokemon', pokemonName: name }); },
+  };
+}
+
+// === Awards: Nominieren, Abstimmen, Siegerehrung ============================
+function awardsView() {
+  return {
+    tab: 'open',   // 'open' | 'done' | 'next'
+    dialog: null,  // { mode: 'nominate' | 'vote', inst }
+    draft: [],     // Nominierungen des eigenen Spielers im Dialog
+    pair: [],      // Zwischenauswahl für Duo-Awards (2 Pokémon)
+    votes: {},     // { optionId: 0…10 }
+    q: '',
+    busy: false,
+    _cer: null,
+
+    init() {
+      const t = loadJson('jhdl-awards-tab-v1');
+      if (['open', 'done', 'next'].includes(t.tab)) this.tab = t.tab;
+    },
+    setTab(t) {
+      this.tab = t;
+      saveJson('jhdl-awards-tab-v1', { tab: t });
+    },
+
+    get league() { return this.$store.league; },
+    get store() { return this.$store.awards; },
+    get me() { return this.store.me; },
+    get loaded() {
+      const l = this.league;
+      return l.teamsLoaded && l.resultsLoaded && l.scheduleLoaded && l.pokemonLoaded && this.store.loaded;
+    },
+    teamById(id) { return this.league.teams.find((t) => t.id === id) || null; },
+    logoUrl(file) { return `./img/teams/${file}`; },
+    monImage(name) { return this.league.pokemon.find((p) => p.name === name)?.image || ''; },
+    playerColor(player) { return player === 'Henrik' ? '#4d90d5' : '#e3350d'; },
+    color(key) { return awardColor(key); },
+    medal(key) { return this.store.medalHtml(key); },
+
+    // --- Was ist gespielt, was ist damit fällig? ---
+    get playedDays() {
+      const set = new Set();
+      (this.league.results || []).forEach((r) => {
+        if (r?.day != null && (r.battles || []).some((b) => b && b.done)) set.add(r.day);
+      });
+      return [...set].sort((a, b) => a - b);
+    },
+    get scheduleDays() {
+      return (this.league.schedule?.matchdays || []).map((m) => m.day);
+    },
+    // Saison-Awards sind erst dran, wenn JEDES Spiel JEDES Spieltags ein
+    // Ergebnis hat — nicht schon, wenn ein Spieltag angefangen wurde.
+    get seasonComplete() {
+      const matchdays = this.league.schedule?.matchdays || [];
+      if (!matchdays.length) return false;
+      const byId = {};
+      (this.league.results || []).forEach((r) => { if (r?.id) byId[r.id] = r; });
+      return matchdays.every((md) => {
+        const matches = md.matches || [];
+        if (!matches.length) return false;
+        return matches.every((m, i) => {
+          const r = byId[`s1-d${md.day}-m${i}`];
+          return !!r && (r.battles || []).some((b) => b && b.done);
+        });
+      });
+    },
+    // Wie viele Spiele noch fehlen, bis die Saison-Awards starten.
+    get openMatches() {
+      const byId = {};
+      (this.league.results || []).forEach((r) => { if (r?.id) byId[r.id] = r; });
+      let open = 0;
+      (this.league.schedule?.matchdays || []).forEach((md) => {
+        (md.matches || []).forEach((m, i) => {
+          const r = byId[`s1-d${md.day}-m${i}`];
+          if (!r || !(r.battles || []).some((b) => b && b.done)) open += 1;
+        });
+      });
+      return open;
+    },
+    // Spieltag-Awards erst ab dem Spieltag, an dem das Feature live ging.
+    get awardDays() {
+      return awardableDays(this.playedDays);
+    },
+    get firstAwardDay() { return MATCHDAY_AWARDS_FROM; },
+    get skippedDays() {
+      return this.playedDays.filter((d) => d < MATCHDAY_AWARDS_FROM).length;
+    },
+
+    // Alle Abstimmungen, die es geben kann: Spieltag-Awards je gespieltem Spieltag,
+    // Saison-Awards erst nach dem letzten Spieltag (Team-MVP je Team).
+    get allInstances() {
+      const out = [];
+      [...this.awardDays].reverse().forEach((day) => {
+        MATCHDAY_AWARDS.forEach((a) => out.push(this.store.instance({ key: a.key, day })));
+      });
+      if (this.seasonComplete) {
+        SEASON_AWARDS.forEach((a) => {
+          if (a.perTeam) this.league.seasonTeams.forEach((t) => out.push(this.store.instance({ key: a.key, teamId: t.id })));
+          else out.push(this.store.instance({ key: a.key }));
+        });
+      }
+      return out;
+    },
+    get openInstances() { return this.allInstances.filter((i) => i.status !== 'done'); },
+    get doneInstances() {
+      return this.allInstances
+        .filter((i) => i.status === 'done')
+        .map((i) => ({ inst: i, winners: this.winnerCards(i), rows: voteResults(i) }));
+    },
+    // Sieger einer Abstimmung fürs Anzeigen aufbereiten (mit beiden Duo-Sprites).
+    winnerCards(inst) {
+      return awardWinners(inst).map((w) => ({
+        ...w,
+        label: w.label || w.id,
+        images: Array.isArray(w.images) && w.images.length
+          ? w.images
+          : (inst.entity === 'pair'
+            ? String(w.id).split(' + ').map((n) => this.monImage(n.trim())).filter(Boolean)
+            : [w.image || this.monImage(w.id)].filter(Boolean)),
+      }));
+    },
+    // Was noch kommt: nicht gespielte Spieltage und — solange die Saison läuft —
+    // die Saison-Awards.
+    get upcoming() {
+      const out = [];
+      this.scheduleDays.filter((d) => !this.playedDays.includes(d) && d >= MATCHDAY_AWARDS_FROM).forEach((day) => {
+        MATCHDAY_AWARDS.forEach((a) => out.push({ key: a.key, title: a.label, when: `Spieltag ${day}`, why: 'sobald Ergebnisse erfasst sind' }));
+      });
+      if (!this.seasonComplete) {
+        SEASON_AWARDS.forEach((a) => out.push({
+          key: a.key,
+          title: a.label,
+          when: a.perTeam ? `Saison 1 · ${this.league.seasonTeams.length} Abstimmungen` : 'Saison 1',
+          why: 'nach dem letzten Spieltag',
+        }));
+      }
+      return out;
+    },
+
+    subtitle(inst) {
+      if (inst.day != null) return `Spieltag ${inst.day}`;
+      if (inst.teamId) return this.teamById(inst.teamId)?.name || 'Team';
+      return 'Saison 1';
+    },
+    // Zustand aus Sicht des eigenen Spielers.
+    stateOf(inst) {
+      const me = this.me;
+      if (inst.status === 'done') return inst.seen?.[me] ? 'seen' : 'ceremony';
+      if (inst.status === 'voting') return hasVoted(inst, me) ? 'waitVote' : 'vote';
+      return inst.confirmed?.[me] ? 'waitNom' : 'nominate';
+    },
+    stateLabel(inst) {
+      const other = this.store.other;
+      return {
+        nominate: 'Nominieren',
+        waitNom: `Wartet auf ${other}`,
+        vote: 'Abstimmen',
+        waitVote: `Wartet auf ${other}`,
+        ceremony: 'Siegerehrung',
+        seen: 'Ergebnis ansehen',
+      }[this.stateOf(inst)];
+    },
+    stateColor(inst) {
+      return {
+        nominate: '#ffcb05',
+        waitNom: '#98a2b3',
+        vote: '#e3350d',
+        waitVote: '#98a2b3',
+        ceremony: '#63bc5a',
+        seen: '#98a2b3',
+      }[this.stateOf(inst)];
+    },
+    // Kurzinfo unter dem Award-Namen.
+    stateHint(inst) {
+      const mine = (inst.nominations?.[this.me] || []).length;
+      const theirs = (inst.nominations?.[this.store.other] || []).length;
+      if (inst.status === 'nominating') return `${mine} von dir nominiert · ${theirs} von ${this.store.other}`;
+      if (inst.status === 'voting') {
+        const n = mergedOptions(inst).length;
+        return `Abstimmung läuft · ${n} ${n === 1 ? 'Option' : 'Optionen'}`;
+      }
+      return 'Beide Stimmen liegen vor';
+    },
+    actOn(inst) {
+      const st = this.stateOf(inst);
+      if (st === 'nominate' || st === 'waitNom') return this.openNominate(inst);
+      if (st === 'vote') return this.openVote(inst);
+      if (st === 'waitVote') return this.openVote(inst);
+      return this.openCeremony(inst);
+    },
+
+    // --- Optionen, die nominiert werden können ---
+    monUniverse(inst) {
+      const league = this.league;
+      let names = [];
+      if (inst.day != null) {
+        const set = new Set();
+        (league.results || []).filter((r) => r.day === inst.day).forEach((r) => {
+          ['home', 'away'].forEach((side) => (r.squads?.[side] || []).forEach((n) => set.add(n)));
+        });
+        names = [...set];
+      } else if (inst.teamId) {
+        names = (this.teamById(inst.teamId)?.pokemon || []).map((p) => p.name);
+      } else {
+        const set = new Set();
+        (league.teams || []).forEach((t) => (t.pokemon || []).forEach((p) => set.add(p.name)));
+        (league.results || []).forEach((r) => ['home', 'away'].forEach((side) => (r.squads?.[side] || []).forEach((n) => set.add(n))));
+        names = [...set];
+      }
+      const def = inst.def || {};
+      let mons = names.map((n) => league.pokemon.find((p) => p.name === n) || { name: n });
+      if (def.tier) mons = mons.filter((m) => m.tier === def.tier);
+      if (def.filter === 'mega') mons = mons.filter((m) => isMega(m.name));
+      if (def.filter === 'nomega') mons = mons.filter((m) => !isMega(m.name));
+      return mons.sort((a, b) => a.name.localeCompare(b.name));
+    },
+    monTeamName(name) {
+      const t = this.league.teams.find((x) => (x.pokemon || []).some((p) => p.name === name));
+      return t?.name || 'Frei';
+    },
+    optionsFor(inst) {
+      if (inst.entity === 'team') {
+        return this.league.seasonTeams.map((t) => ({ id: t.id, label: t.name, image: this.logoUrl(t.logo), sub: t.player }));
+      }
+      if (inst.entity === 'match') {
+        return (this.league.results || [])
+          .filter((r) => (r.battles || []).some((b) => b && b.done))
+          .sort((a, b) => (a.day || 0) - (b.day || 0))
+          .map((r) => {
+            const h = this.teamById(r.home);
+            const a = this.teamById(r.away);
+            return {
+              id: r.id,
+              label: `${h?.name || '?'} vs ${a?.name || '?'}`,
+              image: h ? this.logoUrl(h.logo) : '',
+              sub: `Spieltag ${r.day}`,
+            };
+          });
+      }
+      return this.monUniverse(inst).map((m) => ({
+        id: m.name, label: m.name, image: m.image || '', sub: this.monTeamName(m.name),
+      }));
+    },
+    get dialogOptions() {
+      if (!this.dialog) return [];
+      const q = this.q.trim().toLowerCase();
+      const list = this.optionsFor(this.dialog.inst);
+      return q ? list.filter((o) => o.label.toLowerCase().includes(q) || (o.sub || '').toLowerCase().includes(q)) : list;
+    },
+
+    // --- Nominierungs-Dialog ---
+    openNominate(inst) {
+      this.dialog = { mode: 'nominate', inst };
+      this.draft = [...(inst.nominations?.[this.me] || [])];
+      this.pair = [];
+      this.q = '';
+      this.$nextTick(() => document.getElementById('award-nominate')?.showPopover());
+    },
+    closeDialog() {
+      ['award-nominate', 'award-vote'].forEach((id) => {
+        const el = document.getElementById(id);
+        if (el && el.matches(':popover-open')) el.hidePopover();
+      });
+      this.dialog = null;
+    },
+    get draftFull() { return this.draft.length >= MAX_NOMINATIONS; },
+    isDrafted(id) { return this.draft.some((d) => d.id === id); },
+    isPaired(id) { return this.pair.some((p) => p.id === id); },
+    // Auswahl umschalten. Duo-Awards sammeln zwei Pokémon zu einer Option.
+    toggleDraft(opt) {
+      const inst = this.dialog?.inst;
+      if (!inst) return;
+      if (inst.entity === 'pair') {
+        if (this.isPaired(opt.id)) { this.pair = this.pair.filter((p) => p.id !== opt.id); return; }
+        const next = [...this.pair, opt];
+        if (next.length < 2) { this.pair = next; return; }
+        const id = optionId('pair', next.map((p) => p.id));
+        this.pair = [];
+        if (this.draft.some((d) => d.id === id) || this.draftFull) return;
+        // Beide Sprites merken, damit die Siegerehrung das Duo auch als Duo zeigt.
+        this.draft = [...this.draft, {
+          id, label: id, sub: 'Duo',
+          image: next[0].image || '',
+          images: next.map((p) => p.image || '').filter(Boolean),
+        }];
+        return;
+      }
+      if (this.isDrafted(opt.id)) { this.draft = this.draft.filter((d) => d.id !== opt.id); return; }
+      if (this.draftFull) return;
+      this.draft = [...this.draft, { id: opt.id, label: opt.label, image: opt.image || '', sub: opt.sub || '' }];
+    },
+    removeDraft(id) { this.draft = this.draft.filter((d) => d.id !== id); },
+
+    async confirmNoms() {
+      if (this.busy || !this.dialog) return;
+      this.busy = true;
+      try {
+        await this.store.confirmNominations(this.dialog.inst, this.draft);
+        window.dispatchEvent(new CustomEvent('toast', { detail: { msg: `Nominierungen bestätigt — jetzt fehlt ${this.store.other}.` } }));
+        this.closeDialog();
+      } catch (e) { console.error(e); }
+      this.busy = false;
+    },
+    async startVote() {
+      if (this.busy || !this.dialog) return;
+      this.busy = true;
+      try {
+        await this.store.startVoting(this.dialog.inst, this.draft);
+        window.dispatchEvent(new CustomEvent('toast', { detail: { msg: 'Abstimmung gestartet.' } }));
+        this.closeDialog();
+      } catch (e) { console.error(e); }
+      this.busy = false;
+    },
+
+    // --- Abstimmungs-Dialog ---
+    openVote(inst) {
+      this.dialog = { mode: 'vote', inst };
+      const own = inst.votes?.[this.me] || {};
+      const opts = mergedOptions(inst);
+      this.votes = Object.fromEntries(opts.map((o) => [o.id, Number.isFinite(own[o.id]) ? own[o.id] : 5]));
+      this.$nextTick(() => document.getElementById('award-vote')?.showPopover());
+    },
+    get voteOptions() {
+      return this.dialog ? mergedOptions(this.dialog.inst) : [];
+    },
+    setVote(id, value) {
+      this.votes = { ...this.votes, [id]: Math.max(0, Math.min(10, Math.round(Number(value) || 0))) };
+    },
+    voteColor(v) {
+      if (v >= 8) return '#63bc5a';
+      if (v >= 5) return '#ffcb05';
+      if (v >= 3) return '#ff9d55';
+      return '#98a2b3';
+    },
+    get myVoteDone() {
+      return this.dialog ? hasVoted(this.dialog.inst, this.me) : false;
+    },
+    async submitVote() {
+      if (this.busy || !this.dialog) return;
+      this.busy = true;
+      try {
+        await this.store.submitVotes(this.dialog.inst, this.votes);
+        window.dispatchEvent(new CustomEvent('toast', { detail: { msg: 'Bewertung abgeschickt.' } }));
+        this.closeDialog();
+      } catch (e) { console.error(e); }
+      this.busy = false;
+    },
+
+    // --- Siegerehrung ---
+    openCeremony(inst) {
+      const rows = voteResults(inst).map((r) => ({
+        ...r,
+        label: r.label || r.id,
+        image: r.image || this.monImage(r.id) || '',
+        // Duo-Awards tragen zwei Sprites; ältere Nominierungen werden aus dem
+        // Namen („A + B") nachgeladen.
+        images: Array.isArray(r.images) && r.images.length
+          ? r.images
+          : (inst.entity === 'pair'
+            ? String(r.id).split(' + ').map((n) => this.monImage(n.trim())).filter(Boolean)
+            : []),
+      }));
+      if (!rows.length) return;
+      const note = spoilerNote(inst, this.me);
+      const pop = document.getElementById('award-ceremony');
+      if (!pop) return;
+      this._cer?.stop?.();
+      pop.showPopover();
+      this._cer = runCeremony(pop, {
+        title: inst.def?.label || inst.key,
+        subtitle: this.subtitle(inst),
+        accent: awardColor(inst.key),
+        medalSvg: this.store.medalHtml(inst.key),
+        rows,
+        note,
+      }, {
+        onDone: () => { this.store.markSeen(inst).catch((e) => console.error(e)); },
+        onClose: () => this.closeCeremony(),
+      });
+    },
+    closeCeremony() {
+      this._cer?.stop?.();
+      this._cer = null;
+      const pop = document.getElementById('award-ceremony');
+      if (pop && pop.matches(':popover-open')) pop.hidePopover();
+    },
+
+    // Einzelnes Siegel als Pin (unabhängig vom Sieger-Index — hier ist der
+    // Gewinner ja gerade das Thema der Karte).
+    pinSvg(inst) {
+      return this.store._slot({ key: inst.key, day: inst.day, teamId: inst.teamId });
+    },
+    fmtAvg(v) { return (Math.round((Number(v) || 0) * 10) / 10).toFixed(1).replace('.', ','); },
+    goMon(name) { this.$dispatch('navigate', { key: 'pokemon', pokemonName: name }); },
+    goTeam(id) { this.$dispatch('navigate', { key: 'teams', teamId: id }); },
+    info(title, text) { openStatInfo(null, title, text); },
   };
 }
 
@@ -2868,6 +3572,222 @@ Alpine.store('league', {
   },
 });
 
+// === Awards =================================================================
+// Eine Firestore-Doc je Abstimmung (Collection `awards`, ID aus awardDocId).
+// Der „eigene Spieler" ist gerätelokal gewählt (kein Login) und entscheidet,
+// unter wessen Namen nominiert, abgestimmt und die Siegerehrung quittiert wird.
+Alpine.store('awards', {
+  docs: [],
+  loaded: false,
+  // true, wenn Firestore die Collection `awards` verweigert (Regeln nicht erweitert).
+  blocked: false,
+  me: 'Janik',
+  players: PLAYERS,
+  // Sieger-Index für die Pins: { pokemon: {name:[key,…]}, team: {}, match: {}, }
+  index: { pokemon: {}, team: {}, match: {} },
+
+  init() {
+    const saved = loadJson(ME_KEY);
+    if (PLAYERS.includes(saved.player)) this.me = saved.player;
+    this.initPinTaps();
+    onSnapshot(
+      collection(db, 'awards'),
+      (snap) => {
+        this.docs = snap.docs.map((d) => ({ id: d.id, ...d.data() }));
+        this.blocked = false;
+        this.loaded = true;
+        this.rebuildIndex();
+      },
+      (err) => {
+        // Ohne Regel für `awards` bleibt die Liga bedienbar; nur die Awards fehlen.
+        console.error('awards-Collection nicht lesbar:', err);
+        this.blocked = true;
+        this.loaded = true;
+      },
+    );
+  },
+
+  setMe(player) {
+    if (!PLAYERS.includes(player)) return;
+    this.me = player;
+    saveJson(ME_KEY, { player });
+    this.rebuildIndex();
+  },
+  get other() {
+    return PLAYERS.find((p) => p !== this.me) || PLAYERS[1];
+  },
+
+  byId(id) {
+    return this.docs.find((d) => d.id === id) || null;
+  },
+
+  // Instanz einer Abstimmung — auch wenn in Firestore noch nichts steht.
+  instance(meta) {
+    const def = AWARD_BY_KEY[meta.key];
+    const id = awardDocId(meta.key, meta);
+    const raw = this.byId(id);
+    return {
+      key: meta.key,
+      day: meta.day ?? null,
+      teamId: meta.teamId ?? null,
+      label: meta.label || def?.label || meta.key,
+      def,
+      entity: def?.entity || 'pokemon',
+      id,
+      exists: !!raw,
+      status: raw?.status || 'nominating',
+      nominations: raw?.nominations || {},
+      confirmed: raw?.confirmed || {},
+      votes: raw?.votes || {},
+      voted: raw?.voted || {},
+      seen: raw?.seen || {},
+    };
+  },
+
+  // --- Schreibzugriffe ---
+  async _write(inst, data) {
+    await setDoc(
+      doc(db, 'awards', inst.id),
+      {
+        season: 1,
+        key: inst.key,
+        day: inst.day ?? null,
+        teamId: inst.teamId ?? null,
+        entity: inst.entity,
+        updatedAt: new Date().toISOString(),
+        ...data,
+      },
+      { merge: true },
+    );
+  },
+
+  // Nominierungen zwischenspeichern (Dialog bleibt offen).
+  async saveNominations(inst, options) {
+    await this._write(inst, { nominations: { [this.me]: options.slice(0, MAX_NOMINATIONS) } });
+  },
+  // Bestätigen und auf den anderen warten. Sind beide fertig, startet die Abstimmung.
+  async confirmNominations(inst, options) {
+    const confirmed = { ...inst.confirmed, [this.me]: true };
+    const status = nextStatus({ ...inst, confirmed, status: 'nominating' });
+    await this._write(inst, {
+      nominations: { [this.me]: options.slice(0, MAX_NOMINATIONS) },
+      confirmed: { [this.me]: true },
+      status,
+    });
+  },
+  // Abstimmung sofort starten (überspringt das Warten).
+  async startVoting(inst, options) {
+    await this._write(inst, {
+      nominations: { [this.me]: options.slice(0, MAX_NOMINATIONS) },
+      confirmed: { [this.me]: true },
+      status: 'voting',
+    });
+  },
+  async submitVotes(inst, votes) {
+    const voted = { ...inst.voted, [this.me]: true };
+    const status = nextStatus({ ...inst, voted, status: 'voting' });
+    await this._write(inst, { votes: { [this.me]: votes }, voted: { [this.me]: true }, status });
+  },
+  async markSeen(inst) {
+    if (inst.seen?.[this.me]) return;
+    await this._write(inst, { seen: { [this.me]: true } });
+  },
+  async reopenNominations(inst) {
+    await this._write(inst, { status: 'nominating', confirmed: { Janik: false, Henrik: false } });
+  },
+
+  // --- Sieger-Index für die Pins ---
+  // Ein Pin erscheint erst, wenn DER EIGENE Spieler die Siegerehrung gesehen hat —
+  // sonst würde die Tabelle das Ergebnis vorwegnehmen.
+  rebuildIndex() {
+    const idx = { pokemon: {}, team: {}, match: {} };
+    const push = (kind, id, entry) => {
+      if (!id) return;
+      (idx[kind][id] = idx[kind][id] || []).push(entry);
+    };
+    this.docs.forEach((raw) => {
+      if (raw?.status !== 'done') return;
+      if (!raw?.seen?.[this.me]) return;
+      const entity = raw.entity || AWARD_BY_KEY[raw.key]?.entity || 'pokemon';
+      // Bei Gleichstand auf Platz 1 bekommen alle Sieger den Pin.
+      awardWinners(raw).forEach((win) => {
+        const entry = { key: raw.key, day: raw.day ?? null, teamId: raw.teamId ?? null, winner: win.label || win.id };
+        if (entity === 'team') push('team', win.id, entry);
+        else if (entity === 'match') push('match', win.id, entry);
+        else if (entity === 'pair') String(win.id).split(' + ').forEach((n) => push('pokemon', n.trim(), entry));
+        else push('pokemon', win.id, entry);
+      });
+    });
+    // Saison-Awards vor Spieltag-Awards, innerhalb der Katalog-Reihenfolge;
+    // bei mehrfach vergebenen Spieltag-Awards der jüngste Spieltag zuerst.
+    const rank = {};
+    SEASON_AWARDS.forEach((a, i) => { rank[a.key] = i; });
+    MATCHDAY_AWARDS.forEach((a, i) => { rank[a.key] = 100 + i; });
+    Object.values(idx).forEach((bag) => {
+      Object.keys(bag).forEach((id) => bag[id].sort(
+        (a, b) => (rank[a.key] ?? 999) - (rank[b.key] ?? 999) || (b.day ?? 0) - (a.day ?? 0),
+      ));
+    });
+    this.index = idx;
+  },
+
+  keysFor(kind, id) {
+    return (this.index?.[kind] || {})[id] || [];
+  },
+  // Kurztext einer Auszeichnung: „welcher Award von wann".
+  blurb(entry) {
+    const def = AWARD_BY_KEY[entry.key];
+    const label = def?.label || entry.key;
+    if (entry.day != null) return { label, when: `Spieltag ${entry.day}`, hint: def?.hint || '' };
+    if (entry.teamId) {
+      const team = (Alpine.store('league').teams || []).find((t) => t.id === entry.teamId);
+      return { label, when: `Saison 1 · ${team?.name || 'Team'}`, hint: def?.hint || '' };
+    }
+    return { label, when: 'Saison 1', hint: def?.hint || '' };
+  },
+  // Ein Pin: Hover zeigt den Titel, Klick/Tap das geteilte Info-Popover.
+  _slot(entry) {
+    const b = this.blurb(entry);
+    const title = `${b.label} · ${b.when}`;
+    const text = b.hint ? `${b.hint} Vergeben: ${b.when}.` : `Vergeben: ${b.when}.`;
+    return `<button type="button" class="pin-slot" data-award-pin title="${escAttr(title)}"
+      aria-label="${escAttr(title)}" data-pin-title="${escAttr(b.label)}" data-pin-text="${escAttr(text)}">${awardSvg(entry.key, { variant: 'pin' })}</button>`;
+  },
+  // Pin-Ecke als HTML (x-html). Leerer String, wenn nichts zu zeigen ist.
+  pinHtml(kind, id, size = '') {
+    const list = this.keysFor(kind, id);
+    if (!list.length) return '';
+    const shown = list.slice(0, 3);
+    const rest = list.slice(3);
+    const slots = shown.map((e) => this._slot(e)).join('');
+    let more = '';
+    if (rest.length) {
+      const label = `${rest.length} weitere Auszeichnungen`;
+      const text = rest.map((e) => { const b = this.blurb(e); return `${b.label} (${b.when})`; }).join(', ');
+      more = `<button type="button" class="pin-more" data-award-pin title="${escAttr(text)}"
+        data-pin-title="${escAttr(label)}" data-pin-text="${escAttr(text)}">+${rest.length}</button>`;
+    }
+    return `<span class="pin-corner"${size ? ` data-size="${size}"` : ''}>${slots}${more}</span>`;
+  },
+  // Klick/Tap auf einen Pin: Titel + „von wann" im geteilten Info-Popover.
+  // Delegiert, weil die Pins per x-html eingesetzt werden (kein Alpine-Baum).
+  initPinTaps() {
+    document.addEventListener('click', (e) => {
+      const el = e.target instanceof Element ? e.target.closest('[data-award-pin]') : null;
+      if (!el) return;
+      e.preventDefault();
+      e.stopPropagation();
+      openStatInfo(null, el.dataset.pinTitle || 'Auszeichnung', el.dataset.pinText || '');
+    }, true);
+  },
+  medalHtml(key) {
+    return awardSvg(key, { variant: 'medal', title: AWARD_BY_KEY[key]?.label || key });
+  },
+  color(key) {
+    return awardColor(key);
+  },
+});
+
 // Einfacher Navigations-Übergabepuffer: ein Klick setzt ein Ziel, die Ziel-View liest
 // es beim init() aus und räumt auf.
 Alpine.store('nav', { teamId: null, matchId: null, pokemonName: null, from: null, teamAId: null, teamBId: null });
@@ -2921,4 +3841,5 @@ Alpine.data('pokemonView', pokemonView);
 Alpine.data('spielerView', spielerView);
 Alpine.data('teambuildingView', teambuildingView);
 Alpine.data('transferView', transferView);
+Alpine.data('awardsView', awardsView);
 Alpine.start();

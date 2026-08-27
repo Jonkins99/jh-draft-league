@@ -65,7 +65,10 @@
               </td>
               <td class="px-5 py-4">
                 <div class="flex items-center gap-3">
-                  <img :src="logoUrl(row.team.logo)" :alt="row.team.name" class="size-9 shrink-0 rounded-lg object-contain" />
+                  <span class="relative block size-9 shrink-0">
+                    <img :src="logoUrl(row.team.logo)" :alt="row.team.name" class="size-9 rounded-lg object-contain" />
+                    <span x-html="$store.awards.pinHtml('team', row.team.id, 'sm')"></span>
+                  </span>
                   <div class="min-w-0">
                     <div class="truncate font-semibold" :style="`color:${playerColor(row.team.player)}`" x-text="row.team.name"></div>
                     <div class="truncate text-sm font-medium text-mist" x-text="row.team.player"></div>

@@ -98,7 +98,10 @@
                 <td class="sticky left-0 z-10 bg-panel py-2 pr-2">
                   <div class="flex items-center gap-2">
                     <span class="w-5 shrink-0 text-right font-display text-xs font-bold tabular-nums text-mist/60" x-text="i + 1"></span>
-                    <img :src="s.pokemon.image" :alt="s.pokemon.name" loading="lazy" class="size-8 shrink-0 object-contain" />
+                    <span class="relative block size-8 shrink-0">
+                      <img :src="s.pokemon.image" :alt="s.pokemon.name" loading="lazy" class="size-8 object-contain" />
+                      <span x-html="$store.awards.pinHtml('pokemon', s.pokemon.name, 'sm')"></span>
+                    </span>
                   </div>
                 </td>
                 <td class="py-2 pr-3">
@@ -126,6 +129,7 @@
                 <img :src="teamLogo(s)" alt="" aria-hidden="true" class="pointer-events-none absolute inset-0 size-full scale-110 object-contain p-6 opacity-[0.18]" />
               </template>
               <img :src="s.pokemon.image" :alt="s.pokemon.name" loading="lazy" class="relative z-10 size-28 object-contain drop-shadow-[0_8px_12px_rgba(0,0,0,0.55)] transition-transform group-hover:scale-105" />
+              <span class="absolute bottom-3 right-3 z-20" x-html="$store.awards.pinHtml('pokemon', s.pokemon.name, 'lg')"></span>
             </div>
             <div class="p-3 text-center">
               <p class="font-display text-[11px] font-semibold uppercase tracking-wider text-mist">Platz <span class="text-flame-400" x-text="i + 1"></span></p>
@@ -171,6 +175,24 @@
           </li>
         </template>
       </ul>
+
+      <div class="mt-4 border-t border-line pt-3">
+        <p class="font-display text-sm font-bold uppercase tracking-wider text-ink">Zweite Sortierung</p>
+        <p class="mb-2 mt-0.5 text-xs text-mist">Greift, wenn zwei Pokémon in der ersten Spalte gleich sind.</p>
+        <div class="flex items-center gap-2">
+          <select @change="setSort2($event.target.value)"
+                  class="min-w-0 flex-1 rounded-lg border border-line bg-elevated px-2 py-2 text-sm text-ink focus:border-flame-500 focus:outline-none">
+            <option value="" :selected="!sortKey2">— aus —</option>
+            <template x-for="c in sortChoices()" :key="'s2-st-'+c.key">
+              <option :value="c.key" :selected="sortKey2 === c.key" x-text="c.label"></option>
+            </template>
+          </select>
+          <button type="button" @click="toggleSortDir2()" :disabled="!sortKey2"
+                  class="grid size-9 shrink-0 place-items-center rounded-lg border border-line font-display text-sm font-bold text-mist transition-colors hover:text-flame-400 disabled:opacity-40"
+                  :title="sortDir2 === 'desc' ? 'absteigend' : 'aufsteigend'"
+                  x-text="sortDir2 === 'desc' ? '↓' : '↑'"></button>
+        </div>
+      </div>
     </div>
   </div>
 

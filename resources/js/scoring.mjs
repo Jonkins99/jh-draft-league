@@ -246,10 +246,21 @@ export function placementHistory(teams, results) {
 // mit Wesen = 1,1 (positiv) / 1,0 (neutral). Gegen die Serebii-Champions-Daten
 // verifiziert (z. B. Mega-Simsala Base 150 -> 32 SP + positives Wesen = 222).
 
+// Wesen-Multiplikatoren für einen Statuswert: positiv, neutral, negativ.
+export const NATURE_MULT = { up: 1.1, neutral: 1, down: 0.9 };
+
+// Wesen-Angabe normalisieren. Historisch war das ein Boolean (natureUp),
+// jetzt zusätzlich 'up' | 'neutral' | 'down'.
+export function normalizeNature(nature) {
+  if (nature === true || nature === 'up') return 'up';
+  if (nature === 'down') return 'down';
+  return 'neutral';
+}
+
 // Initiative für gegebene SP und Wesen.
-export function speedAt(base, sp = 0, natureUp = false) {
+export function speedAt(base, sp = 0, nature = 'neutral') {
   const core = Math.floor((2 * base + 31) / 2) + 5 + sp;
-  return Math.floor(core * (natureUp ? 1.1 : 1));
+  return Math.floor(core * NATURE_MULT[normalizeNature(nature)]);
 }
 
 // Die drei Investment-Fälle (ohne In-Battle-Modifikator):
@@ -258,9 +269,11 @@ export function speedAt(base, sp = 0, natureUp = false) {
 //  s32n = 32 SP, positives Initiative-Wesen
 export function speedTiers(base) {
   return {
-    s0: speedAt(base, 0, false),
-    s32: speedAt(base, 32, false),
-    s32n: speedAt(base, 32, true),
+    s0: speedAt(base, 0, 'neutral'),
+    s32: speedAt(base, 32, 'neutral'),
+    s32n: speedAt(base, 32, 'up'),
+    s0d: speedAt(base, 0, 'down'),
+    s32d: speedAt(base, 32, 'down'),
   };
 }
 
@@ -275,18 +288,30 @@ export function clampSp(value) {
 //  sp  = null/undefined -> beide Standardannahmen 0 UND 32 SP,
 //        Zahl           -> genau dieser SP-Wert (0–32).
 //  nat = 'both' (Default) | 'neutral' | 'up' -> welche Wesen gezeigt werden.
+// Welche Wesen ein Modus anzeigt. 'both' = neutral & Init+ (Standard),
+// 'all' = zusätzlich das negative Wesen.
+export const NATURE_SETS = {
+  both: ['neutral', 'up'],
+  all: ['down', 'neutral', 'up'],
+  neutral: ['neutral'],
+  up: ['up'],
+  down: ['down'],
+};
+const NATURE_SUFFIX = { up: '+', neutral: '', down: '-' };
+
 export function speedCases(base, opts = {}) {
   const sps = opts.sp == null ? [0, 32] : [clampSp(opts.sp)];
-  const natures = opts.nat === 'neutral' ? [false] : opts.nat === 'up' ? [true] : [false, true];
+  const natures = NATURE_SETS[opts.nat] || NATURE_SETS.both;
   const out = [];
   for (const sp of sps) {
-    for (const natureUp of natures) {
+    for (const nature of natures) {
       out.push({
-        key: `sp${sp}${natureUp ? 'n' : ''}`,
-        label: `${sp}${natureUp ? '+' : ''}`,
+        key: `sp${sp}${nature === 'up' ? 'n' : nature === 'down' ? 'd' : ''}`,
+        label: `${sp}${NATURE_SUFFIX[nature]}`,
         sp,
-        natureUp,
-        speed: speedAt(base, sp, natureUp),
+        nature,
+        natureUp: nature === 'up',
+        speed: speedAt(base, sp, nature),
       });
     }
   }
@@ -403,6 +428,8 @@ export function pokemonProfile(name, teams, results, pokedex = []) {
     opponentsByBattle: [],
     partnersByMatchup: [],
     opponentsByMatchup: [],
+    partnerRecords: [],
+    opponentRecords: [],
     topVictims: [],
     topNemeses: [],
     matchRecordWith: { w: 0, l: 0, d: 0, total: 0, winPct: 0 },
@@ -446,6 +473,20 @@ export function pokemonProfile(name, teams, results, pokedex = []) {
   const opponentsByMatchup = tally();
   const topVictims = tally();
   const topNemeses = tally();
+  // Sieg-/Niederlagen-Bilanz je Partner bzw. Gegner auf Kampf-Ebene.
+  const partnerRec = Object.create(null);
+  const opponentRec = Object.create(null);
+  const bumpRec = (bag, key, outcome) => {
+    const r = bag[key] || (bag[key] = { name: key, w: 0, l: 0, d: 0, total: 0 });
+    r.total += 1;
+    if (outcome === 'draw') r.d += 1;
+    else if (outcome === 'win') r.w += 1;
+    else r.l += 1;
+  };
+  const recList = (bag) =>
+    Object.values(bag)
+      .map((r) => ({ ...r, winPct: r.total ? r.w / r.total : 0, lossPct: r.total ? r.l / r.total : 0 }))
+      .sort((a, b) => b.total - a.total || a.name.localeCompare(b.name));
 
   const recWith = { w: 0, l: 0, d: 0, total: 0, winPct: 0 };
   const recWithout = { w: 0, l: 0, d: 0, total: 0, winPct: 0 };
@@ -512,11 +553,18 @@ export function pokemonProfile(name, teams, results, pokedex = []) {
         if (s.winner === 'draw') battleRecord.d += 1;
         else if (s.winner === ownSide) battleRecord.w += 1;
         else battleRecord.l += 1;
+        const outcome = s.winner === 'draw' ? 'draw' : s.winner === ownSide ? 'win' : 'loss';
         usedOwn.forEach((n) => {
-          if (n && n !== name) partnersByBattle[n] = (partnersByBattle[n] || 0) + 1;
+          if (n && n !== name) {
+            partnersByBattle[n] = (partnersByBattle[n] || 0) + 1;
+            bumpRec(partnerRec, n, outcome);
+          }
         });
         usedOpp.forEach((n) => {
-          if (n) opponentsByBattle[n] = (opponentsByBattle[n] || 0) + 1;
+          if (n) {
+            opponentsByBattle[n] = (opponentsByBattle[n] || 0) + 1;
+            bumpRec(opponentRec, n, outcome);
+          }
         });
       }
 
@@ -617,6 +665,8 @@ export function pokemonProfile(name, teams, results, pokedex = []) {
     opponentsByBattle: toList(opponentsByBattle),
     partnersByMatchup: toList(partnersByMatchup),
     opponentsByMatchup: toList(opponentsByMatchup),
+    partnerRecords: recList(partnerRec),
+    opponentRecords: recList(opponentRec),
     topVictims: toList(topVictims),
     topNemeses: toList(topNemeses),
     matchRecordWith: recWith,
@@ -742,4 +792,34 @@ export function showdownExport(pokemonList) {
     .map((p) => showdownSpecies(p.name_en || p.name))
     .filter(Boolean)
     .join('\n\n');
+}
+
+// === Team-Kampfzahlen =======================================================
+// Ausgetragene Kämpfe (done) je Team über alle Ergebnisse. Basis für relative
+// Mindestschwellen („mindestens 40 % der Team-Kämpfe").
+export function teamBattleTotals(results) {
+  const out = {};
+  (results || []).forEach((r) => {
+    if (!r) return;
+    const done = (r.battles || []).filter((b) => b && b.done === true).length;
+    if (!done) return;
+    if (r.home != null) out[r.home] = (out[r.home] || 0) + done;
+    if (r.away != null) out[r.away] = (out[r.away] || 0) + done;
+  });
+  return out;
+}
+
+// === Mega-Formen ============================================================
+// Mega-Pokémon heißen in den Stammdaten durchgehend „Mega-<Name>" (teils mit
+// Suffix X/Y). Die Nicht-Mega-Variante wird über die gleiche Dex-Nummer gesucht:
+// bevorzugt der exakte Restname, sonst der erste Nicht-Mega-Eintrag.
+export function isMega(name) {
+  return /^Mega-/.test(String(name || ''));
+}
+
+export function baseFormOf(mon, pokedex = []) {
+  if (!mon || !isMega(mon.name)) return null;
+  const stripped = String(mon.name).replace(/^Mega-/, '').replace(/ [XY]$/, '');
+  const sameDex = (pokedex || []).filter((p) => p && p.dex === mon.dex && !isMega(p.name));
+  return sameDex.find((p) => p.name === stripped) || sameDex[0] || null;
 }

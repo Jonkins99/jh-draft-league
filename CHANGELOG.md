@@ -1,5 +1,45 @@
 # Changelog
 
+## Awards (new)
+- New **Awards** view with its own sidebar entry. Three matchday awards (Pokémon of the matchday, biggest disappointment, biggest surprise) and 23 season awards including per-tier winners, best duo, best match, best draft, best transfer window and a **Most Valuable Pokémon vote per team** (8 separate ballots).
+- **Nominate → vote → ceremony.** Each player proposes 0–3 candidates, then either starts the vote right away or confirms and waits for the other; once both have confirmed, voting opens automatically. Every option is rated 0–10 by both players and the mean decides. With both ballots in, the ceremony unlocks.
+- **Ceremony** as one authored sequence: a stage light that breathes between reveals, the lowest place first and upwards to 3rd — each row wiped in from the left, its mean counting up, a single light sweep crossing it — then the light drops and **1st and 2nd appear together**, the winner's seal materialising out of blur while confetti fires. Places 3 and below stay as a quiet recap under the podium. Skippable, and `prefers-reduced-motion` runs the same steps without travel, blur or confetti.
+- **A tie for first place means everyone wins**: the winners share the podium at equal size, each with its own seal and its own pin, and the archive card labels it "Gleichstand · n Sieger". Three-way ties are revealed together too.
+- **Duo awards show both sprites** — in the reveal row, on the podium, in the vote dialog, on the nomination chips and in the archive card.
+- **Drawn seals** instead of icons: every award is distinguishable by enamel colour, base shape (disc · rosette · shield · hexagon · bar) and engraving, so it stays readable as an 18-pixel pin. The same geometry serves catalogue, ceremony and pin.
+- **Pins wherever an entry appears** — bottom right over a Pokémon sprite, on team crests in the standings, team cards and schedule, and on the match card for "best match". Repeated matchday awards stack with a slight overlap and alternating tilt; from the fourth pin a plaque counts on. Hovering a pin names **which award from when**; tapping opens the same text in the shared info popover. The Teambuilder stays pin-free.
+- **Spoiler protection**: winners — pins included — only become visible once *you* have watched the ceremony. The closing line tells you whether the other player has seen it yet.
+- Matchday awards start at **matchday 6** (the feature shipped mid-season); earlier matchdays are not awarded retroactively. The cut-off is one constant, `MATCHDAY_AWARDS_FROM` in `awards.mjs`.
+- Season awards unlock only once **every match of every matchday has a result**; until then the "up next" tab states how many are missing.
+- One Firestore doc per ballot in the new `awards` collection (`s1-<award>[-d<day>|-<teamId>]`). The collection **needs its own security rule**; without it the view says so instead of failing silently. Who you vote as is a device-local choice (no login) shown at the top of the view.
+- Logic lives framework-free in `awards.mjs` (catalogue, merge, tally, reveal order, spoiler note), visuals in `award-visuals.mjs`, the sequence in `ceremony.mjs` — all unit-tested.
+
+## Pokémon detail
+- **Record per partner and opponent** on battle level: whom this Pokémon won and lost with most often, and against whom. Switchable between **absolute and percent**, with a minimum number of shared battles to keep one-off pairings out.
+- Initiative grid now also lists the **negative nature** row and the **×0,5** column.
+
+## Statistics tables
+- New **Elo column** for both Pokémon rankings (league + team detail), fed from the Elo sheet; "—" when a Pokémon is not in the sheet.
+- **Second sort metric** selectable in the column popover, with its own direction — it breaks ties in the primary column. Sorting by a hidden metric is allowed.
+
+## Player duel
+- Top Pokémon switchable between **by kills** and **by battle win rate**. The win-rate view takes a minimum usage threshold, either an absolute number of battles or a share of the team's battles, so a single lucky win cannot top the list.
+
+## Speed tiers
+- **Negative nature** selectable per Pokémon (Init−), next to neutral, Init+ and the two combined modes; the new "all three" mode shows Init−, neutral and Init+ at once.
+- **×0,5 and ×0,67** as additional in-battle modifiers, hidden behind the config dialog so the table stays calm by default.
+- **Mega Pokémon**: the pre-Mega form can be switched into the initiative tier list per matchup — the dialog shows it with its own calculated values and the row is labelled "vor Mega". The base form is resolved via the dex number.
+
+## Teambuilder
+- Mega Pokémon get **"Mega-Stein" pre-filled** in the moveset item field (only while nothing is stored for them in that matchup).
+- **Long-press a matchup tile clears the marking** immediately instead of cycling through every colour. The following click is suppressed, text selection and the context menu are off.
+
+## Navigation & input
+- **Sidebar collapsible** to an icon rail; the state is remembered per device.
+- **Tapping neutral space now leaves an input field.** iPadOS kept the focus and the on-screen keyboard open; a tap outside any form element, button or label now blurs actively.
+
+---
+
 ## Speed tiers: per-Pokémon SP and nature
 - **Initiative SP are editable per Pokémon** (0–32) in the team detail and in the Teambuilder, replacing the fixed 0/32 assumption for that Pokémon. Default stays **0 and 32**.
 - **Nature choice per Pokémon** — neutral, Init+ or both (default: both), so the table can show exactly the spread you actually build. Speed boosts (×1,5 / ×2) still multiply every case.

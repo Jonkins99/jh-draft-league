@@ -72,48 +72,64 @@
       </div>
     </nav>
 
-    <div class="md:grid md:min-h-screen md:grid-cols-[18rem_1fr]">
+    <div class="md:grid md:min-h-screen" :class="navCollapsed ? 'md:grid-cols-[5rem_1fr]' : 'md:grid-cols-[18rem_1fr]'">
 
       <aside class="sticky top-0 hidden h-screen flex-col border-r border-line bg-panel/50 backdrop-blur md:flex">
-        <div class="px-6 pb-6 pt-8">
+        <div :class="navCollapsed ? 'px-3 pb-3 pt-5' : 'px-6 pb-6 pt-8'">
           <div class="relative mx-auto w-fit">
             <div class="absolute inset-2 -z-10 rounded-full bg-flame-500/20 blur-2xl"></div>
-            <img src="resources/img/logo.png" alt="JH Draft League" class="w-40" />
+            <img src="resources/img/logo.png" alt="JH Draft League" :class="navCollapsed ? 'w-11' : 'w-40'" />
           </div>
         </div>
 
-        <div class="px-4 pb-4">
-          <button type="button" @click="openSearch()"
-                  class="flex w-full items-center gap-2.5 rounded-xl border border-line bg-elevated/60 px-3.5 py-2.5 text-left text-mist transition-colors hover:border-flame-500/40 hover:text-ink">
-            <svg viewBox="0 0 24 24" class="size-4 shrink-0" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="7"/><path d="m21 21-4.3-4.3"/></svg>
-            <span class="flex-1 text-sm">Suche…</span>
-            <kbd class="rounded border border-line bg-void px-1.5 py-0.5 font-display text-[10px] font-semibold tracking-wide text-mist" x-text="shortcutHint"></kbd>
+        <!-- Sidebar ein-/ausklappen (gerätelokal gemerkt) -->
+        <div class="px-3 pb-2" :class="navCollapsed ? 'flex justify-center' : 'flex justify-end pr-4'">
+          <button type="button" @click="toggleNav()" :aria-expanded="(!navCollapsed).toString()"
+                  :title="navCollapsed ? 'Navigation ausklappen' : 'Navigation einklappen'"
+                  class="grid size-9 place-items-center rounded-lg border border-line text-mist transition-colors hover:border-flame-500/40 hover:text-flame-400">
+            <svg viewBox="0 0 24 24" class="size-4" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+              <path d="M4 5h16M4 12h10M4 19h16"/>
+              <path :d="navCollapsed ? 'm17 9 3 3-3 3' : 'm21 9-3 3 3 3'"/>
+            </svg>
           </button>
         </div>
 
-        <nav class="min-h-0 flex-1 overflow-y-auto px-4">
-          <p class="px-3.5 pb-2 font-display text-xs font-semibold uppercase tracking-[0.28em] text-mist">Liga</p>
+        <div :class="navCollapsed ? 'px-3 pb-3' : 'px-4 pb-4'">
+          <button type="button" @click="openSearch()" :title="navCollapsed ? 'Suche' : null"
+                  class="flex items-center rounded-xl border border-line bg-elevated/60 text-left text-mist transition-colors hover:border-flame-500/40 hover:text-ink"
+                  :class="navCollapsed ? 'mx-auto size-11 justify-center' : 'w-full gap-2.5 px-3.5 py-2.5'">
+            <svg viewBox="0 0 24 24" class="size-4 shrink-0" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="7"/><path d="m21 21-4.3-4.3"/></svg>
+            <span x-show="!navCollapsed" class="flex-1 text-sm">Suche…</span>
+            <kbd x-show="!navCollapsed" class="rounded border border-line bg-void px-1.5 py-0.5 font-display text-[10px] font-semibold tracking-wide text-mist" x-text="shortcutHint"></kbd>
+          </button>
+        </div>
+
+        <nav class="min-h-0 flex-1 overflow-y-auto" :class="navCollapsed ? 'px-3' : 'px-4'">
+          <p x-show="!navCollapsed" class="px-3.5 pb-2 font-display text-xs font-semibold uppercase tracking-[0.28em] text-mist">Liga</p>
           <div class="grid gap-1.5">
             <template x-for="item in items" :key="item.key">
-              <a href="#" @click.prevent="load(item.key)"
-                 class="group flex items-center gap-3 rounded-xl px-3.5 py-3 font-display text-lg font-semibold tracking-wide transition-colors"
-                 :class="isActive(item.key)
-                   ? 'bg-flame-500/10 text-ink ring-1 ring-inset ring-flame-500/35'
-                   : 'text-mist hover:bg-elevated hover:text-ink'">
+              <a href="#" @click.prevent="load(item.key)" :title="navCollapsed ? item.label : null"
+                 class="group flex items-center rounded-xl font-display text-lg font-semibold tracking-wide transition-colors"
+                 :class="[
+                   navCollapsed ? 'size-11 justify-center mx-auto' : 'gap-3 px-3.5 py-3',
+                   isActive(item.key)
+                     ? 'bg-flame-500/10 text-ink ring-1 ring-inset ring-flame-500/35'
+                     : 'text-mist hover:bg-elevated hover:text-ink'
+                 ]">
                 <span class="size-5 shrink-0 transition-colors" :class="isActive(item.key) ? 'text-flame-400' : 'text-mist group-hover:text-ink'" x-html="item.icon"></span>
-                <span x-text="item.label"></span>
+                <span x-show="!navCollapsed" x-text="item.label"></span>
               </a>
             </template>
           </div>
         </nav>
 
-        <div class="border-t border-line px-6 py-5">
-          <div class="flex items-center gap-2.5">
-            <span class="relative flex size-2.5">
+        <div class="border-t border-line py-5" :class="navCollapsed ? 'px-3' : 'px-6'">
+          <div class="flex items-center gap-2.5" :class="navCollapsed ? 'justify-center' : ''">
+            <span class="relative flex size-2.5" title="Season 1 · Live">
               <span class="absolute inline-flex size-full animate-ping rounded-full bg-volt-400/70"></span>
               <span class="relative inline-flex size-2.5 rounded-full bg-volt-400"></span>
             </span>
-            <span class="font-display text-sm font-semibold tracking-wide text-mist">Season 1 · Live</span>
+            <span x-show="!navCollapsed" class="font-display text-sm font-semibold tracking-wide text-mist">Season 1 · Live</span>
           </div>
         </div>
       </aside>
