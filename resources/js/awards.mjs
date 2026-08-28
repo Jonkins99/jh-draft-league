@@ -16,7 +16,7 @@ export const VOTE_MAX = 10;
 // Das Awards-Feature ist mitten in Saison 1 dazugekommen. Spieltag-Awards gibt es
 // darum erst ab diesem Spieltag — frühere Spieltage werden nicht nachträglich
 // ausgezeichnet. Für eine neue Saison auf 1 setzen.
-export const MATCHDAY_AWARDS_FROM = 6;
+export const MATCHDAY_AWARDS_FROM = 1;
 
 // Spieltage, für die Spieltag-Awards vergeben werden dürfen.
 export function awardableDays(playedDays) {
