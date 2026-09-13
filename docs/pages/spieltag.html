@@ -105,6 +105,16 @@
                             <span :class="matchOutcome(day.day, i)?.winner === 'away' ? 'text-flame-400' : 'text-mist'" x-text="summaryFor(day.day, i).away"></span>
                           </div>
                           <p class="mt-1 text-[11px] uppercase tracking-wider text-mist">Kämpfe</p>
+                          <template x-if="killSummaryFor(day.day, i)">
+                            <div class="mt-2 border-t border-line/60 pt-2">
+                              <div class="font-display text-base font-bold tabular-nums sm:text-lg">
+                                <span :class="killSummaryFor(day.day, i).winner === 'home' ? 'text-ink' : 'text-mist'" x-text="killSummaryFor(day.day, i).home"></span>
+                                <span class="text-mist">:</span>
+                                <span :class="killSummaryFor(day.day, i).winner === 'away' ? 'text-ink' : 'text-mist'" x-text="killSummaryFor(day.day, i).away"></span>
+                              </div>
+                              <p class="mt-0.5 text-[10px] uppercase tracking-wider text-mist/70">Kills</p>
+                            </div>
+                          </template>
                         </div>
                       </template>
                     </div>

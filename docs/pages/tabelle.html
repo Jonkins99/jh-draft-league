@@ -23,6 +23,31 @@
 
   <div x-show="!loaded" class="py-12 text-center text-mist">Lade Tabelle…</div>
 
+  <!-- Spieltags-Navigation: Zwischenstände -->
+  <div x-show="loaded && playedDays.length" class="mb-4 flex flex-wrap items-center gap-2">
+    <div class="flex items-center gap-1 rounded-xl border border-line bg-panel p-1">
+      <button type="button" @click="stepDay(-1)" :disabled="!canStep(-1)"
+              class="grid size-9 place-items-center rounded-lg text-mist transition-colors hover:text-flame-400 disabled:opacity-30"
+              aria-label="Vorheriger Spieltag" title="Vorheriger Spieltag">
+        <svg viewBox="0 0 24 24" class="size-5" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M15 18l-6-6 6-6"/></svg>
+      </button>
+      <span class="min-w-32 px-2 text-center">
+        <span class="block font-display text-sm font-bold uppercase tracking-wider text-ink" x-text="`Spieltag ${viewDay}`"></span>
+        <span class="block text-[11px] text-mist" x-text="isLatest ? 'Aktueller Stand' : 'Zwischenstand'"></span>
+      </span>
+      <button type="button" @click="stepDay(1)" :disabled="!canStep(1)"
+              class="grid size-9 place-items-center rounded-lg text-mist transition-colors hover:text-flame-400 disabled:opacity-30"
+              aria-label="Nächster Spieltag" title="Nächster Spieltag">
+        <svg viewBox="0 0 24 24" class="size-5" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 18l6-6-6-6"/></svg>
+      </button>
+    </div>
+    <button type="button" x-show="!isLatest" @click="toLatest()"
+            class="rounded-xl border border-line px-3 py-2 font-display text-xs font-semibold uppercase tracking-wider text-mist transition-colors hover:border-flame-500/40 hover:text-flame-400">
+      Zum aktuellen Stand
+    </button>
+    <p x-show="!isLatest" class="text-sm text-mist">Nur Ergebnisse bis einschließlich Spieltag <span class="font-semibold text-ink" x-text="viewDay"></span>.</p>
+  </div>
+
   <section x-show="loaded" class="overflow-hidden rounded-2xl border border-line bg-panel">
     <div class="overflow-x-auto">
       <table class="w-full min-w-[44rem] text-left">
@@ -61,7 +86,15 @@
                 ]"
                 @click="$dispatch('navigate', { key:'teams', teamId: row.team.id })">
               <td class="px-5 py-4">
-                <span class="font-display text-lg font-bold" :class="idx < 3 ? (idx === 0 ? 'text-flame-400' : 'text-volt-400') : 'text-mist'" x-text="idx + 1"></span>
+                <span class="flex items-center gap-1.5">
+                  <span class="font-display text-lg font-bold" :class="idx < 3 ? (idx === 0 ? 'text-flame-400' : 'text-volt-400') : 'text-mist'" x-text="idx + 1"></span>
+                  <template x-if="placeDelta(row.team.id) !== null && placeDelta(row.team.id) !== 0">
+                    <span class="font-display text-[11px] font-bold tabular-nums"
+                          :class="placeDelta(row.team.id) > 0 ? 'text-volt-400' : 'text-flame-400'"
+                          :title="`${Math.abs(placeDelta(row.team.id))} Plätze gegenüber dem Vorspieltag`"
+                          x-text="(placeDelta(row.team.id) > 0 ? '▲' : '▼') + Math.abs(placeDelta(row.team.id))"></span>
+                  </template>
+                </span>
               </td>
               <td class="px-5 py-4">
                 <div class="flex items-center gap-3">
