@@ -351,8 +351,36 @@
   align-items: center;
 }
 
-.cer-duo > img + img {
+.cer-duo > img + img,
+.cer-duo > .cer-monlink + .cer-monlink {
   margin-left: -18%;
+}
+
+.cer-monlink {
+  display: inline-flex;
+  cursor: pointer;
+  border-radius: 0.5rem;
+  transition: scale 150ms ease, filter 150ms ease;
+}
+
+.cer-monlink:hover,
+.cer-monlink:focus-visible {
+  scale: 1.06;
+  filter: drop-shadow(0 0 8px rgb(255 203 5 / 0.45));
+}
+
+[data-mon].cer-plate,
+[data-mon].cer-card {
+  cursor: pointer;
+}
+
+[data-mon].cer-plate:hover,
+[data-mon].cer-plate:focus-visible,
+[data-mon].cer-card:hover,
+[data-mon].cer-card:focus-visible {
+  background: rgb(255 255 255 / 0.04);
+  outline: 1px solid rgb(255 203 5 / 0.35);
+  outline-offset: -1px;
 }
 
 .cer-card {

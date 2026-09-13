@@ -25,6 +25,7 @@
     "vite": "^8.0.16"
   },
   "dependencies": {
+    "@smogon/calc": "^0.11.0",
     "alpinejs": "^3.15.12",
     "firebase": "^12.15.0",
     "xlsx": "^0.18.5"

@@ -31,13 +31,27 @@ function imagesOf(row) {
   return row?.image ? [row.image] : [];
 }
 
+// Pokémon-Namen einer Option, parallel zu den Sprites. Nur gesetzt, wenn der
+// Award überhaupt auf Pokémon zeigt (nicht bei Team-/Match-Awards).
+function monsOf(row) {
+  return Array.isArray(row?.mons) ? row.mons.filter(Boolean) : [];
+}
+
+// Sprite ggf. als Link auf die Pokémon-Detailseite. Bei Duo-Awards ist jeder
+// Sprite für sich anklickbar, sonst trägt die ganze Box den Link.
+function monLink(inner, mon) {
+  if (!mon) return inner;
+  return `<button type="button" class="cer-monlink" data-mon="${esc(mon)}" title="${esc(mon)} öffnen">${inner}</button>`;
+}
+
 function spriteHtml(row, cls) {
   const imgs = imagesOf(row);
+  const mons = monsOf(row);
   if (!imgs.length) return `<span class="grid ${cls} place-items-center rounded-lg bg-elevated text-xs text-mist">—</span>`;
   if (imgs.length === 1) return `<img src="${esc(imgs[0])}" alt="" loading="lazy" class="${cls} object-contain" />`;
   // Duo: beide Sprites nebeneinander, leicht überlappend.
   return `<span class="cer-duo">${imgs
-    .map((src) => `<img src="${esc(src)}" alt="" loading="lazy" class="${cls} object-contain" />`)
+    .map((src, i) => monLink(`<img src="${esc(src)}" alt="" loading="lazy" class="${cls} object-contain" />`, mons.length > 1 ? mons[i] : null))
     .join('')}</span>`;
 }
 
@@ -47,7 +61,8 @@ function plateHtml(row, accent) {
   const votes = Object.entries(row.scores || {})
     .map(([p, v]) => `<span class="whitespace-nowrap">${esc(p)} ${esc(v)}</span>`)
     .join('<span class="text-mist/40"> · </span>');
-  return `<div class="cer-plate">
+  const single = monsOf(row).length === 1 ? monsOf(row)[0] : null;
+  return `<div class="cer-plate"${single ? ` data-mon="${esc(single)}" role="link" tabindex="0" title="${esc(single)} öffnen"` : ''}>
     <span class="cer-rank" style="color:${row.rank <= 3 ? accent : ''}">${row.rank}</span>
     ${img}
     <span class="min-w-0 text-left">
@@ -74,7 +89,8 @@ function cardHtml(row, { first, accent, medalSvg }) {
   const votes = Object.entries(row.scores || {})
     .map(([p, v]) => `${esc(p)} ${esc(v)}`)
     .join(' · ');
-  return `<div class="cer-card${first ? ' cer-card--first' : ''}">
+  const single = monsOf(row).length === 1 ? monsOf(row)[0] : null;
+  return `<div class="cer-card${first ? ' cer-card--first' : ''}"${single ? ` data-mon="${esc(single)}" role="link" tabindex="0" title="${esc(single)} öffnen"` : ''}>
     ${first ? '<span class="cer-bloom"></span>' : ''}
     <p class="font-display text-[11px] font-bold uppercase tracking-[0.3em]" style="color:${first ? accent : '#98a2b3'}">
       ${first ? 'Sieger' : `Platz ${row.rank}`}
@@ -241,6 +257,23 @@ export function runCeremony(root, data, opts = {}) {
 
   skipEl.addEventListener('click', () => { if (!finished) finishNow(); });
   if (opts.onClose) closeEl.addEventListener('click', opts.onClose);
+
+  // Klick auf eine Pokémon-Box oder einen einzelnen Duo-Sprite öffnet die
+  // Detailseite. Delegiert, weil Platten und Karten erst im Verlauf entstehen.
+  if (opts.onPickMon) {
+    const pick = (el) => {
+      const mon = el?.dataset?.mon;
+      if (mon) opts.onPickMon(mon);
+    };
+    root.addEventListener('click', (e) => pick(e.target.closest('[data-mon]')));
+    root.addEventListener('keydown', (e) => {
+      if (e.key !== 'Enter' && e.key !== ' ') return;
+      const el = e.target.closest('[data-mon]');
+      if (!el) return;
+      e.preventDefault();
+      pick(el);
+    });
+  }
 
   (async () => {
     const slow = reduceMotion() ? 0.4 : 1;

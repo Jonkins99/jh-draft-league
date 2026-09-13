@@ -211,6 +211,11 @@
       </button>
     </section>
 
+    <div x-show="eloUnresolved.length" class="mb-6 rounded-2xl border border-flame-500/40 bg-flame-500/5 p-4 text-sm text-flame-300">
+      <p class="font-semibold">Namen aus dem Sheet ohne Zuordnung</p>
+      <p class="mt-1 text-mist">Diese Einträge lassen sich keinem Pokémon der Stammdaten zuordnen und bleiben ohne Elo — vermutlich wurden sie im Sheet umbenannt: <span class="font-semibold text-ink" x-text="eloUnresolved.join(', ')"></span></p>
+    </div>
+
     <div x-show="!hasElo && eloLoading" class="py-12 text-center text-mist">Lade Elo-Daten…</div>
     <div x-show="!hasElo && !eloLoading" class="rounded-2xl border border-line bg-panel p-8 text-center text-mist">
       <p x-show="eloError" class="text-flame-400">Elo-Daten konnten nicht geladen werden.</p>

@@ -5,11 +5,21 @@ import {
   showdownSpecies, showdownExport,
   speedAt, speedTiers, speedCases, clampSp, applySpeedMod,
   teamBattleTotals, isMega, baseFormOf, normalizeNature,
+  pokezoneSlug, pokezoneUrl, draftPicks,
 } from '../resources/js/scoring.mjs';
 import {
   mergedOptions, voteResults, awardWinner, awardWinners, nextStatus, revealSteps,
   optionId, spoilerNote, awardableDays, MATCHDAY_AWARDS_FROM,
 } from '../resources/js/awards.mjs';
+import {
+  parsePeriod, parseTraits, normalizeGender, normalizeTrainer, currentTrainer,
+  trainerHistory, periodLabel, nextFromDay, withDismissed,
+} from '../resources/js/trainers.mjs';
+import {
+  spToEv, evToSp, speciesKey as calcSpeciesKey, natureByDe, natureLabel, natureFor,
+  parseSpField, formatSpField, spSetToConfig, configToSpSet, parseLegacyEvs,
+  damagePercent, percentLabel, hitsToKo, typeDe, MAX_SP,
+} from '../resources/js/damagecalc.mjs';
 
 let passed = 0;
 function test(name, fn) { fn(); passed++; console.log('  ok -', name); }
@@ -323,10 +333,11 @@ test('awardWinners: bei Gleichstand auf Platz 1 gewinnen alle', () => {
   assert.deepEqual(awardWinners({ ...tie, status: 'voting' }), []);
 });
 
-test('awardableDays blendet Spieltage vor dem Rollout aus', () => {
-  assert.deepEqual(awardableDays([1, 2, 3, 4, 5, 6, 7]), [6, 7]);
-  assert.equal(MATCHDAY_AWARDS_FROM, 6);
-  assert.deepEqual(awardableDays([1, 2]), []);
+test('awardableDays laesst alle Spieltage ab der Grenze zu', () => {
+  assert.equal(MATCHDAY_AWARDS_FROM, 1);
+  assert.deepEqual(awardableDays([1, 2, 3, 4, 5, 6, 7]), [1, 2, 3, 4, 5, 6, 7]);
+  assert.deepEqual(awardableDays([0, 1, 2]), [1, 2]);
+  assert.deepEqual(awardableDays([Number.NaN, null, 3]), [3]);
   assert.deepEqual(awardableDays(null), []);
 });
 
@@ -334,4 +345,237 @@ test('spoilerNote richtet sich nach dem anderen Spieler', () => {
   assert.match(spoilerNote({ seen: { Henrik: true } }, 'Janik'), /schon gesehen/);
   assert.match(spoilerNote({ seen: {} }, 'Janik'), /nicht spoilern/);
 });
+test('battleShareInRoster rechnet gegen alle Teamkaempfe, nicht nur das Aufgebot', () => {
+  const teams = [
+    { id: 't1', name: 'T1', player: 'Janik', pokemon: [monA, monB] },
+    { id: 't2', name: 'T2', player: 'Henrik', pokemon: [monC] },
+  ];
+  // Zwei Matches von t1 mit je 1 ausgetragenen Kampf. Glurak steht nur im ersten
+  // Aufgebot und nur in dessen Kampf, Turtok sitzt beide Male auf der Bank.
+  const rs = [
+    result('s1-d1-m0', 1, 't1', 't2', ['Glurak'], ['Bisaflor'],
+      { home: ['Glurak'], away: ['Bisaflor'] }, []),
+    result('s1-d2-m0', 2, 't1', 't2', ['Turtok'], ['Bisaflor'],
+      { home: ['Turtok'], away: ['Bisaflor'] }, []),
+  ];
+  const byName = Object.fromEntries(pokemonStats(teams, rs, pokedex).map((s) => [s.pokemon.name, s]));
+  // Glurak: 1 von 2 Teamkaempfen — im Aufgebot aber 1 von 1 moeglichen 3 Kaempfen.
+  assert.equal(byName.Glurak.rosterBattles, 2);
+  assert.equal(byName.Glurak.battleShareInRoster, 0.5);
+  assert.equal(byName.Glurak.battleShareInMu.toFixed(4), (1 / 3).toFixed(4));
+  // Turtok ebenso: 1 Einsatz, Nenner sind beide Teamkaempfe.
+  assert.equal(byName.Turtok.rosterBattles, 2);
+  assert.equal(byName.Turtok.battleShareInRoster, 0.5);
+  // Ohne Einsatz bleibt die Quote 0, der Nenner zaehlt trotzdem.
+  const scoped = pokemonStats([teams[1]], rs, pokedex, { scopeTeamId: 't2' });
+  const bisaflor = scoped.find((s) => s.pokemon.name === 'Bisaflor');
+  assert.equal(bisaflor.rosterBattles, 2);
+  assert.equal(bisaflor.battleShareInRoster, 1);
+});
+
+test('draftPicks rekonstruiert die Snake-Reihenfolge', () => {
+  const teams = [
+    { id: 't1', name: 'T1', pokemon: [{ name: 'Glurak' }, { name: 'Turtok' }] },
+    { id: 't2', name: 'T2', pokemon: [{ name: 'Bisaflor' }, { name: 'Pikachu' }] },
+  ];
+  const draft = { order: ['t1', 't2'], pickIndex: 4 };
+  const picks = draftPicks(teams, draft, {}, pokedex, 2);
+  assert.deepEqual(picks.map((p) => [p.pickNo, p.round, p.teamId, p.mon.name]), [
+    [1, 1, 't1', 'Glurak'],
+    [2, 1, 't2', 'Bisaflor'],
+    // Runde 2 laeuft rueckwaerts durch die Order.
+    [3, 2, 't2', 'Pikachu'],
+    [4, 2, 't1', 'Turtok'],
+  ]);
+  // Stammdaten werden angereichert (Bild/Tier aus pokedex).
+  assert.equal(picks[0].mon.tier, 'S');
+});
+
+test('draftPicks blendet Transfer-Zugaenge aus und markiert Abgaben', () => {
+  // t1 hat Turtok abgegeben und Pikachu dazubekommen.
+  const teams = [
+    { id: 't1', name: 'T1', pokemon: [{ name: 'Glurak' }, { name: 'Pikachu' }] },
+    { id: 't2', name: 'T2', pokemon: [{ name: 'Bisaflor' }, { name: 'Relaxo' }] },
+  ];
+  const transfer = {
+    added: [{ teamId: 't1', name: 'Pikachu' }],
+    removed: [{ teamId: 't1', name: 'Turtok', tier: 'A' }],
+  };
+  const picks = draftPicks(teams, { order: ['t1', 't2'], pickIndex: 4 }, transfer, pokedex, 2);
+  const t1 = picks.filter((p) => p.teamId === 't1');
+  assert.deepEqual(t1.map((p) => p.mon.name), ['Glurak', 'Turtok']);
+  assert.deepEqual(t1.map((p) => p.gone), [false, true]);
+  // Betroffene Teams sind als unscharf markiert, unbetroffene nicht.
+  assert.equal(t1.every((p) => p.approx), true);
+  assert.equal(picks.filter((p) => p.teamId === 't2').every((p) => p.approx), false);
+  assert.equal(picks.some((p) => p.mon.name === 'Pikachu'), false);
+});
+
+test('draftPicks liefert nur die bereits getaetigten Picks', () => {
+  const teams = [
+    { id: 't1', name: 'T1', pokemon: [{ name: 'Glurak' }] },
+    { id: 't2', name: 'T2', pokemon: [] },
+  ];
+  assert.equal(draftPicks(teams, { order: ['t1', 't2'], pickIndex: 1 }, {}, pokedex, 2).length, 1);
+  assert.deepEqual(draftPicks(teams, { order: [], pickIndex: 0 }, {}, pokedex, 2), []);
+});
+
+test('pokezoneSlug bildet Basis-, Mega- und Regionalformen ab', () => {
+  assert.equal(pokezoneSlug('Pikachu'), 'pikachu');
+  assert.equal(pokezoneSlug('Kommo-o'), 'kommo-o');
+  assert.equal(pokezoneSlug('Mr. Rime'), 'mr-rime');
+  assert.equal(pokezoneSlug('Mega Audino'), 'audino-mega-audino');
+  assert.equal(pokezoneSlug('Mega Charizard Y'), 'charizard-mega-charizard-y');
+  assert.equal(pokezoneSlug('Hisuian Arcanine'), 'arcanine-hisuian-form');
+  assert.equal(pokezoneSlug('Alolan Ninetales'), 'ninetales-alolan-form');
+  assert.equal(pokezoneSlug('Galarian Slowking'), 'slowking-galarian-form');
+  // Sonderformen aus der Ausnahmetabelle.
+  assert.equal(pokezoneSlug('Rotom-Wash'), 'rotom-wash-rotom');
+  assert.equal(pokezoneSlug('Paldean Tauros'), 'tauros-paldean-form-combat-breed');
+  assert.equal(pokezoneSlug('Paldean Tauros Blaze'), 'tauros-paldean-form-blaze-breed');
+  assert.equal(pokezoneSlug('Floette-Eternal'), 'floette-eternal-flower');
+  assert.equal(pokezoneSlug('Lycanroc-Midday'), 'lycanroc');
+  assert.equal(pokezoneSlug('Basculegion-Male'), 'basculegion');
+  assert.equal(pokezoneSlug(''), '');
+});
+
+test('pokezoneUrl liefert die Detailseite oder null', () => {
+  assert.equal(pokezoneUrl('Mega Audino'), 'https://www.pokemon-zone.com/champions/pokemon/audino-mega-audino/');
+  assert.equal(pokezoneUrl(null), null);
+});
+
+test('parsePeriod liest die Amtszeiten des Startdatensatzes', () => {
+  assert.deepEqual(parsePeriod('S1 Pre-S1 MD5'), { fromDay: null, untilDay: 5 });
+  assert.deepEqual(parsePeriod('S1 MD6-Current'), { fromDay: 6, untilDay: null });
+  assert.deepEqual(parsePeriod('S1 Pre-Current'), { fromDay: null, untilDay: null });
+  assert.deepEqual(parsePeriod(''), { fromDay: null, untilDay: null });
+});
+
+test('normalizeTrainer vereinheitlicht Geschlecht und Adjektive', () => {
+  assert.equal(normalizeGender('männlich'), 'm');
+  assert.equal(normalizeGender('weiblich'), 'w');
+  assert.equal(normalizeGender('was auch immer'), 'd');
+  assert.deepEqual(parseTraits('ruhig, künstlerisch ,, vergesslich'), ['ruhig', 'künstlerisch', 'vergesslich']);
+  const t = normalizeTrainer({ name: ' Valerie ', gender: 'weiblich', traits: 'ruhig, ruhig2', fromDay: 6 }, 't1');
+  assert.equal(t.name, 'Valerie');
+  assert.equal(t.gender, 'w');
+  assert.deepEqual(t.traits, ['ruhig', 'ruhig2']);
+  assert.equal(t.fromDay, 6);
+  assert.equal(t.untilDay, null);
+  assert.match(t.id, /^t1-valerie-/);
+});
+
+test('currentTrainer und Historie richten sich nach der Amtszeit', () => {
+  const list = [
+    { id: 'a', name: 'Kombu', fromDay: null, untilDay: 5 },
+    { id: 'b', name: 'Valerie', fromDay: 6, untilDay: null },
+  ];
+  assert.equal(currentTrainer(list).name, 'Valerie');
+  // Historie: neueste zuerst, mit Kennzeichnung des laufenden Amts.
+  const hist = trainerHistory(list);
+  assert.deepEqual(hist.map((t) => t.name), ['Valerie', 'Kombu']);
+  assert.deepEqual(hist.map((t) => t.current), [true, false]);
+  assert.equal(hist[1].period, 'Vor der Saison – Spieltag 5');
+  assert.equal(periodLabel(list[1]), 'Ab Spieltag 6 – heute');
+  // Ohne laufendes Amt gibt es keinen aktuellen Trainer.
+  assert.equal(currentTrainer([{ id: 'a', fromDay: null, untilDay: 5 }]), null);
+  assert.equal(currentTrainer([]), null);
+});
+
+test('Entlassung beendet das Amt und setzt den Nachfolger auf den Folgespieltag', () => {
+  const list = [{ id: 'a', name: 'Colzo', fromDay: null, untilDay: null }];
+  const after = withDismissed(list, 'a', 7);
+  assert.equal(after[0].untilDay, 7);
+  assert.equal(currentTrainer(after), null);
+  assert.equal(nextFromDay(after, 7), 8);
+  // Ohne gespielten Spieltag und ohne beendetes Amt bleibt „vor der Saison".
+  assert.equal(nextFromDay([], null), null);
+});
+
+test('Statuspunkte werden verlustfrei in EVs uebersetzt', () => {
+  // 1 SP = 8 EV; 32 SP wuerden 256 EV ergeben, der Deckel 252 liefert denselben Wert.
+  assert.equal(spToEv(0), 0);
+  assert.equal(spToEv(1), 8);
+  assert.equal(spToEv(16), 128);
+  assert.equal(spToEv(31), 248);
+  assert.equal(spToEv(MAX_SP), 252);
+  // Ausserhalb des Bereichs wird begrenzt.
+  assert.equal(spToEv(99), 252);
+  assert.equal(spToEv(-5), 0);
+  assert.equal(evToSp(128), 16);
+  assert.equal(evToSp(252), 32);
+  assert.equal(evToSp(0), 0);
+});
+
+test('speciesKey trifft die Schluessel von @smogon/calc', () => {
+  assert.equal(calcSpeciesKey('Charizard'), 'charizard');
+  assert.equal(calcSpeciesKey('Mega Charizard Y'), 'charizardmegay');
+  assert.equal(calcSpeciesKey('Mega Audino'), 'audinomega');
+  assert.equal(calcSpeciesKey('Hisuian Arcanine'), 'arcaninehisui');
+  assert.equal(calcSpeciesKey('Alolan Ninetales'), 'ninetalesalola');
+  assert.equal(calcSpeciesKey('Galarian Slowking'), 'slowkinggalar');
+  // Ausnahmen, die sich nicht aus dem Namen ableiten lassen.
+  assert.equal(calcSpeciesKey('Paldean Tauros'), 'taurospaldeacombat');
+  assert.equal(calcSpeciesKey('Lycanroc-Midday'), 'lycanroc');
+  assert.equal(calcSpeciesKey('Aegislash'), 'aegislashshield');
+  assert.equal(calcSpeciesKey('Mega Meowstic'), 'meowsticmmega');
+  assert.equal(calcSpeciesKey(''), '');
+});
+
+test('Wesen tragen deutsche Namen mit Statusangabe', () => {
+  assert.equal(natureByDe('Frech').en, 'Adamant');
+  assert.equal(natureLabel('Frech'), 'Frech (Ang+, SpA−)');
+  assert.equal(natureLabel('Robust'), 'Robust (neutral)');
+  assert.equal(natureFor('atk', 'spa').de, 'Frech');
+  assert.equal(natureFor(null, null).de, 'Robust');
+  // Ein Statuswert kann nicht zugleich steigen und sinken.
+  assert.equal(natureFor('atk', 'atk'), null);
+});
+
+test('SP-Felder des Movesets lesen und schreiben sich rund', () => {
+  assert.deepEqual(parseSpField('32+'), { sp: 32, nat: 'up' });
+  assert.deepEqual(parseSpField('14-'), { sp: 14, nat: 'down' });
+  assert.deepEqual(parseSpField('24'), { sp: 24, nat: 'neutral' });
+  assert.deepEqual(parseSpField(''), { sp: null, nat: 'neutral' });
+  assert.deepEqual(parseSpField('Unsinn'), { sp: null, nat: 'neutral' });
+  assert.equal(formatSpField(32, 'up'), '32+');
+  assert.equal(formatSpField(0, 'neutral'), '0');
+
+  const cfg = spSetToConfig({ atk: '32+', spe: '24', spa: '0-' });
+  assert.equal(cfg.sp.atk, 32);
+  assert.equal(cfg.sp.spe, 24);
+  assert.equal(cfg.nature.de, 'Frech');
+  // Und wieder zurueck: nur belegte Werte erscheinen.
+  const set = configToSpSet(cfg.sp, cfg.nature);
+  assert.equal(set.atk, '32+');
+  assert.equal(set.spe, '24');
+  assert.equal(set.spa, '0-');
+  assert.equal(set.def, '');
+});
+
+test('Alte Freitext-Angaben werden nach bestem Wissen uebernommen', () => {
+  // Enthaelt die Angabe einen Wert ueber 32, gilt die ganze Zeile als EV-Schreibweise.
+  const out = parseLegacyEvs('252 Ang / 252 Init / 4 KP');
+  assert.equal(out.atk, '32');
+  assert.equal(out.spe, '32');
+  assert.equal(out.hp, '1');
+  assert.equal(out.def, '');
+  // Bleiben alle Werte unter 33, sind es bereits SP.
+  const sp = parseLegacyEvs('32 SpA, 16 Vert');
+  assert.equal(sp.spa, '32');
+  assert.equal(sp.def, '16');
+  assert.equal(parseLegacyEvs('').spe, '');
+});
+
+test('Schadensausgabe rechnet in Prozent der KP', () => {
+  assert.deepEqual(damagePercent(50, 60, 200), { min: 25, max: 30 });
+  assert.equal(percentLabel({ min: 25, max: 30.5 }), '25 – 30,5 %');
+  assert.equal(percentLabel(null), '—');
+  assert.equal(hitsToKo(100), 1);
+  assert.equal(hitsToKo(34), 3);
+  assert.equal(hitsToKo(0), null);
+  assert.equal(typeDe('Ice'), 'Eis');
+  assert.equal(typeDe('Fairy'), 'Fee');
+});
+
 console.log(`\n${passed} Tests bestanden.`);

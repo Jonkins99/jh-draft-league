@@ -60,7 +60,7 @@
       </div>
       <div class="grid gap-2 p-5">
         <template x-for="item in items" :key="item.key">
-          <a href="#" @click.prevent="load(item.key)"
+          <a href="#" @click.prevent="navTo(item.key)"
              class="flex items-center gap-4 rounded-xl px-4 py-4 font-display text-2xl font-semibold tracking-wide transition-colors"
              :class="isActive(item.key)
                ? 'bg-flame-500/12 text-ink ring-1 ring-inset ring-flame-500/40'
@@ -108,7 +108,7 @@
           <p x-show="!navCollapsed" class="px-3.5 pb-2 font-display text-xs font-semibold uppercase tracking-[0.28em] text-mist">Liga</p>
           <div class="grid gap-1.5">
             <template x-for="item in items" :key="item.key">
-              <a href="#" @click.prevent="load(item.key)" :title="navCollapsed ? item.label : null"
+              <a href="#" @click.prevent="navTo(item.key)" :title="navCollapsed ? item.label : null"
                  class="group flex items-center rounded-xl font-display text-lg font-semibold tracking-wide transition-colors"
                  :class="[
                    navCollapsed ? 'size-11 justify-center mx-auto' : 'gap-3 px-3.5 py-3',
@@ -135,6 +135,13 @@
       </aside>
 
       <main class="min-w-0 px-4 pb-16 pt-20 md:px-8 md:pt-10 lg:px-12">
+        <div x-show="canGoBack" class="mx-auto mb-4 max-w-6xl">
+          <button type="button" @click="goBack()"
+                  class="inline-flex items-center gap-2 rounded-xl border border-line px-3 py-2 font-display text-sm font-semibold uppercase tracking-wider text-mist transition-colors hover:border-flame-500/40 hover:text-flame-400">
+            <svg viewBox="0 0 24 24" class="size-4 shrink-0" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M15 18l-6-6 6-6"/></svg>
+            <span x-text="backLabel"></span>
+          </button>
+        </div>
         <div class="view mx-auto max-w-6xl" x-ref="view">
           <div class="py-16 text-center text-mist">Lade Liga…</div>
         </div>

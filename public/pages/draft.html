@@ -191,6 +191,47 @@
     </div>
   </div>
 
+  <!-- DRAFT-VERLAUF -->
+  <section x-show="loaded && allPicks.length" class="mt-10 rounded-2xl border border-line bg-panel p-5 sm:p-6">
+    <div class="mb-4">
+      <h2 class="font-display text-xl font-bold uppercase tracking-wider text-ink">Draft-Verlauf</h2>
+      <p class="mt-1 text-sm text-mist">
+        Alle <span class="font-semibold text-ink" x-text="allPicks.length"></span> Picks in Snake-Reihenfolge.
+        <span x-show="draftHistoryApprox">Im Wintertransfer abgegebene Pokémon sind markiert — ihre exakte Draft-Position ist nicht protokolliert und steht am Ende der jeweiligen Team-Reihenfolge.</span>
+      </p>
+    </div>
+
+    <div class="space-y-5">
+      <template x-for="r in draftRounds" :key="'dr-'+r.round">
+        <div>
+          <div class="mb-2 flex items-center gap-2">
+            <span class="font-display text-xs font-bold uppercase tracking-[0.25em] text-flame-400" x-text="`Runde ${r.round}`"></span>
+            <span class="h-px flex-1 bg-line"></span>
+          </div>
+          <ul class="grid grid-cols-1 gap-1.5 sm:grid-cols-2 xl:grid-cols-4">
+            <template x-for="p in r.picks" :key="'dp-'+p.pickNo">
+              <li class="flex min-w-0 items-center gap-2 rounded-xl border border-line bg-elevated/40 p-2"
+                  :class="p.gone ? 'opacity-60' : ''">
+                <span class="w-7 shrink-0 text-center font-display text-xs font-bold tabular-nums text-mist" x-text="p.pickNo"></span>
+                <img :src="logoUrl(p.team?.logo)" :alt="p.team?.name" class="size-6 shrink-0 rounded object-contain" />
+                <button type="button" @click="goMon(p.mon.name)" class="flex min-w-0 flex-1 items-center gap-2 text-left transition-colors hover:text-flame-400">
+                  <img :src="p.mon.image" :alt="p.mon.name" loading="lazy" class="size-7 shrink-0 object-contain" />
+                  <span class="min-w-0 flex-1">
+                    <span class="block truncate text-sm font-medium text-ink" x-text="p.mon.name" :title="p.mon.name"></span>
+                    <span class="block truncate text-[11px] text-mist" x-text="p.team?.name"></span>
+                  </span>
+                </button>
+                <span x-show="p.mon.tier" class="shrink-0 rounded px-1.5 py-0.5 font-display text-[10px] font-bold"
+                      :style="`color:${tierColor(p.mon.tier)};background:${tierColor(p.mon.tier)}22`" x-text="p.mon.tier"></span>
+                <span x-show="p.gone" class="shrink-0 rounded bg-elevated px-1.5 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-mist" title="Im Wintertransfer abgegeben">Abgegeben</span>
+              </li>
+            </template>
+          </ul>
+        </div>
+      </template>
+    </div>
+  </section>
+
   <!-- Bestätigung: Draft starten -->
   <div popover="manual" id="draft-confirm" class="modal-pop w-[22rem] max-w-[90vw] rounded-2xl border border-line bg-panel p-6 text-center">
     <h3 class="font-display text-xl font-bold tracking-wide text-ink">Draft starten?</h3>

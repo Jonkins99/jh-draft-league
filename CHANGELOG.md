@@ -1,5 +1,54 @@
 # Changelog
 
+## Damage calculator (new)
+- **Damage calculator in the Teambuilder**, between the matchup and the speed-tier modules. Collapsed to a single bar until you open it; the calculation package (`@smogon/calc`) and the German name table are only fetched on first use, so the Teambuilder starts as fast as before.
+- **Only the Pokémon of the current matchup** can be picked, for attacker and defender, with a one-click **swap**.
+- **Everything in German**: natures carry their stat effect in the label ("Frech (Ang+, SpA−)"), abilities, items and moves are chosen from German name lists (English names still work as input). The table is generated once from the public PokéAPI localisation data — `node scripts/build-i18n-de.mjs` — and shipped as a static file; entries without a German name (the new Champions Mega stones, for instance) fall back to English.
+- **Champions stat points instead of EVs**: a 0–32 slider per stat (KP, Ang, Vert, SpA, SpVert, Init). One stat point equals eight EVs, which reproduces the Champions values exactly across the whole range — the unit test checks all 19 800 combinations against `speedAt()`.
+- **Stat stages** from −6 to +6 per stat, and the computed stat line next to each side.
+- Format is fixed to the one Champions VGC uses: **generation 9, doubles**. Per move the calculator shows the percentage corridor, a bar, the move's type and base power, and how many hits it takes.
+- **Both directions into the matchup moveset**: load a stored set into the calculator, or write the calculator's ability, item, moves and stat points back into it.
+- All 307 Pokémon of the draft pool resolve against the calculator's species data, invented Champions Megas included; `node scripts/check-calc-species.mjs` guards that.
+
+## Trainers (new)
+- **Teams have trainers.** The team view shows the trainer in office with portrait (square, 256 × 256 works best), gender and personality adjectives as small tags.
+- **Appoint, edit, dismiss.** Dismissing ends the term with the latest played matchday and keeps the entry; the successor starts on the following matchday, pre-filled and adjustable.
+- **Trainer history** with the term of each trainer in league terms ("Before the season – matchday 5", "From matchday 6 – today").
+- Trainers are their own position: they do not battle, are not drafted, appear in no statistic, and exist only in the team view — the groundwork for the planned press view.
+- Stored as an array on the team document, so a change is one write and needs no new collection or rule. The initial data set including retroactive changes lives in `scripts/data/trainers.csv` and is written with `node scripts/seed-trainers.mjs`.
+
+## Navigation
+- **Back bar above every view** that names where it goes ("Zurück zu Tabelle"), and the **browser back button now works**. Every view change writes a history entry; the URL stays untouched, so there is still no routing to maintain and no server rewrite needed.
+- **Sidebar reordered by relevance**: Tabelle · Spielplan · Teambuilding · Teams · Statistiken · Awards · Spieler · Draft · Transfer. A running draft or transfer window moves to position 1 for as long as it lasts.
+
+## Standings
+- **Step through past matchdays** with arrows above the table; each Pokémon's standing is recomputed from the results up to that day, and a second button jumps back to the current one.
+- Each row shows its **movement against the previous matchday** (▲/▼ with the number of places).
+
+## Matchday
+- The match card now also shows the **result by kills** under the result by battles.
+
+## Pokémon detail
+- New **Awards** section above the timeline: every ballot this Pokémon was nominated for, wins first, with the award seal, the term, who nominated it, the average and the place. Results stay hidden until you have watched the matching ceremony — the same spoiler rule the pins follow.
+
+## Awards
+- **Pokémon boxes in the ceremony are clickable** and open the Pokémon's detail page. Duo awards link each sprite separately; team and match awards stay unlinked.
+
+## Draft
+- **Full draft history** in the draft view, grouped by round, all picks in snake order — and per team at the bottom of the team view. Pokémon given away in the winter transfer are marked; their exact draft position was never recorded, so they are listed at the end of their team's order.
+
+## Statistics tables
+- New column **"Kämpfe % (Kader)"**: the share of *all* the team's battles this Pokémon was used in — matches where it was not nominated count in the denominator. The existing "Kämpfe %" is now labelled "(Aufgebot)" and still only measures the matches it was nominated for.
+
+## Elo
+- The obsolete "Skarabron" alias is gone — the sheet now spells Skaraborn correctly. Sheet names that match no Pokémon are **named in the Elo view** instead of silently ending up without an Elo value.
+
+## Teambuilder
+- **Weakness comparison is sortable per team** — the "attack type" header sorts by the shared total (default, strongest first), each team header sorts by that team's count alone; clicking the active column flips the direction.
+- **"X trifft Y" is now "Effektivität von STAB-Attacken"** and moved to the bottom of the view. The old wording suggested the matrix covered every attack a Pokémon could carry; it only ever looked at the Pokémon's own types, and the new heading and description say so.
+- **Tile markings only cycle in the "Nur Pokémon" view.** In the notes and moveset views a tap on the tile used to change the colour while you were editing; there it does nothing now. Long-press still clears the marking in every view.
+- **PokéZone link per Pokémon** in the roster selection — a small icon next to the name opens that Pokémon's page on pokemon-zone.com in a new tab. The slug is derived from the English name in `pokemon.json` (`pokezoneUrl` in `scoring.mjs`, with a lookup table for forms the site names differently).
+
 ## Awards (new)
 - New **Awards** view with its own sidebar entry. Three matchday awards (Pokémon of the matchday, biggest disappointment, biggest surprise) and 23 season awards including per-tier winners, best duo, best match, best draft, best transfer window and a **Most Valuable Pokémon vote per team** (8 separate ballots).
 - **Nominate → vote → ceremony.** Each player proposes 0–3 candidates, then either starts the vote right away or confirms and waits for the other; once both have confirmed, voting opens automatically. Every option is rated 0–10 by both players and the mean decides. With both ballots in, the ceremony unlocks.
@@ -9,7 +58,7 @@
 - **Drawn seals** instead of icons: every award is distinguishable by enamel colour, base shape (disc · rosette · shield · hexagon · bar) and engraving, so it stays readable as an 18-pixel pin. The same geometry serves catalogue, ceremony and pin.
 - **Pins wherever an entry appears** — bottom right over a Pokémon sprite, on team crests in the standings, team cards and schedule, and on the match card for "best match". Repeated matchday awards stack with a slight overlap and alternating tilt; from the fourth pin a plaque counts on. Hovering a pin names **which award from when**; tapping opens the same text in the shared info popover. The Teambuilder stays pin-free.
 - **Spoiler protection**: winners — pins included — only become visible once *you* have watched the ceremony. The closing line tells you whether the other player has seen it yet.
-- Matchday awards start at **matchday 6** (the feature shipped mid-season); earlier matchdays are not awarded retroactively. The cut-off is one constant, `MATCHDAY_AWARDS_FROM` in `awards.mjs`.
+- Matchday awards cover **every played matchday**, including the ones played before the feature shipped — they are awarded retroactively. The first awarded matchday is one constant, `MATCHDAY_AWARDS_FROM` in `awards.mjs`; raising it hides the matchdays below, and the view says so.
 - Season awards unlock only once **every match of every matchday has a result**; until then the "up next" tab states how many are missing.
 - One Firestore doc per ballot in the new `awards` collection (`s1-<award>[-d<day>|-<teamId>]`). The collection **needs its own security rule**; without it the view says so instead of failing silently. Who you vote as is a device-local choice (no login) shown at the top of the view.
 - Logic lives framework-free in `awards.mjs` (catalogue, merge, tally, reveal order, spoiler note), visuals in `award-visuals.mjs`, the sequence in `ceremony.mjs` — all unit-tested.

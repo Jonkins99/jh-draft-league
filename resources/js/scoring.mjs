@@ -102,6 +102,9 @@ function withDerivedStats(st) {
     // Einsatzquote im Matchup: bei Nominierung (6er-Aufgebot) Anteil der bis zu 3 Kämpfe,
     // in denen es tatsächlich stand. battles / (matchups × 3), auf 0..1 begrenzt.
     battleShareInMu: Math.max(0, Math.min(1, battles / Math.max(1, st.matchups * 3))),
+    // Einsatzquote im Kader: Anteil ALLER Kämpfe des Teams, in denen es stand —
+    // Matches ohne Nominierung (Bank) zählen hier im Nenner mit.
+    battleShareInRoster: st.rosterBattles ? Math.max(0, Math.min(1, battles / st.rosterBattles)) : 0,
     survivalRate: Math.max(0, Math.min(1, (battles - st.deaths) / Math.max(1, battles))),
     battleWinPct: battleDecided ? st.battleWins / battleDecided : 0,
     matchWinPct: matchesDecided ? st.matchWins / matchesDecided : 0,
@@ -128,7 +131,7 @@ export function pokemonStats(teams, results, pokedex = [], opts = {}) {
     if (stats[name]) return stats[name];
     stats[name] = {
       pokemon: pokemon || byName[name] || { name }, team: team || null,
-      kills: 0, deaths: 0, matchups: 0, battles: 0,
+      kills: 0, deaths: 0, matchups: 0, battles: 0, rosterBattles: 0,
       battleWins: 0, battleDraws: 0, battleLosses: 0,
       matchWins: 0, matchDraws: 0, matchLosses: 0,
     };
@@ -154,6 +157,24 @@ export function pokemonStats(teams, results, pokedex = [], opts = {}) {
       });
     });
   }
+
+  // Nenner der Kader-Einsatzquote: alle ausgetragenen Kämpfe der Matches, in denen das
+  // Pokémon zum Kader der jeweiligen Seite gehörte. „Gehört dazu" heißt — analog zu
+  // pokemonProfile — im Aufgebot dieses Ergebnisses ODER aktuell im Roster dieses Teams
+  // (Bank). Damit bleibt die Quote nach einem Wintertransfer bei der richtigen Seite.
+  (results || []).forEach((r) => {
+    if (!r) return;
+    const doneBattles = (r.battles || []).filter((b) => b && b.done === true).length;
+    if (!doneBattles) return;
+    ['home', 'away'].forEach((side) => {
+      const teamId = side === 'home' ? r.home : r.away;
+      if (scopeTeamId && teamId !== scopeTeamId) return;
+      const squad = new Set(r.squads?.[side] || []);
+      Object.keys(stats).forEach((name) => {
+        if (squad.has(name) || ownerByName[name]?.id === teamId) stats[name].rosterBattles += doneBattles;
+      });
+    });
+  });
 
   (results || []).forEach((r) => {
     if (!r) return;
@@ -822,4 +843,135 @@ export function baseFormOf(mon, pokedex = []) {
   const stripped = String(mon.name).replace(/^Mega-/, '').replace(/ [XY]$/, '');
   const sameDex = (pokedex || []).filter((p) => p && p.dex === mon.dex && !isMega(p.name));
   return sameDex.find((p) => p.name === stripped) || sameDex[0] || null;
+}
+
+// === Draft-Verlauf ==========================================================
+// Alle Picks in Snake-Reihenfolge aus `draft.order` + der Roster-Reihenfolge der
+// Teams rekonstruiert (ein eigener Pick-Log existiert nicht: `pick()` hängt jeden
+// Pick hinten an das Team-Dokument, damit ist die Array-Reihenfolge = Pick-Reihenfolge).
+//
+// Einschränkung nach dem Wintertransfer: abgegebene Pokémon fehlen im Roster und
+// zugekaufte stehen am Ende. Zugekaufte lassen sich über `transfer.added` sauber
+// ausblenden; die exakte Draft-Position der abgegebenen ist dagegen nirgends
+// protokolliert — sie werden deshalb ans Ende der Team-Reihenfolge gestellt und
+// über `gone` markiert. Betroffene Teams tragen zusätzlich `approx`.
+export function draftPicks(teams, draft, transfer = {}, pokedex = [], picksPerTeam = 10) {
+  const order = draft?.order || [];
+  const n = order.length;
+  if (!n) return [];
+
+  const teamById = {};
+  (teams || []).forEach((t) => { if (t?.id) teamById[t.id] = t; });
+  const monByName = {};
+  (pokedex || []).forEach((p) => { if (p?.name) monByName[p.name] = p; });
+
+  const addedByTeam = {};
+  (transfer?.added || []).forEach((a) => {
+    if (!a?.teamId || !a?.name) return;
+    (addedByTeam[a.teamId] = addedByTeam[a.teamId] || new Set()).add(a.name);
+  });
+  const removedByTeam = {};
+  (transfer?.removed || []).forEach((a) => {
+    if (!a?.teamId || !a?.name) return;
+    (removedByTeam[a.teamId] = removedByTeam[a.teamId] || []).push(a);
+  });
+
+  const draftRoster = (teamId) => {
+    const added = addedByTeam[teamId] || new Set();
+    const survivors = (teamById[teamId]?.pokemon || [])
+      .filter((p) => p && !added.has(p.name))
+      .map((p) => ({ ...(monByName[p.name] || {}), ...p, gone: false }));
+    const gone = (removedByTeam[teamId] || []).map((r) => ({
+      ...(monByName[r.name] || { name: r.name }), name: r.name, tier: r.tier || monByName[r.name]?.tier || null, gone: true,
+    }));
+    return [...survivors, ...gone];
+  };
+
+  const rosters = {};
+  order.forEach((id) => { rosters[id] = draftRoster(id); });
+
+  const totalPicks = n * picksPerTeam;
+  const made = Math.max(0, Math.min(Number.isFinite(draft?.pickIndex) ? draft.pickIndex : totalPicks, totalPicks));
+  const counts = {};
+  const picks = [];
+  for (let k = 0; k < made; k++) {
+    const round = Math.floor(k / n);
+    const pos = k % n;
+    const idx = round % 2 === 0 ? pos : n - 1 - pos;
+    const teamId = order[idx];
+    const occ = counts[teamId] || 0;
+    counts[teamId] = occ + 1;
+    const mon = rosters[teamId]?.[occ] || null;
+    if (!mon) continue;
+    picks.push({
+      pickNo: k + 1,
+      round: round + 1,
+      teamId,
+      team: teamById[teamId] || null,
+      mon,
+      gone: !!mon.gone,
+      approx: (removedByTeam[teamId] || []).length > 0,
+    });
+  }
+  return picks;
+}
+
+// === PokéZone-Verlinkung ====================================================
+// Die Detailseiten von pokemon-zone.com adressieren Pokémon über einen Slug aus
+// englischem Namen: Basisformen heißen schlicht „arcanine", Sonderformen hängen
+// die Formbezeichnung der Seite an die Basis-Spezies an — Megas den vollen Namen
+// („audino-mega-audino"), Regionalformen ein Kürzel („arcanine-hisuian-form").
+// Formen, deren Bezeichnung sich nicht aus unseren Stammdaten ableiten lässt,
+// stehen als Ausnahmen in der Tabelle.
+const POKEZONE_BASE = 'https://www.pokemon-zone.com/champions/pokemon/';
+
+const POKEZONE_REGIONS = {
+  Alolan: 'alolan-form',
+  Galarian: 'galarian-form',
+  Hisuian: 'hisuian-form',
+  Paldean: 'paldean-form',
+};
+
+const POKEZONE_FORMS = {
+  'Basculegion-Male': 'basculegion',
+  'Basculegion-Female': 'basculegion-female',
+  'Meowstic-Male': 'meowstic',
+  'Meowstic-Female': 'meowstic-female',
+  'Floette-Eternal': 'floette-eternal-flower',
+  'Lycanroc-Midday': 'lycanroc',
+  'Lycanroc-Midnight': 'lycanroc-midnight-form',
+  'Lycanroc-Dusk': 'lycanroc-dusk-form',
+  'Paldean Tauros': 'tauros-paldean-form-combat-breed',
+  'Paldean Tauros Aqua': 'tauros-paldean-form-aqua-breed',
+  'Paldean Tauros Blaze': 'tauros-paldean-form-blaze-breed',
+  'Rotom-Heat': 'rotom-heat-rotom',
+  'Rotom-Wash': 'rotom-wash-rotom',
+  'Rotom-Frost': 'rotom-frost-rotom',
+  'Rotom-Fan': 'rotom-fan-rotom',
+  'Rotom-Mow': 'rotom-mow-rotom',
+};
+
+function pokezoneSlugify(value) {
+  return String(value)
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, '-')
+    .replace(/^-+|-+$/g, '');
+}
+
+export function pokezoneSlug(nameEn) {
+  const name = String(nameEn || '').trim();
+  if (!name) return '';
+  if (POKEZONE_FORMS[name]) return POKEZONE_FORMS[name];
+  const mega = name.match(/^Mega (.+)$/);
+  if (mega) return `${pokezoneSlugify(mega[1].replace(/ [XY]$/, ''))}-${pokezoneSlugify(name)}`;
+  const region = name.match(/^(Alolan|Galarian|Hisuian|Paldean) (.+)$/);
+  if (region) return `${pokezoneSlugify(region[2])}-${POKEZONE_REGIONS[region[1]]}`;
+  return pokezoneSlugify(name);
+}
+
+export function pokezoneUrl(nameEn) {
+  const slug = pokezoneSlug(nameEn);
+  return slug ? `${POKEZONE_BASE}${slug}/` : null;
 }

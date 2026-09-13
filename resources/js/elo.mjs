@@ -13,8 +13,11 @@ export const ELO_GVIZ_URL =
 const CACHE_KEY = 'jhdl-elo-cache-v1';
 
 // Namensabweichungen Sheet -> pokemon.json (Formnamen). Sheet-Schreibweise links.
+// „Skarabron" stand hier, bis das Sheet den Tippfehler zu „Skaraborn" korrigiert
+// hat — die Zeile ist deshalb entfallen. Namen, die hier nicht stehen und auch
+// nicht in pokemon.json existieren, meldet die Elo-Ansicht sichtbar, statt sie
+// still zu verschlucken (siehe `unresolvedEloNames`).
 const ALIAS = {
-  'Skarabron': 'Skaraborn',
   'Wolwerock (Nacht)': 'Wolwerock (Nachtform)',
   'Wolwerock (Tag)': 'Wolwerock (Tagform)',
   'Wolwerock (Zwielicht)': 'Wolwerock (Zwielichtform)',
@@ -72,6 +75,17 @@ export async function fetchEloRows() {
   const text = await res.text();
   const rows = parseGviz(text);
   return { rows, fetchedAt: new Date().toISOString() };
+}
+
+// Sheet-Namen, die sich auf kein Pokémon aus den Stammdaten abbilden lassen.
+// Ohne diese Prüfung würde eine Umbenennung im Sheet nur dazu führen, dass die
+// Elo-Spalte für das Pokémon leer bleibt — ohne jeden Hinweis.
+export function unresolvedEloNames(rows, pokedex) {
+  const known = new Set((pokedex || []).map((p) => p && p.name).filter(Boolean));
+  if (!known.size) return [];
+  return (rows || [])
+    .filter((r) => r && r.resolved && !known.has(r.resolved))
+    .map((r) => r.name);
 }
 
 export function readEloCache() {
