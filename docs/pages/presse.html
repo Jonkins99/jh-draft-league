@@ -1,0 +1,780 @@
+<div x-data="presseView">
+  <header class="mb-6 flex flex-col gap-4">
+    <div class="flex flex-wrap items-start justify-between gap-4">
+      <div class="min-w-0">
+        <p class="font-display text-xs font-semibold uppercase tracking-[0.3em] text-flame-400">Redaktion</p>
+        <h1 class="mt-1 font-display text-4xl font-bold tracking-wide text-ink md:text-5xl">Presse</h1>
+        <p class="mt-2 max-w-2xl text-mist">Berichte, Gerüchte und alles, was zwischen den Spieltagen passiert. Wer etwas zu sagen hat, sagt es hier – auf dem Podium oder im Interview.</p>
+      </div>
+      <div class="flex shrink-0 items-center gap-2">
+        <div class="flex -space-x-2">
+          <template x-for="a in authors" :key="'hd-'+a.id">
+            <img :src="a.image" :alt="a.name" :title="`${a.name} · ${a.outlet}`"
+                 class="press-portrait size-9 rounded-full border border-line bg-elevated" />
+          </template>
+        </div>
+        <!-- Zahnrad: Zugang, Redaktionsaufträge, Wartung. Bewusst unauffällig. -->
+        <button type="button" @click="openSettings()" aria-label="Redaktionseinstellungen"
+                class="grid size-9 place-items-center rounded-xl border border-line text-mist/50 transition-colors hover:border-flame-500/40 hover:text-flame-400">
+          <svg viewBox="0 0 24 24" class="size-4" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+            <circle cx="12" cy="12" r="3"/>
+            <path d="M19.4 15a1.6 1.6 0 0 0 .32 1.76l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06A1.6 1.6 0 0 0 15 19.4a1.6 1.6 0 0 0-1 1.47V21a2 2 0 1 1-4 0v-.09A1.6 1.6 0 0 0 9 19.4a1.6 1.6 0 0 0-1.76.32l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06A1.6 1.6 0 0 0 4.6 15a1.6 1.6 0 0 0-1.47-1H3a2 2 0 1 1 0-4h.09A1.6 1.6 0 0 0 4.6 9a1.6 1.6 0 0 0-.32-1.76l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06A1.6 1.6 0 0 0 9 4.6a1.6 1.6 0 0 0 1-1.47V3a2 2 0 1 1 4 0v.09a1.6 1.6 0 0 0 1 1.47 1.6 1.6 0 0 0 1.76-.32l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06A1.6 1.6 0 0 0 19.4 9v.01a1.6 1.6 0 0 0 1.47 1H21a2 2 0 1 1 0 4h-.09a1.6 1.6 0 0 0-1.47 1z"/>
+          </svg>
+        </button>
+      </div>
+    </div>
+
+    <div class="flex flex-wrap gap-2">
+      <template x-for="t in [{v:'newsroom', l:'Newsroom'},{v:'termine', l:'Interview & PK'}]" :key="'ptab-'+t.v">
+        <button type="button" @click="tab = t.v"
+                class="rounded-xl border px-4 py-2 font-display text-sm font-semibold uppercase tracking-wider transition-colors"
+                :class="tab === t.v ? 'border-flame-500 bg-flame-500/10 text-flame-300' : 'border-line text-mist hover:text-ink'"
+                x-text="t.l"></button>
+      </template>
+    </div>
+  </header>
+
+  <div x-show="!loaded" class="py-12 text-center text-mist">Lade Redaktion…</div>
+
+  <!-- Firestore-Regeln: `press`, `pressSessions` und `settings` brauchen eine Freigabe. -->
+  <div x-show="loaded && press.blocked" class="mb-6 rounded-2xl border border-flame-500/50 bg-flame-500/10 p-5">
+    <p class="font-display text-sm font-bold uppercase tracking-wider text-flame-300">Firestore blockiert die Presse</p>
+    <p class="mt-1.5 text-sm text-mist">Die Collections der Presse sind in den Sicherheitsregeln nicht freigegeben. In der Firebase-Konsole ergänzen:</p>
+    <pre class="mt-2 overflow-x-auto rounded-xl border border-line bg-void p-3 text-xs text-ink"><code>match /press/{doc} { allow read, write: if true; }
+match /pressSessions/{doc} { allow read, write: if true; }
+match /settings/{doc} { allow read, write: if true; }</code></pre>
+  </div>
+
+  <template x-if="loaded && !press.blocked">
+    <div>
+
+      <!-- ============================== NEWSROOM ============================== -->
+      <section x-show="tab === 'newsroom'">
+
+        <!-- Laufende Geschichten als Laufband -->
+        <div x-show="storyRows.length" class="mb-5 overflow-hidden rounded-2xl border border-line bg-panel/60">
+          <div class="flex items-center gap-3 px-4 py-3">
+            <span class="shrink-0 font-display text-[11px] font-bold uppercase tracking-[0.25em] text-flame-400">Im Umlauf</span>
+            <div class="flex min-w-0 flex-1 gap-2 overflow-x-auto pb-1">
+              <template x-for="s in storyRows" :key="'story-'+s.id">
+                <span class="flex shrink-0 items-center gap-2 rounded-full border px-3 py-1.5 text-xs"
+                      :style="`border-color:${storyColor(s.status)}55;background:${storyColor(s.status)}14;color:${storyColor(s.status)}`"
+                      :title="s.summary">
+                  <span class="size-1.5 rounded-full" :style="`background:${storyColor(s.status)}`"></span>
+                  <span class="font-semibold" x-text="s.title"></span>
+                  <span class="opacity-70" x-text="`· ${s.status}`"></span>
+                </span>
+              </template>
+            </div>
+          </div>
+        </div>
+
+        <!-- Filter -->
+        <div class="mb-5 flex flex-col gap-3 rounded-2xl border border-line bg-panel p-4">
+          <div class="flex flex-wrap items-center gap-2">
+            <template x-for="c in categories" :key="'cat-'+c.key">
+              <button type="button" @click="setCat(c.key)"
+                      class="inline-flex items-center gap-2 rounded-xl border px-3 py-2 font-display text-xs font-bold uppercase tracking-wider transition-colors"
+                      :style="fCat === c.key ? `border-color:${c.color};background:${c.color}1f;color:${c.color}` : ''"
+                      :class="fCat === c.key ? '' : 'border-line text-mist hover:text-ink'">
+                <span x-text="c.label"></span>
+                <span class="tabular-nums opacity-60" x-text="countFor(c.key)"></span>
+              </button>
+            </template>
+          </div>
+          <div class="flex flex-wrap items-center gap-2">
+            <select x-model="fTeam" @change="persistFilters()"
+                    class="min-w-0 rounded-lg border border-line bg-elevated px-2 py-2 text-sm text-ink focus:border-flame-500 focus:outline-none">
+              <option value="">Alle Teams</option>
+              <template x-for="t in teamsForPicker" :key="'ft-'+t.id">
+                <option :value="t.id" :selected="t.id === fTeam" x-text="`${t.name} (${t.player})`"></option>
+              </template>
+            </select>
+            <input type="search" x-model="q" placeholder="Im Archiv suchen…"
+                   class="min-w-0 flex-1 rounded-lg border border-line bg-elevated px-3 py-2 text-sm text-ink placeholder:text-mist focus:border-flame-500 focus:outline-none" />
+            <button type="button" x-show="hasFilters" @click="clearFilters()"
+                    class="rounded-lg border border-line px-2.5 py-2 text-sm font-semibold text-mist transition-colors hover:text-flame-400">Filter&nbsp;×</button>
+            <button type="button" @click="openComposer()"
+                    class="ml-auto inline-flex items-center gap-2 rounded-xl bg-flame-500 px-4 py-2 font-display text-sm font-bold uppercase tracking-wider text-white transition-colors hover:bg-flame-600">
+              <svg viewBox="0 0 24 24" class="size-4" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 20h9"/><path d="M16.5 3.5a2.1 2.1 0 0 1 3 3L7 19l-4 1 1-4z"/></svg>
+              Beitrag schreiben
+            </button>
+          </div>
+        </div>
+
+        <p x-show="!feed.length" class="rounded-2xl border border-line bg-panel p-10 text-center text-mist">
+          <span x-show="!hasFilters">Noch ist es ruhig in der Redaktion. Sobald ein Match komplett eingetragen ist, erscheint hier der Spielbericht.</span>
+          <span x-show="hasFilters">Zu dieser Auswahl liegt nichts vor.</span>
+        </p>
+
+        <!-- Aufmacher -->
+        <template x-if="lead">
+          <article @click="openArticle(lead.id)"
+                   class="group mb-4 cursor-pointer overflow-hidden rounded-3xl border border-line bg-panel transition-colors hover:border-flame-500/50">
+            <div class="grid gap-0 sm:grid-cols-[1fr_13rem]">
+              <div class="order-2 p-5 sm:order-1 sm:p-7">
+                <div class="flex flex-wrap items-center gap-2">
+                  <span class="rounded-full px-2.5 py-1 font-display text-[10px] font-bold uppercase tracking-wider"
+                        :style="`color:${catColor(lead.category)};background:${catColor(lead.category)}1f;border:1px solid ${catColor(lead.category)}55`"
+                        x-text="catLabel(lead.category)"></span>
+                  <span x-show="lead.day" class="rounded-full border border-line px-2.5 py-1 font-display text-[10px] font-bold uppercase tracking-wider text-mist" x-text="`Spieltag ${lead.day}`"></span>
+                  <span class="text-[11px] text-mist" x-text="fmtDate(lead.publishedAt)"></span>
+                </div>
+                <p x-show="lead.subtitle" class="mt-4 font-display text-xs font-bold uppercase tracking-[0.25em] text-flame-400" x-text="lead.subtitle"></p>
+                <h2 class="mt-1 font-display text-2xl font-bold leading-tight tracking-wide text-ink transition-colors group-hover:text-flame-300 md:text-4xl" x-text="lead.title"></h2>
+                <p class="mt-3 text-sm leading-relaxed text-mist md:text-base" x-text="excerptOf(lead)"></p>
+                <div class="mt-5 flex flex-wrap items-center gap-3">
+                  <img :src="author(lead.authorId).image" :alt="author(lead.authorId).name" class="press-portrait size-10 rounded-full border border-line bg-elevated" />
+                  <div class="min-w-0">
+                    <p class="font-display text-sm font-bold text-ink" x-text="author(lead.authorId).name"></p>
+                    <p class="text-[11px] text-mist" x-text="`${author(lead.authorId).outlet} · ${minutesOf(lead)} Min. Lesezeit`"></p>
+                  </div>
+                  <div class="ml-auto flex -space-x-2">
+                    <template x-for="tid in (lead.teamIds || [])" :key="'lt-'+tid">
+                      <img :src="teamLogo(tid)" :alt="teamById(tid)?.name" :title="teamById(tid)?.name" class="size-8 rounded-full border border-line bg-void object-contain p-1" />
+                    </template>
+                  </div>
+                </div>
+              </div>
+              <div class="press-wall relative order-1 hidden min-h-[11rem] items-end justify-center overflow-hidden sm:order-2 sm:flex">
+                <img :src="author(lead.authorId).image" :alt="author(lead.authorId).name" class="press-portrait h-40 w-auto object-contain opacity-90" />
+                <span class="press-flash pointer-events-none absolute inset-0 bg-white"></span>
+              </div>
+            </div>
+          </article>
+        </template>
+
+        <!-- Listing -->
+        <div class="grid gap-3 lg:grid-cols-2">
+          <template x-for="a in rest" :key="'art-'+a.id">
+            <article @click="a.status === 'ready' && openArticle(a.id)"
+                     class="flex flex-col rounded-2xl border border-line bg-panel p-4 transition-colors"
+                     :class="a.status === 'ready' ? 'cursor-pointer hover:border-flame-500/40' : 'opacity-70'">
+              <div class="flex flex-wrap items-center gap-2">
+                <span class="rounded-full px-2 py-0.5 font-display text-[10px] font-bold uppercase tracking-wider"
+                      :style="`color:${catColor(a.category)};background:${catColor(a.category)}1f;border:1px solid ${catColor(a.category)}55`"
+                      x-text="catLabel(a.category)"></span>
+                <span x-show="a.editorial" class="rounded-full border border-volt-400/50 bg-volt-400/10 px-2 py-0.5 font-display text-[10px] font-bold uppercase tracking-wider text-volt-400">Redaktion</span>
+                <span x-show="a.day" class="text-[11px] text-mist" x-text="`Spieltag ${a.day}`"></span>
+                <span class="ml-auto shrink-0 text-[11px] text-mist" x-text="fmtDate(a.publishedAt)"></span>
+              </div>
+
+              <template x-if="a.status === 'pending'">
+                <div class="mt-3 flex items-center gap-3">
+                  <span class="size-2 animate-ping rounded-full bg-flame-500"></span>
+                  <p class="font-display text-base font-bold text-mist">Die Redaktion schreibt gerade…</p>
+                </div>
+              </template>
+              <template x-if="a.status === 'error'">
+                <div class="mt-3">
+                  <p class="font-display text-base font-bold text-flame-300">Der Beitrag ist nicht fertig geworden.</p>
+                  <p class="mt-1 text-xs text-mist" x-text="a.error"></p>
+                  <div class="mt-2 flex gap-2">
+                    <button type="button" x-show="a.source?.type === 'match'" @click.stop="regenerate(a.id)"
+                            class="rounded-lg border border-line px-2.5 py-1.5 text-xs font-semibold text-mist transition-colors hover:text-flame-400">Erneut versuchen</button>
+                    <button type="button" @click.stop="removeArticle(a.id)"
+                            class="rounded-lg border border-line px-2.5 py-1.5 text-xs font-semibold text-mist transition-colors hover:text-flame-400">Verwerfen</button>
+                  </div>
+                </div>
+              </template>
+              <template x-if="a.status === 'ready'">
+                <div class="mt-2 flex min-w-0 flex-1 flex-col">
+                  <p x-show="a.subtitle" class="font-display text-[11px] font-bold uppercase tracking-[0.22em] text-flame-400" x-text="a.subtitle"></p>
+                  <h3 class="mt-0.5 font-display text-lg font-bold leading-snug text-ink" x-text="a.title"></h3>
+                  <p class="mt-2 line-clamp-3 text-sm leading-relaxed text-mist" x-text="excerptOf(a)"></p>
+                  <div class="mt-4 flex items-center gap-2.5 pt-1">
+                    <img :src="author(a.authorId).image" :alt="author(a.authorId).name" class="press-portrait size-8 rounded-full border border-line bg-elevated" />
+                    <span class="min-w-0 truncate font-display text-xs font-semibold text-mist" x-text="author(a.authorId).name"></span>
+                    <div class="ml-auto flex -space-x-1.5">
+                      <template x-for="tid in (a.teamIds || [])" :key="'t-'+a.id+'-'+tid">
+                        <img :src="teamLogo(tid)" :alt="teamById(tid)?.name" :title="teamById(tid)?.name" class="size-6 rounded-full border border-line bg-void object-contain p-0.5" />
+                      </template>
+                    </div>
+                  </div>
+                </div>
+              </template>
+            </article>
+          </template>
+        </div>
+      </section>
+
+      <!-- ============================== TERMINE =============================== -->
+      <section x-show="tab === 'termine'">
+        <!-- Einmalige Auftaktrunde: 16 Termine, danach beginnt der Spieltag regulär. -->
+        <div x-show="bonusProgress.total && !bonusComplete" class="mb-5 overflow-hidden rounded-2xl border border-flame-500/40 bg-flame-500/10">
+          <div class="flex flex-wrap items-center gap-4 p-4">
+            <span class="grid size-11 shrink-0 place-items-center rounded-xl bg-flame-500/20 text-flame-400">
+              <svg viewBox="0 0 24 24" class="size-5" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3v10"/><path d="M9 6a3 3 0 0 1 6 0v4a3 3 0 0 1-6 0z"/><path d="M5 11a7 7 0 0 0 14 0"/><path d="M8 21h8"/></svg>
+            </span>
+            <div class="min-w-0 flex-1">
+              <p class="font-display text-base font-bold text-ink" x-text="`Große Presserunde vor Spieltag ${bonusDay}`"></p>
+              <p class="mt-0.5 text-sm text-mist">Jedes Team tritt einmal zur Pressekonferenz und einmal zum Interview an. Erst danach wird wieder gespielt.</p>
+            </div>
+            <p class="shrink-0 font-display text-2xl font-bold tabular-nums text-flame-400" x-text="`${bonusProgress.done}/${bonusProgress.total}`"></p>
+          </div>
+          <div class="h-1 w-full bg-void/60">
+            <div class="h-full bg-flame-500 transition-all" :style="`width:${Math.round((bonusProgress.done / Math.max(1, bonusProgress.total)) * 100)}%`"></div>
+          </div>
+        </div>
+
+        <div class="mb-5 rounded-2xl border border-line bg-panel p-4">
+          <p class="mb-3 font-display text-[11px] font-semibold uppercase tracking-wider text-mist">Team wählen</p>
+          <div class="flex flex-wrap gap-2">
+            <template x-for="t in teamsForPicker" :key="'pt-'+t.id">
+              <button type="button" @click="pickTeam = t.id"
+                      class="flex items-center gap-2.5 rounded-xl border px-3 py-2 text-left transition-colors"
+                      :style="pickTeam === t.id ? `border-color:${playerColor(t.player)};background:${playerColor(t.player)}14` : ''"
+                      :class="pickTeam === t.id ? '' : 'border-line hover:border-flame-500/40'">
+                <img :src="logoUrl(t.logo)" :alt="t.name" class="size-8 shrink-0 object-contain" />
+                <span class="min-w-0">
+                  <span class="block truncate font-display text-sm font-bold text-ink" x-text="t.name"></span>
+                  <span class="block text-[11px]" :style="`color:${playerColor(t.player)}`" x-text="t.player"></span>
+                </span>
+                <span x-show="!bonusComplete && bonusOpenFor(t.id)"
+                      class="grid size-5 shrink-0 place-items-center rounded-full bg-flame-500 font-display text-[10px] font-bold text-white"
+                      :title="`Auftaktrunde: ${bonusOpenFor(t.id)} Termin(e) offen`"
+                      x-text="bonusOpenFor(t.id)"></span>
+              </button>
+            </template>
+          </div>
+        </div>
+
+        <p x-show="!press.hasKey" class="mb-4 rounded-2xl border border-volt-400/40 bg-volt-400/10 px-4 py-3 text-sm text-volt-400">
+          Die Redaktion ist noch nicht erreichbar. Zugang über das Zahnrad oben rechts hinterlegen.
+        </p>
+
+        <p class="mb-4 rounded-xl border border-line bg-elevated/40 px-4 py-3 text-sm leading-relaxed text-mist">
+          Der Pressebetrieb nimmt mit <b class="text-ink" x-text="`Spieltag ${pressFromDay}`"></b> seine Arbeit auf – die Spieltage davor werden nicht nachträglich aufgearbeitet.
+        </p>
+
+        <p x-show="!slots.length" class="rounded-2xl border border-line bg-panel p-10 text-center text-mist">
+          Für dieses Team stehen noch keine Termine an – dafür braucht es zuerst einen Spielplan.
+        </p>
+
+        <template x-for="g in slotGroups" :key="'sg-'+g.key">
+          <section class="mb-6">
+            <h2 class="mb-3 font-display text-sm font-bold uppercase tracking-[0.22em] text-mist" x-text="g.label"></h2>
+            <div class="grid gap-3 lg:grid-cols-2">
+              <template x-for="row in g.rows" :key="'slot-'+row.id+'-'+row.slot">
+                <div class="flex flex-col gap-3 rounded-2xl border bg-panel p-4 transition-colors"
+                     :class="row.open ? 'border-line' : 'border-line/60 opacity-60'">
+                  <div class="flex items-start gap-3">
+                    <span class="grid size-11 shrink-0 place-items-center rounded-xl"
+                          :class="row.type === 'pk' ? 'bg-volt-400/15 text-volt-400' : 'bg-flame-500/15 text-flame-400'">
+                      <svg x-show="row.type === 'pk'" viewBox="0 0 24 24" class="size-5" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3v10"/><path d="M9 6a3 3 0 0 1 6 0v4a3 3 0 0 1-6 0z"/><path d="M5 11a7 7 0 0 0 14 0"/><path d="M8 21h8"/></svg>
+                      <svg x-show="row.type !== 'pk'" viewBox="0 0 24 24" class="size-5" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M20 15a2 2 0 0 1-2 2H8l-4 4V5a2 2 0 0 1 2-2h12a2 2 0 0 1 2 2z"/><path d="M8 8h8"/><path d="M8 12h5"/></svg>
+                    </span>
+                    <div class="min-w-0 flex-1">
+                      <p class="font-display text-base font-bold text-ink" x-text="typeLabel(row.type)"></p>
+                      <p class="mt-0.5 text-xs text-mist" x-text="slotSubtitle(row)"></p>
+                    </div>
+                    <span x-show="row.session?.status === 'done'" class="shrink-0 rounded-full border border-volt-400/50 bg-volt-400/10 px-2 py-0.5 font-display text-[10px] font-bold uppercase tracking-wider text-volt-400">Erledigt</span>
+                    <span x-show="row.session && ['generating','writing'].includes(row.session.status)" class="shrink-0 rounded-full border border-line px-2 py-0.5 font-display text-[10px] font-bold uppercase tracking-wider text-mist">Läuft</span>
+                  </div>
+
+                  <p x-show="!row.open" class="text-xs leading-relaxed text-mist" x-text="blockedHint(row)"></p>
+
+                  <div x-show="row.open" class="flex flex-wrap items-center gap-2">
+                    <button type="button" @click="beginSlot(row)" :disabled="!press.hasKey && row.session?.status !== 'done'"
+                            class="rounded-xl px-3.5 py-2 font-display text-xs font-bold uppercase tracking-wider transition-colors disabled:opacity-40"
+                            :class="row.session?.status === 'done' ? 'border border-line text-mist hover:text-flame-400' : 'bg-flame-500 text-white hover:bg-flame-600'"
+                            x-text="row.session?.status === 'done' ? 'Beitrag lesen' : row.session?.status === 'open' ? 'Fortsetzen' : row.session?.status === 'error' ? 'Neu ansetzen' : 'Termin wahrnehmen'"></button>
+                    <span x-show="row.session?.status === 'error'" class="text-xs text-flame-300">Beim letzten Anlauf ist etwas schiefgegangen.</span>
+                  </div>
+                </div>
+              </template>
+            </div>
+          </section>
+        </template>
+      </section>
+
+    </div>
+  </template>
+
+  <!-- ============================ BEITRAG LESEN ============================= -->
+  <div popover id="press-article" class="modal-pop w-[52rem] max-w-[calc(100vw-1.5rem)] rounded-3xl border border-line bg-panel text-ink"
+       @toggle="if ($event.newState === 'closed') openId = null">
+    <template x-if="article">
+      <div class="max-h-[88vh] overflow-y-auto @container">
+        <div class="press-wall relative flex items-end gap-4 overflow-hidden rounded-t-3xl border-b border-line px-5 pt-6 sm:px-8">
+          <div class="min-w-0 flex-1 pb-6">
+            <div class="flex flex-wrap items-center gap-2">
+              <span class="rounded-full px-2.5 py-1 font-display text-[10px] font-bold uppercase tracking-wider"
+                    :style="`color:${catColor(article.category)};background:${catColor(article.category)}1f;border:1px solid ${catColor(article.category)}55`"
+                    x-text="catLabel(article.category)"></span>
+              <span x-show="article.editorial" class="rounded-full border border-volt-400/50 bg-volt-400/10 px-2.5 py-1 font-display text-[10px] font-bold uppercase tracking-wider text-volt-400">Redaktion</span>
+              <span x-show="article.day" class="rounded-full border border-line px-2.5 py-1 font-display text-[10px] font-bold uppercase tracking-wider text-mist" x-text="`Spieltag ${article.day}`"></span>
+            </div>
+            <p x-show="article.subtitle" class="mt-4 font-display text-xs font-bold uppercase tracking-[0.25em] text-flame-400" x-text="article.subtitle"></p>
+            <h2 class="mt-1 font-display text-2xl font-bold leading-tight tracking-wide text-ink sm:text-3xl" x-text="article.title"></h2>
+          </div>
+          <img :src="author(article.authorId).image" :alt="author(article.authorId).name"
+               class="press-portrait hidden h-32 w-auto shrink-0 self-end object-contain sm:block" />
+          <button type="button" popovertarget="press-article" popovertargetaction="hide" aria-label="Schließen"
+                  class="absolute right-3 top-3 grid size-9 place-items-center rounded-xl border border-line bg-void/70 text-mist backdrop-blur transition-colors hover:text-flame-400">
+            <svg viewBox="0 0 24 24" class="size-4" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M18 6 6 18M6 6l12 12"/></svg>
+          </button>
+        </div>
+
+        <div class="px-5 py-6 sm:px-8">
+          <div class="mb-6 flex flex-wrap items-center gap-3 border-b border-line pb-5">
+            <img :src="author(article.authorId).image" :alt="author(article.authorId).name" class="press-portrait size-11 rounded-full border border-line bg-elevated sm:hidden" />
+            <div class="min-w-0">
+              <p class="font-display text-sm font-bold text-ink" x-text="author(article.authorId).name"></p>
+              <p class="text-[11px] text-mist">
+                <span x-text="author(article.authorId).role"></span> ·
+                <span x-text="author(article.authorId).outlet"></span>
+              </p>
+            </div>
+            <p class="ml-auto text-right text-[11px] text-mist">
+              <span x-text="fmtDateTime(article.publishedAt)"></span><br>
+              <span x-text="`${minutesOf(article)} Min. Lesezeit`"></span>
+            </p>
+          </div>
+
+          <div class="press-body" x-html="article.body"></div>
+
+          <div x-show="(article.teamIds || []).length || (article.pokemonNames || []).length" class="mt-8 border-t border-line pt-5">
+            <p class="mb-3 font-display text-[11px] font-bold uppercase tracking-[0.22em] text-mist">Im Text</p>
+            <div class="flex flex-wrap gap-2">
+              <template x-for="tid in (article.teamIds || [])" :key="'at-'+tid">
+                <button type="button" @click="goTeam(tid)"
+                        class="inline-flex items-center gap-2 rounded-xl border border-line px-3 py-1.5 text-sm text-mist transition-colors hover:border-flame-500/40 hover:text-ink">
+                  <img :src="teamLogo(tid)" alt="" class="size-5 object-contain" />
+                  <span x-text="teamById(tid)?.name || tid"></span>
+                </button>
+              </template>
+              <template x-for="name in (article.pokemonNames || [])" :key="'am-'+name">
+                <button type="button" @click="goMon(name)"
+                        class="inline-flex items-center gap-2 rounded-xl border border-line px-3 py-1.5 text-sm text-mist transition-colors hover:border-flame-500/40 hover:text-ink">
+                  <img :src="monImage(name)" alt="" class="size-5 object-contain" />
+                  <span x-text="name"></span>
+                </button>
+              </template>
+            </div>
+          </div>
+
+          <div x-show="(article.storylines || []).length" class="mt-6">
+            <p class="mb-2 font-display text-[11px] font-bold uppercase tracking-[0.22em] text-mist">Die Geschichte dahinter</p>
+            <div class="grid gap-2">
+              <template x-for="s in (article.storylines || [])" :key="'as-'+s.id">
+                <div class="rounded-xl border px-3 py-2" :style="`border-color:${storyColor(s.status)}44;background:${storyColor(s.status)}0f`">
+                  <p class="font-display text-sm font-bold" :style="`color:${storyColor(s.status)}`">
+                    <span x-text="s.title"></span>
+                    <span class="font-normal opacity-70" x-text="`· ${s.status}`"></span>
+                  </p>
+                  <p class="mt-0.5 text-xs leading-relaxed text-mist" x-text="s.summary"></p>
+                </div>
+              </template>
+            </div>
+          </div>
+
+          <div class="mt-8 flex flex-wrap items-center gap-2 border-t border-line pt-5">
+            <button type="button" x-show="article.source?.type === 'match'" @click="goMatch(article.source.matchId)"
+                    class="rounded-xl border border-line px-3 py-2 font-display text-xs font-bold uppercase tracking-wider text-mist transition-colors hover:text-flame-400">Zum Spielbericht im Spielplan</button>
+            <button type="button" x-show="article.editorial" @click="openComposer(article)"
+                    class="rounded-xl border border-line px-3 py-2 font-display text-xs font-bold uppercase tracking-wider text-mist transition-colors hover:text-flame-400">Bearbeiten</button>
+            <button type="button" x-show="article.source?.type === 'match'" @click="regenerate(article.id)"
+                    class="rounded-xl border border-line px-3 py-2 font-display text-xs font-bold uppercase tracking-wider text-mist transition-colors hover:text-flame-400">Neu schreiben lassen</button>
+            <button type="button" @click="removeArticle(article.id)"
+                    class="ml-auto rounded-xl border border-line px-3 py-2 font-display text-xs font-bold uppercase tracking-wider text-mist/60 transition-colors hover:border-flame-500/40 hover:text-flame-400">Aus dem Archiv nehmen</button>
+          </div>
+        </div>
+      </div>
+    </template>
+  </div>
+
+  <!-- =========================== BEITRAG SCHREIBEN ========================== -->
+  <div popover id="press-composer" class="modal-pop w-[46rem] max-w-[calc(100vw-1.5rem)] rounded-3xl border border-line bg-panel text-ink"
+       @toggle="if ($event.newState === 'closed') composer = null">
+    <template x-if="composer">
+      <div class="max-h-[88vh] overflow-y-auto p-5 sm:p-7">
+        <div class="mb-5 flex items-start justify-between gap-4">
+          <div>
+            <p class="font-display text-xs font-semibold uppercase tracking-[0.3em] text-flame-400">Eigener Beitrag</p>
+            <h2 class="mt-1 font-display text-2xl font-bold tracking-wide text-ink">Redaktion</h2>
+            <p class="mt-1 text-sm text-mist">Was hier steht, gilt als gesetzt – die Redaktion greift es in kommenden Berichten auf.</p>
+          </div>
+          <button type="button" @click="closeComposer()" aria-label="Schließen"
+                  class="grid size-9 shrink-0 place-items-center rounded-xl border border-line text-mist transition-colors hover:text-flame-400">
+            <svg viewBox="0 0 24 24" class="size-4" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M18 6 6 18M6 6l12 12"/></svg>
+          </button>
+        </div>
+
+        <div class="grid gap-4">
+          <label class="block">
+            <span class="mb-1.5 block font-display text-[11px] font-bold uppercase tracking-wider text-mist">Dachzeile</span>
+            <input type="text" x-model="composer.subtitle" placeholder="Drei bis fünf Wörter"
+                   class="w-full rounded-lg border border-line bg-elevated px-3 py-2.5 text-sm text-ink placeholder:text-mist focus:border-flame-500 focus:outline-none" />
+          </label>
+          <label class="block">
+            <span class="mb-1.5 block font-display text-[11px] font-bold uppercase tracking-wider text-mist">Überschrift</span>
+            <input type="text" x-model="composer.title" placeholder="Die Schlagzeile"
+                   class="w-full rounded-lg border border-line bg-elevated px-3 py-2.5 font-display text-lg font-bold text-ink placeholder:font-normal placeholder:text-mist focus:border-flame-500 focus:outline-none" />
+          </label>
+
+          <div class="grid gap-4 sm:grid-cols-2">
+            <label class="block">
+              <span class="mb-1.5 block font-display text-[11px] font-bold uppercase tracking-wider text-mist">Rubrik</span>
+              <select x-model="composer.category"
+                      class="w-full rounded-lg border border-line bg-elevated px-3 py-2.5 text-sm text-ink focus:border-flame-500 focus:outline-none">
+                <template x-for="c in categories" :key="'cc-'+c.key">
+                  <option :value="c.key" :selected="c.key === composer.category" x-text="c.label"></option>
+                </template>
+              </select>
+            </label>
+            <label class="block">
+              <span class="mb-1.5 block font-display text-[11px] font-bold uppercase tracking-wider text-mist">Unter welchem Namen?</span>
+              <select x-model="composer.authorId"
+                      class="w-full rounded-lg border border-line bg-elevated px-3 py-2.5 text-sm text-ink focus:border-flame-500 focus:outline-none">
+                <template x-for="a in authors" :key="'ca-'+a.id">
+                  <option :value="a.id" :selected="a.id === composer.authorId" x-text="`${a.name} · ${a.outlet}`"></option>
+                </template>
+              </select>
+            </label>
+          </div>
+
+          <div>
+            <span class="mb-1.5 block font-display text-[11px] font-bold uppercase tracking-wider text-mist">Worum geht es?</span>
+            <div class="flex flex-wrap gap-2">
+              <template x-for="t in teamsForPicker" :key="'ct-'+t.id">
+                <button type="button" @click="toggleComposerTeam(t.id)"
+                        class="inline-flex items-center gap-2 rounded-xl border px-2.5 py-1.5 text-xs transition-colors"
+                        :class="composer.teamIds.includes(t.id) ? 'border-flame-500 bg-flame-500/10 text-ink' : 'border-line text-mist hover:text-ink'">
+                  <img :src="logoUrl(t.logo)" alt="" class="size-5 object-contain" />
+                  <span x-text="t.name"></span>
+                </button>
+              </template>
+            </div>
+          </div>
+
+          <div>
+            <span class="mb-1.5 block font-display text-[11px] font-bold uppercase tracking-wider text-mist">Text</span>
+            <div class="rounded-xl border border-line bg-elevated">
+              <div class="flex flex-wrap items-center gap-1 border-b border-line p-2">
+                <template x-for="b in [
+                  {c:'bold', l:'B', cls:'font-bold', t:'Fett'},
+                  {c:'italic', l:'I', cls:'italic', t:'Kursiv'},
+                  {c:'underline', l:'U', cls:'underline', t:'Unterstrichen'}
+                ]" :key="'rb-'+b.c">
+                  <button type="button" @click="rte(b.c)" :title="b.t"
+                          class="grid size-8 place-items-center rounded-lg border border-line text-sm text-mist transition-colors hover:text-flame-400"
+                          :class="b.cls" x-text="b.l"></button>
+                </template>
+                <span class="mx-1 h-5 w-px bg-line"></span>
+                <template x-for="b in [{t:'h3', l:'H2'},{t:'h4', l:'H3'},{t:'p', l:'Text'},{t:'blockquote', l:'Zitat'}]" :key="'rbl-'+b.t">
+                  <button type="button" @click="rteBlock(b.t)"
+                          class="rounded-lg border border-line px-2 py-1.5 text-xs font-semibold text-mist transition-colors hover:text-flame-400" x-text="b.l"></button>
+                </template>
+                <span class="mx-1 h-5 w-px bg-line"></span>
+                <button type="button" @click="rte('insertUnorderedList')" title="Liste"
+                        class="rounded-lg border border-line px-2 py-1.5 text-xs font-semibold text-mist transition-colors hover:text-flame-400">Liste</button>
+                <button type="button" @click="rteLink()" title="Link"
+                        class="rounded-lg border border-line px-2 py-1.5 text-xs font-semibold text-mist transition-colors hover:text-flame-400">Link</button>
+                <button type="button" @click="rteImage()" title="Bild einfügen"
+                        class="rounded-lg border border-line px-2 py-1.5 text-xs font-semibold text-mist transition-colors hover:text-flame-400">Bild</button>
+                <button type="button" @click="rte('removeFormat')" title="Formatierung entfernen"
+                        class="ml-auto rounded-lg border border-line px-2 py-1.5 text-xs font-semibold text-mist transition-colors hover:text-flame-400">Format ×</button>
+              </div>
+              <div x-ref="editor" contenteditable="true" spellcheck="true"
+                   data-placeholder="Schreib los – Absätze, Zwischenüberschriften, Zitate und Bilder sind möglich."
+                   class="rte press-body max-h-[40vh] overflow-y-auto px-4 py-3"></div>
+            </div>
+          </div>
+        </div>
+
+        <div class="mt-6 flex flex-wrap items-center gap-2">
+          <button type="button" @click="saveComposer()" :disabled="!composerValid || composer.saving"
+                  class="rounded-xl bg-flame-500 px-5 py-2.5 font-display text-sm font-bold uppercase tracking-wider text-white transition-colors hover:bg-flame-600 disabled:opacity-40"
+                  x-text="composer.saving ? 'Wird veröffentlicht…' : 'Veröffentlichen'"></button>
+          <button type="button" @click="closeComposer()"
+                  class="rounded-xl border border-line px-4 py-2.5 font-display text-sm font-semibold uppercase tracking-wider text-mist transition-colors hover:text-flame-400">Abbrechen</button>
+        </div>
+      </div>
+    </template>
+  </div>
+
+  <!-- ========================= INTERVIEW / PRESSEKONFERENZ ================== -->
+  <div popover id="press-stage" class="press-stage" @toggle="if ($event.newState === 'closed') stage = null">
+    <template x-if="stage">
+      <div class="relative flex min-h-full flex-col">
+        <div class="press-wall pointer-events-none absolute inset-0"></div>
+        <span class="press-flash pointer-events-none absolute inset-0 bg-white/70"></span>
+
+        <header class="relative flex items-center justify-between gap-4 px-4 py-4 sm:px-8">
+          <div class="flex min-w-0 items-center gap-3">
+            <img :src="teamLogo(stage.slot.teamId)" alt="" class="size-10 shrink-0 object-contain" />
+            <div class="min-w-0">
+              <p class="truncate font-display text-sm font-bold text-ink" x-text="teamById(stage.slot.teamId)?.name"></p>
+              <p class="truncate text-[11px] uppercase tracking-wider text-mist">
+                <span x-text="typeLabel(stage.slot.type)"></span> ·
+                <span x-text="slotSubtitle(stage.slot)"></span>
+              </p>
+            </div>
+          </div>
+          <button type="button" @click="closeStage()" aria-label="Verlassen"
+                  class="grid size-10 shrink-0 place-items-center rounded-xl border border-line bg-void/60 text-mist backdrop-blur transition-colors hover:text-flame-400">
+            <svg viewBox="0 0 24 24" class="size-4" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M18 6 6 18M6 6l12 12"/></svg>
+          </button>
+        </header>
+
+        <!-- Rollenwahl -->
+        <div x-show="stage.phase === 'role'" class="relative mx-auto w-full max-w-4xl flex-1 px-4 py-8 sm:px-8">
+          <p class="font-display text-xs font-semibold uppercase tracking-[0.3em] text-flame-400">Wer tritt vor die Presse?</p>
+          <h2 class="mt-2 font-display text-3xl font-bold tracking-wide text-ink">Rolle wählen</h2>
+          <p class="mt-2 max-w-xl text-sm text-mist" x-text="stage.slot.type === 'pk' ? 'Auf dem Podium sitzt der Trainer. Drei Pressevertreter stellen je eine Frage.' : 'Ein Pressevertreter, drei Fragen. Antworten darf der Trainer – oder ein Pokémon aus dem Kader.'"></p>
+
+          <p x-show="!roleOptions.length" class="mt-6 rounded-2xl border border-line bg-panel/80 p-6 text-sm text-mist">
+            Für dieses Team ist kein amtierender Trainer hinterlegt. Ohne Trainer gibt es keine Pressekonferenz – im Team-Bereich lässt sich einer eintragen.
+          </p>
+
+          <div class="mt-6 grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
+            <template x-for="r in roleOptions" :key="'role-'+r.kind+'-'+r.name">
+              <button type="button" @click="chooseRole(r)"
+                      class="flex items-center gap-3 rounded-2xl border border-line bg-panel/80 p-3 text-left backdrop-blur transition-colors hover:border-flame-500/50">
+                <span class="grid size-14 shrink-0 place-items-center overflow-hidden rounded-xl border border-line bg-elevated">
+                  <img x-show="r.image" :src="r.image" :alt="r.name" class="size-12 object-contain" />
+                  <svg x-show="!r.image" viewBox="0 0 24 24" class="size-6 text-mist" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"><circle cx="12" cy="8" r="3.4"/><path d="M5 20a7 7 0 0 1 14 0"/></svg>
+                </span>
+                <span class="min-w-0">
+                  <span class="block truncate font-display text-base font-bold text-ink" x-text="r.name"></span>
+                  <span class="block text-[11px] uppercase tracking-wider text-flame-400" x-text="r.kind === 'trainer' ? 'Trainer' : 'Pokémon'"></span>
+                  <span x-show="r.traits?.length" class="mt-0.5 block truncate text-[11px] text-mist" x-text="(r.traits || []).join(', ')"></span>
+                </span>
+              </button>
+            </template>
+          </div>
+        </div>
+
+        <!-- Wartezustand -->
+        <div x-show="stage.phase === 'wait' || stage.phase === 'writing' || (stage.phase === 'ask' && !stageQuestion)"
+             class="relative flex flex-1 flex-col items-center justify-center gap-5 px-6 py-20 text-center">
+          <span class="relative flex size-16">
+            <span class="absolute inline-flex size-full animate-ping rounded-full bg-flame-500/40"></span>
+            <span class="relative inline-flex size-16 items-center justify-center rounded-full border border-flame-500/50 bg-flame-500/15 text-flame-400">
+              <svg viewBox="0 0 24 24" class="size-7" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M4 5h13a1 1 0 0 1 1 1v12a2 2 0 0 0 2 2H5a2 2 0 0 1-2-2V6a1 1 0 0 1 1-1z"/><path d="M7 9h7M7 13h7M7 17h4"/></svg>
+            </span>
+          </span>
+          <p class="font-display text-xl font-bold tracking-wide text-ink"
+             x-text="stage.phase === 'writing' ? 'Die Redaktion tippt…' : 'Die Presse nimmt Aufstellung…'"></p>
+          <p class="max-w-sm text-sm text-mist"
+             x-text="stage.phase === 'writing' ? 'Aus den Antworten wird gerade ein Beitrag. Das dauert einen Moment.' : 'Mikrofone werden aufgebaut, Fragen sortiert.'"></p>
+        </div>
+
+        <!-- Fragen -->
+        <div x-show="stage.phase === 'ask' && stageQuestion" class="relative mx-auto w-full max-w-5xl flex-1 px-4 pb-10 sm:px-8">
+          <div class="mb-5 flex items-center justify-center gap-2">
+            <template x-for="(q, i) in (session?.questions || [])" :key="'dot-'+i">
+              <span class="h-1.5 rounded-full transition-all"
+                    :class="i === stage.index ? 'w-8 bg-flame-500' : i < stage.index ? 'w-4 bg-flame-500/40' : 'w-4 bg-line'"></span>
+            </template>
+          </div>
+
+          <!-- Podium: bei der PK stehen alle drei, der Fragende tritt vor -->
+          <div class="mb-6 flex items-end justify-center gap-3 sm:gap-6">
+            <template x-for="a in stageAuthors" :key="'cast-'+a.id">
+              <div class="flex flex-col items-center transition-all duration-300"
+                   :class="a.id === stageAsker.id ? 'opacity-100' : 'opacity-35 grayscale'">
+                <img :src="a.image" :alt="a.name"
+                     class="press-portrait rounded-2xl border bg-elevated transition-all duration-300"
+                     :class="a.id === stageAsker.id ? 'size-24 border-flame-500/60 sm:size-32' : 'size-16 border-line sm:size-20'" />
+                <p class="mt-2 font-display text-xs font-bold text-ink" x-text="a.name"></p>
+                <p class="text-[10px] uppercase tracking-wider text-mist" x-text="a.outlet"></p>
+              </div>
+            </template>
+          </div>
+
+          <!-- Über x-for neu aufgebaut, damit die Einblend-Animation je Frage erneut läuft. -->
+          <template x-for="q in [stageQuestion]" :key="'q-'+stage.index">
+            <div class="press-typein mx-auto max-w-3xl">
+              <p class="text-center font-display text-[11px] font-bold uppercase tracking-[0.25em]"
+                 :class="q.provocative ? 'text-flame-400' : 'text-mist'"
+                 x-text="q.topic || (q.provocative ? 'Nachgehakt' : 'Zur Lage')"></p>
+              <blockquote class="mt-3 text-center font-display text-xl font-bold leading-snug tracking-wide text-ink sm:text-2xl">
+                <span x-text="`„${q.text}“`"></span>
+              </blockquote>
+              <p class="mt-3 text-center text-xs text-mist">
+                <span x-text="`${stageAsker.name}, ${stageAsker.outlet}`"></span> ·
+                <span x-text="`an ${session?.role?.name}`"></span>
+              </p>
+            </div>
+          </template>
+
+          <div class="mx-auto mt-8 grid max-w-3xl gap-3">
+            <template x-for="(o, i) in (stageQuestion.options || [])" :key="'opt-'+stage.index+'-'+i">
+              <button type="button" @click="answerWith(o)"
+                      class="group rounded-2xl border border-line bg-panel/80 p-4 text-left backdrop-blur transition-colors hover:border-flame-500/50 hover:bg-panel">
+                <p class="text-sm leading-relaxed text-ink" x-text="`„${o.text}“`"></p>
+                <p class="mt-2 font-display text-[10px] font-bold uppercase tracking-wider text-mist transition-colors group-hover:text-flame-400"
+                   x-text="o.stance === 'souveraen' ? 'ruhig und klar' : o.stance === 'ausweichend' ? 'ausweichend' : 'mit Gegenwehr'"></p>
+              </button>
+            </template>
+
+            <div class="rounded-2xl border border-dashed border-line bg-panel/60 p-4 backdrop-blur">
+              <p class="mb-2 font-display text-[11px] font-bold uppercase tracking-wider text-mist">Lieber selbst antworten</p>
+              <textarea x-model="stage.custom" rows="3" placeholder="Eigene Antwort – sie wird genauso zitiert wie eine vorbereitete."
+                        class="w-full resize-y rounded-xl border border-line bg-elevated px-3 py-2.5 text-sm text-ink placeholder:text-mist focus:border-flame-500 focus:outline-none"></textarea>
+              <div class="mt-2 flex flex-wrap items-center gap-2">
+                <button type="button" @click="answerCustom()" :disabled="(stage.custom || '').trim().length < 2"
+                        class="rounded-xl bg-flame-500 px-4 py-2 font-display text-xs font-bold uppercase tracking-wider text-white transition-colors hover:bg-flame-600 disabled:opacity-40">So antworten</button>
+                <button type="button" x-show="stage.index > 0" @click="stageBack()"
+                        class="rounded-xl border border-line px-3 py-2 font-display text-xs font-bold uppercase tracking-wider text-mist transition-colors hover:text-flame-400">Eine Frage zurück</button>
+                <span class="ml-auto text-[11px] text-mist" x-text="`Frage ${stage.index + 1} von ${(session?.questions || []).length}`"></span>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Abschluss -->
+        <div x-show="stage.phase === 'done'" class="relative flex flex-1 flex-col items-center justify-center gap-4 px-6 py-20 text-center">
+          <p class="font-display text-xs font-semibold uppercase tracking-[0.3em] text-flame-400">Abgedruckt</p>
+          <h2 class="max-w-2xl font-display text-2xl font-bold tracking-wide text-ink sm:text-3xl"
+              x-text="press.byId(stage.articleId)?.title || 'Der Beitrag ist online.'"></h2>
+          <p class="max-w-lg text-sm text-mist" x-text="press.byId(stage.articleId)?.subtitle || ''"></p>
+          <div class="mt-2 flex flex-wrap justify-center gap-2">
+            <button type="button" @click="readStageArticle()"
+                    class="rounded-xl bg-flame-500 px-5 py-2.5 font-display text-sm font-bold uppercase tracking-wider text-white transition-colors hover:bg-flame-600">Beitrag lesen</button>
+            <button type="button" @click="closeStage()"
+                    class="rounded-xl border border-line px-4 py-2.5 font-display text-sm font-semibold uppercase tracking-wider text-mist transition-colors hover:text-flame-400">Schließen</button>
+          </div>
+        </div>
+
+        <!-- Fehlschlag -->
+        <div x-show="stage.phase === 'error'" class="relative flex flex-1 flex-col items-center justify-center gap-4 px-6 py-20 text-center">
+          <p class="font-display text-xl font-bold tracking-wide text-flame-300">Der Termin ist geplatzt.</p>
+          <p class="max-w-md text-sm text-mist" x-text="session?.error || press.lastError || 'Die Redaktion war nicht erreichbar.'"></p>
+          <div class="flex flex-wrap justify-center gap-2">
+            <button type="button" @click="retryStage()"
+                    class="rounded-xl bg-flame-500 px-5 py-2.5 font-display text-sm font-bold uppercase tracking-wider text-white transition-colors hover:bg-flame-600">Neu ansetzen</button>
+            <button type="button" @click="closeStage()"
+                    class="rounded-xl border border-line px-4 py-2.5 font-display text-sm font-semibold uppercase tracking-wider text-mist transition-colors hover:text-flame-400">Schließen</button>
+          </div>
+        </div>
+      </div>
+    </template>
+  </div>
+
+  <!-- ============================ EINSTELLUNGEN ============================= -->
+  <div popover id="press-settings" class="modal-pop w-[46rem] max-w-[calc(100vw-1.5rem)] rounded-3xl border border-line bg-panel text-ink"
+       @toggle="if ($event.newState === 'closed') settings = null">
+    <template x-if="settings">
+      <div class="max-h-[88vh] overflow-y-auto p-5 sm:p-7">
+        <div class="mb-5 flex items-start justify-between gap-4">
+          <div>
+            <p class="font-display text-xs font-semibold uppercase tracking-[0.3em] text-flame-400">Intern</p>
+            <h2 class="mt-1 font-display text-2xl font-bold tracking-wide text-ink">Redaktionseinstellungen</h2>
+          </div>
+          <button type="button" @click="closeSettings()" aria-label="Schließen"
+                  class="grid size-9 shrink-0 place-items-center rounded-xl border border-line text-mist transition-colors hover:text-flame-400">
+            <svg viewBox="0 0 24 24" class="size-4" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M18 6 6 18M6 6l12 12"/></svg>
+          </button>
+        </div>
+
+        <div class="mb-5 flex flex-wrap gap-2">
+          <template x-for="t in [{v:'zugang', l:'Zugang'},{v:'prompts', l:'Redaktionsaufträge'},{v:'wartung', l:'Wartung'}]" :key="'st-'+t.v">
+            <button type="button" @click="settings.tab = t.v"
+                    class="rounded-xl border px-3.5 py-2 font-display text-xs font-bold uppercase tracking-wider transition-colors"
+                    :class="settings.tab === t.v ? 'border-flame-500 bg-flame-500/10 text-flame-300' : 'border-line text-mist hover:text-ink'"
+                    x-text="t.l"></button>
+          </template>
+        </div>
+
+        <!-- Zugang -->
+        <div x-show="settings.tab === 'zugang'" class="grid gap-4">
+          <label class="block">
+            <span class="mb-1.5 block font-display text-[11px] font-bold uppercase tracking-wider text-mist">API-Schlüssel</span>
+            <input type="password" x-model="settings.key" autocomplete="off" spellcheck="false" placeholder="AIza…"
+                   class="w-full rounded-lg border border-line bg-elevated px-3 py-2.5 font-mono text-sm text-ink placeholder:text-mist focus:border-flame-500 focus:outline-none" />
+            <span class="mt-1.5 block text-xs leading-relaxed text-mist">Bleibt ausschließlich auf diesem Gerät (localStorage) und wird nie in die Datenbank geschrieben. Jedes Gerät, das Beiträge erzeugen soll, braucht einen eigenen Eintrag.</span>
+          </label>
+          <label class="block">
+            <span class="mb-1.5 block font-display text-[11px] font-bold uppercase tracking-wider text-mist">Modell</span>
+            <select x-model="settings.model"
+                    class="w-full rounded-lg border border-line bg-elevated px-3 py-2.5 text-sm text-ink focus:border-flame-500 focus:outline-none">
+              <template x-for="m in models" :key="'m-'+m.id">
+                <option :value="m.id" :selected="m.id === settings.model" x-text="`${m.label} — ${m.hint}`"></option>
+              </template>
+            </select>
+          </label>
+          <div class="flex flex-wrap items-center gap-2">
+            <button type="button" @click="saveAccess()"
+                    class="rounded-xl bg-flame-500 px-4 py-2.5 font-display text-sm font-bold uppercase tracking-wider text-white transition-colors hover:bg-flame-600">Speichern</button>
+            <button type="button" @click="testAccess()" :disabled="settings.testing"
+                    class="rounded-xl border border-line px-4 py-2.5 font-display text-sm font-semibold uppercase tracking-wider text-mist transition-colors hover:text-flame-400 disabled:opacity-40"
+                    x-text="settings.testing ? 'Prüfe…' : 'Verbindung testen'"></button>
+            <span x-show="settings.testMsg" class="text-sm text-mist" x-text="settings.testMsg"></span>
+          </div>
+        </div>
+
+        <!-- Prompts -->
+        <div x-show="settings.tab === 'prompts'" class="grid gap-4">
+          <div class="flex flex-wrap gap-2">
+            <template x-for="d in promptDefs" :key="'pd-'+d.key">
+              <button type="button" @click="settings.promptKey = d.key"
+                      class="rounded-lg border px-3 py-1.5 text-xs font-semibold transition-colors"
+                      :class="settings.promptKey === d.key ? 'border-flame-500 bg-flame-500/10 text-flame-300' : 'border-line text-mist hover:text-ink'">
+                <span x-text="d.label"></span>
+                <span x-show="isPromptChanged(d.key)" class="ml-1 text-volt-400">•</span>
+              </button>
+            </template>
+          </div>
+          <template x-for="d in promptDefs" :key="'pe-'+d.key">
+            <div x-show="settings.promptKey === d.key">
+              <p class="mb-2 text-xs leading-relaxed text-mist" x-text="d.hint"></p>
+              <textarea x-model="settings.prompts[d.key]" rows="16" spellcheck="false"
+                        class="w-full resize-y rounded-xl border border-line bg-elevated px-3 py-2.5 font-mono text-xs leading-relaxed text-ink focus:border-flame-500 focus:outline-none"></textarea>
+              <div class="mt-2 flex flex-wrap items-center gap-2">
+                <button type="button" @click="savePrompts()" :disabled="settings.saving"
+                        class="rounded-xl bg-flame-500 px-4 py-2 font-display text-xs font-bold uppercase tracking-wider text-white transition-colors hover:bg-flame-600 disabled:opacity-40"
+                        x-text="settings.saving ? 'Speichere…' : 'Alle Aufträge speichern'"></button>
+                <button type="button" @click="resetPrompt(d.key)"
+                        class="rounded-xl border border-line px-3 py-2 font-display text-xs font-bold uppercase tracking-wider text-mist transition-colors hover:text-flame-400">Diesen zurücksetzen</button>
+              </div>
+            </div>
+          </template>
+          <p class="rounded-xl border border-line bg-elevated/40 px-3 py-2.5 text-xs leading-relaxed text-mist">
+            Liga-Regelwerk, Kanon-Schutz (keine eigenmächtigen Transfers, Sperren oder Trainerwechsel) und die wechselnde Tonlage stecken fest im Code – sie gelten zusätzlich zu diesem Text und müssen hier nicht wiederholt werden.
+          </p>
+        </div>
+
+        <!-- Wartung -->
+        <div x-show="settings.tab === 'wartung'" class="grid gap-4">
+          <div>
+            <p class="font-display text-sm font-bold uppercase tracking-wider text-ink">Fehlende Spielberichte</p>
+            <p class="mt-1 text-xs leading-relaxed text-mist">Berichte entstehen automatisch, wenn der dritte Kampf eines Matches eingetragen wird – solange ein Gerät mit Zugang geöffnet ist. Was dabei liegen geblieben ist, lässt sich hier nachholen.</p>
+          </div>
+          <p x-show="!missingReports.length" class="rounded-xl border border-line bg-elevated/40 px-3 py-2.5 text-sm text-mist">Zu jedem abgeschlossenen Match liegt ein Bericht vor.</p>
+          <div x-show="missingReports.length" class="grid gap-2">
+            <template x-for="r in missingReports" :key="'mr-'+r.id">
+              <div class="flex items-center gap-3 rounded-xl border border-line px-3 py-2">
+                <span class="font-display text-xs font-bold uppercase tracking-wider text-mist" x-text="`ST ${r.day}`"></span>
+                <span class="min-w-0 flex-1 truncate text-sm text-ink" x-text="r.label"></span>
+                <button type="button" @click="press.generateReport(r.id)" :disabled="!press.hasKey || isBusy(press.reportIdFor(r.id))"
+                        class="shrink-0 rounded-lg border border-line px-2.5 py-1.5 text-xs font-semibold text-mist transition-colors hover:text-flame-400 disabled:opacity-40"
+                        x-text="isBusy(press.reportIdFor(r.id)) ? 'Schreibt…' : 'Schreiben'"></button>
+              </div>
+            </template>
+            <button type="button" @click="backfillReports()" :disabled="!press.hasKey || settings.backfilling"
+                    class="mt-1 rounded-xl bg-flame-500 px-4 py-2.5 font-display text-sm font-bold uppercase tracking-wider text-white transition-colors hover:bg-flame-600 disabled:opacity-40"
+                    x-text="settings.backfilling ? 'Arbeitet die Liste ab…' : 'Alle nachholen'"></button>
+          </div>
+
+          <div class="border-t border-line pt-4">
+            <p class="font-display text-sm font-bold uppercase tracking-wider text-ink">Laufende Geschichten</p>
+            <p class="mt-1 text-xs leading-relaxed text-mist">Der Stand ergibt sich aus dem jeweils jüngsten Beitrag, der eine Geschichte erwähnt. Wird ein Beitrag gelöscht, verschwindet sein Beitrag zur Geschichte mit ihm.</p>
+            <div class="mt-3 grid gap-1.5">
+              <template x-for="s in press.storylines" :key="'ms-'+s.id">
+                <div class="flex items-center gap-2 rounded-lg border border-line px-3 py-2">
+                  <span class="size-1.5 shrink-0 rounded-full" :style="`background:${storyColor(s.status)}`"></span>
+                  <span class="min-w-0 flex-1 truncate text-sm text-ink" x-text="s.title"></span>
+                  <span class="shrink-0 text-[11px] text-mist" x-text="`${s.beats}× · ${s.status}`"></span>
+                </div>
+              </template>
+              <p x-show="!press.storylines.length" class="text-sm text-mist">Noch keine Geschichte im Umlauf.</p>
+            </div>
+          </div>
+        </div>
+      </div>
+    </template>
+  </div>
+</div>

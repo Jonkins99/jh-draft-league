@@ -1,4 +1,4 @@
-// Reine Logik-Tests fuer scoring.mjs — Ausfuehren: node scripts/test-scoring.mjs
+// Reine Logik-Tests der framework-freien Module — Ausfuehren: node scripts/test-scoring.mjs
 import assert from 'node:assert/strict';
 import {
   pokemonStats, pokemonProfile,
@@ -20,6 +20,13 @@ import {
   parseSpField, formatSpField, spSetToConfig, configToSpSet, parseLegacyEvs,
   damagePercent, percentLabel, hitsToKo, typeDe, MAX_SP,
 } from '../resources/js/damagecalc.mjs';
+import {
+  pressSlots, slotPlan, bonusSlotsFor, bonusRoundComplete, bonusRoundProgress,
+  collectStorylines, paragraphsToHtml, articleMatchesFilter, randomAuthors,
+  BONUS_ROUND_DAY, PRESS_FROM_DAY,
+} from '../resources/js/press.mjs';
+import { buildContext } from '../resources/js/press-context.mjs';
+import { buildDirection, buildSystem, DEFAULT_PROMPTS } from '../resources/js/press-prompts.mjs';
 
 let passed = 0;
 function test(name, fn) { fn(); passed++; console.log('  ok -', name); }
@@ -576,6 +583,147 @@ test('Schadensausgabe rechnet in Prozent der KP', () => {
   assert.equal(hitsToKo(0), null);
   assert.equal(typeDe('Ice'), 'Eis');
   assert.equal(typeDe('Fairy'), 'Fee');
+});
+
+// === Presse =================================================================
+// Aufbau: acht Teams, 14 Spieltage, Spieltage 1–7 vollstaendig gespielt.
+const pressTeams = ['a', 'b', 'c', 'd', 'e', 'f', 'g', 'h'].map((k, i) => ({
+  id: `s1-${k}`, season: 1, name: `Team ${k.toUpperCase()}`, player: i % 2 ? 'Henrik' : 'Janik',
+  logo: `${k}.png`, order: i,
+  trainers: [{ id: `tr-${k}`, name: `Trainer ${k}`, gender: 'd', traits: ['ruhig', 'akribisch'], fromDay: null, untilDay: null }],
+  pokemon: Array.from({ length: 10 }, (_, n) => ({ name: `${k.toUpperCase()}mon${n}`, tier: 'B', cost: 10, types: ['Feuer'], base_speed: 80 })),
+}));
+const pressSchedule = {
+  matchdays: Array.from({ length: 14 }, (_, d) => ({
+    day: d + 1, leg: d < 7 ? 'hin' : 'rueck',
+    matches: [
+      { home: 's1-a', away: 's1-b' }, { home: 's1-c', away: 's1-d' },
+      { home: 's1-e', away: 's1-f' }, { home: 's1-g', away: 's1-h' },
+    ],
+  })),
+};
+const pressResults = [];
+pressSchedule.matchdays.slice(0, 7).forEach((md) => md.matches.forEach((m, i) => {
+  const mons = (id, n) => Array.from({ length: n }, (_, x) => `${id.slice(3).toUpperCase()}mon${x}`);
+  const used = { home: mons(m.home, 4), away: mons(m.away, 4) };
+  const battle = () => ({
+    done: true, used, score: { home: 2, away: 1 }, winner: 'home',
+    kills: [{ victimSide: 'away', victim: used.away[0], killerSide: 'home', killer: used.home[0] }],
+  });
+  pressResults.push({
+    id: `s1-d${md.day}-m${i}`, day: md.day, home: m.home, away: m.away,
+    squads: { home: mons(m.home, 6), away: mons(m.away, 6) },
+    battles: [battle(), battle(), battle()],
+  });
+}));
+const pressTeamIds = pressTeams.map((t) => t.id);
+
+test('Je Spieltag gibt es genau ein Interview und eine Pressekonferenz', () => {
+  const slots = pressSlots('s1-a', pressSchedule, pressResults, [], true);
+  const day9 = slots.filter((s) => s.day === 9);
+  assert.equal(day9.length, 2);
+  assert.deepEqual(day9.map((s) => s.type).sort(), ['interview', 'pk']);
+  assert.deepEqual(day9.map((s) => s.slot), ['pre', 'post']);
+  // Die Losung ist deterministisch, damit beide Geraete dasselbe sehen.
+  assert.deepEqual(slotPlan('s1-a', 9), slotPlan('s1-a', 9));
+  const plans = pressTeamIds.flatMap((id) => [8, 9, 10, 11, 12, 13, 14].map((d) => slotPlan(id, d).pre));
+  assert.ok(plans.includes('pk') && plans.includes('interview'));
+});
+
+test('Vor dem Pressestart gibt es keine Termine', () => {
+  const slots = pressSlots('s1-a', pressSchedule, pressResults, [], true);
+  assert.equal(slots.filter((s) => s.day < PRESS_FROM_DAY).length, 0);
+  // Ein bereits stattgefundener Termin bleibt sichtbar, auch wenn er davor liegt.
+  const alt = slotPlan('s1-a', 3).pre;
+  const mit = pressSlots('s1-a', pressSchedule, pressResults, [{ id: `s1-d3-s1-a-${alt}`, status: 'done' }], true);
+  assert.equal(mit.filter((s) => s.day === 3).length, 2);
+});
+
+test('Termine haengen am Ergebnisstand des Spielplans', () => {
+  const slots = pressSlots('s1-a', pressSchedule, pressResults, [], true);
+  // Spieltag 8 laeuft noch nicht: „vor dem Spiel" ist frei, „nach dem Spiel" nicht.
+  assert.equal(slots.find((s) => s.day === 8 && s.slot === 'pre').open, true);
+  assert.equal(slots.find((s) => s.day === 8 && s.slot === 'post').open, false);
+  assert.equal(slots.find((s) => s.day === 9 && s.slot === 'pre').open, false);
+  const ids = slots.map((s) => s.id);
+  assert.equal(new Set(ids).size, ids.length);
+});
+
+test('Die Auftaktrunde umfasst 16 Termine und geht Spieltag 8 voraus', () => {
+  const offen = pressSlots('s1-a', pressSchedule, pressResults, [], false);
+  const bonus = offen.filter((s) => s.slot === 'bonus');
+  assert.equal(bonus.length, 2);
+  assert.deepEqual(bonus.map((s) => s.type).sort(), ['interview', 'pk']);
+  assert.ok(bonus.every((s) => s.open));
+  const d8 = offen.find((s) => s.day === BONUS_ROUND_DAY && s.slot === 'pre');
+  assert.equal(d8.open, false);
+  assert.equal(d8.blockedBy, 'bonus');
+
+  assert.deepEqual(bonusRoundProgress(pressTeamIds, pressSchedule, []), { done: 0, total: 16 });
+  const alle = pressTeamIds.flatMap((id) => bonusSlotsFor(id, pressSchedule, []).map((r) => ({ id: r.id, status: 'done' })));
+  assert.equal(bonusRoundComplete(pressTeamIds, pressSchedule, alle.slice(0, 15)), false);
+  assert.equal(bonusRoundComplete(pressTeamIds, pressSchedule, alle), true);
+  assert.equal(pressSlots('s1-a', pressSchedule, pressResults, alle, true).find((s) => s.day === 8 && s.slot === 'pre').open, true);
+});
+
+test('Der Metadatensatz traegt Ergebnis, Tabelle, Kader und Trainer', () => {
+  const articles = [{
+    id: 'x', status: 'ready', category: 'spielbericht', title: 'Titel', body: '<p>Text</p>',
+    authorId: 'alba', teamIds: ['s1-a'], day: 7, publishedAt: '2026-01-01T10:00:00.000Z',
+    storylines: [{ id: 'trainerfrage-a', title: 'Trainerfrage', teams: ['s1-a'], status: 'eskaliert', summary: 'Stand' }],
+  }];
+  const ctx = buildContext(
+    { teams: pressTeams, results: pressResults, schedule: pressSchedule, pokedex: [], eloRows: [], awardDocs: [], articles },
+    { teamIds: ['s1-a', 's1-b'], matchId: 's1-d7-m0', day: 7 },
+  );
+  assert.equal(ctx.saison.zuletztGespielterSpieltag, 7);
+  assert.equal(ctx.saison.verbleibendeSpieltage, 7);
+  assert.equal(ctx.saison.phase, 'Saisonmitte');
+  assert.equal(ctx.tabelle.length, 8);
+  assert.equal(ctx.match.endstand, '3:0');
+  assert.equal(ctx.match.kaempfe.length, 3);
+  assert.equal(ctx.teams[0].kader.length, 10);
+  assert.equal(ctx.teams[0].letzteErgebnisse.length, 5);
+  assert.equal(ctx.teams[0].naechsteSpiele[0].spieltag, 8);
+  assert.ok(ctx.teams[0].trainer.aktuell.persoenlichkeit.includes('ruhig'));
+  assert.equal(ctx.laufendeGeschichten[0].status, 'eskaliert');
+  assert.equal(ctx.letzteBerichte.length, 1);
+});
+
+test('Die Regie meidet zuletzt erzaehlte Straenge', () => {
+  const dir = buildDirection(['formkrise', 'trainerdebatte']);
+  assert.equal(dir.suggestions.length, 4);
+  assert.ok(!dir.suggestions.some((a) => ['formkrise', 'trainerdebatte'].includes(a.key)));
+  assert.ok(dir.text.includes('TONLAGE'));
+  assert.ok(buildSystem({ author: { name: 'Alba', role: 'R', outlet: 'O', voice: 'V', beat: 'B' } }).includes('Alba'));
+  assert.ok(DEFAULT_PROMPTS.report.length > 400);
+});
+
+test('Absaetze werden zu Markup, rohes HTML bleibt Text', () => {
+  const html = paragraphsToHtml(['## Kopf', '> Zitat mit **fett**', 'Ein <b>roher</b> Absatz']);
+  assert.ok(html.includes('<h3>Kopf</h3>'));
+  assert.ok(html.includes('<blockquote>Zitat mit <strong>fett</strong></blockquote>'));
+  assert.ok(html.includes('&lt;b&gt;roher&lt;/b&gt;'));
+});
+
+test('Der Stand einer Geschichte kommt aus dem juengsten Beitrag', () => {
+  const stories = collectStorylines([
+    { status: 'ready', day: 1, publishedAt: '2026-01-01', storylines: [{ id: 's', title: 'S', status: 'neu', summary: 'a', teams: [] }] },
+    { status: 'ready', day: 2, publishedAt: '2026-01-02', storylines: [{ id: 's', title: 'S', status: 'beruhigt', summary: 'b', teams: [] }] },
+  ]);
+  assert.equal(stories.length, 1);
+  assert.equal(stories[0].status, 'beruhigt');
+  assert.equal(stories[0].beats, 2);
+});
+
+test('Der Filter „Redaktion" meint die Herkunft, nicht die Rubrik', () => {
+  const eigen = { id: 'e', category: 'klatsch', editorial: true, teamIds: ['s1-a'], body: '<p>hallo</p>', title: 'T' };
+  assert.equal(articleMatchesFilter(eigen, { category: 'redaktion' }), true);
+  assert.equal(articleMatchesFilter(eigen, { category: 'klatsch' }), true);
+  assert.equal(articleMatchesFilter(eigen, { category: 'news' }), false);
+  assert.equal(articleMatchesFilter(eigen, { teamId: 's1-b' }), false);
+  assert.equal(articleMatchesFilter(eigen, { q: 'hallo' }), true);
+  assert.equal(new Set(randomAuthors(3).map((a) => a.id)).size, 3);
 });
 
 console.log(`\n${passed} Tests bestanden.`);

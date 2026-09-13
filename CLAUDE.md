@@ -18,7 +18,7 @@ npm run preview
 node scripts/test-scoring.mjs    # Logik-Tests (node:assert, kein Framework, keine Deps)
 ```
 
-Es gibt keinen Linter/Formatter und keinen Test-Runner. `test-scoring.mjs` nutzt einen eigenen `test(name, fn)`-Helper ohne Filter-Option — einzelne Fälle lassen sich nur durch Auskommentieren isolieren. Getestet wird ausschließlich `resources/js/scoring.mjs`.
+Es gibt keinen Linter/Formatter und keinen Test-Runner. `test-scoring.mjs` nutzt einen eigenen `test(name, fn)`-Helper ohne Filter-Option — einzelne Fälle lassen sich nur durch Auskommentieren isolieren. Getestet werden die framework-freien Module: `scoring.mjs`, `awards.mjs`, `trainers.mjs`, `damagecalc.mjs`, `press.mjs`, `press-context.mjs`, `press-prompts.mjs`.
 
 Firestore-Wartungsskripte (schreiben direkt in die Live-DB, Client-SDK mit der Config aus `resources/js/firebase.js`):
 
@@ -61,6 +61,9 @@ Konsequenzen beim Anlegen einer neuen View:
 | `drafts/transfer-s1` | Wintertransfer, zusätzlich `removed[]`, `added[]` |
 | `schedules/s1` | `{matchdays: [{day, matches: [{home, away}]}]}` |
 | `results` (Collection) | Doc-ID `s1-d<day>-m<index>`, siehe unten |
+| `press` (Collection) | Presse-Beiträge (Spielberichte, News, Klatsch, Redaktion) inkl. Storylines |
+| `pressSessions` (Collection) | Interviews und Pressekonferenzen: Rolle, Fragen, Antworten, Status |
+| `settings/press` | Die über das Zahnrad änderbaren Redaktionsaufträge (Prompts) |
 | `public/data/pokemon.json` | einzige Pokémon-Stammdatenquelle (`name`, `name_en`, `dex`, `types`, `tier`, `cost`, `image`, `base_speed`); Namen sind global eindeutig und dienen als Fremdschlüssel |
 | `public/data/i18n-de.json` | deutsche Namen für Attacken, Fähigkeiten und Items (nur der Schadensrechner); generiert, nicht von Hand pflegen |
 
@@ -85,6 +88,14 @@ Ein `results`-Doc: `{home, away, day, squads: {home: [names], away: [names]}, ba
 **Zugang.** Clientseitiges Passwort-Gate: SHA-256-Vergleich gegen `ACCESS_HASH` in `main.js`, Freischaltung in localStorage. Firestore-Regeln sind offen (read/write) — das Gate ist Bequemlichkeit, kein Schutz.
 
 **Gerätelokaler Zustand** liegt konsequent in localStorage unter `jhdl-*`-Keys (Spalteneinstellungen, Speed-/Weakness-Filter, Matchup-Markierungen, Teambuilder-Notizen und -Movesets, Schadensrechner-Eingaben je Paarung, Elo-Cache) und wird nie nach Firestore geschrieben. Die Keys sind oben in `main.js` gebündelt.
+
+**Presse.** Vier Module: `press.mjs` (Kategorien, Redaktionspool, Slot-Planung, Storylines, Sanitizer), `press-context.mjs` (Liga-Zustand → Metadaten-JSON), `press-prompts.mjs` (Systeminstruktion, Kanon-Regeln, Regie, die fünf änderbaren Aufträge, Antwortschemata) und `gemini.mjs` (ein `fetch` gegen die Gemini Developer API, kein SDK). Alle vier sind framework-frei und unter Node testbar.
+- **Kanon:** Die KI darf Transfers, Sperren, Trainerwechsel und Ergebnisse **nie als Tatsache** behaupten — nur als Gerücht, Forderung oder Spekulation. Fakten stammen ausschließlich aus dem Metadatenblock. Diese Regeln stecken fest in `CANON_RULES` und gelten zusätzlich zum änderbaren Auftrag.
+- **Storylines** haben keine eigene Collection: jeder Beitrag trägt die Stränge, die er fortschreibt, bei sich; der Stand ist der jüngste Beitrag, der einen Strang erwähnt (`collectStorylines`).
+- **Spielberichte** entstehen automatisch beim Übergang „Match wird vollständig". Der Auslöser ist die beobachtete Änderung, nicht der Bestand (`pressSeenComplete` liegt bewusst außerhalb der Alpine-Reaktivität); der Platz wird per `runTransaction` belegt, damit zwei offene Geräte nicht doppelt schreiben.
+- **Termine:** je Team und Spieltag ein Interview und eine Pressekonferenz, die Verteilung auf „vor/nach dem Spiel" wird deterministisch aus `teamId + day` gelost (kein Schreibzugriff, auf jedem Gerät gleich). Davor liegt einmalig die Auftaktrunde (`BONUS_ROUND_DAY`); Pressebetrieb beginnt mit `PRESS_FROM_DAY`.
+- **Der API-Key liegt gerätelokal** (`jhdl-press-key-v1`) und darf nie nach Firestore. Ohne Key bleibt die Ansicht bedienbar, es entstehen nur keine neuen Beiträge.
+- `<select>` mit `<template x-for>`-Optionen: x-model setzt den Startwert, bevor die Optionen im DOM stehen. Die Vorauswahl deshalb über `:selected` am `<option>` lösen, nicht nachträglich per JS.
 
 **Trainer** (`teams/<id>.trainers`) sind eine eigene Position: kein Kampf, kein Draft, keine Statistik, nur im Team-View. Amtszeiten werden in Spieltagen geführt — `fromDay: null` heißt „vor der Saison", `untilDay: null` heißt „amtierend". Logik in `trainers.mjs`, Schreibzugriffe über `appointTrainer` / `updateTrainer` / `dismissTrainer` im league-Store.
 

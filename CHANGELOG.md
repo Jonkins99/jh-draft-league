@@ -1,5 +1,17 @@
 # Changelog
 
+## Press (new)
+- **A press view of its own**, in the sidebar above Awards, with two tabs: the **newsroom** (a filterable feed) and **Interview & PK**.
+- **Four categories** — Spielbericht, News, Klatsch und Tratsch, Redaktion — plus a team filter and a full-text search over the archive. Six fixed reporters (Alba, Pia & Udo, Sina, Dexio, LeBelle, Matière) each write in their own documented voice; the portraits ship pre-cropped to head and torso.
+- **Match reports write themselves.** The moment the third battle of a match is entered, a report is generated from the result — three battles, line-ups, kill log, table, form, tier, Elo, per-Pokémon usage, awards, fixtures, trainers with their personality, and the last eight articles about the teams involved. The claim on a report goes through a Firestore transaction, so two open devices cannot both write it.
+- **Storylines run across matchdays.** Every article carries the threads it opens or advances, with a status (neu · laufend · eskaliert · beruhigt · beendet); the state of a thread is whatever the most recent article said about it. A ticker above the feed shows what is currently in circulation.
+- **Interviews and press conferences.** Per team and matchday there is one of each: one before the match (free once the previous fixture in the schedule has a result), one after (free once the third battle is in). Which format takes which slot is drawn per team and matchday — deterministically, so both devices see the same thing. In the interview a single reporter asks three pointed questions of a trainer *or* a Pokémon from the squad; at the press conference three reporters ask one question each of the trainer, every question with a 35 % chance of being a provocative one. Three prepared answers per question, or write your own.
+- **Answers have consequences.** A composed, concrete answer lets a story run out of steam; an evasive one keeps it simmering; hitting back escalates it and pulls others in. The resulting article quotes what was said — and frames it as generously or as unkindly as the answer deserves.
+- **The players can publish themselves.** A rich-text editor (headings, quotes, lists, links, images) with category, teams and by-line of choice. Editorial pieces are marked as such and are fed back into the generation as settled fact, which makes them the lever for steering a storyline by hand.
+- **A one-off opening round before matchday 8**: every team goes to one press conference and one interview, 16 appointments in total. Matchday 8's own press slots stay locked until that round is through, then everything continues on the normal rhythm. Regular coverage begins with matchday 8; the matchdays before it are not worked up retroactively.
+- **Nothing happens that the players did not decide.** Transfers, bans, suspensions, dismissals and signings may only appear as rumour, demand or speculation — never as fact. Facts (results, table, kills, usage, tier, Elo) come exclusively from the metadata. Tone is drawn per article from a weighted set (analytical, classic, dramatic, thoughtful, tabloid, sardonic, absurd) and recently used story archetypes are dropped from the suggestions, so the feed does not settle into two or three patterns.
+- Runs on the **Gemini developer API**. The API key is device-local (localStorage) and is never written to the database; both the key and the five editable briefing prompts sit behind the gear icon in the top right, together with a maintenance tab for reports that did not get written.
+
 ## Damage calculator (new)
 - **Damage calculator in the Teambuilder**, between the matchup and the speed-tier modules. Collapsed to a single bar until you open it; the calculation package (`@smogon/calc`) and the German name table are only fetched on first use, so the Teambuilder starts as fast as before.
 - **Only the Pokémon of the current matchup** can be picked, for attacker and defender, with a one-click **swap**.
@@ -19,7 +31,7 @@
 
 ## Navigation
 - **Back bar above every view** that names where it goes ("Zurück zu Tabelle"), and the **browser back button now works**. Every view change writes a history entry; the URL stays untouched, so there is still no routing to maintain and no server rewrite needed.
-- **Sidebar reordered by relevance**: Tabelle · Spielplan · Teambuilding · Teams · Statistiken · Awards · Spieler · Draft · Transfer. A running draft or transfer window moves to position 1 for as long as it lasts.
+- **Sidebar reordered by relevance**: Tabelle · Spielplan · Teambuilding · Teams · Statistiken · Presse · Awards · Spieler · Draft · Transfer. A running draft or transfer window moves to position 1 for as long as it lasts.
 
 ## Standings
 - **Step through past matchdays** with arrows above the table; each Pokémon's standing is recomputed from the results up to that day, and a second button jumps back to the current one.

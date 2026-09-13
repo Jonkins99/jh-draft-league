@@ -1,6 +1,6 @@
 import Alpine from 'alpinejs';
 import { db } from './firebase.js';
-import { collection, doc, onSnapshot, writeBatch, arrayUnion, setDoc } from 'firebase/firestore';
+import { collection, doc, onSnapshot, writeBatch, arrayUnion, setDoc, deleteDoc, runTransaction } from 'firebase/firestore';
 import { battleStats, computeStandings, pokemonStats, placementHistory, speedTiers, speedCases, clampSp, applySpeedMod, typeMultiplier, ALL_TYPES, pokemonProfile, defensiveChart, offensiveChart, playerDuel, showdownExport, teamBattleTotals, isMega, baseFormOf, pokezoneUrl, draftPicks } from './scoring.mjs';
 import {
   exportDataset, buildScheduleExport, buildBattleDetailsExport, buildStandingsExport,
@@ -28,6 +28,19 @@ import {
   spSetToConfig as calcSpSetToConfig, configToSpSet as calcConfigToSpSet,
   blankSpSet as calcBlankSpSet, parseLegacyEvs as calcParseLegacyEvs, typeDe as calcTypeDe,
 } from './damagecalc.mjs';
+import {
+  PRESS_CATEGORIES, PRESS_AUTHORS, authorById, categoryLabel, categoryColor,
+  randomAuthor, randomAuthors, pressSlots, slotLabel, typeLabel, isMatchComplete,
+  bonusRoundComplete, bonusRoundProgress, bonusSlotsFor, BONUS_ROUND_DAY, PRESS_FROM_DAY,
+  collectStorylines, sanitizeHtml, paragraphsToHtml, excerpt, readingMinutes,
+  formatDate, formatDateTime, sortArticles, articleMatchesFilter, storyId,
+} from './press.mjs';
+import { buildContext } from './press-context.mjs';
+import {
+  DEFAULT_PROMPTS, PROMPT_DEFS, buildSystem, buildUserPrompt, buildDirection,
+  ARTICLE_SCHEMA, ARTICLE_SCHEMA_WITH_CATEGORY, QUESTIONS_SCHEMA,
+} from './press-prompts.mjs';
+import { generateJson, testKey, GEMINI_MODELS, DEFAULT_MODEL } from './gemini.mjs';
 
 const PICKS_PER_TEAM = 10;
 const TIER_ORDER = ['S', 'A', 'B', 'C', 'D'];
@@ -43,6 +56,7 @@ const ICONS = {
   transfer: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M4 8h13"/><path d="m14 5 3 3-3 3"/><path d="M20 16H7"/><path d="m10 13-3 3 3 3"/></svg>`,
   award: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="9" r="6"/><path d="M8.2 14.2 6.5 21l5.5-2.8L17.5 21l-1.7-6.8"/></svg>`,
   stats: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M4 19V5"/><path d="M4 19h16"/><rect x="7" y="11" width="3" height="5" rx="0.5"/><rect x="12" y="7" width="3" height="9" rx="0.5"/><rect x="17" y="13" width="3" height="3" rx="0.5"/></svg>`,
+  press: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M4 5h13a1 1 0 0 1 1 1v12a2 2 0 0 0 2 2H5a2 2 0 0 1-2-2V6a1 1 0 0 1 1-1z"/><path d="M18 9h2a1 1 0 0 1 1 1v8"/><path d="M7 9h7"/><path d="M7 13h7"/><path d="M7 17h4"/></svg>`,
 };
 
 const TYPE_COLORS = {
@@ -100,6 +114,11 @@ const TB_TILEVIEW_KEY = 'jhdl-tb-tileview-v1'; // { v: 'nur'|'notes'|'moves'|'al
 // Filter „nur grün markierte" – getrennt für Kader-Kacheln und Initiative-Tierlist.
 const TB_GREENONLY_KEY = 'jhdl-tb-greenonly-v1'; // { tiles: bool, speed: bool }
 const TB_CALC_KEY = 'jhdl-tb-calc-v1';           // { open: bool }  (Eingaben je Paarung separat)
+
+// Presse: Zugangsdaten der Redaktion liegen bewusst NUR auf dem Gerät. Firestore ist
+// offen lesbar — ein API-Key hätte dort nichts verloren.
+const PRESS_KEY = 'jhdl-press-key-v1';           // { key, model }
+const PRESS_FILTER_KEY = 'jhdl-press-filter-v1'; // { category, teamId, q }
 
 // Kurzkürzel je Typ für die kompakte Schwächen-Matrix.
 const TYPE_ABBR = {
@@ -758,13 +777,14 @@ function app() {
         teambuilding: { key: 'teambuilding', label: 'Teambuilding', file: './pages/teambuilding.html', icon: ICONS.build },
         teams: { key: 'teams', label: 'Teams', file: './pages/teams.html', icon: ICONS.teams },
         stats: { key: 'stats', label: 'Statistiken', file: './pages/statistiken.html', icon: ICONS.stats },
+        presse: { key: 'presse', label: 'Presse', file: './pages/presse.html', icon: ICONS.press },
         awards: { key: 'awards', label: 'Awards', file: './pages/awards.html', icon: ICONS.award },
         spieler: { key: 'spieler', label: 'Spieler', file: './pages/spieler.html', icon: ICONS.player },
         draft: { key: 'draft', label: 'Draft', file: './pages/draft.html', icon: ICONS.pokeball },
         transfer: { key: 'transfer', label: 'Transfer', file: './pages/transfer.html', icon: ICONS.transfer },
       };
       const l = this.$store.league;
-      const keys = ['tabelle', 'spieltag', 'teambuilding', 'teams', 'stats', 'awards', 'spieler', 'draft'];
+      const keys = ['tabelle', 'spieltag', 'teambuilding', 'teams', 'stats', 'presse', 'awards', 'spieler', 'draft'];
       if (l.draft?.status === 'done') keys.push('transfer');
       const hot = l.transfer?.status === 'running' ? 'transfer'
         : l.draft?.status === 'running' ? 'draft'
@@ -3983,6 +4003,457 @@ function awardsView() {
 
 window.Alpine = Alpine;
 
+// === Presse-Ansicht =========================================================
+// Zwei Reiter: „Newsroom" (filterbares Listing) und „Termine" (Interviews und
+// Pressekonferenzen). Das Zahnrad oben rechts öffnet die Redaktionseinstellungen.
+function presseView() {
+  return {
+    tab: 'newsroom',
+    fCat: '',
+    fTeam: '',
+    q: '',
+    openId: null,
+    composer: null,
+    settings: null,
+    stage: null,
+    pickTeam: null,
+    busySlot: null,
+
+    init() {
+      const saved = loadJson(PRESS_FILTER_KEY);
+      this.fCat = saved.category || '';
+      this.fTeam = saved.teamId || '';
+      // Elo fließt in die Metadaten ein — beim Öffnen der Presse einmalig nachladen.
+      this.$store.elo?.ensureLoaded?.();
+      this.pickTeam = this.defaultTeamId();
+      const nav = this.$store.nav;
+      if (nav?.teamId) { this.fTeam = nav.teamId; this.pickTeam = nav.teamId; nav.teamId = null; }
+    },
+
+    get press() { return this.$store.press; },
+    get league() { return this.$store.league; },
+    get loaded() {
+      return this.league.teamsLoaded && this.league.scheduleLoaded && this.league.resultsLoaded && this.press.articlesLoaded;
+    },
+    get categories() { return PRESS_CATEGORIES; },
+    get authors() { return PRESS_AUTHORS; },
+
+    teamById(id) { return this.league.teams.find((t) => t.id === id) || null; },
+    logoUrl(file) { return `./img/teams/${file}`; },
+    teamLogo(id) {
+      const t = this.teamById(id);
+      return t ? this.logoUrl(t.logo) : '';
+    },
+    playerColor(player) { return player === 'Henrik' ? '#4d90d5' : '#e3350d'; },
+    monImage(name) { return this.league.pokemon.find((p) => p.name === name)?.image || ''; },
+    author(id) { return authorById(id); },
+    catLabel(key) { return categoryLabel(key); },
+    catColor(key) { return categoryColor(key); },
+    fmtDate(iso) { return formatDate(iso); },
+    fmtDateTime(iso) { return formatDateTime(iso); },
+    defaultTeamId() {
+      const me = this.$store.awards?.me;
+      const mine = this.league.seasonTeams.filter((t) => t.player === me);
+      return (mine[0] || this.league.seasonTeams[0])?.id || null;
+    },
+
+    // --- Newsroom ------------------------------------------------------------
+    persistFilters() {
+      saveJson(PRESS_FILTER_KEY, { category: this.fCat, teamId: this.fTeam });
+    },
+    setCat(key) {
+      this.fCat = this.fCat === key ? '' : key;
+      this.persistFilters();
+    },
+    setTeamFilter(id) {
+      this.fTeam = id;
+      this.persistFilters();
+    },
+    clearFilters() {
+      this.fCat = '';
+      this.fTeam = '';
+      this.q = '';
+      this.persistFilters();
+    },
+    get hasFilters() { return !!(this.fCat || this.fTeam || this.q.trim()); },
+    get feed() {
+      return sortArticles(this.press.articles)
+        .filter((a) => articleMatchesFilter(a, { category: this.fCat, teamId: this.fTeam, q: this.q }));
+    },
+    countFor(key) {
+      return this.press.articles.filter((a) => articleMatchesFilter(a, { category: key, teamId: this.fTeam })).length;
+    },
+    excerptOf(a) { return excerpt(a, 200); },
+    minutesOf(a) { return readingMinutes(a); },
+    // Der oberste Beitrag bekommt die große Aufmachung — aber nur ungefiltert.
+    get lead() {
+      return !this.hasFilters && this.feed.length ? this.feed[0] : null;
+    },
+    get rest() {
+      return this.lead ? this.feed.slice(1) : this.feed;
+    },
+
+    openArticle(id) {
+      this.openId = id;
+      this.$nextTick(() => document.getElementById('press-article')?.showPopover());
+    },
+    closeArticle() {
+      const el = document.getElementById('press-article');
+      if (el && el.matches(':popover-open')) el.hidePopover();
+      this.openId = null;
+    },
+    get article() { return this.openId ? this.press.byId(this.openId) : null; },
+    goTeam(id) {
+      this.closeArticle();
+      this.$dispatch('navigate', { key: 'teams', teamId: id });
+    },
+    goMon(name) {
+      this.closeArticle();
+      this.$dispatch('navigate', { key: 'pokemon', pokemonName: name });
+    },
+    goMatch(matchId) {
+      this.closeArticle();
+      this.$dispatch('navigate', { key: 'spieltag', matchId });
+    },
+    async removeArticle(id) {
+      if (!id) return;
+      this.closeArticle();
+      await this.press.deleteArticle(id);
+    },
+
+    // --- Redaktioneller Beitrag ---------------------------------------------
+    openComposer(existing = null) {
+      this.closeArticle();
+      this.composer = {
+        id: existing?.id || null,
+        title: existing?.title || '',
+        subtitle: existing?.subtitle || '',
+        category: existing?.category || 'redaktion',
+        authorId: existing?.authorId || PRESS_AUTHORS[0].id,
+        teamIds: [...(existing?.teamIds || [])],
+        day: existing?.day ?? this.latestDay,
+        body: existing?.body || '',
+        saving: false,
+      };
+      this.$nextTick(() => {
+        document.getElementById('press-composer')?.showPopover();
+        this.$nextTick(() => { if (this.$refs.editor) this.$refs.editor.innerHTML = this.composer.body; });
+      });
+    },
+    closeComposer() {
+      const el = document.getElementById('press-composer');
+      if (el && el.matches(':popover-open')) el.hidePopover();
+      this.composer = null;
+    },
+    toggleComposerTeam(id) {
+      const arr = this.composer.teamIds;
+      const i = arr.indexOf(id);
+      if (i >= 0) arr.splice(i, 1);
+      else arr.push(id);
+    },
+    get composerValid() {
+      return !!this.composer && this.composer.title.trim().length > 1;
+    },
+    // Der Editor nutzt das native contenteditable; execCommand ist dafür weiterhin
+    // der einzige Weg ohne eigene Selection-Verwaltung.
+    rte(cmd, value = null) {
+      this.$refs.editor?.focus();
+      document.execCommand(cmd, false, value);
+    },
+    rteBlock(tag) {
+      this.rte('formatBlock', tag);
+    },
+    rteLink() {
+      const url = window.prompt('Ziel-Adresse des Links:', 'https://');
+      if (url) this.rte('createLink', url);
+    },
+    rteImage() {
+      const url = window.prompt('Bild-Adresse (URL):', 'https://');
+      if (url) this.rte('insertImage', url);
+    },
+    async saveComposer() {
+      if (!this.composerValid || this.composer.saving) return;
+      this.composer.saving = true;
+      try {
+        const id = await this.press.publishEditorial({
+          ...this.composer,
+          body: this.$refs.editor?.innerHTML || this.composer.body,
+        });
+        this.closeComposer();
+        this.openArticle(id);
+      } catch (e) {
+        console.error('Beitrag konnte nicht veröffentlicht werden:', e);
+        window.dispatchEvent(new CustomEvent('toast', { detail: { msg: 'Der Beitrag konnte nicht gespeichert werden.' } }));
+        if (this.composer) this.composer.saving = false;
+      }
+    },
+
+    // --- Termine -------------------------------------------------------------
+    get latestDay() {
+      const days = (this.league.results || []).filter((r) => isMatchComplete(r)).map((r) => r.day);
+      return days.length ? Math.max(...days) : null;
+    },
+    get teamsForPicker() { return this.league.seasonTeams; },
+    get bonusDay() { return BONUS_ROUND_DAY; },
+    get pressFromDay() { return PRESS_FROM_DAY; },
+    get bonusProgress() {
+      return bonusRoundProgress(this.league.seasonTeams.map((t) => t.id), this.league.schedule, this.press.sessions);
+    },
+    get bonusComplete() {
+      return bonusRoundComplete(this.league.seasonTeams.map((t) => t.id), this.league.schedule, this.press.sessions);
+    },
+    bonusOpenFor(teamId) {
+      return bonusSlotsFor(teamId, this.league.schedule, this.press.sessions).filter((r) => !r.done).length;
+    },
+    get slots() {
+      if (!this.pickTeam) return [];
+      return pressSlots(this.pickTeam, this.league.schedule, this.league.results, this.press.sessions, this.bonusComplete);
+    },
+    // Anstehend zuerst: offene Termine ohne Sitzung, danach laufende, dann erledigte.
+    get slotGroups() {
+      const bonus = [];
+      const open = [];
+      const done = [];
+      const later = [];
+      this.slots.forEach((s) => {
+        const session = this.press.sessionById(s.id);
+        const row = { ...s, session };
+        if (s.slot === 'bonus' && session?.status !== 'done') bonus.push(row);
+        else if (!s.open) later.push(row);
+        else if (session?.status === 'done') done.push(row);
+        else open.push(row);
+      });
+      return [
+        { key: 'bonus', label: `Auftaktrunde vor Spieltag ${BONUS_ROUND_DAY}`, rows: bonus },
+        { key: 'open', label: 'Jetzt dran', rows: open.reverse() },
+        { key: 'later', label: 'Noch gesperrt', rows: later },
+        { key: 'done', label: 'Erledigt', rows: done.reverse() },
+      ].filter((g) => g.rows.length);
+    },
+    slotLabel(slot) { return slotLabel(slot); },
+    typeLabel(type) { return typeLabel(type); },
+    slotSubtitle(row) {
+      if (!row) return '';
+      if (row.slot === 'bonus') return `Auftaktrunde · Bilanz und Ausblick vor Spieltag ${row.day}`;
+      const opp = this.teamById(row.opponentId)?.name || '?';
+      return `Spieltag ${row.day} · ${slotLabel(row.slot)} · ${row.home ? 'gegen' : 'bei'} ${opp}`;
+    },
+    blockedHint(row) {
+      if (row.open) return '';
+      if (row.blockedBy === 'bonus') return `Frei, sobald alle Teams die Auftaktrunde hinter sich haben – erst dann beginnt Spieltag ${BONUS_ROUND_DAY}.`;
+      return row.slot === 'pre'
+        ? 'Frei, sobald die Partie davor im Spielplan ein Ergebnis hat.'
+        : 'Frei, sobald das eigene Match komplett eingetragen ist.';
+    },
+
+    get currentTrainerOf() {
+      const t = this.teamById(this.pickTeam);
+      return currentTrainer(t?.trainers || []);
+    },
+    rosterOf(teamId) {
+      return this.teamById(teamId)?.pokemon || [];
+    },
+
+    // --- Bühne (Interview / Pressekonferenz) ---------------------------------
+    beginSlot(row) {
+      if (!row.open) return;
+      const session = this.press.sessionById(row.id);
+      if (session?.status === 'done' && session.articleId) return this.openArticle(session.articleId);
+      this.stage = {
+        slot: row,
+        phase: session?.status === 'open' ? 'ask' : session?.status === 'error' ? 'error' : 'role',
+        index: 0,
+        answers: [],
+        custom: '',
+        writing: false,
+        articleId: null,
+      };
+      if (session?.status === 'generating' || session?.status === 'writing') this.stage.phase = 'wait';
+      this.$nextTick(() => document.getElementById('press-stage')?.showPopover());
+    },
+    closeStage() {
+      const el = document.getElementById('press-stage');
+      if (el && el.matches(':popover-open')) el.hidePopover();
+      this.stage = null;
+    },
+    get session() {
+      return this.stage ? this.press.sessionById(this.stage.slot.id) : null;
+    },
+    get stageAuthors() {
+      return (this.session?.authorIds || []).map((id) => authorById(id));
+    },
+    get stageQuestion() {
+      return this.session?.questions?.[this.stage?.index || 0] || null;
+    },
+    get stageAsker() {
+      return this.stageQuestion ? authorById(this.stageQuestion.authorId) : authorById(this.session?.authorIds?.[0]);
+    },
+    // Rollen zur Auswahl: Trainer zuerst, danach der Kader. Die Pressekonferenz
+    // richtet sich grundsätzlich an den Trainer.
+    get roleOptions() {
+      const team = this.teamById(this.stage?.slot?.teamId);
+      const out = [];
+      const tr = currentTrainer(team?.trainers || []);
+      if (tr) out.push({ kind: 'trainer', name: tr.name, image: tr.image || '', traits: tr.traits || [] });
+      if (this.stage?.slot?.type !== 'pk') {
+        (team?.pokemon || []).forEach((p) => out.push({ kind: 'pokemon', name: p.name, image: p.image || '', traits: [] }));
+      }
+      return out;
+    },
+    async chooseRole(role) {
+      if (!this.stage) return;
+      this.stage.phase = 'wait';
+      const id = await this.press.startSession(this.stage.slot, role);
+      if (!this.stage) return;
+      this.stage.phase = id ? 'ask' : 'error';
+      this.stage.index = 0;
+      this.stage.answers = [];
+    },
+    answerWith(option) {
+      this.pushAnswer({ text: option.text, stance: option.stance, custom: false });
+    },
+    answerCustom() {
+      const text = (this.stage.custom || '').trim();
+      if (text.length < 2) return;
+      this.pushAnswer({ text, stance: null, custom: true });
+    },
+    async pushAnswer(answer) {
+      const q = this.stageQuestion;
+      if (!q || !this.stage) return;
+      this.stage.answers = [...this.stage.answers.filter((a) => a.questionId !== q.id), { questionId: q.id, ...answer }];
+      this.stage.custom = '';
+      if (this.stage.index < (this.session?.questions?.length || 3) - 1) {
+        this.stage.index += 1;
+        return;
+      }
+      this.stage.phase = 'writing';
+      const articleId = await this.press.submitAnswers(this.stage.slot.id, this.stage.answers);
+      if (!this.stage) return;
+      if (articleId) {
+        this.stage.articleId = articleId;
+        this.stage.phase = 'done';
+      } else {
+        this.stage.phase = 'error';
+      }
+    },
+    stageBack() {
+      if (this.stage && this.stage.index > 0) this.stage.index -= 1;
+    },
+    answerFor(qid) {
+      return this.stage?.answers.find((a) => a.questionId === qid) || null;
+    },
+    readStageArticle() {
+      const id = this.stage?.articleId || this.session?.articleId;
+      this.closeStage();
+      if (id) this.openArticle(id);
+    },
+    async retryStage() {
+      if (!this.stage) return;
+      await this.press.resetSession(this.stage.slot.id);
+      this.stage.phase = 'role';
+      this.stage.index = 0;
+      this.stage.answers = [];
+    },
+
+    // --- Einstellungen (Zahnrad) --------------------------------------------
+    get promptDefs() { return PROMPT_DEFS; },
+    get models() { return GEMINI_MODELS; },
+    openSettings() {
+      const p = this.press.prompts;
+      this.settings = {
+        tab: this.press.hasKey ? 'prompts' : 'zugang',
+        key: this.press.apiKey,
+        model: this.press.model,
+        promptKey: PROMPT_DEFS[0].key,
+        prompts: Object.fromEntries(PROMPT_DEFS.map((d) => [d.key, p[d.key] || ''])),
+        testing: false,
+        testMsg: '',
+        saving: false,
+        backfilling: false,
+      };
+      this.$nextTick(() => document.getElementById('press-settings')?.showPopover());
+    },
+    closeSettings() {
+      const el = document.getElementById('press-settings');
+      if (el && el.matches(':popover-open')) el.hidePopover();
+      this.settings = null;
+    },
+    saveAccess() {
+      this.press.saveAccess(this.settings.key, this.settings.model);
+      this.settings.testMsg = 'Gespeichert.';
+    },
+    async testAccess() {
+      if (!this.settings || this.settings.testing) return;
+      this.settings.testing = true;
+      this.settings.testMsg = '';
+      try {
+        await testKey({ apiKey: this.settings.key.trim(), model: this.settings.model });
+        this.settings.testMsg = 'Verbindung steht.';
+      } catch (e) {
+        this.settings.testMsg = e?.message || 'Verbindung fehlgeschlagen.';
+      }
+      this.settings.testing = false;
+    },
+    resetPrompt(key) {
+      this.settings.prompts[key] = DEFAULT_PROMPTS[key];
+    },
+    isPromptChanged(key) {
+      return (this.settings?.prompts?.[key] || '') !== DEFAULT_PROMPTS[key];
+    },
+    async savePrompts() {
+      if (!this.settings || this.settings.saving) return;
+      this.settings.saving = true;
+      try {
+        await this.press.savePrompts(this.settings.prompts);
+        window.dispatchEvent(new CustomEvent('toast', { detail: { msg: 'Redaktionsaufträge gespeichert.' } }));
+      } catch (e) {
+        console.error('Prompts speichern fehlgeschlagen:', e);
+        window.dispatchEvent(new CustomEvent('toast', { detail: { msg: 'Speichern fehlgeschlagen.' } }));
+      }
+      this.settings.saving = false;
+    },
+    get missingReports() {
+      return this.press.missingReports.map((r) => ({
+        id: r.id,
+        day: r.day,
+        label: `${this.teamById(r.home)?.name || '?'} vs ${this.teamById(r.away)?.name || '?'}`,
+      }));
+    },
+    async backfillReports() {
+      if (!this.settings || this.settings.backfilling) return;
+      this.settings.backfilling = true;
+      // Bewusst nacheinander: das schont das Kontingent und hält die Reihenfolge der
+      // Geschichten chronologisch.
+      for (const row of [...this.press.missingReports]) {
+        await this.press.generateReport(row.id);
+      }
+      if (this.settings) this.settings.backfilling = false;
+    },
+    async regenerate(articleId) {
+      const a = this.press.byId(articleId);
+      if (a?.source?.type !== 'match') return;
+      this.closeArticle();
+      await this.press.generateReport(a.source.matchId, { force: true });
+    },
+    isBusy(id) { return !!this.press.busy[id]; },
+    get anyBusy() { return Object.keys(this.press.busy).length > 0; },
+
+    // --- Storylines ----------------------------------------------------------
+    get storyRows() {
+      return this.press.storylines
+        .filter((s) => !this.fTeam || !s.teams?.length || s.teams.includes(this.fTeam))
+        .slice(0, 8);
+    },
+    storyColor(status) {
+      return status === 'eskaliert' ? '#e3350d'
+        : status === 'beruhigt' ? '#63bc5a'
+        : status === 'beendet' ? '#98a2b3'
+        : status === 'neu' ? '#ffcb05'
+        : '#4d90d5';
+    },
+  };
+}
+
 Alpine.store('league', {
   teams: [],
   pokemon: [],
@@ -4537,6 +5008,507 @@ Alpine.store('awards', {
 // es beim init() aus und räumt auf.
 // canBack spiegelt den Verlaufs-Stack der Shell, damit einzelne Views (z. B. die
 // Pokémon-Detailseite) ihren eigenen Zurück-Knopf nur als Fallback zeigen.
+// === Presse =================================================================
+// Drei Firestore-Quellen: `press` (Beiträge), `pressSessions` (Interviews und
+// Pressekonferenzen) und `settings/press` (die änderbaren Redaktionsaufträge).
+// Der API-Key liegt gerätelokal — siehe PRESS_KEY.
+//
+// Spielberichte entstehen automatisch, sobald ein Match seinen dritten Kampf bekommt.
+// Der Auslöser ist die BEOBACHTETE Zustandsänderung, nicht der Bestand: beim Laden
+// wird der aktuelle Stand nur gemerkt, damit nicht die halbe Saison nachgeschrieben
+// wird. Für Lücken gibt es „Fehlende Berichte" in den Einstellungen.
+let pressSeenComplete = null;
+
+// Beschreibt dem Modell, wann der Termin stattfindet — die Auftaktrunde liegt
+// außerhalb des normalen Rhythmus und braucht ihre eigene Einordnung.
+function situationLine(s) {
+  if (s.slot === 'bonus') {
+    return `Es ist die große Presserunde vor Spieltag ${s.day}: Nach der bisherigen Saison tritt jedes `
+      + 'Team noch einmal geschlossen vor die Presse, bevor es weitergeht. Ziehe Bilanz über die bisherige '
+      + 'Saison, ordne die Tabellensituation ein und blicke auf das, was noch kommt.';
+  }
+  return `Spieltag ${s.day}, ${s.slot === 'pre' ? 'unmittelbar VOR dem Match' : 'unmittelbar NACH dem Match'}.`;
+}
+
+Alpine.store('press', {
+  articles: [],
+  sessions: [],
+  config: { prompts: {} },
+  articlesLoaded: false,
+  sessionsLoaded: false,
+  configLoaded: false,
+  blocked: false,
+  apiKey: '',
+  model: DEFAULT_MODEL,
+  busy: {},
+  lastError: null,
+
+  init() {
+    const saved = loadJson(PRESS_KEY);
+    this.apiKey = saved.key || '';
+    this.model = saved.model || DEFAULT_MODEL;
+
+    onSnapshot(
+      collection(db, 'press'),
+      (snap) => {
+        this.articles = snap.docs.map((d) => ({ id: d.id, ...d.data() }));
+        this.articlesLoaded = true;
+        this.blocked = false;
+      },
+      (err) => {
+        console.error('press-Collection nicht lesbar:', err);
+        this.blocked = true;
+        this.articlesLoaded = true;
+      },
+    );
+
+    onSnapshot(
+      collection(db, 'pressSessions'),
+      (snap) => {
+        this.sessions = snap.docs.map((d) => ({ id: d.id, ...d.data() }));
+        this.sessionsLoaded = true;
+      },
+      () => { this.sessionsLoaded = true; },
+    );
+
+    onSnapshot(
+      doc(db, 'settings', 'press'),
+      (snap) => {
+        this.config = snap.exists() ? snap.data() : { prompts: {} };
+        this.configLoaded = true;
+      },
+      () => { this.configLoaded = true; },
+    );
+
+    Alpine.effect(() => this._watchResults());
+  },
+
+  // --- Zugang --------------------------------------------------------------
+  get hasKey() {
+    return !!this.apiKey;
+  },
+  saveAccess(key, model) {
+    this.apiKey = String(key || '').trim();
+    this.model = model || DEFAULT_MODEL;
+    saveJson(PRESS_KEY, { key: this.apiKey, model: this.model });
+  },
+
+  // --- Redaktionsaufträge --------------------------------------------------
+  get prompts() {
+    return { ...DEFAULT_PROMPTS, ...(this.config?.prompts || {}) };
+  },
+  promptFor(key) {
+    return this.prompts[key] || DEFAULT_PROMPTS[key] || '';
+  },
+  async savePrompts(next) {
+    const clean = {};
+    Object.entries(next || {}).forEach(([k, v]) => {
+      const text = String(v || '').trim();
+      // Nur Abweichungen speichern — ein zurückgesetzter Auftrag fällt damit
+      // automatisch wieder auf die Vorlage zurück.
+      if (text && text !== DEFAULT_PROMPTS[k]) clean[k] = text;
+    });
+    await setDoc(doc(db, 'settings', 'press'), { prompts: clean, updatedAt: new Date().toISOString() }, { merge: true });
+  },
+
+  // --- Zugriff -------------------------------------------------------------
+  byId(id) {
+    return this.articles.find((a) => a.id === id) || null;
+  },
+  sessionById(id) {
+    return this.sessions.find((s) => s.id === id) || null;
+  },
+  reportIdFor(matchId) {
+    return `s1-report-${String(matchId).replace(/^s1-/, '')}`;
+  },
+  get storylines() {
+    return collectStorylines(this.articles);
+  },
+  // Was zuletzt erzählt wurde — hält die Regie davon ab, sich zu wiederholen.
+  recentArchetypes(limit = 10) {
+    return sortArticles(this.articles)
+      .slice(0, limit)
+      .map((a) => a.archetype)
+      .filter(Boolean);
+  },
+
+  contextFor(focus) {
+    const l = Alpine.store('league');
+    return buildContext(
+      {
+        teams: l.teams,
+        results: l.results,
+        schedule: l.schedule,
+        pokedex: l.pokemon,
+        eloRows: Alpine.store('elo')?.rows || [],
+        awardDocs: Alpine.store('awards')?.docs || [],
+        articles: this.articles,
+      },
+      focus,
+    );
+  },
+
+  // --- Automatik -----------------------------------------------------------
+  _watchResults() {
+    const l = Alpine.store('league');
+    if (!l.resultsLoaded || !l.scheduleLoaded || !l.teamsLoaded) return;
+    const done = new Set((l.results || [])
+      .filter((r) => (r.day ?? 0) >= PRESS_FROM_DAY && isMatchComplete(r))
+      .map((r) => r.id));
+    const known = pressSeenComplete;
+    pressSeenComplete = done;
+    if (known === null) return;
+    if (!this.articlesLoaded || !this.hasKey) return;
+    // Bewusst aus dem Effekt heraus verzögert: generateReport liest und schreibt
+    // reaktive Felder (busy, articles) und würde den Effekt sonst selbst neu auslösen.
+    [...done]
+      .filter((id) => !known.has(id))
+      .forEach((id) => { setTimeout(() => this.generateReport(id).catch(() => {}), 0); });
+  },
+
+  // Matches mit vollständigem Ergebnis, zu denen noch kein Bericht existiert —
+  // erst ab dem Spieltag, mit dem der Pressebetrieb aufgenommen wurde.
+  get missingReports() {
+    const l = Alpine.store('league');
+    return (l.results || [])
+      .filter((r) => (r.day ?? 0) >= PRESS_FROM_DAY && isMatchComplete(r) && !this.byId(this.reportIdFor(r.id)))
+      .sort((a, b) => (a.day || 0) - (b.day || 0) || String(a.id).localeCompare(String(b.id)));
+  },
+
+  // --- Beiträge schreiben --------------------------------------------------
+  // Die Antwort des Modells in ein Beitragsdokument übersetzen. Team-IDs und
+  // Pokémon-Namen werden gegen die Stammdaten geprüft, damit nichts Erfundenes
+  // in die Verlinkungen gerät.
+  _articleDoc(data, meta) {
+    const l = Alpine.store('league');
+    const knownTeams = new Set((l.teams || []).map((t) => t.id));
+    const knownMons = new Set((l.pokemon || []).map((p) => p.name));
+    const teamIds = [...new Set([...(meta.teamIds || [])])].filter((id) => knownTeams.has(id));
+    const storylines = (data.storylines || [])
+      .filter((s) => s && (s.id || s.titel))
+      .slice(0, 3)
+      .map((s) => ({
+        id: storyId(s.id || s.titel),
+        title: String(s.titel || '').trim() || storyId(s.id),
+        teams: (s.teams || []).filter((id) => knownTeams.has(id)),
+        status: ['neu', 'laufend', 'eskaliert', 'beruhigt', 'beendet'].includes(s.status) ? s.status : 'laufend',
+        summary: String(s.stand || '').trim(),
+      }));
+    return {
+      season: 1,
+      category: meta.category,
+      editorial: !!meta.editorial,
+      title: String(data.titel || '').trim() || 'Ohne Titel',
+      subtitle: String(data.dachzeile || '').trim(),
+      body: sanitizeHtml(paragraphsToHtml(data.absaetze)),
+      authorId: meta.authorId,
+      teamIds,
+      pokemonNames: (data.erwaehntePokemon || []).filter((n) => knownMons.has(n)).slice(0, 12),
+      day: meta.day ?? null,
+      archetype: data.archetyp ? storyId(data.archetyp) : null,
+      storylines,
+      source: meta.source || { type: 'manual' },
+      status: 'ready',
+      error: null,
+      createdAt: meta.createdAt || new Date().toISOString(),
+      publishedAt: new Date().toISOString(),
+    };
+  },
+
+  async _fail(ref, message) {
+    this.lastError = message;
+    try {
+      await setDoc(ref, { status: 'error', error: message, publishedAt: new Date().toISOString() }, { merge: true });
+    } catch (e) { /* wenn selbst das scheitert, bleibt nur die Meldung in der Ansicht */ }
+  },
+
+  /**
+   * Spielbericht zu einem abgeschlossenen Match.
+   * Der Platz im Regal wird per Transaktion belegt, damit nicht beide Geräte
+   * gleichzeitig losschreiben, wenn beide gerade offen sind.
+   */
+  async generateReport(matchId, { force = false } = {}) {
+    const l = Alpine.store('league');
+    const result = (l.results || []).find((r) => r.id === matchId);
+    if (!result || !isMatchComplete(result)) return null;
+    if (!this.hasKey) return null;
+
+    const id = this.reportIdFor(matchId);
+    if (this.busy[id]) return null;
+    if (!force && this.byId(id)) return null;
+
+    const ref = doc(db, 'press', id);
+    const author = randomAuthor();
+    const createdAt = new Date().toISOString();
+    this.busy = { ...this.busy, [id]: true };
+
+    try {
+      const claimed = await runTransaction(db, async (tx) => {
+        const snap = await tx.get(ref);
+        if (snap.exists() && !force && snap.data()?.status !== 'error') return false;
+        tx.set(ref, {
+          season: 1, category: 'spielbericht', status: 'pending', authorId: author.id,
+          teamIds: [result.home, result.away], day: result.day ?? null, title: '', subtitle: '', body: '',
+          source: { type: 'match', matchId }, storylines: [], createdAt, publishedAt: createdAt, error: null,
+        });
+        return true;
+      });
+      if (!claimed) return null;
+
+      const direction = buildDirection(this.recentArchetypes());
+      const data = await generateJson({
+        apiKey: this.apiKey,
+        model: this.model,
+        system: buildSystem({ author }),
+        prompt: buildUserPrompt({
+          task: this.promptFor('report'),
+          direction: direction.text,
+          context: this.contextFor({ teamIds: [result.home, result.away], matchId, day: result.day }),
+        }),
+        schema: ARTICLE_SCHEMA,
+        maxOutputTokens: 8192,
+      });
+
+      const docData = this._articleDoc(data, {
+        category: 'spielbericht',
+        authorId: author.id,
+        teamIds: [result.home, result.away],
+        day: result.day ?? null,
+        source: { type: 'match', matchId },
+        createdAt,
+      });
+      await setDoc(ref, docData);
+      window.dispatchEvent(new CustomEvent('toast', { detail: { msg: `Neuer Spielbericht: ${docData.title}` } }));
+      return id;
+    } catch (e) {
+      console.error('Spielbericht fehlgeschlagen:', e);
+      await this._fail(ref, e?.message || 'Unbekannter Fehler');
+      return null;
+    } finally {
+      const next = { ...this.busy };
+      delete next[id];
+      this.busy = next;
+    }
+  },
+
+  // --- Interview & Pressekonferenz -----------------------------------------
+  /**
+   * Fragen erzeugen und die Sitzung eröffnen.
+   * @param {object} slot  Eintrag aus pressSlots()
+   * @param {object} role  { kind:'trainer'|'pokemon', name, image, traits[] }
+   */
+  async startSession(slot, role) {
+    if (!this.hasKey || !slot || !role) return null;
+    const id = slot.id;
+    if (this.busy[id]) return null;
+    const ref = doc(db, 'pressSessions', id);
+    const l = Alpine.store('league');
+    const team = (l.teams || []).find((t) => t.id === slot.teamId);
+    const isPk = slot.type === 'pk';
+    // Ein Gesicht im Einzelinterview, drei auf dem Podium der Pressekonferenz.
+    const cast = isPk ? randomAuthors(3) : [randomAuthor()];
+    // Vorgabe für die Fragenhärte: in der Pressekonferenz je Frage rund 35 Prozent.
+    const spicy = isPk ? cast.map(() => Math.random() < 0.35) : [true, true, true];
+    const createdAt = new Date().toISOString();
+
+    this.busy = { ...this.busy, [id]: true };
+    try {
+      await setDoc(ref, {
+        season: 1, day: slot.day, teamId: slot.teamId, opponentId: slot.opponentId || null,
+        matchId: slot.matchId, type: slot.type, slot: slot.slot, role,
+        authorIds: cast.map((a) => a.id), questions: [], answers: [],
+        status: 'generating', articleId: null, error: null, createdAt, updatedAt: createdAt,
+      });
+
+      const context = this.contextFor({
+        teamIds: [slot.teamId, slot.opponentId].filter(Boolean),
+        matchId: slot.slot === 'post' ? slot.matchId : null,
+        day: slot.day,
+      });
+      const direction = buildDirection(this.recentArchetypes());
+      const addendum = [
+        `SITUATION: ${typeLabel(slot.type)} von ${team?.name || slot.teamId}. ${situationLine(slot)}`,
+        `BEFRAGT WIRD: ${role.kind === 'trainer' ? `Trainer ${role.name}` : `das Pokémon ${role.name} aus dem Kader`}`
+          + `${role.traits?.length ? ` — Persönlichkeit: ${role.traits.join(', ')}` : ''}.`
+          + (role.kind === 'pokemon' ? ' Pokémon geben in dieser Liga selbst Auskunft; sprich es direkt an.' : ''),
+        `FRAGESTELLER (in dieser Reihenfolge, autorId exakt übernehmen):`,
+        ...cast.map((a, i) => `  ${i + 1}. autorId "${a.id}" — ${a.name}, ${a.role} bei ${a.outlet}. Ressort: ${a.beat}. `
+          + `Diese Frage ist ${spicy[i] ? 'PROVOKANT' : 'SACHLICH'} (Feld "provokant" entsprechend setzen).`),
+      ].join('\n');
+
+      const data = await generateJson({
+        apiKey: this.apiKey,
+        model: this.model,
+        system: buildSystem({ author: isPk ? null : cast[0], extra: isPk ? 'Du moderierst die Pressekonferenz und formulierst die Fragen der anwesenden Pressevertreter in deren jeweiliger Handschrift.' : '' }),
+        prompt: buildUserPrompt({
+          task: this.promptFor(isPk ? 'pkQuestions' : 'interviewQuestions'),
+          direction: direction.text,
+          context,
+          addendum,
+        }),
+        schema: QUESTIONS_SCHEMA,
+        maxOutputTokens: 4096,
+      });
+
+      const questions = (data.fragen || []).slice(0, 3).map((q, i) => ({
+        id: `q${i + 1}`,
+        authorId: cast.find((a) => a.id === q.autorId)?.id || cast[Math.min(i, cast.length - 1)].id,
+        topic: String(q.thema || '').trim(),
+        text: String(q.frage || '').trim(),
+        provocative: isPk ? !!spicy[i] : true,
+        options: (q.antwortvorschlaege || []).slice(0, 3).map((o) => ({
+          stance: ['souveraen', 'ausweichend', 'angriff'].includes(o?.haltung) ? o.haltung : 'souveraen',
+          text: String(o?.text || '').trim(),
+        })).filter((o) => o.text),
+      })).filter((q) => q.text);
+
+      if (questions.length < 3) throw new Error('Es kamen weniger als drei Fragen zurück.');
+      await setDoc(ref, { questions, status: 'open', updatedAt: new Date().toISOString() }, { merge: true });
+      return id;
+    } catch (e) {
+      console.error('Fragen konnten nicht erzeugt werden:', e);
+      this.lastError = e?.message || 'Unbekannter Fehler';
+      await setDoc(ref, { status: 'error', error: this.lastError, updatedAt: new Date().toISOString() }, { merge: true });
+      return null;
+    } finally {
+      const next = { ...this.busy };
+      delete next[id];
+      this.busy = next;
+    }
+  },
+
+  /** Antworten abgeben und daraus den Beitrag schreiben lassen. */
+  async submitAnswers(sessionId, answers) {
+    const session = this.sessionById(sessionId);
+    if (!session || !this.hasKey) return null;
+    if (this.busy[sessionId]) return null;
+    const ref = doc(db, 'pressSessions', sessionId);
+    const l = Alpine.store('league');
+    const team = (l.teams || []).find((t) => t.id === session.teamId);
+    const isPk = session.type === 'pk';
+    const lead = authorById(session.authorIds?.[0]);
+    // Beitrags-ID aus der Sitzungs-ID: so kollidiert die Auftaktrunde nicht mit den
+    // regulären Terminen desselben Spieltags.
+    const articleId = `s1-art-${String(sessionId).replace(/^s1-/, '')}`;
+    const articleRef = doc(db, 'press', articleId);
+    const createdAt = new Date().toISOString();
+
+    this.busy = { ...this.busy, [sessionId]: true };
+    try {
+      await setDoc(ref, { answers, status: 'writing', updatedAt: createdAt }, { merge: true });
+      await setDoc(articleRef, {
+        season: 1, category: isPk ? 'news' : 'klatsch', status: 'pending', authorId: lead.id,
+        teamIds: [session.teamId], day: session.day ?? null, title: '', subtitle: '', body: '',
+        source: { type: isPk ? 'pk' : 'interview', sessionId }, storylines: [],
+        createdAt, publishedAt: createdAt, error: null,
+      });
+
+      const transcript = (session.questions || []).map((q, i) => {
+        const a = answers.find((x) => x.questionId === q.id) || {};
+        const author = authorById(q.authorId);
+        return [
+          `FRAGE ${i + 1} (${author.name}, ${author.outlet}${q.provocative ? ', bewusst provokant' : ''}):`,
+          `  ${q.text}`,
+          `ANTWORT (${session.role?.kind === 'trainer' ? `Trainer ${session.role?.name}` : session.role?.name}${a.custom ? ', frei formuliert' : `, gewählte Haltung: ${a.stance || 'unbekannt'}`}):`,
+          `  ${a.text || '(keine Antwort)'}`,
+        ].join('\n');
+      }).join('\n\n');
+
+      const direction = buildDirection(this.recentArchetypes());
+      const addendum = [
+        `SITUATION: ${typeLabel(session.type)} von ${team?.name || session.teamId}. ${situationLine(session)}`,
+        `BEFRAGT WURDE: ${session.role?.kind === 'trainer' ? `Trainer ${session.role?.name}` : `das Pokémon ${session.role?.name}`}`
+          + `${session.role?.traits?.length ? ` (${session.role.traits.join(', ')})` : ''}.`,
+        `ANWESENDE PRESSEVERTRETER: ${(session.authorIds || []).map((x) => authorById(x).name).join(', ')}.`,
+        '',
+        'WORTPROTOKOLL:',
+        transcript,
+      ].join('\n');
+
+      const data = await generateJson({
+        apiKey: this.apiKey,
+        model: this.model,
+        system: buildSystem({ author: lead }),
+        prompt: buildUserPrompt({
+          task: this.promptFor(isPk ? 'pkArticle' : 'interviewArticle'),
+          direction: direction.text,
+          context: this.contextFor({
+            teamIds: [session.teamId, session.opponentId].filter(Boolean),
+            matchId: session.slot === 'post' ? session.matchId : null,
+            day: session.day,
+          }),
+          addendum,
+        }),
+        schema: isPk ? ARTICLE_SCHEMA_WITH_CATEGORY : ARTICLE_SCHEMA,
+        maxOutputTokens: 8192,
+      });
+
+      const docData = this._articleDoc(data, {
+        category: isPk ? (data.kategorie === 'klatsch' ? 'klatsch' : 'news') : 'klatsch',
+        authorId: lead.id,
+        teamIds: [session.teamId, session.opponentId].filter(Boolean),
+        day: session.day ?? null,
+        source: { type: isPk ? 'pk' : 'interview', sessionId },
+        createdAt,
+      });
+      await setDoc(articleRef, docData);
+      await setDoc(ref, { status: 'done', articleId, updatedAt: new Date().toISOString() }, { merge: true });
+      return articleId;
+    } catch (e) {
+      console.error('Beitrag konnte nicht erzeugt werden:', e);
+      this.lastError = e?.message || 'Unbekannter Fehler';
+      await setDoc(ref, { status: 'error', error: this.lastError, updatedAt: new Date().toISOString() }, { merge: true });
+      await this._fail(articleRef, this.lastError);
+      return null;
+    } finally {
+      const next = { ...this.busy };
+      delete next[sessionId];
+      this.busy = next;
+    }
+  },
+
+  // Eine Sitzung verwerfen (z. B. nach einem Fehlschlag), damit sie neu starten kann.
+  async resetSession(sessionId) {
+    try {
+      await deleteDoc(doc(db, 'pressSessions', sessionId));
+    } catch (e) {
+      console.error('Sitzung konnte nicht zurückgesetzt werden:', e);
+    }
+  },
+
+  // --- Redaktionelle Beiträge der Spieler ----------------------------------
+  async publishEditorial(input) {
+    const id = input.id || `s1-ed-${Date.now().toString(36)}-${Math.floor(Math.random() * 1296).toString(36)}`;
+    const existing = input.id ? this.byId(input.id) : null;
+    const body = sanitizeHtml(input.body || '');
+    await setDoc(doc(db, 'press', id), {
+      season: 1,
+      category: input.category || 'redaktion',
+      editorial: true,
+      title: String(input.title || '').trim() || 'Ohne Titel',
+      subtitle: String(input.subtitle || '').trim(),
+      body,
+      authorId: input.authorId || PRESS_AUTHORS[0].id,
+      teamIds: input.teamIds || [],
+      pokemonNames: [],
+      day: input.day ?? null,
+      archetype: null,
+      storylines: [],
+      source: { type: 'manual' },
+      status: 'ready',
+      error: null,
+      createdAt: existing?.createdAt || new Date().toISOString(),
+      publishedAt: existing?.publishedAt || new Date().toISOString(),
+      updatedAt: new Date().toISOString(),
+    });
+    return id;
+  },
+
+  async deleteArticle(id) {
+    await deleteDoc(doc(db, 'press', id));
+  },
+});
+
 Alpine.store('nav', { teamId: null, matchId: null, pokemonName: null, from: null, teamAId: null, teamBId: null, canBack: false });
 
 // Elo-/Tier-Prognose aus dem öffentlichen Sheet (clientseitig, ohne Key). Cache im
@@ -4589,4 +5561,5 @@ Alpine.data('spielerView', spielerView);
 Alpine.data('teambuildingView', teambuildingView);
 Alpine.data('transferView', transferView);
 Alpine.data('awardsView', awardsView);
+Alpine.data('presseView', presseView);
 Alpine.start();

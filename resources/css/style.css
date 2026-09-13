@@ -2,6 +2,7 @@
 @import "tailwindcss";
 @import "./font/font.css";
 @import "./awards.css";
+@import "./press.css";
 
 @source "../../index.html";
 @source "../../awards-entwurf.html";
