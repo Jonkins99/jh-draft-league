@@ -702,8 +702,11 @@ match /settings/{doc} { allow read, write: if true; }</code></pre>
             <button type="button" @click="testAccess()" :disabled="settings.testing"
                     class="rounded-xl border border-line px-4 py-2.5 font-display text-sm font-semibold uppercase tracking-wider text-mist transition-colors hover:text-flame-400 disabled:opacity-40"
                     x-text="settings.testing ? 'Prüfe…' : 'Verbindung testen'"></button>
-            <span x-show="settings.testMsg" class="text-sm text-mist" x-text="settings.testMsg"></span>
           </div>
+          <p x-show="settings.testMsg" x-cloak
+             class="rounded-lg border px-3 py-2.5 text-sm leading-relaxed break-words"
+             :style="`border-color:${settings.testOk ? '#63bc5a' : '#e3350d'}66;background:${settings.testOk ? '#63bc5a' : '#e3350d'}14;color:${settings.testOk ? '#63bc5a' : '#ff5a36'}`"
+             x-text="settings.testMsg"></p>
         </div>
 
         <!-- Prompts -->

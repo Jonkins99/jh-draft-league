@@ -4368,6 +4368,7 @@ function presseView() {
         prompts: Object.fromEntries(PROMPT_DEFS.map((d) => [d.key, p[d.key] || ''])),
         testing: false,
         testMsg: '',
+        testOk: false,
         saving: false,
         backfilling: false,
       };
@@ -4384,13 +4385,24 @@ function presseView() {
     },
     async testAccess() {
       if (!this.settings || this.settings.testing) return;
+      const key = String(this.settings.key || '').trim();
+      if (!key) {
+        this.settings.testOk = false;
+        this.settings.testMsg = 'Bitte zuerst einen Schlüssel eintragen.';
+        return;
+      }
       this.settings.testing = true;
       this.settings.testMsg = '';
       try {
-        await testKey({ apiKey: this.settings.key.trim(), model: this.settings.model });
+        await testKey({ apiKey: key, model: this.settings.model });
+        this.settings.testOk = true;
         this.settings.testMsg = 'Verbindung steht.';
       } catch (e) {
+        // Der Wortlaut der API steht bewusst mit in der Meldung — ohne ihn lässt sich
+        // ein abgelehnter Schlüssel nicht von einer nicht freigeschalteten API unterscheiden.
+        this.settings.testOk = false;
         this.settings.testMsg = e?.message || 'Verbindung fehlgeschlagen.';
+        console.error('Gemini-Verbindungstest fehlgeschlagen:', e?.status || '', e?.message || e, e?.detail || '');
       }
       this.settings.testing = false;
     },
@@ -5046,7 +5058,8 @@ Alpine.store('press', {
   init() {
     const saved = loadJson(PRESS_KEY);
     this.apiKey = saved.key || '';
-    this.model = saved.model || DEFAULT_MODEL;
+    // Ein abgelegtes Modell, das es nicht mehr gibt, würde das Auswahlfeld leer lassen.
+    this.model = GEMINI_MODELS.some((m) => m.id === saved.model) ? saved.model : DEFAULT_MODEL;
 
     onSnapshot(
       collection(db, 'press'),
@@ -5347,7 +5360,7 @@ Alpine.store('press', {
           addendum,
         }),
         schema: QUESTIONS_SCHEMA,
-        maxOutputTokens: 4096,
+        maxOutputTokens: 6144,
       });
 
       const questions = (data.fragen || []).slice(0, 3).map((q, i) => ({
