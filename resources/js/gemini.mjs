@@ -102,16 +102,23 @@ function parseJson(text) {
  * @param {string} opts.prompt   Nutzeranweisung inkl. Metadaten
  * @param {object} opts.schema   Antwortschema
  * @param {number} opts.temperature
+ * @param {Array}  opts.media    Optionale Anhänge: [{ mimeType, data(base64) }] —
+ *                               z. B. Sprachaufnahmen, die mitgeschickt werden.
  */
 export async function generateJson({
-  apiKey, model = DEFAULT_MODEL, system, prompt, schema,
+  apiKey, model = DEFAULT_MODEL, system, prompt, schema, media = null,
   temperature = 1.15, maxOutputTokens = 4096, signal = null, thinking = null,
 }) {
   if (!apiKey) throw new GeminiError('Kein API-Key hinterlegt.');
 
   const think = thinkingConfigFor(model, thinking);
+  // Anhänge stehen vor dem Text: das Modell soll erst hören, dann die Anweisung lesen.
+  const parts = [
+    ...(media || []).filter((m) => m?.data).map((m) => ({ inlineData: { mimeType: m.mimeType || 'audio/webm', data: m.data } })),
+    { text: prompt },
+  ];
   const body = {
-    contents: [{ role: 'user', parts: [{ text: prompt }] }],
+    contents: [{ role: 'user', parts }],
     generationConfig: {
       // Die 3er-Generation läuft ausdrücklich auf Temperatur 1.0; abweichende Werte
       // lassen sie bei längeren Texten in Wiederholungen laufen.

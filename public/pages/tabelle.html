@@ -21,6 +21,29 @@
     </div>
   </div>
 
+
+  <!-- Saison-Abschluss: startbar, sobald das letzte Ergebnis steht — wiederholbar. -->
+  <section x-show="seasonComplete()" x-cloak class="fin-teaser mb-6">
+    <div class="relative flex flex-wrap items-center gap-4 overflow-hidden rounded-2xl border border-[#ffcb05]/40 bg-gradient-to-br from-[#ffcb05]/12 via-panel to-panel p-5">
+      <span class="grid size-12 shrink-0 place-items-center rounded-xl bg-[#ffcb05]/15 text-[#ffcb05]">
+        <svg viewBox="0 0 24 24" class="size-6" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M8 21h8"/><path d="M12 17v4"/><path d="M7 4h10v5a5 5 0 0 1-10 0z"/><path d="M17 5h3v2a3 3 0 0 1-3 3"/><path d="M7 5H4v2a3 3 0 0 0 3 3"/></svg>
+      </span>
+      <div class="min-w-0 flex-1">
+        <p class="font-display text-xs font-semibold uppercase tracking-[0.3em] text-[#ffcb05]">Saison abgeschlossen</p>
+        <p class="mt-0.5 font-display text-xl font-bold tracking-wide text-ink">Ruhmeshalle der Saison 1</p>
+        <p class="mt-0.5 text-sm text-mist">Alle acht Teams von unten nach oben — mit Bilanz, Verlauf, Trainern und Kadern. Dauert ein paar Minuten.</p>
+      </div>
+      <button type="button" @click="openFinale()"
+              class="shrink-0 rounded-xl bg-[#ffcb05] px-5 py-3 font-display text-sm font-bold uppercase tracking-wider text-[#1a1406] transition-transform hover:scale-[1.03]">
+        Abschluss starten
+      </button>
+    </div>
+  </section>
+
+  <!-- Bühne der Ruhmeshalle -->
+  <div popover="manual" id="season-finale" class="fin"
+       @toggle="if ($event.newState === 'closed') closeFinale()"></div>
+
   <div x-show="!loaded" class="py-12 text-center text-mist">Lade Tabelle…</div>
 
   <!-- Spieltags-Navigation: Zwischenstände -->

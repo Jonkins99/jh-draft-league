@@ -58,7 +58,11 @@ export const CANON_RULES = `UNVERRÜCKBARE REGELN (Kanon):
    beschriebener Trainer poltert nicht ohne Grund — und wenn doch, ist genau das die Geschichte.
 6. Kein Wort über künstliche Intelligenz, Modelle, Prompts, Generierung oder diese Metadaten.
    Du bist eine Redaktion, sonst nichts. Schreibe niemals über den Vorgang des Schreibens.
-7. Deutsch, Gegenwart der Liga, keine Anreden an den Leser als "Nutzer", kein Meta-Kommentar.`;
+7. Deutsch, Gegenwart der Liga, keine Anreden an den Leser als "Nutzer", kein Meta-Kommentar.
+8. Ein Team kann MEHRERE Geschichten gleichzeitig haben, und mehrere dürfen im selben Beitrag neu
+   entstehen. Eine laufende Geschichte behält ihre id — führe sie fort, statt sie unter neuem Namen
+   noch einmal zu eröffnen. Umgekehrt: presse nicht alles in einen Strang, nur weil es dasselbe Team
+   betrifft. Trainerfrage, Formkrise und Kaderstreit sind drei Geschichten, keine eine.`;
 
 // === Regie: Tonlage ========================================================
 // Gewichtung statt Gleichverteilung — die Liga soll überwiegend ernst genommen werden,
@@ -171,6 +175,7 @@ export const PROMPT_DEFS = [
   { key: 'interviewArticle', label: 'Interview – Artikel', hint: 'Macht aus den Antworten einen Beitrag in „Klatsch und Tratsch“.' },
   { key: 'pkQuestions', label: 'Pressekonferenz – Fragen', hint: 'Drei Fragen von drei verschiedenen Pressevertretern.' },
   { key: 'pkArticle', label: 'Pressekonferenz – Artikel', hint: 'Macht aus der Pressekonferenz einen Beitrag.' },
+  { key: 'random', label: 'Zufallsbeitrag', hint: 'Drei freie Beiträge je Spieltag, ohne vorausgehenden Termin.' },
 ];
 
 export const DEFAULT_PROMPTS = {
@@ -284,6 +289,29 @@ AUFTRAG
 
 FORM
 - Sechs bis zehn Absätze, mindestens ein Absatz mit "> " als hervorgehobenes Zitat.`,
+
+  random: `Du schreibst einen freien Beitrag der JH Draft League — ohne Anlass durch Interview oder
+Pressekonferenz. Es ist das Stück, das eine Redaktion zwischen zwei Spielen bringt, weil die Liga
+auch zwischen den Partien stattfindet.
+
+AUFTRAG
+- Such dir EIN Thema und bleib dabei. Gute Themen: eine laufende Geschichte, die einen neuen Beat
+  braucht; ein Pokémon, über das noch niemand geschrieben hat; eine Zahl, die niemandem aufgefallen
+  ist; ein Vergleich zweier Teams; ein Trainer unter Druck; das Spielerduell Janik gegen Henrik;
+  ein Blick auf den restlichen Spielplan.
+- Nimm laufende Geschichten auf und schreibe sie weiter, statt jedes Mal neu anzufangen. Wenn es
+  nichts fortzuschreiben gibt, eröffne bewusst eine neue.
+- Wiederhole NICHT den Spielbericht. Dieser Beitrag darf Ergebnisse erwähnen, lebt aber von der
+  Einordnung, nicht von der Nacherzählung.
+- Entscheide selbst über die Rubrik: "news" für den sachlichen Beitrag, "klatsch" für die
+  zugespitzte Geschichte, "geruechte" für alles, was sich um Trainerfragen, Wechsel und Unruhe
+  dreht (immer im Konjunktiv, siehe Kanon), "informationen" für einen einordnenden Service-Text
+  (Tabellenmathematik, Spielplan, Regelkunde, Statistik-Erklärstück).
+- Erfundene Stimmen, Szenen und Beobachtungen sind ausdrücklich erwünscht.
+
+FORM
+- Vier bis acht Absätze. Eine Zwischenüberschrift mit "## " ist erlaubt, ein Zitatblock mit "> "
+  gern gesehen.`,
 };
 
 // === Systeminstruktion =====================================================
@@ -329,7 +357,7 @@ const STORYLINE_SCHEMA = S.array(
     status: S.enum(['neu', 'laufend', 'eskaliert', 'beruhigt', 'beendet'], 'Stand nach diesem Beitrag'),
     stand: S.string('Zwei Sätze: worum es geht und wo die Geschichte nach diesem Beitrag steht'),
   }, ['id', 'titel', 'teams', 'status', 'stand']),
-  'Erzählstränge, die dieser Beitrag eröffnet oder fortschreibt (ein bis drei Stück)',
+  'Erzählstränge, die dieser Beitrag eröffnet oder fortschreibt (ein bis vier Stück; mehrere parallel sind ausdrücklich erwünscht)',
 );
 
 export const ARTICLE_SCHEMA = schemaOf({
@@ -346,6 +374,17 @@ export const ARTICLE_SCHEMA_WITH_CATEGORY = schemaOf({
   dachzeile: S.string('Drei bis fünf Wörter über der Überschrift'),
   titel: S.string('Die Überschrift'),
   kategorie: S.enum(['news', 'klatsch'], 'news = sachlicher Bericht, klatsch = zugespitzte Geschichte'),
+  absaetze: S.array(S.string(), 'Die Absätze des Textes. "## " am Anfang macht eine Zwischenüberschrift, "> " ein hervorgehobenes Zitat.'),
+  archetyp: S.string('Schlüssel des verwendeten Erzählstrangs'),
+  erwaehntePokemon: S.array(S.string(), 'Namen der Pokémon, um die es im Text geht'),
+  storylines: STORYLINE_SCHEMA,
+}, ['dachzeile', 'titel', 'kategorie', 'absaetze', 'storylines']);
+
+// Wie ARTICLE_SCHEMA, aber mit der vollen Rubrikauswahl des Zufallsbeitrags.
+export const ARTICLE_SCHEMA_FREE_CATEGORY = schemaOf({
+  dachzeile: S.string('Drei bis fünf Wörter über der Überschrift'),
+  titel: S.string('Die Überschrift'),
+  kategorie: S.enum(['news', 'klatsch', 'geruechte', 'informationen'], 'Die Rubrik dieses Beitrags'),
   absaetze: S.array(S.string(), 'Die Absätze des Textes. "## " am Anfang macht eine Zwischenüberschrift, "> " ein hervorgehobenes Zitat.'),
   archetyp: S.string('Schlüssel des verwendeten Erzählstrangs'),
   erwaehntePokemon: S.array(S.string(), 'Namen der Pokémon, um die es im Text geht'),
@@ -370,3 +409,48 @@ export const QUESTIONS_SCHEMA = schemaOf({
     'Genau drei Fragen',
   ),
 }, ['fragen']);
+
+// === Kampfverlauf aus einer Sprachaufnahme =================================
+// Der Verlauf wird während des Kampfes eingesprochen — in einem Rutsch oder in
+// vielen kleinen Schnipseln. Alle Schnipsel gehen in EINEM Aufruf ans Modell, das
+// daraus einen sauberen Bericht macht. Kritisch sind die Eigennamen: Pokémon-,
+// Team- und Trainernamen werden deshalb als Vokabular mitgegeben.
+export const BATTLE_LOG_SCHEMA = schemaOf({
+  absaetze: S.array(S.string(), 'Der aufbereitete Kampfverlauf in Absätzen, chronologisch.'),
+  unklar: S.array(S.string(), 'Stellen, die akustisch nicht eindeutig waren — kurz benannt.'),
+}, ['absaetze']);
+
+export function buildBattleLogSystem() {
+  return [
+    'Du bereitest die Sprachnotizen eines Spielers der JH Draft League zu einem sauberen Kampfverlauf auf.',
+    LEAGUE_PRIMER,
+    'DEINE AUFGABE IST PROTOKOLL, NICHT JOURNALISMUS: Du erfindest nichts, wertest nicht, schmückst nicht aus. '
+      + 'Du gibst wieder, was gesagt wurde — nur geordnet, entstottert und in ganzen Sätzen.',
+    'Antworte ausschließlich mit dem geforderten JSON-Objekt.',
+  ].join('\n\n');
+}
+
+export function buildBattleLogPrompt({ vocabulary = [], situation = '', existing = '' } = {}) {
+  return [
+    'Im Anhang liegen eine oder mehrere Sprachaufnahmen. Sie gehören zu EINEM Kampf und sind in der '
+      + 'Reihenfolge angehängt, in der sie aufgenommen wurden. Erstelle daraus einen zusammenhängenden '
+      + 'Kampfverlauf.',
+    situation ? `SITUATION\n${situation}` : '',
+    'REGELN',
+    [
+      '- Chronologisch ordnen, Wiederholungen und Versprecher entfernen, Füllwörter streichen.',
+      '- Alles behalten, was inhaltlich gesagt wurde: Aufstellungen, Attacken, Wechsel, Kritische Treffer,',
+      '  Fehlentscheidungen, Glück und Pech, Zwischenstände, Reihenfolge der KOs.',
+      '- Nichts hinzuerfinden. Keine Bewertung, keine Prognose, keine Zitate.',
+      '- Vergangenheitsform, sachlich, in der Ich-Form nur dort, wo der Sprecher selbst spricht.',
+      '- Je Kampf ein Absatz, sofern erkennbar mehrere Kämpfe besprochen werden.',
+      '- Eigennamen MÜSSEN exakt aus der Vokabelliste übernommen werden. Klingt ein Name nur ähnlich,',
+      '  nimm den passenden Eintrag aus der Liste. Kommt ein Name gar nicht vor, schreibe ihn so, wie',
+      '  er gesprochen wurde, und vermerke ihn unter "unklar".',
+    ].join('\n'),
+    vocabulary.length ? `VOKABULAR (exakte Schreibweisen)\n${vocabulary.join('\n')}` : '',
+    existing
+      ? `BEREITS NOTIERT (diesen Text NICHT wiederholen, sondern nahtlos fortsetzen)\n"""\n${existing}\n"""`
+      : '',
+  ].filter(Boolean).join('\n\n');
+}

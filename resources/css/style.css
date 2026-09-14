@@ -3,6 +3,7 @@
 @import "./font/font.css";
 @import "./awards.css";
 @import "./press.css";
+@import "./finale.css";
 
 @source "../../index.html";
 @source "../../awards-entwurf.html";

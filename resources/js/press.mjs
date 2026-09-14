@@ -9,14 +9,25 @@
 // die er fortschreibt, mit Status und Kurzfassung bei sich. Der aktuelle Stand einer
 // Storyline ist damit immer der jüngste Beitrag, der sie erwähnt (siehe activeStorylines).
 
+// Ein Beitrag kann in mehreren Rubriken stehen. Die erste Rubrik bleibt die
+// Hauptrubrik (Feld `category`), alle weiteren liegen in `categories`.
+//   `auto: true`  — wird beim Schreiben automatisch gesetzt, nicht von Hand
+//   `manual: true`— steht im Editor der Spieler zur Auswahl
 export const PRESS_CATEGORIES = [
-  { key: 'spielbericht', label: 'Spielbericht', short: 'Bericht', color: '#4d90d5' },
-  { key: 'news', label: 'News', short: 'News', color: '#63bc5a' },
-  { key: 'klatsch', label: 'Klatsch und Tratsch', short: 'Klatsch', color: '#e3350d' },
-  { key: 'redaktion', label: 'Redaktion', short: 'Redaktion', color: '#ffcb05' },
+  { key: 'spielbericht', label: 'Spielbericht', short: 'Bericht', color: '#4d90d5', manual: true },
+  { key: 'news', label: 'News', short: 'News', color: '#63bc5a', manual: true },
+  { key: 'klatsch', label: 'Klatsch und Tratsch', short: 'Klatsch', color: '#e3350d', manual: true },
+  { key: 'redaktion', label: 'Redaktion', short: 'Redaktion', color: '#ffcb05', manual: true },
+  { key: 'erste-liga', label: 'Erste Liga', short: '1. Liga', color: '#c9a227', auto: true },
+  { key: 'zweite-liga', label: 'Zweite Liga', short: '2. Liga', color: '#8e9aaf', manual: true },
+  { key: 'geruechte', label: 'Gerüchte', short: 'Gerüchte', color: '#a855f7', manual: true },
+  { key: 'informationen', label: 'Informationen', short: 'Infos', color: '#38bdf8', manual: true },
 ];
 
 export const CATEGORY_BY_KEY = Object.fromEntries(PRESS_CATEGORIES.map((c) => [c.key, c]));
+
+// Alles, was per KI entsteht, landet zusätzlich in der „Ersten Liga".
+export const AI_CATEGORY = 'erste-liga';
 
 export function categoryLabel(key) {
   return CATEGORY_BY_KEY[key]?.label || 'News';
@@ -24,6 +35,26 @@ export function categoryLabel(key) {
 
 export function categoryColor(key) {
   return CATEGORY_BY_KEY[key]?.color || '#98a2b3';
+}
+
+export function manualCategories() {
+  return PRESS_CATEGORIES.filter((c) => c.manual);
+}
+
+// Die Rubriken eines Beitrags — Hauptrubrik zuerst, ohne Dubletten.
+// Alt-Beiträge kennen nur `category`; die laufen hier unverändert durch.
+export function categoriesOf(article) {
+  const out = [];
+  const push = (k) => { if (k && CATEGORY_BY_KEY[k] && !out.includes(k)) out.push(k); };
+  push(article?.category);
+  (article?.categories || []).forEach(push);
+  return out;
+}
+
+// Eingabe aus Editor bzw. Modell auf gültige Schlüssel normalisieren.
+export function normalizeCategories(primary, extra = []) {
+  const list = categoriesOf({ category: primary, categories: extra });
+  return { category: list[0] || 'news', categories: list };
 }
 
 // Der Pool der Pressevertreter ist bewusst hartkodiert: sechs feste Gesichter mit
@@ -79,6 +110,18 @@ export const PRESS_AUTHORS = [
     voice: 'Boulevard in Reinform. Zuspitzung, Ausrufezeichen, angebliche Insider, fette Behauptungen, '
       + 'die er am Ende des Absatzes halb wieder einfängt. Zitiert am liebsten das, was jemand fast gesagt hat.',
     beat: 'Unruhe, Gerüchte, Eitelkeiten, alles hinter den Kulissen.',
+  },
+  {
+    id: 'margit',
+    name: 'Margit',
+    outlet: 'Radio Ligawelle',
+    role: 'Moderatorin „Die Ligastunde“',
+    image: './img/press/margit.png',
+    voice: 'Radiofrau durch und durch. Schreibt, wie sie moderiert: in gesprochener Sprache, mit '
+      + 'Anmoderation, Einwürfen und Jingle-Rhythmus. Baut ihre Beiträge um O-Töne herum, kündigt sie an '
+      + '(„Hören wir mal rein"), lässt sie stehen und kommentiert sie danach kurz und warm. Duzt alle, '
+      + 'lacht gern, wird aber genau dann still, wenn es unangenehm wird.',
+    beat: 'Stimmen und O-Töne, Persönliches, Stimmungslagen, das Menschliche hinter dem Ergebnis.',
   },
   {
     id: 'matiere',
@@ -336,9 +379,10 @@ export function activeStorylines(articles, teamId = null, limit = 12) {
 // Herkunft, alle anderen Filter meinen die Rubrik.
 export function articleMatchesFilter(article, { category = '', teamId = '', authorId = '', q = '' } = {}) {
   if (!article) return false;
+  const cats = categoriesOf(article);
   if (category === 'redaktion') {
-    if (!article.editorial && article.category !== 'redaktion') return false;
-  } else if (category && article.category !== category) return false;
+    if (!article.editorial && !cats.includes('redaktion')) return false;
+  } else if (category && !cats.includes(category)) return false;
   if (teamId && !(article.teamIds || []).includes(teamId)) return false;
   if (authorId && article.authorId !== authorId) return false;
   const needle = String(q || '').trim().toLowerCase();
@@ -387,7 +431,21 @@ const ALLOWED_TAGS = new Set([
   'p', 'br', 'strong', 'b', 'em', 'i', 'u', 's', 'h2', 'h3', 'h4',
   'ul', 'ol', 'li', 'blockquote', 'a', 'img', 'figure', 'figcaption', 'hr', 'span',
 ]);
-const ALLOWED_ATTRS = { a: ['href', 'title'], img: ['src', 'alt'] };
+const ALLOWED_ATTRS = { a: ['href', 'title'], img: ['src', 'alt', 'style'] };
+
+// Manche Browser (vor allem mobile) erzeugen im contenteditable ein <div> statt
+// eines <p>. Würde das hier aufgelöst, verschmölzen alle Absätze zu einem Block —
+// deshalb wird es zum Absatz umgeschrieben statt entfernt.
+const TAG_ALIASES = { div: 'p' };
+
+// Bilder dürfen in der Breite skaliert werden — mehr Stil braucht der Textkörper
+// nicht, und mehr würde die Whitelist unterlaufen.
+function safeImgStyle(value) {
+  const width = /(?:^|;)\s*width\s*:\s*(\d{1,3})\s*%/i.exec(String(value || ''));
+  if (!width) return '';
+  const pct = Math.min(100, Math.max(5, Number(width[1])));
+  return `width:${pct}%`;
+}
 
 export function sanitizeHtml(html) {
   const input = String(html || '');
@@ -399,7 +457,14 @@ export function sanitizeHtml(html) {
     [...node.childNodes].forEach((child) => {
       if (child.nodeType === 3) return;
       if (child.nodeType !== 1) return child.remove();
-      const tag = child.tagName.toLowerCase();
+      let tag = child.tagName.toLowerCase();
+      if (TAG_ALIASES[tag]) {
+        const replacement = document.createElement(TAG_ALIASES[tag]);
+        [...child.childNodes].forEach((n) => replacement.appendChild(n));
+        child.replaceWith(replacement);
+        child = replacement;
+        tag = TAG_ALIASES[tag];
+      }
       if (!ALLOWED_TAGS.has(tag)) {
         // Unbekanntes Element auflösen statt löschen: der Text bleibt erhalten.
         const frag = document.createDocumentFragment();
@@ -412,6 +477,11 @@ export function sanitizeHtml(html) {
         const name = attr.name.toLowerCase();
         if (!keep.includes(name)) return child.removeAttribute(attr.name);
         if ((name === 'href' || name === 'src') && /^\s*javascript:/i.test(attr.value)) child.removeAttribute(attr.name);
+        if (name === 'style') {
+          const style = tag === 'img' ? safeImgStyle(attr.value) : '';
+          if (style) child.setAttribute('style', style);
+          else child.removeAttribute('style');
+        }
       });
       if (tag === 'a') {
         child.setAttribute('target', '_blank');

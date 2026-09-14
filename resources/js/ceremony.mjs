@@ -4,11 +4,63 @@
 //
 // Ablauf: letzte Platzierung zuerst, dann aufwärts bis Platz 3 — jeweils mit
 // Atempause. Danach fällt das Licht (Vorhang), Platz 2 und 1 erscheinen
-// gleichzeitig, das Siegel materialisiert und Konfetti fliegt.
+// gleichzeitig, das Siegel materialisiert und es wird gefeiert.
+//
+// Fünf Inszenierungen teilen sich diesen Ablauf und werden zufällig gewählt
+// (siehe CEREMONY_VARIANTS). Sie unterscheiden sich in Tempo, Enthüllungsgeste
+// und Schlusseffekt — die Dramaturgie bleibt dieselbe.
 
 import { revealSteps } from './awards.mjs';
 
 const CONFETTI_COLORS = ['#ffcb05', '#e3350d', '#4d90d5', '#63bc5a', '#ab6ac8', '#eef1f6'];
+
+// === Varianten =============================================================
+// Fünf Inszenierungen derselben Sequenz. Sie unterscheiden sich vor allem im
+// TEMPO und in der Art, wie eine Platte ins Bild kommt — die Reihenfolge (letzter
+// Platz zuerst) bleibt überall gleich, damit die Spannung erhalten bleibt.
+// Das Aussehen steckt in awards.css unter `.cer-stage[data-variant="…"]`.
+export const CEREMONY_VARIANTS = [
+  {
+    key: 'spotlight',
+    label: 'Bühnenlicht',
+    // lead = Vorlauf, tease = Anspannung vor der Platte, hold = Nachklang, curtain = Blackout
+    timing: { lead: 500, tease: 620, hold: 1150, curtain: 560 },
+    burst: 'confetti',
+  },
+  {
+    key: 'countdown',
+    label: 'Schlagzahl',
+    timing: { lead: 320, tease: 280, hold: 640, curtain: 380 },
+    burst: 'rings',
+  },
+  {
+    key: 'flipboard',
+    label: 'Anzeigetafel',
+    timing: { lead: 420, tease: 460, hold: 950, curtain: 520 },
+    burst: 'beams',
+  },
+  {
+    key: 'anflug',
+    label: 'Anflug',
+    timing: { lead: 520, tease: 760, hold: 1050, curtain: 660 },
+    burst: 'sparks',
+  },
+  {
+    key: 'gala',
+    label: 'Gala',
+    timing: { lead: 820, tease: 920, hold: 1500, curtain: 900 },
+    burst: 'embers',
+  },
+];
+
+export const VARIANT_BY_KEY = Object.fromEntries(CEREMONY_VARIANTS.map((v) => [v.key, v]));
+
+/** Zufällige Inszenierung — jede Siegerehrung sieht damit etwas anders aus. */
+export function pickCeremonyVariant(exclude = null) {
+  const pool = CEREMONY_VARIANTS.filter((v) => v.key !== exclude);
+  const list = pool.length ? pool : CEREMONY_VARIANTS;
+  return list[Math.floor(Math.random() * list.length)];
+}
 
 function reduceMotion() {
   return typeof window !== 'undefined'
@@ -120,15 +172,20 @@ function tickScore(el, target, duration) {
   requestAnimationFrame(step);
 }
 
-function burstConfetti(host) {
-  if (reduceMotion() || !host || !host.animate) return;
+// Jede Variante feiert anders. Alle fünf Effekte teilen sich dieselbe Bühne
+// (eine absolut liegende Ebene, die sich nach ein paar Sekunden selbst entfernt).
+function makeLayer(host, cls) {
   const layer = document.createElement('div');
-  layer.className = 'cer-confetti';
-  const w = host.clientWidth || 640;
-  const h = host.clientHeight || 480;
+  layer.className = cls;
+  host.appendChild(layer);
+  return layer;
+}
+
+function burstConfetti(host, w, h) {
+  const layer = makeLayer(host, 'cer-confetti');
   const pieces = w < 520 ? 70 : 120;
-  const frag = document.createDocumentFragment();
   const els = [];
+  const frag = document.createDocumentFragment();
   for (let i = 0; i < pieces; i++) {
     const el = document.createElement('i');
     el.style.background = CONFETTI_COLORS[i % CONFETTI_COLORS.length];
@@ -138,23 +195,142 @@ function burstConfetti(host) {
     frag.appendChild(el);
   }
   layer.appendChild(frag);
-  host.appendChild(layer);
   els.forEach((el) => {
     const angle = Math.random() * Math.PI * 2;
     const dist = (0.35 + Math.random() * 0.75) * Math.max(w, h) * 0.6;
     const dx = Math.cos(angle) * dist;
     const dy = Math.sin(angle) * dist * 0.7 + h * 0.5;
-    const dur = 1500 + Math.random() * 1300;
     el.animate(
       [
         { transform: 'translate(0,0) rotate(0deg) scale(1)', opacity: 1 },
         { transform: `translate(${dx * 0.6}px,${dy * 0.25}px) rotate(${180 + Math.random() * 360}deg) scale(1)`, opacity: 1, offset: 0.45 },
         { transform: `translate(${dx}px,${dy}px) rotate(${420 + Math.random() * 540}deg) scale(0.85)`, opacity: 0 },
       ],
-      { duration: dur, easing: 'cubic-bezier(0.16, 1, 0.3, 1)', fill: 'forwards' },
+      { duration: 1500 + Math.random() * 1300, easing: 'cubic-bezier(0.16, 1, 0.3, 1)', fill: 'forwards' },
     );
   });
-  setTimeout(() => layer.remove(), 3200);
+  return 3200;
+}
+
+// Schlagzahl: drei Schockwellen, die vom Podest nach außen laufen.
+function burstRings(host, w, h) {
+  const layer = makeLayer(host, 'cer-confetti');
+  const size = Math.max(w, h);
+  for (let i = 0; i < 4; i++) {
+    const el = document.createElement('b');
+    el.className = 'cer-ring';
+    layer.appendChild(el);
+    el.animate(
+      [
+        { width: '0px', height: '0px', opacity: 0.85, borderWidth: '10px' },
+        { width: `${size * 1.6}px`, height: `${size * 1.6}px`, opacity: 0, borderWidth: '1px' },
+      ],
+      { duration: 1100 + i * 220, delay: i * 190, easing: 'cubic-bezier(0.16, 1, 0.3, 1)', fill: 'forwards' },
+    );
+  }
+  return 2600;
+}
+
+// Anzeigetafel: Lichtbalken klappen vom Podest nach außen auf.
+function burstBeams(host, w, h) {
+  const layer = makeLayer(host, 'cer-confetti');
+  const count = 14;
+  for (let i = 0; i < count; i++) {
+    const el = document.createElement('b');
+    el.className = 'cer-beam';
+    el.style.background = `linear-gradient(to top, ${CONFETTI_COLORS[i % CONFETTI_COLORS.length]}, transparent)`;
+    el.style.height = `${Math.max(w, h)}px`;
+    layer.appendChild(el);
+    const angle = -90 + (i - (count - 1) / 2) * (170 / count);
+    el.animate(
+      [
+        { transform: `translate(-50%, 0) rotate(${angle}deg) scaleY(0)`, opacity: 0 },
+        { transform: `translate(-50%, 0) rotate(${angle}deg) scaleY(1)`, opacity: 0.55, offset: 0.35 },
+        { transform: `translate(-50%, 0) rotate(${angle + 12}deg) scaleY(1)`, opacity: 0 },
+      ],
+      { duration: 1400 + Math.random() * 500, delay: i * 35, easing: 'cubic-bezier(0.16, 1, 0.3, 1)', fill: 'forwards' },
+    );
+  }
+  return 2400;
+}
+
+// Anflug: Funken schießen nach oben und verglühen.
+function burstSparks(host, w, h) {
+  const layer = makeLayer(host, 'cer-confetti');
+  const pieces = w < 520 ? 60 : 110;
+  const frag = document.createDocumentFragment();
+  const els = [];
+  for (let i = 0; i < pieces; i++) {
+    const el = document.createElement('u');
+    el.className = 'cer-spark';
+    el.style.background = CONFETTI_COLORS[i % 3];
+    el.style.left = `${50 + (Math.random() - 0.5) * 60}%`;
+    el.style.top = '60%';
+    els.push(el);
+    frag.appendChild(el);
+  }
+  layer.appendChild(frag);
+  els.forEach((el) => {
+    const dx = (Math.random() - 0.5) * w * 0.5;
+    const dy = -(0.3 + Math.random() * 0.8) * h;
+    el.animate(
+      [
+        { transform: 'translate(0,0) scaleY(1)', opacity: 1 },
+        { transform: `translate(${dx * 0.5}px,${dy * 0.55}px) scaleY(2.4)`, opacity: 1, offset: 0.4 },
+        { transform: `translate(${dx}px,${dy}px) scaleY(0.4)`, opacity: 0 },
+      ],
+      { duration: 1300 + Math.random() * 1100, easing: 'cubic-bezier(0.2, 0.8, 0.2, 1)', fill: 'forwards' },
+    );
+  });
+  return 2800;
+}
+
+// Gala: Goldflocken schweben langsam durchs Bild.
+function burstEmbers(host, w, h) {
+  const layer = makeLayer(host, 'cer-confetti');
+  const pieces = w < 520 ? 40 : 70;
+  const frag = document.createDocumentFragment();
+  const els = [];
+  for (let i = 0; i < pieces; i++) {
+    const el = document.createElement('s');
+    el.className = 'cer-ember';
+    el.style.left = `${Math.random() * 100}%`;
+    el.style.top = `${60 + Math.random() * 45}%`;
+    el.style.scale = `${0.5 + Math.random() * 1.1}`;
+    els.push(el);
+    frag.appendChild(el);
+  }
+  layer.appendChild(frag);
+  els.forEach((el) => {
+    const drift = (Math.random() - 0.5) * w * 0.25;
+    el.animate(
+      [
+        { transform: 'translate(0,0)', opacity: 0 },
+        { transform: `translate(${drift * 0.4}px,${-h * 0.35}px)`, opacity: 0.9, offset: 0.35 },
+        { transform: `translate(${drift}px,${-h * 1.05}px)`, opacity: 0 },
+      ],
+      { duration: 3200 + Math.random() * 2600, delay: Math.random() * 900, easing: 'ease-out', fill: 'forwards' },
+    );
+  });
+  return 6400;
+}
+
+const BURSTS = {
+  confetti: burstConfetti,
+  rings: burstRings,
+  beams: burstBeams,
+  sparks: burstSparks,
+  embers: burstEmbers,
+};
+
+function celebrate(host, kind) {
+  if (reduceMotion() || !host || !host.animate) return;
+  const fn = BURSTS[kind] || burstConfetti;
+  const w = host.clientWidth || 640;
+  const h = host.clientHeight || 480;
+  const layerLife = fn(host, w, h);
+  const layer = host.lastElementChild;
+  setTimeout(() => layer?.remove(), layerLife);
 }
 
 // data = { title, subtitle, accent, medalSvg, rows: [{id,label,sub,image,avg,scores,rank}], note }
@@ -163,11 +339,12 @@ export function runCeremony(root, data, opts = {}) {
   const rows = [...(data.rows || [])];
   const accent = data.accent || '#ffcb05';
   const onDone = opts.onDone || (() => {});
+  const variant = VARIANT_BY_KEY[opts.variant] || pickCeremonyVariant();
   const timers = [];
   let stopped = false;
   let finished = false;
 
-  root.innerHTML = `<div class="cer-stage" data-phase="reveal" data-beat="idle">
+  root.innerHTML = `<div class="cer-stage" data-phase="reveal" data-beat="idle" data-variant="${esc(variant.key)}">
     <span class="cer-spot"></span>
     <header class="flex items-start gap-3">
       <span class="w-10 shrink-0" data-cer="badge">${data.medalSvg || ''}</span>
@@ -240,7 +417,7 @@ export function runCeremony(root, data, opts = {}) {
         medalSvg: row.rank === topRank ? (data.medalSvg || '') : '',
       }))
       .join('');
-    if (animate) burstConfetti(stage);
+    if (animate) celebrate(stage, variant.burst);
     noteEl.style.visibility = 'visible';
     closeEl.style.visibility = 'visible';
     finished = true;
@@ -277,29 +454,31 @@ export function runCeremony(root, data, opts = {}) {
 
   (async () => {
     const slow = reduceMotion() ? 0.4 : 1;
-    await sleep(500 * slow);
+    const t = variant.timing;
+    await sleep(t.lead * slow);
     for (let s = 0; s < steps.length - 1; s++) {
       if (stopped) return;
       const i = rows.indexOf(steps[s][0]);
       if (i < 0) continue;
       slotEls[i].dataset.state = 'next';
-      await sleep(620 * slow);
+      await sleep(t.tease * slow);
       if (stopped) return;
       stage.dataset.beat = 'hold';
       revealSlot(i, true);
-      await sleep(1150 * slow);
+      await sleep(t.hold * slow);
       stage.dataset.beat = 'idle';
     }
     if (stopped) return;
     if (steps.length > 1) {
       stage.dataset.phase = 'curtain';
-      await sleep(560 * slow);
+      await sleep(t.curtain * slow);
     }
     if (stopped) return;
     showFinale(true);
   })();
 
   return {
+    variant: variant.key,
     skip: finishNow,
     stop() {
       stopped = true;

@@ -1,0 +1,758 @@
+/* Saison-Abschluss: die Ruhmeshalle. Dieselbe Bühnensprache wie die Siegerehrung,
+   nur größer, langsamer und mit Goldanteil. */
+
+.fin {
+  position: fixed;
+  inset: 0;
+  width: 100%;
+  max-width: none;
+  height: 100%;
+  max-height: none;
+  margin: 0;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  color: var(--color-ink);
+  overflow: hidden;
+}
+
+.fin::backdrop {
+  background: rgb(3 4 7 / 0.97);
+  backdrop-filter: blur(8px);
+}
+
+.fin-stage {
+  position: relative;
+  display: grid;
+  grid-template-rows: 1fr auto;
+  width: 100%;
+  height: 100%;
+  isolation: isolate;
+}
+
+/* Hintergrund: ein tiefer Hallenraum aus zwei Lichtquellen und einem Bodenlicht. */
+.fin-bg {
+  position: absolute;
+  inset: 0;
+  z-index: -2;
+  pointer-events: none;
+  background:
+    radial-gradient(58% 40% at 50% -4%, rgb(255 203 5 / 0.16), transparent 68%),
+    radial-gradient(90% 55% at 50% 104%, rgb(201 162 39 / 0.14), transparent 66%),
+    linear-gradient(rgb(6 8 12 / 0.4), rgb(3 4 7 / 0.9));
+}
+
+.fin-viewport {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  /* `safe` verhindert, dass eine zu hohe Szene oben aus dem Scrollbereich kippt. */
+  justify-content: safe center;
+  min-height: 0;
+  overflow-y: auto;
+  /* Die Lichtstrahlen ragen bewusst über den Rand hinaus — das darf aber keine
+     Querscrollleiste erzeugen. */
+  overflow-x: clip;
+  overscroll-behavior: contain;
+  padding: 1.25rem 1rem 0.5rem;
+}
+
+.fin-scene {
+  position: relative;
+  flex: none;
+  width: 100%;
+  max-width: 64rem;
+  margin-inline: auto;
+  animation: fin-in 760ms cubic-bezier(0.22, 1, 0.36, 1) both;
+}
+
+@keyframes fin-in {
+  from {
+    opacity: 0;
+    translate: 0 26px;
+    scale: 0.985;
+    filter: blur(8px);
+  }
+}
+
+/* Lichtstrahlen hinter den großen Momenten. Sie liegen bewusst im Hintergrund der
+   Bühne und nicht in der Szene — dort würden sie den Scrollbereich aufblähen. */
+.fin-bg::before,
+.fin-bg::after {
+  content: "";
+  position: absolute;
+  pointer-events: none;
+  opacity: 0;
+  transition: opacity 900ms ease;
+}
+
+.fin-bg::before {
+  left: 50%;
+  top: -18%;
+  width: min(140vw, 78rem);
+  aspect-ratio: 1;
+  translate: -50% 0;
+  background: conic-gradient(
+    from 0deg,
+    rgb(255 203 5 / 0.14) 0deg 8deg, transparent 8deg 30deg,
+    rgb(255 203 5 / 0.1) 30deg 36deg, transparent 36deg 62deg,
+    rgb(255 203 5 / 0.14) 62deg 70deg, transparent 70deg 96deg,
+    rgb(255 203 5 / 0.09) 96deg 102deg, transparent 102deg 132deg,
+    rgb(255 203 5 / 0.13) 132deg 140deg, transparent 140deg 168deg,
+    rgb(255 203 5 / 0.1) 168deg 175deg, transparent 175deg 360deg
+  );
+  mask-image: radial-gradient(circle, rgb(0 0 0 / 0.9) 12%, transparent 66%);
+  animation: fin-rays 34s linear infinite;
+}
+
+@keyframes fin-rays {
+  to { rotate: 360deg; }
+}
+
+.fin-bg::after {
+  left: 50%;
+  top: 22%;
+  width: min(120vw, 40rem);
+  aspect-ratio: 1;
+  translate: -50% -50%;
+  border-radius: 9999px;
+  background: radial-gradient(circle, rgb(255 203 5 / 0.32), transparent 62%);
+  animation: fin-pulse 4200ms ease-in-out infinite;
+}
+
+.fin-stage[data-flare="rays"] .fin-bg::before,
+.fin-stage[data-flare="crown"] .fin-bg::before {
+  opacity: 1;
+}
+
+.fin-stage[data-flare="crown"] .fin-bg::after {
+  opacity: 1;
+}
+
+@keyframes fin-pulse {
+  0%, 100% { opacity: 0.5; scale: 0.92; }
+  50% { opacity: 1; scale: 1.06; }
+}
+
+/* --- Typografie ---------------------------------------------------------- */
+.fin-kicker {
+  font-family: var(--font-display);
+  font-size: 0.6875rem;
+  font-weight: 700;
+  letter-spacing: 0.32em;
+  text-transform: uppercase;
+  color: #ffcb05;
+}
+
+.fin-title {
+  margin-top: 0.35rem;
+  font-family: var(--font-display);
+  font-size: clamp(2.2rem, 7vw, 4.25rem);
+  font-weight: 900;
+  line-height: 1;
+  letter-spacing: 0.02em;
+  background: linear-gradient(180deg, #fff6d4, #ffcb05 55%, #c9a227);
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
+}
+
+.fin-team {
+  margin-top: 0.1rem;
+  font-family: var(--font-display);
+  font-size: clamp(1.6rem, 4.5vw, 2.75rem);
+  font-weight: 900;
+  line-height: 1.05;
+  color: var(--color-ink);
+}
+
+.fin-lead {
+  margin-top: 0.75rem;
+  max-width: 42rem;
+  color: var(--color-mist);
+}
+
+.fin-label {
+  font-family: var(--font-display);
+  font-size: 0.6875rem;
+  font-weight: 700;
+  letter-spacing: 0.22em;
+  text-transform: uppercase;
+  color: var(--color-mist);
+}
+
+.fin-sub {
+  font-size: 0.8125rem;
+  color: var(--color-mist);
+}
+
+.fin-sub[data-player="Janik"] { color: #e3350d; }
+.fin-sub[data-player="Henrik"] { color: #4d90d5; }
+
+/* --- Intro / Outro ------------------------------------------------------- */
+.fin-scene--intro,
+.fin-scene--outro {
+  text-align: center;
+  padding-block: 2rem;
+}
+
+/* Der Reset deckelt Absätze auf 75ch — in den mittigen Szenen müssen sie deshalb
+   ausdrücklich zentriert werden. */
+.fin-scene--intro p,
+.fin-scene--outro p,
+.fin-scene--trophy p {
+  margin-inline: auto;
+}
+
+.fin-facts,
+.fin-leaders {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: 0.75rem;
+  margin-top: 1.75rem;
+}
+
+.fin-facts > span {
+  display: grid;
+  gap: 0.15rem;
+  min-width: 6.5rem;
+  padding: 0.85rem 1.1rem;
+  border: 1px solid var(--color-line);
+  border-radius: 1rem;
+  background: rgb(20 23 31 / 0.7);
+  animation: fin-pop 620ms cubic-bezier(0.22, 1, 0.36, 1) both;
+}
+
+.fin-facts > span:nth-child(2) { animation-delay: 140ms; }
+.fin-facts > span:nth-child(3) { animation-delay: 280ms; }
+.fin-facts > span:nth-child(4) { animation-delay: 420ms; }
+
+.fin-facts b {
+  font-family: var(--font-display);
+  font-size: 1.75rem;
+  font-weight: 900;
+  font-variant-numeric: tabular-nums;
+  color: #ffcb05;
+}
+
+.fin-facts i,
+.fin-record i,
+.fin-leader i {
+  font-style: normal;
+  font-size: 0.6875rem;
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+  color: var(--color-mist);
+}
+
+@keyframes fin-pop {
+  from { opacity: 0; translate: 0 16px; scale: 0.94; }
+}
+
+.fin-duel {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: center;
+  gap: 1rem;
+  margin-top: 2rem;
+}
+
+.fin-duel-side {
+  min-width: 12rem;
+  padding: 1.25rem 1.5rem;
+  border: 1px solid var(--color-line);
+  border-radius: 1.25rem;
+  background: rgb(20 23 31 / 0.8);
+  animation: fin-pop 700ms cubic-bezier(0.22, 1, 0.36, 1) both;
+}
+
+.fin-duel-side[data-player="Janik"] { border-color: rgb(227 53 13 / 0.45); }
+.fin-duel-side[data-player="Henrik"] { border-color: rgb(77 144 213 / 0.45); animation-delay: 180ms; }
+
+.fin-duel-name {
+  font-family: var(--font-display);
+  font-size: 1.25rem;
+  font-weight: 800;
+  letter-spacing: 0.04em;
+}
+
+.fin-duel-side[data-player="Janik"] .fin-duel-name { color: #e3350d; }
+.fin-duel-side[data-player="Henrik"] .fin-duel-name { color: #4d90d5; }
+
+.fin-duel-points {
+  font-family: var(--font-display);
+  font-size: 3rem;
+  font-weight: 900;
+  line-height: 1;
+  font-variant-numeric: tabular-nums;
+  color: var(--color-ink);
+}
+
+.fin-duel-vs {
+  font-family: var(--font-display);
+  font-size: 0.75rem;
+  font-weight: 700;
+  letter-spacing: 0.3em;
+  text-transform: uppercase;
+  color: var(--color-mist);
+}
+
+.fin-leader {
+  display: grid;
+  justify-items: center;
+  gap: 0.15rem;
+  min-width: 9rem;
+  padding: 0.9rem 1.1rem;
+  border: 1px solid var(--color-line);
+  border-radius: 1rem;
+  background: rgb(20 23 31 / 0.7);
+  animation: fin-pop 640ms cubic-bezier(0.22, 1, 0.36, 1) both;
+}
+
+.fin-leader:nth-child(2) { animation-delay: 160ms; }
+.fin-leader:nth-child(3) { animation-delay: 320ms; }
+
+.fin-leader b {
+  font-family: var(--font-display);
+  font-size: 1rem;
+  font-weight: 800;
+  color: var(--color-ink);
+}
+
+.fin-leader em {
+  font-style: normal;
+  font-family: var(--font-display);
+  font-size: 1.25rem;
+  font-weight: 900;
+  color: #ffcb05;
+}
+
+.fin-outro-end {
+  margin-top: 2.5rem;
+  font-family: var(--font-display);
+  font-size: 0.75rem;
+  font-weight: 700;
+  letter-spacing: 0.4em;
+  text-transform: uppercase;
+  color: var(--color-mist);
+}
+
+/* --- Pokal ---------------------------------------------------------------- */
+.fin-scene--trophy {
+  text-align: center;
+  padding-block: 1.5rem 2.5rem;
+}
+
+.fin-trophy {
+  display: grid;
+  place-items: center;
+  margin-block: 0.75rem 1rem;
+}
+
+.fin-trophy-svg {
+  width: clamp(7rem, 20vw, 11rem);
+  filter: drop-shadow(0 18px 40px rgb(255 203 5 / 0.45));
+  animation: fin-trophy 1400ms cubic-bezier(0.22, 1, 0.36, 1) both;
+}
+
+@keyframes fin-trophy {
+  from { opacity: 0; scale: 0.4; rotate: -14deg; filter: blur(16px); }
+  60% { opacity: 1; }
+  to { opacity: 1; scale: 1; rotate: 0deg; filter: blur(0) drop-shadow(0 18px 40px rgb(255 203 5 / 0.45)); }
+}
+
+.fin-champ-player {
+  font-family: var(--font-display);
+  font-size: 1.1rem;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+}
+
+.fin-champ-player[data-player="Janik"] { color: #e3350d; }
+.fin-champ-player[data-player="Henrik"] { color: #4d90d5; }
+
+.fin-confetti {
+  position: absolute;
+  inset: 0;
+  z-index: 30;
+  overflow: hidden;
+  pointer-events: none;
+}
+
+.fin-confetti i {
+  position: absolute;
+  display: block;
+  width: 0.45rem;
+  height: 0.75rem;
+  border-radius: 1px;
+  will-change: transform, opacity;
+}
+
+/* --- Team-Szene ---------------------------------------------------------- */
+.fin-head {
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+}
+
+.fin-place {
+  display: grid;
+  place-items: center;
+  flex: none;
+  width: 3.25rem;
+  height: 3.25rem;
+  border-radius: 1rem;
+  border: 1px solid var(--color-line);
+  background: rgb(20 23 31 / 0.8);
+  font-family: var(--font-display);
+  font-size: 1.5rem;
+  font-weight: 900;
+  font-variant-numeric: tabular-nums;
+  color: var(--color-mist);
+}
+
+.fin-logo {
+  flex: none;
+  width: 4.5rem;
+  height: 4.5rem;
+  object-fit: contain;
+  animation: fin-logo 900ms cubic-bezier(0.22, 1, 0.36, 1) both;
+}
+
+@keyframes fin-logo {
+  from { opacity: 0; scale: 0.5; rotate: -12deg; filter: blur(8px); }
+}
+
+.fin-scene--team[data-rank="third"] .fin-place { color: #cd7f32; border-color: rgb(205 127 50 / 0.5); }
+.fin-scene--team[data-rank="second"] .fin-place { color: #cfd6e2; border-color: rgb(207 214 226 / 0.5); }
+
+.fin-scene--team[data-rank="champion"] .fin-place {
+  width: 4.25rem;
+  height: 4.25rem;
+  color: #ffcb05;
+  border-color: rgb(255 203 5 / 0.65);
+  background: radial-gradient(circle at 50% 0%, rgb(255 203 5 / 0.25), rgb(20 23 31 / 0.9));
+  box-shadow: 0 18px 50px -20px rgb(255 203 5 / 0.8);
+  font-size: 2rem;
+}
+
+.fin-scene--team[data-rank="champion"] .fin-logo {
+  width: 6.5rem;
+  height: 6.5rem;
+}
+
+.fin-record {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+  margin-top: 1.1rem;
+}
+
+.fin-record > span {
+  display: grid;
+  gap: 0.1rem;
+  min-width: 5.25rem;
+  padding: 0.55rem 0.85rem;
+  border: 1px solid var(--color-line);
+  border-radius: 0.85rem;
+  background: rgb(20 23 31 / 0.6);
+  animation: fin-pop 520ms cubic-bezier(0.22, 1, 0.36, 1) both;
+}
+
+.fin-record > span:nth-child(2) { animation-delay: 80ms; }
+.fin-record > span:nth-child(3) { animation-delay: 160ms; }
+.fin-record > span:nth-child(4) { animation-delay: 240ms; }
+.fin-record > span:nth-child(5) { animation-delay: 320ms; }
+
+.fin-record b {
+  font-family: var(--font-display);
+  font-size: 1.35rem;
+  font-weight: 900;
+  font-variant-numeric: tabular-nums;
+  color: var(--color-ink);
+}
+
+.fin-cols {
+  display: grid;
+  gap: 1rem;
+  margin-top: 1.1rem;
+}
+
+@media (min-width: 52rem) {
+  .fin-cols {
+    grid-template-columns: 1.25fr 1fr;
+    align-items: start;
+  }
+}
+
+.fin-col {
+  display: grid;
+  gap: 0.6rem;
+  align-content: start;
+  padding: 0.9rem 1rem;
+  border: 1px solid var(--color-line);
+  border-radius: 1rem;
+  background: rgb(20 23 31 / 0.55);
+}
+
+.fin-path {
+  width: 100%;
+  height: 4.5rem;
+}
+
+@keyframes fin-draw {
+  to { stroke-dashoffset: 0; }
+}
+
+.fin-matches {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.35rem;
+}
+
+.fin-match {
+  display: inline-flex;
+  align-items: baseline;
+  gap: 0.4rem;
+  padding: 0.3rem 0.55rem;
+  border-radius: 0.6rem;
+  border: 1px solid var(--color-line);
+  background: rgb(11 13 18 / 0.6);
+  font-size: 0.75rem;
+  color: var(--color-mist);
+}
+
+.fin-match i {
+  font-style: normal;
+  font-size: 0.625rem;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  opacity: 0.7;
+}
+
+.fin-match b {
+  font-family: var(--font-display);
+  font-weight: 800;
+  font-variant-numeric: tabular-nums;
+  color: var(--color-ink);
+}
+
+.fin-match em {
+  font-style: normal;
+  max-width: 9rem;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.fin-match[data-outcome="sieg"] { border-color: rgb(99 188 90 / 0.45); }
+.fin-match[data-outcome="niederlage"] { border-color: rgb(227 53 13 / 0.35); }
+
+.fin-trainer {
+  display: flex;
+  align-items: center;
+  gap: 0.85rem;
+}
+
+.fin-trainer-name {
+  font-family: var(--font-display);
+  font-size: 1.15rem;
+  font-weight: 800;
+  color: var(--color-ink);
+}
+
+.fin-traits {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.25rem;
+  margin-top: 0.3rem;
+}
+
+.fin-traits span {
+  padding: 0.1rem 0.45rem;
+  border-radius: 0.4rem;
+  border: 1px solid var(--color-line);
+  font-size: 0.6875rem;
+  color: var(--color-mist);
+}
+
+.fin-awards {
+  display: grid;
+  gap: 0.25rem;
+  padding-top: 0.6rem;
+  border-top: 1px solid var(--color-line);
+}
+
+.fin-award {
+  font-size: 0.75rem;
+  color: #ffcb05;
+}
+
+.fin-roster-label {
+  margin-top: 1.1rem;
+}
+
+.fin-roster {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(6rem, 1fr));
+  gap: 0.5rem;
+  margin-top: 0.5rem;
+}
+
+.fin-mon {
+  position: relative;
+  display: grid;
+  justify-items: center;
+  gap: 0.1rem;
+  padding: 0.55rem 0.35rem 0.5rem;
+  border: 1px solid var(--color-line);
+  border-radius: 0.9rem;
+  background: rgb(20 23 31 / 0.7);
+  cursor: pointer;
+  animation: fin-mon 720ms cubic-bezier(0.22, 1, 0.36, 1) both;
+  transition: border-color 160ms ease, translate 160ms ease;
+}
+
+.fin-mon:hover,
+.fin-mon:focus-visible {
+  border-color: rgb(255 203 5 / 0.55);
+  translate: 0 -2px;
+}
+
+@keyframes fin-mon {
+  from { opacity: 0; translate: 0 22px; scale: 0.8; filter: blur(6px); }
+}
+
+.fin-tier {
+  position: absolute;
+  left: 0.4rem;
+  top: 0.4rem;
+  font-family: var(--font-display);
+  font-size: 0.625rem;
+  font-weight: 800;
+  color: var(--color-mist);
+}
+
+.fin-mon-name {
+  max-width: 100%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: 0.75rem;
+  font-weight: 600;
+  color: var(--color-ink);
+}
+
+.fin-mon-stat {
+  font-size: 0.6875rem;
+  color: var(--color-mist);
+  font-variant-numeric: tabular-nums;
+}
+
+.fin-mon-stat b {
+  color: #ffcb05;
+}
+
+.fin-scene--team[data-rank="champion"] .fin-mon {
+  border-color: rgb(255 203 5 / 0.3);
+  background:
+    radial-gradient(120% 80% at 50% 0%, rgb(255 203 5 / 0.12), transparent 62%),
+    rgb(20 23 31 / 0.8);
+}
+
+/* --- Steuerleiste -------------------------------------------------------- */
+.fin-bar {
+  position: relative;
+  border-top: 1px solid var(--color-line);
+  background: rgb(11 13 18 / 0.9);
+  backdrop-filter: blur(6px);
+}
+
+.fin-progress {
+  height: 3px;
+  width: 100%;
+  background: rgb(42 49 61 / 0.8);
+}
+
+.fin-progress > span {
+  display: block;
+  height: 100%;
+  width: 0;
+  background: linear-gradient(90deg, #c9a227, #ffcb05);
+}
+
+.fin-controls {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.65rem 0.9rem;
+}
+
+.fin-controls button {
+  display: grid;
+  place-items: center;
+  width: 2.5rem;
+  height: 2.5rem;
+  border: 1px solid var(--color-line);
+  border-radius: 0.75rem;
+  color: var(--color-mist);
+  background: transparent;
+  cursor: pointer;
+  transition: color 150ms ease, border-color 150ms ease;
+}
+
+.fin-controls button:hover {
+  color: #ffcb05;
+  border-color: rgb(255 203 5 / 0.4);
+}
+
+.fin-counter {
+  font-family: var(--font-display);
+  font-size: 0.75rem;
+  font-weight: 700;
+  letter-spacing: 0.12em;
+  color: var(--color-mist);
+  font-variant-numeric: tabular-nums;
+}
+
+.fin-close {
+  margin-left: auto;
+  width: auto !important;
+  padding-inline: 1rem;
+  font-family: var(--font-display);
+  font-size: 0.75rem;
+  font-weight: 700;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .fin-scene,
+  .fin-mon,
+  .fin-facts > span,
+  .fin-record > span,
+  .fin-duel-side,
+  .fin-leader,
+  .fin-logo {
+    animation: fin-fade 260ms ease both;
+  }
+
+  .fin-bg::before,
+  .fin-bg::after {
+    animation: none;
+  }
+
+  .fin-trophy-svg {
+    animation: fin-fade 300ms ease both;
+  }
+
+  .fin-confetti {
+    display: none;
+  }
+
+  @keyframes fin-fade {
+    from { opacity: 0; }
+  }
+}

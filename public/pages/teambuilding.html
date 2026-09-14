@@ -24,6 +24,35 @@
             </div>
           </template>
         </div>
+        <!-- Private Sicherung: verschlüsselt, nur für den angemeldeten Spieler lesbar -->
+        <div class="mt-4 border-t border-line pt-4" x-init="$store.tbsync.peek()">
+          <div class="flex flex-wrap items-center justify-between gap-3">
+            <div class="min-w-0">
+              <p class="font-display text-xs font-semibold uppercase tracking-wider text-mist">Private Sicherung</p>
+              <p class="mt-0.5 text-xs text-mist">
+                Sets, Notizen, Speed-Tiers, Markierungen und Rechner-Eingaben — verschlüsselt mit deinem Passwort.
+                <span class="text-ink" x-text="`Zuletzt gesichert: ${$store.tbsync.fmt($store.tbsync.remoteAt)}`"></span>
+              </p>
+            </div>
+            <div class="flex shrink-0 flex-wrap items-center gap-2">
+              <label class="inline-flex cursor-pointer items-center gap-2 rounded-lg border border-line px-3 py-2 text-xs font-semibold text-mist transition-colors hover:text-ink">
+                <input type="checkbox" class="accent-flame-500" :checked="$store.tbsync.auto"
+                       @change="$store.tbsync.setAuto($event.target.checked)" />
+                Automatisch
+              </label>
+              <button type="button" @click="$store.tbsync.upload()" :disabled="$store.tbsync.busy"
+                      class="rounded-lg border border-line px-3 py-2 text-xs font-semibold text-mist transition-colors hover:border-flame-500/40 hover:text-flame-400 disabled:opacity-50">
+                Hochladen
+              </button>
+              <button type="button" @click="$store.tbsync.download()" :disabled="$store.tbsync.busy || !$store.tbsync.remoteAt"
+                      class="rounded-lg border border-line px-3 py-2 text-xs font-semibold text-mist transition-colors hover:border-flame-500/40 hover:text-flame-400 disabled:opacity-50">
+                Laden
+              </button>
+            </div>
+          </div>
+          <p x-show="$store.tbsync.lastError" x-cloak class="mt-2 text-xs text-flame-400" x-text="$store.tbsync.lastError"></p>
+        </div>
+
         <div x-show="recent.length" class="mt-4 border-t border-line pt-4">
           <label class="mb-1.5 block font-display text-xs font-semibold uppercase tracking-wider text-mist">Zuletzt geöffnet</label>
           <select @change="applyRecent($event.target.value); $event.target.value=''"
@@ -154,8 +183,11 @@
             </template>
           </section>
 
+          <!-- Werkzeugleiste: eingeklappt zwei 50/50-Karten, ausgeklappt volle Breite -->
+          <div class="mt-6 grid gap-4 lg:grid-cols-2 lg:items-start">
+
           <!-- Schadensrechner (@smogon/calc, Gen 9 Doppelkampf) -->
-          <section class="mt-6 overflow-hidden rounded-2xl border border-line bg-panel">
+          <section class="overflow-hidden rounded-2xl border border-line bg-panel" :class="calcOpen ? 'lg:col-span-2' : ''">
             <button type="button" @click="toggleCalc()" :aria-expanded="calcOpen"
                     class="flex w-full items-center gap-3 px-5 py-4 text-left transition-colors hover:bg-elevated/40">
               <span class="grid size-9 shrink-0 place-items-center rounded-lg bg-elevated text-flame-400">
@@ -313,6 +345,134 @@
               </template>
             </div>
           </section>
+
+          <!-- Kampfverlauf zum aktuellen Match dieser beiden Teams -->
+          <section class="overflow-hidden rounded-2xl border border-line bg-panel" :class="logPanelOpen ? 'lg:col-span-2' : ''">
+            <button type="button" @click="toggleLogPanel()" :aria-expanded="logPanelOpen"
+                    class="flex w-full items-center gap-3 px-5 py-4 text-left transition-colors hover:bg-elevated/40">
+              <span class="grid size-9 shrink-0 place-items-center rounded-lg bg-elevated text-flame-400">
+                <svg viewBox="0 0 24 24" class="size-5" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3v10"/><path d="M9 6a3 3 0 0 1 6 0v4a3 3 0 0 1-6 0z"/><path d="M5 11a7 7 0 0 0 14 0"/><path d="M8 21h8"/></svg>
+              </span>
+              <span class="min-w-0 flex-1">
+                <span class="block font-display text-base font-bold uppercase tracking-wider text-ink">Kampfverlauf</span>
+                <span class="block truncate text-xs text-mist" x-text="currentPairMatch() ? pairMatchLabel(currentPairMatch()) : 'Keine Partie dieser beiden Teams'"></span>
+              </span>
+              <span x-show="logDraft.trim()" class="mr-1 size-2 shrink-0 rounded-full bg-volt-400" title="Verlauf notiert"></span>
+              <svg viewBox="0 0 24 24" class="size-5 shrink-0 text-mist transition-transform" :class="logPanelOpen ? 'rotate-180' : ''" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m6 9 6 6 6-6"/></svg>
+            </button>
+
+            <div x-show="logPanelOpen" x-cloak class="border-t border-line p-5 sm:p-6">
+              <p x-show="!pairMatches().length" class="text-sm text-mist">
+                Diese beiden Teams treffen im Spielplan nicht aufeinander.
+              </p>
+
+              <template x-if="pairMatches().length">
+                <div class="grid gap-5 lg:grid-cols-2 lg:items-start">
+
+                  <!-- Links: Partie wählen, einsprechen, notieren -->
+                  <div>
+                    <label class="mb-1.5 block font-display text-[11px] font-semibold uppercase tracking-wider text-mist">Partie</label>
+                    <select @change="selectPairMatch($event.target.value)"
+                            class="w-full rounded-xl border border-line bg-elevated px-3 py-2.5 text-sm font-semibold text-ink focus:border-flame-500 focus:outline-none">
+                      <template x-for="m in pairMatches()" :key="'pm-'+m.id">
+                        <option :value="m.id" :selected="m.id === logMatchId" x-text="pairMatchLabel(m)"></option>
+                      </template>
+                    </select>
+
+                    <!-- Diktat: viele kurze Schnipsel, eine einzige KI-Übermittlung -->
+                    <div class="mt-3 rounded-xl border border-line bg-elevated/40 p-3">
+                      <div class="flex flex-wrap items-center gap-2">
+                        <button type="button" @click="recToggle()" :disabled="recProcessing || !recSupported()"
+                                class="inline-flex items-center gap-2 rounded-xl px-3.5 py-2.5 font-display text-xs font-bold uppercase tracking-wider transition-colors disabled:opacity-40"
+                                :class="recording ? 'bg-flame-500 text-white' : 'border border-line text-mist hover:border-flame-500/40 hover:text-flame-400'">
+                          <span class="relative flex size-2.5">
+                            <span x-show="recording" class="absolute inline-flex size-full animate-ping rounded-full bg-white/80"></span>
+                            <span class="relative inline-flex size-2.5 rounded-full" :class="recording ? 'bg-white' : 'bg-flame-500'"></span>
+                          </span>
+                          <span x-text="recording ? 'Stopp' : (recHasClips() ? 'Weiter' : 'Aufnehmen')"></span>
+                        </button>
+                        <span class="font-display text-sm font-bold tabular-nums" :class="recording ? 'text-flame-400' : 'text-mist'" x-text="recTotalLabel()"></span>
+                        <button type="button" x-show="recHasClips() && !recording" @click="recSubmit()" :disabled="recProcessing"
+                                class="ml-auto rounded-xl bg-volt-400/15 px-3 py-2.5 font-display text-xs font-bold uppercase tracking-wider text-volt-400 transition-colors hover:bg-volt-400/25 disabled:opacity-40"
+                                x-text="recProcessing ? 'Aufbereiten…' : 'Aufbereiten'"></button>
+                        <button type="button" x-show="recHasClips() && !recording && !recProcessing" @click="recReset()"
+                                class="rounded-xl border border-line px-3 py-2.5 text-xs font-semibold text-mist transition-colors hover:text-flame-400">Verwerfen</button>
+                      </div>
+                      <div x-show="recHasClips()" x-cloak class="mt-2 flex flex-wrap gap-1.5">
+                        <template x-for="(c, i) in recClips" :key="'tbclip-'+i">
+                          <span class="inline-flex items-center gap-1.5 rounded-lg border border-line bg-void/40 px-2 py-1 text-[11px] text-mist">
+                            <span x-text="`#${i+1} · ${recClipLabel(c)}`"></span>
+                            <button type="button" @click="recDrop(i)" class="transition-colors hover:text-flame-400" aria-label="Schnipsel entfernen">×</button>
+                          </span>
+                        </template>
+                      </div>
+                      <p x-show="recError" x-cloak class="mt-2 text-xs text-flame-400" x-text="recError"></p>
+                      <p x-show="!recSupported()" x-cloak class="mt-2 text-xs text-mist">Dieses Gerät unterstützt keine Sprachaufnahme.</p>
+                    </div>
+
+                    <textarea x-model="logDraft" rows="7"
+                              placeholder="Verlauf notieren — oder einsprechen und aufbereiten lassen…"
+                              class="mt-3 w-full resize-y rounded-xl border border-line bg-elevated px-3.5 py-3 text-sm leading-relaxed text-ink placeholder:text-mist focus:border-flame-500 focus:outline-none"></textarea>
+                    <div class="mt-2 flex flex-wrap items-center gap-2">
+                      <button type="button" @click="logSave()" :disabled="logSaving || !logDirty()"
+                              class="rounded-xl border border-line px-3.5 py-2 text-xs font-semibold text-mist transition-colors hover:border-flame-500/40 hover:text-flame-400 disabled:opacity-40"
+                              x-text="logSaving ? 'Speichert…' : 'Speichern'"></button>
+                      <span x-show="logDirty()" class="text-[11px] text-mist">Nicht gespeichert.</span>
+                      <span x-show="logUpdatedLabel()" class="text-[11px] text-mist" x-text="`Zuletzt: ${logUpdatedLabel()}`"></span>
+                    </div>
+                  </div>
+
+                  <!-- Rechts: Notiz, Gegenüber, Hinspiel -->
+                  <div class="space-y-3">
+                    <div>
+                      <div class="mb-1.5 flex items-center gap-2">
+                        <label class="font-display text-[11px] font-semibold uppercase tracking-wider text-mist">Matchup-Notiz</label>
+                        <span class="rounded-full border border-line px-1.5 py-0.5 text-[9px] font-semibold uppercase tracking-wider text-mist">nur für dich</span>
+                        <span x-show="$store.notes.saving" x-cloak class="text-[10px] text-mist">speichert…</span>
+                      </div>
+                      <textarea :value="matchupNote()" @input="setMatchupNote($event.target.value)" rows="5"
+                                placeholder="Plan, Leads, Gefahren…"
+                                class="w-full resize-y rounded-xl border border-line bg-elevated px-3.5 py-3 text-sm leading-relaxed text-ink placeholder:text-mist focus:border-flame-500 focus:outline-none"></textarea>
+                    </div>
+
+                    <div x-show="logOtherText()" x-cloak class="rounded-xl border border-line bg-elevated/40 p-3">
+                      <p class="mb-1 font-display text-[10px] font-semibold uppercase tracking-wider text-mist" x-text="`Notiert von ${logOtherPlayer()}`"></p>
+                      <p class="max-h-40 overflow-y-auto whitespace-pre-line text-xs leading-relaxed text-ink" x-text="logOtherText()"></p>
+                    </div>
+
+                    <!-- Hinspiel: während des Rückrunden-Teambuildings nachlesbar -->
+                    <div x-show="hasPriorContent()" x-cloak class="overflow-hidden rounded-xl border border-line">
+                      <button type="button" @click="priorOpen = !priorOpen" :aria-expanded="priorOpen"
+                              class="flex w-full items-center gap-2 bg-elevated/40 px-3 py-2.5 text-left transition-colors hover:bg-elevated/70">
+                        <span class="min-w-0 flex-1 font-display text-[11px] font-semibold uppercase tracking-wider text-mist">Aus dem Hinspiel</span>
+                        <svg viewBox="0 0 24 24" class="size-4 shrink-0 text-mist transition-transform" :class="priorOpen ? 'rotate-180' : ''" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m6 9 6 6 6-6"/></svg>
+                      </button>
+                      <div x-show="priorOpen" x-cloak class="space-y-3 border-t border-line p-3">
+                        <template x-for="m in priorPairMatches()" :key="'prior-'+m.id">
+                          <div>
+                            <p class="mb-1 font-display text-[10px] font-semibold uppercase tracking-wider text-flame-400" x-text="pairMatchLabel(m)"></p>
+                            <div x-show="$store.notes.hasMatchNote(m.id)" class="mb-2 rounded-lg border border-dashed border-line bg-void/30 p-2.5">
+                              <p class="mb-0.5 text-[10px] font-semibold uppercase tracking-wider text-mist">Deine Notiz</p>
+                              <p class="max-h-40 overflow-y-auto whitespace-pre-line text-xs leading-relaxed text-ink" x-text="$store.notes.matchNote(m.id)"></p>
+                            </div>
+                            <template x-for="p in $store.battleLogs.authorsFor(m.id)" :key="'priorlog-'+m.id+'-'+p">
+                              <div class="mb-2 rounded-lg border border-line bg-elevated/40 p-2.5">
+                                <p class="mb-0.5 text-[10px] font-semibold uppercase tracking-wider text-mist" x-text="`Verlauf · ${p}`"></p>
+                                <p class="max-h-40 overflow-y-auto whitespace-pre-line text-xs leading-relaxed text-ink" x-text="$store.battleLogs.textFor(m.id, p)"></p>
+                              </div>
+                            </template>
+                          </div>
+                        </template>
+                      </div>
+                    </div>
+                  </div>
+
+                </div>
+              </template>
+            </div>
+          </section>
+
+          </div>
 
           <!-- Kader mit De-/Aktivierung + Speed-Modifikatoren -->
           <section class="mt-6 grid grid-cols-1 gap-4 lg:grid-cols-2">

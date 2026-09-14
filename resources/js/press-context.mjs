@@ -294,11 +294,42 @@ export function buildContext(src, focus = {}) {
     tabelle: standingsBlock(seasonTeams, src.results),
     spielerDuell: playerDuelBlock(seasonTeams, src.results),
     match: result ? matchBlock(result, src.teams, focus.day) : null,
+    // Von den Spielern selbst notierter Kampfverlauf — die einzige Quelle mit Details
+    // aus dem Kampf, die über die reinen Zahlen hinausgeht.
+    kampfverlauf: battleLogBlock(src.battleLogs, focus),
     teams: focusIds.map((id) => teamBlock(teamById(src.teams, id), { ...src, teams: src.teams })).filter(Boolean),
     ligaweiteBestwerte: leaderBlock(seasonTeams, src.results, src.pokedex, src.eloRows),
     laufendeGeschichten: storyBlock(src.articles, focusIds[0] || null),
     letzteBerichte: newsBlock(src.articles, focusIds[0] || null),
     letzteBerichteLigaweit: newsBlock(src.articles, null, 6),
+  };
+}
+
+// Der von den Spielern notierte Kampfverlauf zum Match im Fokus — und, damit sich
+// spätere Beiträge darauf berufen können, die letzten Verläufe der Fokus-Teams.
+function battleLogBlock(logs, focus = {}) {
+  const list = logs || [];
+  const entriesOf = (log) => Object.entries(log?.entries || {})
+    .map(([spieler, e]) => ({ spieler, text: String(e?.text || '').trim() }))
+    .filter((e) => e.text);
+
+  const current = focus.matchId ? list.find((l) => l.id === focus.matchId) : null;
+  const focusIds = (focus.teamIds || []).filter(Boolean);
+  const weitere = list
+    .filter((l) => l && l.id !== focus.matchId)
+    .filter((l) => !focusIds.length || focusIds.includes(l.home) || focusIds.includes(l.away))
+    .sort((a, b) => (b.day || 0) - (a.day || 0))
+    .slice(0, 3)
+    .map((l) => ({ matchId: l.id, spieltag: l.day ?? null, notizen: entriesOf(l) }))
+    .filter((l) => l.notizen.length);
+
+  const zumMatch = current ? entriesOf(current) : [];
+  if (!zumMatch.length && !weitere.length) return null;
+  return {
+    hinweis: 'Von den Spielern selbst notiert (auch per Sprachnotiz). Fakten, keine Wertung — '
+      + 'als Detailquelle nutzbar, aber nicht wörtlich übernehmen.',
+    zumMatch,
+    weitere,
   };
 }
 

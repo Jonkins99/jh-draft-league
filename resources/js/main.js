@@ -1,10 +1,10 @@
 import Alpine from 'alpinejs';
 import { db } from './firebase.js';
-import { collection, doc, onSnapshot, writeBatch, arrayUnion, setDoc, deleteDoc, runTransaction } from 'firebase/firestore';
+import { collection, doc, getDoc, onSnapshot, writeBatch, arrayUnion, setDoc, deleteDoc, runTransaction } from 'firebase/firestore';
 import { battleStats, computeStandings, pokemonStats, placementHistory, speedTiers, speedCases, clampSp, applySpeedMod, typeMultiplier, ALL_TYPES, pokemonProfile, defensiveChart, offensiveChart, playerDuel, showdownExport, teamBattleTotals, isMega, baseFormOf, pokezoneUrl, draftPicks } from './scoring.mjs';
 import {
   exportDataset, buildScheduleExport, buildBattleDetailsExport, buildStandingsExport,
-  buildRankingExport, buildTeamsExport, buildDraftpoolExport,
+  buildRankingExport, buildTeamsExport, buildDraftpoolExport, buildDraftOrderExport,
 } from './export.mjs';
 import { fetchEloRows, readEloCache, writeEloCache, resolveEloName, unresolvedEloNames } from './elo.mjs';
 import {
@@ -14,6 +14,7 @@ import {
 } from './awards.mjs';
 import { awardSvg, awardColor } from './award-visuals.mjs';
 import { runCeremony } from './ceremony.mjs';
+import { buildFinaleScript, runFinale } from './finale.mjs';
 import {
   GENDERS, genderLabel, normalizeTrainer, currentTrainer, trainerHistory,
   nextFromDay, withDismissed,
@@ -29,7 +30,8 @@ import {
   blankSpSet as calcBlankSpSet, parseLegacyEvs as calcParseLegacyEvs, typeDe as calcTypeDe,
 } from './damagecalc.mjs';
 import {
-  PRESS_CATEGORIES, PRESS_AUTHORS, authorById, categoryLabel, categoryColor,
+  PRESS_CATEGORIES, PRESS_AUTHORS, AI_CATEGORY, authorById, categoryLabel, categoryColor,
+  manualCategories, categoriesOf, normalizeCategories,
   randomAuthor, randomAuthors, pressSlots, slotLabel, typeLabel, isMatchComplete,
   bonusRoundComplete, bonusRoundProgress, bonusSlotsFor, BONUS_ROUND_DAY, PRESS_FROM_DAY,
   collectStorylines, sanitizeHtml, paragraphsToHtml, excerpt, readingMinutes,
@@ -38,9 +40,20 @@ import {
 import { buildContext } from './press-context.mjs';
 import {
   DEFAULT_PROMPTS, PROMPT_DEFS, buildSystem, buildUserPrompt, buildDirection,
-  ARTICLE_SCHEMA, ARTICLE_SCHEMA_WITH_CATEGORY, QUESTIONS_SCHEMA,
+  ARTICLE_SCHEMA, ARTICLE_SCHEMA_WITH_CATEGORY, ARTICLE_SCHEMA_FREE_CATEGORY, QUESTIONS_SCHEMA,
+  BATTLE_LOG_SCHEMA, buildBattleLogSystem, buildBattleLogPrompt,
 } from './press-prompts.mjs';
 import { generateJson, testKey, GEMINI_MODELS, DEFAULT_MODEL } from './gemini.mjs';
+import {
+  PLAYERS as AUTH_PLAYERS, userId, playerOf, otherPlayer,
+  createCredential, verifyCredential, isValidSession,
+  encryptJson, decryptJson, ownsTeam as authOwnsTeam, teamIdsOf,
+} from './auth.mjs';
+import {
+  NOTE_SCOPE, blankNotes, normalizeNotes, teamNote, matchNote, withNote, countNotes,
+  blankLog, logText, logUpdatedAt, hasLog, logAuthors, logToText,
+  totalSeconds, formatDuration, spokenVocabulary,
+} from './notes.mjs';
 
 const PICKS_PER_TEAM = 10;
 const TIER_ORDER = ['S', 'A', 'B', 'C', 'D'];
@@ -88,8 +101,9 @@ const TIER_COLORS = {
   D: '#9099a1',
 };
 
-const ACCESS_KEY = 'jhdl-access-v1';
-const ACCESS_HASH = 'b1cf8aac575a8627eb910e7df1962aa0d50621d7f1007fdeaa838d6fdce66883';
+// Anmeldung: Spieler, Passwort-Prüfsumme und Datenschlüssel bleiben gerätelokal,
+// damit man sich nicht bei jedem Aufruf neu anmelden muss.
+const AUTH_KEY = 'jhdl-auth-v1';       // { player, hash, key }
 
 // Persistente, gerätelokale Anzeige-Einstellungen der Team-Analyse-Bereiche.
 const SPEED_SETTINGS_KEY = 'jhdl-speedtiers-v1'; // { [monName]: { show, x15, x2, sp, nat } }
@@ -102,7 +116,6 @@ const MARK_CYCLE = [null, 'green', 'yellow', 'orange', 'red'];
 const MARK_COLORS = { green: '#63bc5a', yellow: '#ffcb05', orange: '#ff9d55', red: '#e3350d' };
 
 // Wer sitzt an diesem Gerät? Steuert, wessen Nominierungen/Stimmen gespeichert werden.
-const ME_KEY = 'jhdl-me-v1';           // { player: 'Janik'|'Henrik' }
 const SIDEBAR_KEY = 'jhdl-sidebar-v1'; // { collapsed: bool }
 const SQ_KEY = 'jhdl-spieler-sq-v1';   // { mode:'abs'|'pct', min:number }
 
@@ -114,11 +127,14 @@ const TB_TILEVIEW_KEY = 'jhdl-tb-tileview-v1'; // { v: 'nur'|'notes'|'moves'|'al
 // Filter „nur grün markierte" – getrennt für Kader-Kacheln und Initiative-Tierlist.
 const TB_GREENONLY_KEY = 'jhdl-tb-greenonly-v1'; // { tiles: bool, speed: bool }
 const TB_CALC_KEY = 'jhdl-tb-calc-v1';           // { open: bool }  (Eingaben je Paarung separat)
+const TB_LOG_KEY = 'jhdl-tb-log-v1';             // { open: bool }  (Kampfverlauf-Bereich)
 
 // Presse: Zugangsdaten der Redaktion liegen bewusst NUR auf dem Gerät. Firestore ist
 // offen lesbar — ein API-Key hätte dort nichts verloren.
 const PRESS_KEY = 'jhdl-press-key-v1';           // { key, model }
 const PRESS_FILTER_KEY = 'jhdl-press-filter-v1'; // { category, teamId, q }
+// Freie Beiträge je Spieltag — freigeschaltet mit dem 1., 2. und 3. fertigen Match.
+const RANDOM_ARTICLES_PER_DAY = 3;
 
 // Kurzkürzel je Typ für die kompakte Schwächen-Matrix.
 const TYPE_ABBR = {
@@ -139,7 +155,24 @@ function saveJson(key, value) {
   try {
     localStorage.setItem(key, JSON.stringify(value));
   } catch (e) {}
+  if (isSyncedKey(key)) syncHook?.(key);
 }
+
+// === Teambuilder-Daten: gerätelokal, auf Wunsch verschlüsselt in der Datenbank ===
+// Alles, was unter diesen Präfixen im localStorage liegt, gehört inhaltlich zum
+// Teambuilder: Sets und Notizen, Speed-Tier-Einstellungen, Markierungen der Paarungen
+// und die Eingaben des Schadensrechners. Der Store unten spiegelt genau diese Schlüssel.
+const SYNC_PREFIXES = ['jhdl-tb-', 'jhdl-speedtiers-', 'jhdl-weakness-', 'jhdl-matchup-marks-'];
+const SYNC_SCOPE = 'teambuilder';
+const SYNC_AUTO_KEY = 'jhdl-tb-sync-v1'; // { auto: bool }
+
+function isSyncedKey(key) {
+  const k = String(key || '');
+  return k !== SYNC_AUTO_KEY && SYNC_PREFIXES.some((prefix) => k.startsWith(prefix));
+}
+
+// Wird vom Sync-Store gesetzt; bleibt null, solange niemand mithört.
+let syncHook = null;
 
 // === Speed-Tier-Einstellungen (geteilt) =====================================
 // Anzeige-Konfiguration eines Pokémon in den Initiative-Tabellen. `sp = null`
@@ -548,39 +581,70 @@ function withReorderTransition(fn, nextTick) {
   });
 }
 
-async function sha256(value) {
-  const buffer = await crypto.subtle.digest('SHA-256', new TextEncoder().encode(value));
-  return Array.from(new Uint8Array(buffer))
-    .map((b) => b.toString(16).padStart(2, '0'))
-    .join('');
-}
-
-function gate() {
+// Anmeldemaske: erst Konto wählen, dann Passwort setzen bzw. eingeben.
+// Die eigentliche Logik liegt im Store, damit der Rest der App sie mitnutzen kann.
+function authGate() {
   return {
-    unlocked: false,
+    step: 'choose',
+    choice: null,
     pw: '',
-    error: false,
-    checking: false,
+    pw2: '',
+    error: '',
+    busy: false,
+    showPw: false,
 
-    init() {
-      this.unlocked = localStorage.getItem(ACCESS_KEY) === ACCESS_HASH;
+    get auth() { return this.$store.auth; },
+    get ready() { return this.auth.loaded; },
+    get unlocked() { return this.auth.isLoggedIn; },
+    get players() { return this.auth.players; },
+    get isNew() { return !!this.choice && !this.auth.hasAccount(this.choice); },
+
+    playerColor(player) { return player === 'Henrik' ? '#4d90d5' : '#e3350d'; },
+
+    pick(player) {
+      this.choice = player;
+      this.step = 'password';
+      this.pw = '';
+      this.pw2 = '';
+      this.error = '';
+      this.$nextTick(() => this.$refs.pwField?.focus());
+    },
+
+    back() {
+      this.step = 'choose';
+      this.choice = null;
+      this.pw = '';
+      this.pw2 = '';
+      this.error = '';
     },
 
     async submit() {
-      if (this.checking) return;
-      this.checking = true;
-      this.error = false;
+      if (this.busy || !this.choice) return;
+      this.error = '';
 
-      const hash = await sha256(this.pw);
-      if (hash === ACCESS_HASH) {
-        localStorage.setItem(ACCESS_KEY, ACCESS_HASH);
-        this.unlocked = true;
-        this.$store.league.ensureNotifyPermission?.();
-      } else {
-        this.error = true;
-        this.pw = '';
+      if (this.isNew) {
+        if (this.pw.length < 6) { this.error = 'Das Passwort braucht mindestens sechs Zeichen.'; return; }
+        if (this.pw !== this.pw2) { this.error = 'Die beiden Eingaben stimmen nicht überein.'; this.pw2 = ''; return; }
+      } else if (!this.pw) {
+        this.error = 'Bitte gib dein Passwort ein.';
+        return;
       }
-      this.checking = false;
+
+      this.busy = true;
+      try {
+        const res = this.isNew
+          ? await this.auth.register(this.choice, this.pw)
+          : await this.auth.login(this.choice, this.pw);
+        if (!res.ok) {
+          this.error = res.error || 'Das hat nicht geklappt.';
+          this.pw = '';
+          this.pw2 = '';
+        } else {
+          this.$store.league.ensureNotifyPermission?.();
+        }
+      } finally {
+        this.busy = false;
+      }
     },
   };
 }
@@ -1043,8 +1107,16 @@ function draftBoard() {
       return this.draftedNames.has(p.name);
     },
 
+    // Am Zug ist immer ein bestimmtes Team — ziehen darf nur, wem es gehört.
+    get isMyTurn() {
+      return this.$store.auth.ownsTeam(this.currentTeam);
+    },
+    get waitingFor() {
+      return this.currentTeam?.player || null;
+    },
+
     isPickable(p) {
-      if (!this.running || !this.currentTeam) return false;
+      if (!this.running || !this.currentTeam || !this.isMyTurn) return false;
       if (this.draftedNames.has(p.name)) return false;
       return (this.currentTierCounts[p.tier] || 0) < 2;
     },
@@ -1084,7 +1156,7 @@ function draftBoard() {
     },
 
     async confirmPick() {
-      if (!this.candidate || !this.currentTeam || this.busy) return;
+      if (!this.candidate || !this.currentTeam || this.busy || !this.isMyTurn) return;
       this.busy = true;
       const c = this.candidate;
       const clean = {
@@ -1116,6 +1188,15 @@ function draftBoard() {
       const el = document.getElementById('exp-draft');
       if (el && el.matches(':popover-open')) el.hidePopover();
     },
+    // Komplette Draft-Reihenfolge exportieren
+    get hasDraftHistory() {
+      return this.allPicks.length > 0;
+    },
+    runOrderExport(fmt) {
+      exportDataset(buildDraftOrderExport(this.allPicks, this.draft, this.league.teams), fmt);
+      const el = document.getElementById('exp-draft');
+      if (el && el.matches(':popover-open')) el.hidePopover();
+    },
   };
 }
 
@@ -1138,6 +1219,7 @@ function teamsView() {
       this.spdSettings = loadJson(SPEED_SETTINGS_KEY);
       this.weakExcluded = loadJson(WEAK_SETTINGS_KEY);
       this.$store.elo.ensureLoaded();
+      this.$store.notes.ensureLoaded();
       const nav = this.$store.nav;
       const teamId = nav?.teamId || null;
       if (nav) nav.teamId = null;
@@ -1448,6 +1530,19 @@ function teamsView() {
     trainerBusy: false,
     trainerConfirm: null, // Trainer, dessen Entlassung bestätigt werden soll
 
+    // --- Private Notiz zum Team ---
+    teamNoteText() {
+      return this.selectedId ? this.$store.notes.teamNote(this.selectedId) : '';
+    },
+    setTeamNote(text) {
+      if (this.selectedId) this.$store.notes.set('teams', this.selectedId, text);
+    },
+
+    // Trainerwechsel sind Sache des Teambesitzers — fremde Teams bleiben nur lesbar.
+    get ownsSelected() {
+      return this.$store.auth.ownsTeam(this.selectedTeam);
+    },
+
     get trainers() {
       return Array.isArray(this.selectedTeam?.trainers) ? this.selectedTeam.trainers : [];
     },
@@ -1467,6 +1562,7 @@ function teamsView() {
       return days.length ? Math.max(...days) : null;
     },
     openTrainerForm(trainer = null) {
+      if (!this.ownsSelected) return;
       const suggested = nextFromDay(this.trainers, this.latestPlayedDay);
       this.trainerForm = trainer
         ? { id: trainer.id, name: trainer.name, image: trainer.image, gender: trainer.gender, traits: (trainer.traits || []).join(', '), fromDay: trainer.fromDay, untilDay: trainer.untilDay }
@@ -1490,7 +1586,7 @@ function teamsView() {
       return (this.trainerForm?.traits || '').split(',').map((t) => t.trim()).filter(Boolean);
     },
     async saveTrainer() {
-      if (!this.trainerFormValid || this.trainerBusy || !this.selectedId) return;
+      if (!this.trainerFormValid || this.trainerBusy || !this.selectedId || !this.ownsSelected) return;
       this.trainerBusy = true;
       try {
         const payload = { ...this.trainerForm };
@@ -1502,6 +1598,7 @@ function teamsView() {
       this.trainerBusy = false;
     },
     askDismiss(trainer) {
+      if (!this.ownsSelected) return;
       this.trainerConfirm = trainer;
       this.$nextTick(() => document.getElementById('trainer-dismiss')?.showPopover());
     },
@@ -1515,7 +1612,7 @@ function teamsView() {
       return Number.isFinite(d) ? d : 0;
     },
     async confirmDismiss() {
-      if (!this.trainerConfirm || this.trainerBusy || !this.selectedId) return;
+      if (!this.trainerConfirm || this.trainerBusy || !this.selectedId || !this.ownsSelected) return;
       this.trainerBusy = true;
       try {
         await this.league.dismissTrainer(this.selectedId, this.trainerConfirm.id, this.dismissDay);
@@ -1553,8 +1650,65 @@ function teamsView() {
   };
 }
 
+// === Saison-Abschluss ======================================================
+// Die Ruhmeshalle lässt sich aus dem Spielplan UND aus der Tabelle starten, sobald
+// das letzte Ergebnis der Saison steht — und beliebig oft wiederholen.
+// Mixin: ausschließlich Methoden, keine Getter (Spread würde Getter einfrieren).
+function seasonFinaleMixin() {
+  return {
+    _finale: null,
+
+    // Billiger Test für die Anzeige des Knopfes — das Drehbuch selbst entsteht
+    // erst beim Start, weil es die ganze Saison durchrechnet.
+    seasonComplete() {
+      const l = this.$store.league;
+      if (!l.scheduleLoaded || !l.resultsLoaded) return false;
+      const planned = (l.schedule?.matchdays || []).reduce((n, md) => n + (md.matches || []).length, 0);
+      if (!planned) return false;
+      const done = (l.results || []).filter((r) => (r.battles || []).filter((b) => b && b.done).length >= 3).length;
+      return done >= planned;
+    },
+
+    seasonChampion() {
+      const l = this.$store.league;
+      return computeStandings(l.seasonTeams, l.results)[0]?.team || null;
+    },
+
+    openFinale() {
+      const l = this.$store.league;
+      if (!this.seasonComplete()) return;
+      const pop = document.getElementById('season-finale');
+      if (!pop) return;
+      const script = buildFinaleScript({
+        teams: l.teams,
+        results: l.results,
+        schedule: l.schedule,
+        pokedex: l.pokemon,
+        awardDocs: this.$store.awards?.docs || [],
+      });
+      this._finale?.stop?.();
+      pop.showPopover();
+      this._finale = runFinale(pop, script, {
+        logoBase: './img/teams/',
+        teamsCount: l.seasonTeams.length || 8,
+        onClose: () => this.closeFinale(),
+        onPickMon: (name) => { this.closeFinale(); this.$dispatch('navigate', { key: 'pokemon', pokemonName: name }); },
+      });
+    },
+
+    closeFinale() {
+      this._finale?.stop?.();
+      this._finale = null;
+      const pop = document.getElementById('season-finale');
+      if (pop && pop.matches(':popover-open')) pop.hidePopover();
+    },
+  };
+}
+
 function scheduleView() {
   return {
+    ...battleLogMixin(),
+    ...seasonFinaleMixin(),
     busy: false,
     saving: false,
     editing: null, // { day, matchIndex, home, away, docId }
@@ -1567,6 +1721,7 @@ function scheduleView() {
     // Beim Laden: ggf. per Verlinkung übergebene Match-Detailansicht öffnen, sonst
     // einmalig zum ersten offenen Spiel scrollen.
     init() {
+      this.$watch('$store.battleLogs.logs', () => this.logRehydrate());
       const nav = this.$store.nav;
       this._pendingMatch = nav?.matchId || null;
       if (nav) nav.matchId = null;
@@ -1728,6 +1883,8 @@ function scheduleView() {
       // Nur öffnen, wenn ein Ergebnis existiert; sonst direkt in die Eingabe.
       if (!this.resultFor(day, matchIndex)) return this.openEntry(day, matchIndex, home, away);
       this.detail = { day, matchIndex, home, away };
+      this.logSelect(this.resultDocId(day, matchIndex), { day, home, away });
+      this.$store.notes.ensureLoaded();
       this.$nextTick(() => document.getElementById('match-detail')?.showPopover());
     },
     closeDetail() {
@@ -1823,6 +1980,8 @@ function scheduleView() {
     openEntry(day, matchIndex, home, away) {
       const existing = this.resultFor(day, matchIndex);
       this.editing = { day, matchIndex, home, away, docId: this.resultDocId(day, matchIndex) };
+      this.logSelect(this.resultDocId(day, matchIndex), { day, home, away });
+      this.$store.notes.ensureLoaded();
       this.step = 0;
       this.form = existing ? this.hydrate(existing) : {
         squads: { home: [], away: [] },
@@ -1986,11 +2145,38 @@ function scheduleView() {
         battles,
       };
     },
+    // --- Kampfverlauf & Notizen ---
+    // Die Vokabelliste entscheidet darüber, ob die Spracherkennung die Eigennamen
+    // trifft — deshalb beide Kader samt Trainern mitgeben.
+    recVocabulary() {
+      const m = this.editing || this.detail;
+      return spokenVocabulary({ teamA: this.teamById(m?.home), teamB: this.teamById(m?.away) });
+    },
+    recSituation() {
+      const m = this.editing || this.detail;
+      if (!m) return '';
+      return `Spieltag ${m.day}: ${this.teamById(m.home)?.name || m.home} gegen ${this.teamById(m.away)?.name || m.away}. `
+        + 'Ein Match besteht aus drei Kämpfen zu je vier gegen vier Pokémon.';
+    },
+    matchNoteId() {
+      const m = this.editing || this.detail;
+      return m ? this.resultDocId(m.day, m.matchIndex) : null;
+    },
+    matchNote() {
+      const id = this.matchNoteId();
+      return id ? this.$store.notes.matchNote(id) : '';
+    },
+    setMatchNote(text) {
+      const id = this.matchNoteId();
+      if (id) this.$store.notes.set('matches', id, text);
+    },
+
     async save() {
       if (this.saving) return;
       this.saving = true;
       try {
         await this.league.saveResult(this.editing.docId, this.serialize());
+        if (this.logDirty()) await this.logSave();
         this.closeEntry();
       } catch (e) {
         console.error('Ergebnis speichern fehlgeschlagen:', e);
@@ -2013,6 +2199,7 @@ function scheduleView() {
 
 function standingsView() {
   return {
+    ...seasonFinaleMixin(),
     // Ausgewählter Zwischenstand (Spieltag). null = aktueller Stand.
     day: null,
 
@@ -2984,10 +3171,226 @@ function damageCalcMixin() {
   };
 }
 
+// === Kampfverlauf: schreiben und einsprechen ================================
+// Als Mixin, weil der Verlauf an zwei Stellen gepflegt wird: beim Eintragen des
+// Ergebnisses (Spieltag) und im Teambuilder neben dem Schadensrechner.
+// Achtung: Mixins werden per Spread eingesetzt — deshalb ausschließlich Methoden,
+// keine Getter (ein Getter würde beim Spread einmalig ausgewertet und eingefroren).
+function battleLogMixin() {
+  return {
+    logMatchId: null,
+    logMeta: {},
+    logDraft: '',
+    logSynced: '',
+    logSaving: false,
+    logError: null,
+    logOpen: false,
+
+    // Aufnahme
+    recording: false,
+    recClips: [],        // [{ blob, seconds, mimeType }]
+    recSeconds: 0,
+    recProcessing: false,
+    recError: null,
+    _recorder: null,
+    _recChunks: [],
+    _recTicker: null,
+    _recStartedAt: 0,
+
+    logStore() { return this.$store.battleLogs; },
+    logMe() { return this.$store.auth.me; },
+
+    // Den Verlauf eines Matches in den Editor holen. Ein noch nicht gespeicherter
+    // Entwurf desselben Matches bleibt erhalten.
+    logSelect(matchId, meta = {}) {
+      if (matchId && this.logMatchId === matchId) return;
+      this.logMatchId = matchId || null;
+      this.logMeta = meta;
+      const text = matchId ? this.logStore().textFor(matchId, this.logMe()) : '';
+      this.logDraft = text;
+      this.logSynced = text;
+      this.logError = null;
+      this.recReset();
+    },
+
+    logDirty() { return this.logDraft !== this.logSynced; },
+
+    // Der Verlauf kommt per Snapshot: beim ersten Laden und wenn der andere Spieler
+    // schreibt. Solange nichts Eigenes im Editor steht, zieht er nach.
+    logRehydrate() {
+      if (!this.logMatchId || this.logDirty()) return;
+      const text = this.logStore().textFor(this.logMatchId, this.logMe());
+      if (text !== this.logSynced) {
+        this.logDraft = text;
+        this.logSynced = text;
+      }
+    },
+    logOtherPlayer() { return this.$store.auth.other; },
+    logOtherText() {
+      const other = this.logOtherPlayer();
+      return this.logMatchId && other ? this.logStore().textFor(this.logMatchId, other) : '';
+    },
+    logUpdatedLabel() {
+      const at = this.logMatchId ? this.logStore().updatedAtFor(this.logMatchId, this.logMe()) : null;
+      return at ? formatDateTime(at) : '';
+    },
+
+    async logSave() {
+      if (!this.logMatchId || this.logSaving) return false;
+      this.logSaving = true;
+      const ok = await this.logStore().save(this.logMatchId, this.logMe(), this.logDraft, this.logMeta || {});
+      if (ok) {
+        this.logSynced = this.logDraft;
+        window.dispatchEvent(new CustomEvent('toast', { detail: { msg: 'Kampfverlauf gespeichert.' } }));
+      } else {
+        this.logError = this.logStore().lastError;
+      }
+      this.logSaving = false;
+      return ok;
+    },
+
+    // --- Sprachaufnahme ------------------------------------------------------
+    // Mehrere Minuten sind ausdrücklich erwünscht, ebenso viele kurze Schnipsel
+    // (Push-to-Talk). Übermittelt wird am Ende alles zusammen in EINEM Aufruf.
+    recSupported() {
+      return typeof MediaRecorder !== 'undefined' && !!navigator.mediaDevices?.getUserMedia;
+    },
+    recTotalSeconds() { return totalSeconds(this.recClips) + (this.recording ? this.recSeconds : 0); },
+    recTotalLabel() { return formatDuration(this.recTotalSeconds()); },
+    recClipLabel(clip) { return formatDuration(clip?.seconds || 0); },
+    recHasClips() { return this.recClips.length > 0; },
+
+    async recStart() {
+      if (this.recording || !this.recSupported()) return;
+      this.recError = null;
+      try {
+        const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+        const mime = ['audio/webm;codecs=opus', 'audio/webm', 'audio/mp4']
+          .find((t) => MediaRecorder.isTypeSupported?.(t)) || '';
+        const rec = new MediaRecorder(stream, mime ? { mimeType: mime, audioBitsPerSecond: 32000 } : undefined);
+        this._recChunks = [];
+        rec.ondataavailable = (e) => { if (e.data?.size) this._recChunks.push(e.data); };
+        rec.onstop = () => {
+          const type = rec.mimeType || mime || 'audio/webm';
+          const blob = new Blob(this._recChunks, { type });
+          const seconds = Math.round((Date.now() - this._recStartedAt) / 1000);
+          if (blob.size > 0 && seconds > 0) {
+            this.recClips = [...this.recClips, { blob, seconds, mimeType: type.split(';')[0] }];
+          }
+          stream.getTracks().forEach((t) => t.stop());
+        };
+        this._recorder = rec;
+        this._recStartedAt = Date.now();
+        this.recSeconds = 0;
+        this.recording = true;
+        rec.start(1000);
+        this._recTicker = setInterval(() => {
+          this.recSeconds = Math.round((Date.now() - this._recStartedAt) / 1000);
+        }, 500);
+      } catch (e) {
+        console.error('Aufnahme nicht möglich:', e);
+        this.recError = 'Kein Zugriff auf das Mikrofon.';
+      }
+    },
+
+    recStop() {
+      if (!this.recording) return;
+      clearInterval(this._recTicker);
+      this.recording = false;
+      this.recSeconds = 0;
+      try { this._recorder?.stop(); } catch (e) {}
+      this._recorder = null;
+    },
+
+    recToggle() { return this.recording ? this.recStop() : this.recStart(); },
+
+    recDrop(index) {
+      this.recClips = this.recClips.filter((_, i) => i !== index);
+    },
+
+    recReset() {
+      this.recStop();
+      this.recClips = [];
+      this.recError = null;
+      this.recProcessing = false;
+    },
+
+    // Alle Schnipsel in einem Aufruf ans Modell: es transkribiert, ordnet und
+    // schreibt die Eigennamen korrekt (Vokabular aus beiden Kadern).
+    async recSubmit() {
+      if (this.recProcessing) return;
+      this.recStop();
+      await new Promise((r) => setTimeout(r, 250)); // letzten Schnipsel einsammeln
+      if (!this.recClips.length) return;
+      const press = this.$store.press;
+      if (!press.hasKey) {
+        this.recError = 'Ohne hinterlegten KI-Zugang lässt sich die Aufnahme nicht aufbereiten.';
+        return;
+      }
+      this.recProcessing = true;
+      this.recError = null;
+      try {
+        const media = await Promise.all(this.recClips.map(async (c) => ({
+          mimeType: c.mimeType || 'audio/webm',
+          data: await blobToBase64(c.blob),
+        })));
+        const data = await generateJson({
+          apiKey: press.apiKey,
+          model: press.model,
+          system: buildBattleLogSystem(),
+          prompt: buildBattleLogPrompt({
+            vocabulary: this.recVocabulary(),
+            situation: this.recSituation(),
+            existing: this.logDraft.trim(),
+          }),
+          media,
+          schema: BATTLE_LOG_SCHEMA,
+          temperature: 0.4,
+          maxOutputTokens: 8192,
+          thinking: 'low',
+        });
+        const text = (data.absaetze || []).map((p) => String(p || '').trim()).filter(Boolean).join('\n\n');
+        if (!text) throw new Error('Die Aufbereitung kam leer zurück.');
+        this.logDraft = this.logDraft.trim() ? `${this.logDraft.trim()}\n\n${text}` : text;
+        if ((data.unklar || []).length) {
+          window.dispatchEvent(new CustomEvent('toast', {
+            detail: { msg: `Nicht eindeutig verstanden: ${data.unklar.slice(0, 4).join(', ')}` },
+          }));
+        }
+        this.recClips = [];
+        await this.logSave();
+      } catch (e) {
+        console.error('Aufbereitung fehlgeschlagen:', e);
+        this.recError = e?.message || 'Die Aufnahme konnte nicht aufbereitet werden.';
+      } finally {
+        this.recProcessing = false;
+      }
+    },
+
+    // Von der einbindenden Ansicht überschrieben — hier nur ein sinnvoller Standard.
+    recVocabulary() { return []; },
+    recSituation() { return ''; },
+  };
+}
+
+// Blob -> base64 ohne den `data:`-Kopf (so will die API die Anhänge).
+function blobToBase64(blob) {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onerror = () => reject(reader.error);
+    reader.onload = () => resolve(String(reader.result).split(',')[1] || '');
+    reader.readAsDataURL(blob);
+  });
+}
+
 // === Teambuilding: zwei Teams gegenüberstellen =============================
 function teambuildingView() {
   return {
     ...damageCalcMixin(),
+    ...battleLogMixin(),
+    // Kampfverlauf-Bereich neben dem Rechner (gerätelokal gemerkt)
+    logPanelOpen: false,
+    priorOpen: false,
     teamAId: null,
     teamBId: null,
     inactive: {}, // name -> true (deaktiviert)
@@ -3014,6 +3417,9 @@ function teambuildingView() {
       this.greenOnly = { tiles: !!go.tiles, speed: !!go.speed };
       this.calcOpen = !!loadJson(TB_CALC_KEY).open;
       if (this.calcOpen) this.ensureCalc();
+      this.logPanelOpen = !!loadJson(TB_LOG_KEY).open;
+      this.$store.notes.ensureLoaded();
+      this.$watch('$store.battleLogs.logs', () => this.logRehydrate());
       const store = loadJson(TB_RECENT_KEY);
       this.recent = Array.isArray(store.recent) ? store.recent : [];
       const nav = this.$store.nav;
@@ -3062,6 +3468,7 @@ function teambuildingView() {
       this.marks = loadJson(MATCHUP_MARKS_KEY)[this.markPairKey()] || {};
       this.loadNotes();
       this.calcLoadPair();
+      this.selectPairMatch();
       this.recordRecent();
       this.exportExtra = {};
       this.exportText = '';
@@ -3477,6 +3884,86 @@ function teambuildingView() {
       if (mult < 1) return 'background:rgba(99,188,90,0.3);color:#bbe9b3';
       return 'color:#5b6573';
     },
+
+    // === Kampfverlauf & Matchup-Notizen im Teambuilder =======================
+    // Der Teambuilder ist die Stelle, an der man ohnehin sitzt, während gespielt
+    // wird — deshalb lassen sich Verlauf und Notizen auch von hier aus führen.
+    toggleLogPanel() {
+      this.logPanelOpen = !this.logPanelOpen;
+      saveJson(TB_LOG_KEY, { open: this.logPanelOpen });
+    },
+
+    // Alle Partien dieser beiden Teams aus dem Spielplan, in Spieltagsreihenfolge.
+    pairMatches() {
+      const a = this.teamAId;
+      const b = this.teamBId;
+      if (!a || !b) return [];
+      const out = [];
+      (this.league.schedule?.matchdays || []).forEach((md) => {
+        (md.matches || []).forEach((m, i) => {
+          const hit = (m.home === a && m.away === b) || (m.home === b && m.away === a);
+          if (!hit) return;
+          const id = `s1-d${md.day}-m${i}`;
+          const result = (this.league.results || []).find((r) => r.id === id) || null;
+          out.push({
+            id,
+            day: md.day,
+            leg: md.leg === 'rueck' ? 'Rückrunde' : 'Hinrunde',
+            home: m.home,
+            away: m.away,
+            played: (result?.battles || []).some((x) => x && x.done),
+            complete: isMatchComplete(result),
+          });
+        });
+      });
+      return out.sort((x, y) => x.day - y.day);
+    },
+
+    // Standardwahl: die erste noch nicht abgeschlossene Partie, sonst die letzte.
+    selectPairMatch(matchId = null) {
+      const list = this.pairMatches();
+      if (!list.length) { this.logSelect(null); return; }
+      const target = (matchId && list.find((m) => m.id === matchId))
+        || list.find((m) => !m.complete)
+        || list[list.length - 1];
+      this.logSelect(target.id, { day: target.day, home: target.home, away: target.away });
+    },
+
+    currentPairMatch() {
+      return this.pairMatches().find((m) => m.id === this.logMatchId) || null;
+    },
+    pairMatchLabel(m) {
+      return m ? `Spieltag ${m.day} · ${m.leg}${m.complete ? ' · gespielt' : ''}` : '';
+    },
+    // Partien derselben Paarung, die VOR der gewählten liegen — im Rückrunden-
+    // Teambuilding also das Hinspiel samt Notizen und Verlauf.
+    priorPairMatches() {
+      const cur = this.currentPairMatch();
+      if (!cur) return [];
+      return this.pairMatches().filter((m) => m.day < cur.day);
+    },
+    hasPriorContent() {
+      return this.priorPairMatches().some(
+        (m) => this.$store.notes.hasMatchNote(m.id) || this.$store.battleLogs.has(m.id),
+      );
+    },
+
+    matchupNote(matchId) {
+      return this.$store.notes.matchNote(matchId || this.logMatchId || '');
+    },
+    setMatchupNote(text) {
+      if (this.logMatchId) this.$store.notes.set('matches', this.logMatchId, text);
+    },
+
+    recVocabulary() {
+      return spokenVocabulary({ teamA: this.teamA, teamB: this.teamB });
+    },
+    recSituation() {
+      const m = this.currentPairMatch();
+      const head = m ? `Spieltag ${m.day} (${m.leg}): ` : '';
+      return `${head}${this.teamA?.name || ''} gegen ${this.teamB?.name || ''}. `
+        + 'Ein Match besteht aus drei Kämpfen zu je vier gegen vier Pokémon.';
+    },
   };
 }
 
@@ -3511,6 +3998,9 @@ function transferView() {
       return { teamId: this.order[idx], round: round + 1, phase: round < 2 ? 'remove' : 'pick', pickNo: t.pickIndex + 1 };
     },
     get currentTeam() { const cp = this.currentPick; return cp ? this.teamById(cp.teamId) : null; },
+    // Auch im Transfer zieht nur, wem das Team gehört.
+    get isMyTurn() { return this.$store.auth.ownsTeam(this.currentTeam); },
+    get waitingFor() { return this.currentTeam?.player || null; },
     get currentRoster() {
       const rank = { S: 0, A: 1, B: 2, C: 3, D: 4 };
       return [...(this.currentTeam?.pokemon || [])].sort((a, b) => (rank[a.tier] ?? 9) - (rank[b.tier] ?? 9));
@@ -3565,11 +4055,11 @@ function transferView() {
     monImage(name) { return this.league.pokemon.find((p) => p.name === name)?.image || ''; },
 
     // --- Aktionen (mit Bestätigung) ---
-    askRemove(mon) { if (this.busy) return; this.candidate = { type: 'remove', mon }; this.$nextTick(() => document.getElementById('transfer-confirm')?.showPopover()); },
-    askPick(mon) { if (this.busy) return; this.candidate = { type: 'pick', mon }; this.$nextTick(() => document.getElementById('transfer-confirm')?.showPopover()); },
+    askRemove(mon) { if (this.busy || !this.isMyTurn) return; this.candidate = { type: 'remove', mon }; this.$nextTick(() => document.getElementById('transfer-confirm')?.showPopover()); },
+    askPick(mon) { if (this.busy || !this.isMyTurn) return; this.candidate = { type: 'pick', mon }; this.$nextTick(() => document.getElementById('transfer-confirm')?.showPopover()); },
     closeConfirm(id) { const el = document.getElementById(id); if (el && el.matches(':popover-open')) el.hidePopover(); },
     async confirmAction() {
-      if (!this.candidate || !this.currentTeam || this.busy) return;
+      if (!this.candidate || !this.currentTeam || this.busy || !this.isMyTurn) return;
       this.busy = true;
       try {
         if (this.candidate.type === 'remove') await this.league.transferRemove(this.currentTeam.id, this.candidate.mon.name);
@@ -3580,7 +4070,7 @@ function transferView() {
       this.busy = false;
     },
     async skip() {
-      if (this.busy || !this.currentTeam) return;
+      if (this.busy || !this.currentTeam || !this.isMyTurn) return;
       this.busy = true;
       try { await this.league.transferSkip(this.currentTeam.id, this.currentPick?.phase || 'remove'); }
       catch (e) { console.error(e); }
@@ -4049,11 +4539,11 @@ function presseView() {
     author(id) { return authorById(id); },
     catLabel(key) { return categoryLabel(key); },
     catColor(key) { return categoryColor(key); },
+    catsOf(article) { return categoriesOf(article); },
     fmtDate(iso) { return formatDate(iso); },
     fmtDateTime(iso) { return formatDateTime(iso); },
     defaultTeamId() {
-      const me = this.$store.awards?.me;
-      const mine = this.league.seasonTeams.filter((t) => t.player === me);
+      const mine = this.$store.auth.myTeams;
       return (mine[0] || this.league.seasonTeams[0])?.id || null;
     },
 
@@ -4122,34 +4612,64 @@ function presseView() {
     },
 
     // --- Redaktioneller Beitrag ---------------------------------------------
+    // Das Bearbeitungsfeld ist ein natives contenteditable. Der Textkörper wird
+    // NICHT über $refs nachgereicht (das ging auf Mobilgeräten schief, wenn das
+    // Popover später aufging), sondern direkt beim Anlegen des Elements gesetzt —
+    // siehe hydrateEditor(), aufgerufen aus x-init am Editor selbst.
     openComposer(existing = null) {
       this.closeArticle();
+      const cats = categoriesOf(existing || {});
       this.composer = {
         id: existing?.id || null,
         title: existing?.title || '',
         subtitle: existing?.subtitle || '',
-        category: existing?.category || 'redaktion',
+        categories: cats.length ? cats : ['redaktion'],
         authorId: existing?.authorId || PRESS_AUTHORS[0].id,
         teamIds: [...(existing?.teamIds || [])],
         day: existing?.day ?? this.latestDay,
         body: existing?.body || '',
+        imageSelected: false,
         saving: false,
       };
-      this.$nextTick(() => {
-        document.getElementById('press-composer')?.showPopover();
-        this.$nextTick(() => { if (this.$refs.editor) this.$refs.editor.innerHTML = this.composer.body; });
-      });
+      this._rteImage = null;
+      this.$nextTick(() => document.getElementById('press-composer')?.showPopover());
+    },
+    // Wird vom Editor-Element selbst aufgerufen, sobald es im DOM steht.
+    hydrateEditor(el) {
+      if (!el || !this.composer) return;
+      el.innerHTML = this.composer.body || '<p><br></p>';
+      // Ohne Absatztrenner erzeugen manche Browser beim Enter nur ein <br> —
+      // dann entstünde nie ein neuer Absatz.
+      try { document.execCommand('defaultParagraphSeparator', false, 'p'); } catch (e) {}
+    },
+    // Jede Eingabe sofort in den Entwurf spiegeln: so kann der Text auch dann nicht
+    // verloren gehen, wenn das Feld zwischendurch neu aufgebaut wird.
+    syncEditor(el) {
+      if (this.composer && el) this.composer.body = el.innerHTML;
     },
     closeComposer() {
       const el = document.getElementById('press-composer');
       if (el && el.matches(':popover-open')) el.hidePopover();
       this.composer = null;
+      this._rteImage = null;
     },
     toggleComposerTeam(id) {
       const arr = this.composer.teamIds;
       const i = arr.indexOf(id);
       if (i >= 0) arr.splice(i, 1);
       else arr.push(id);
+    },
+    // --- Rubriken (mehrere je Beitrag) ---
+    get composerCategories() { return manualCategories(); },
+    hasComposerCat(key) { return (this.composer?.categories || []).includes(key); },
+    toggleComposerCat(key) {
+      if (!this.composer) return;
+      const arr = [...this.composer.categories];
+      const i = arr.indexOf(key);
+      if (i >= 0) arr.splice(i, 1);
+      else arr.push(key);
+      // Ohne Rubrik geht es nicht — die zuletzt entfernte bleibt dann stehen.
+      this.composer.categories = arr.length ? arr : [key];
     },
     get composerValid() {
       return !!this.composer && this.composer.title.trim().length > 1;
@@ -4159,9 +4679,20 @@ function presseView() {
     rte(cmd, value = null) {
       this.$refs.editor?.focus();
       document.execCommand(cmd, false, value);
+      this.syncEditor(this.$refs.editor);
     },
     rteBlock(tag) {
       this.rte('formatBlock', tag);
+    },
+    // Enter in einem Textknoten ohne Blockumgebung erzeugt sonst nur ein <br>.
+    // Ein vorgeschalteter Absatz sorgt dafür, dass ein einzelnes Enter reicht.
+    rteEnter(event) {
+      if (event.shiftKey) return;
+      let block = '';
+      try { block = document.queryCommandValue('formatBlock') || ''; } catch (e) {}
+      if (!block || block.toLowerCase() === 'div') {
+        try { document.execCommand('formatBlock', false, 'p'); } catch (e) {}
+      }
     },
     rteLink() {
       const url = window.prompt('Ziel-Adresse des Links:', 'https://');
@@ -4171,12 +4702,34 @@ function presseView() {
       const url = window.prompt('Bild-Adresse (URL):', 'https://');
       if (url) this.rte('insertImage', url);
     },
+    // Ein Klick auf ein Bild wählt es aus; die Breite lässt sich danach über die
+    // Leiste setzen. Der DOM-Knoten liegt bewusst außerhalb des reaktiven Zustands.
+    rtePick(event) {
+      const img = event.target?.tagName === 'IMG' ? event.target : null;
+      this._rteImage = img;
+      if (this.composer) this.composer.imageSelected = !!img;
+    },
+    rteImageWidth(pct) {
+      const img = this._rteImage;
+      if (!img) return;
+      img.setAttribute('style', `width:${Math.min(100, Math.max(5, pct))}%`);
+      this.syncEditor(this.$refs.editor);
+    },
+    rteImageDrop() {
+      const img = this._rteImage;
+      if (!img) return;
+      img.remove();
+      this._rteImage = null;
+      if (this.composer) this.composer.imageSelected = false;
+      this.syncEditor(this.$refs.editor);
+    },
     async saveComposer() {
       if (!this.composerValid || this.composer.saving) return;
       this.composer.saving = true;
       try {
         const id = await this.press.publishEditorial({
           ...this.composer,
+          category: this.composer.categories[0],
           body: this.$refs.editor?.innerHTML || this.composer.body,
         });
         this.closeComposer();
@@ -4205,6 +4758,17 @@ function presseView() {
     bonusOpenFor(teamId) {
       return bonusSlotsFor(teamId, this.league.schedule, this.press.sessions).filter((r) => !r.done).length;
     },
+    // Termine, die für ein Team gerade offen sind — Grundlage des Indikators
+    // an der Teamauswahl.
+    pendingFor(teamId) {
+      return pressSlots(teamId, this.league.schedule, this.league.results, this.press.sessions, this.bonusComplete)
+        .filter((row) => row.open && this.press.sessionById(row.id)?.status !== 'done')
+        .length;
+    },
+    // Auftreten darf nur, wem das Team gehört.
+    ownsTeamId(teamId) { return this.$store.auth.ownsTeamId(teamId); },
+    get ownsPickTeam() { return this.ownsTeamId(this.pickTeam); },
+    get pickTeamPlayer() { return this.teamById(this.pickTeam)?.player || ''; },
     get slots() {
       if (!this.pickTeam) return [];
       return pressSlots(this.pickTeam, this.league.schedule, this.league.results, this.press.sessions, this.bonusComplete);
@@ -4259,6 +4823,7 @@ function presseView() {
       if (!row.open) return;
       const session = this.press.sessionById(row.id);
       if (session?.status === 'done' && session.articleId) return this.openArticle(session.articleId);
+      if (!this.ownsTeamId(row.teamId)) return;
       this.stage = {
         slot: row,
         phase: session?.status === 'open' ? 'ask' : session?.status === 'error' ? 'error' : 'role',
@@ -4465,6 +5030,157 @@ function presseView() {
     },
   };
 }
+
+// === Anmeldung ==============================================================
+// Genau zwei Konten, hart verdrahtet. Ein Konto entsteht, sobald beim ersten Login
+// ein Passwort hinterlegt wird; die Prüfdaten liegen in der Collection `users`.
+//
+// Die Firestore-Regeln sind offen — der andere Spieler könnte private Dokumente also
+// technisch lesen. Vertraulichkeit entsteht deshalb über den Inhalt: alles Private
+// wird mit einem Schlüssel verschlüsselt, der ausschließlich aus dem Passwort
+// abgeleitet wird und das Gerät nie verlässt.
+Alpine.store('auth', {
+  users: {},
+  loaded: false,
+  blocked: false,
+  player: null,
+  dataKey: null,
+  players: AUTH_PLAYERS,
+  // Entschlüsselte private Bereiche, je Scope: { value, loaded, error }
+  _private: {},
+
+  init() {
+    onSnapshot(
+      collection(db, 'users'),
+      (snap) => {
+        const next = {};
+        snap.docs.forEach((d) => { next[d.id] = { id: d.id, ...d.data() }; });
+        this.users = next;
+        this.loaded = true;
+        this.restore();
+      },
+      (err) => {
+        console.error('users-Collection nicht lesbar:', err);
+        this.blocked = true;
+        this.loaded = true;
+      },
+    );
+  },
+
+  // Gerätesitzung wiederherstellen — nur, wenn die abgelegte Prüfsumme noch zum
+  // hinterlegten Passwort passt. Nach einem Passwortwechsel greift das nicht mehr.
+  restore() {
+    if (this.player) return;
+    const session = loadJson(AUTH_KEY);
+    if (!session?.player) return;
+    const record = this.recordFor(session.player);
+    if (isValidSession(session, record)) {
+      this.player = record.player;
+      this.dataKey = session.key || null;
+    } else if (record) {
+      localStorage.removeItem(AUTH_KEY);
+    }
+  },
+
+  get isLoggedIn() { return !!this.player; },
+  get me() { return this.player; },
+  get other() { return otherPlayer(this.player); },
+
+  recordFor(player) { return this.users[userId(player)] || null; },
+  hasAccount(player) { return !!this.recordFor(player)?.auth?.hash; },
+
+  async register(player, password) {
+    if (!AUTH_PLAYERS.includes(player)) return { ok: false, error: 'Unbekanntes Konto.' };
+    if (this.hasAccount(player)) return { ok: false, error: 'Für dieses Konto gibt es bereits ein Passwort.' };
+    try {
+      const { record, hash, dataKey } = await createCredential(player, password);
+      await setDoc(doc(db, 'users', userId(player)), record);
+      this._start(player, hash, dataKey);
+      return { ok: true };
+    } catch (e) {
+      console.error('Konto konnte nicht angelegt werden:', e);
+      return { ok: false, error: 'Das Konto konnte nicht gespeichert werden.' };
+    }
+  },
+
+  async login(player, password) {
+    const record = this.recordFor(player);
+    if (!record) return { ok: false, error: 'Für dieses Konto ist noch kein Passwort hinterlegt.' };
+    try {
+      const { ok, hash, dataKey } = await verifyCredential(record, password);
+      if (!ok) return { ok: false, error: 'Falsches Passwort.' };
+      this._start(record.player, hash, dataKey);
+      return { ok: true };
+    } catch (e) {
+      console.error('Anmeldung fehlgeschlagen:', e);
+      return { ok: false, error: 'Die Anmeldung ist fehlgeschlagen.' };
+    }
+  },
+
+  _start(player, hash, dataKey) {
+    this.player = player;
+    this.dataKey = dataKey;
+    this._private = {};
+    saveJson(AUTH_KEY, { player, hash, key: dataKey });
+    Alpine.store('awards')?.onPlayerChange?.(player);
+  },
+
+  logout() {
+    this.player = null;
+    this.dataKey = null;
+    this._private = {};
+    localStorage.removeItem(AUTH_KEY);
+  },
+
+  // --- Besitzverhältnisse --------------------------------------------------
+  isMe(player) { return !!player && player === this.player; },
+  ownsTeam(team) { return authOwnsTeam(this.player, team); },
+  ownsTeamId(teamId) {
+    return this.ownsTeam((Alpine.store('league')?.teams || []).find((t) => t.id === teamId));
+  },
+  get myTeamIds() { return teamIdsOf(this.player, Alpine.store('league')?.teams || []); },
+  get myTeams() { return (Alpine.store('league')?.seasonTeams || []).filter((t) => this.ownsTeam(t)); },
+
+  // --- Private, verschlüsselte Ablage --------------------------------------
+  // Ein Dokument je Spieler und Bereich; der Klartext entsteht nur im Browser.
+  _docId(scope) { return `${userId(this.player)}-${scope}`; },
+
+  slot(scope) {
+    if (!this._private[scope]) this._private = { ...this._private, [scope]: { value: null, loaded: false, error: null } };
+    return this._private[scope];
+  },
+
+  async loadPrivate(scope, fallback = null) {
+    if (!this.isLoggedIn || !this.dataKey) return fallback;
+    const cached = this._private[scope];
+    if (cached?.loaded) return cached.value ?? fallback;
+    try {
+      const snap = await getDoc(doc(db, 'private', this._docId(scope)));
+      const value = snap.exists() ? await decryptJson(this.dataKey, snap.data()?.payload) : null;
+      this._private = { ...this._private, [scope]: { value, loaded: true, error: null } };
+      return value ?? fallback;
+    } catch (e) {
+      console.error(`Privater Bereich "${scope}" konnte nicht gelesen werden:`, e);
+      this._private = { ...this._private, [scope]: { value: null, loaded: true, error: e?.message || 'Fehler' } };
+      return fallback;
+    }
+  },
+
+  async savePrivate(scope, value) {
+    if (!this.isLoggedIn || !this.dataKey) throw new Error('Nicht angemeldet.');
+    const payload = await encryptJson(this.dataKey, value);
+    await setDoc(doc(db, 'private', this._docId(scope)), {
+      owner: userId(this.player),
+      scope,
+      payload,
+      updatedAt: new Date().toISOString(),
+    });
+    this._private = { ...this._private, [scope]: { value, loaded: true, error: null } };
+    return true;
+  },
+
+  privateUpdatedAt(scope) { return this._private[scope]?.updatedAt || null; },
+});
 
 Alpine.store('league', {
   teams: [],
@@ -4756,14 +5472,17 @@ Alpine.store('awards', {
   loaded: false,
   // true, wenn Firestore die Collection `awards` verweigert (Regeln nicht erweitert).
   blocked: false,
-  me: 'Janik',
   players: PLAYERS,
   // Sieger-Index für die Pins: { pokemon: {name:[key,…]}, team: {}, match: {}, }
   index: { pokemon: {}, team: {}, match: {} },
 
+  // Wer an diesem Gerät sitzt, ergibt sich aus der Anmeldung — nicht mehr aus
+  // einer Auswahl in der Ansicht.
+  get me() {
+    return Alpine.store('auth')?.player || null;
+  },
+
   init() {
-    const saved = loadJson(ME_KEY);
-    if (PLAYERS.includes(saved.player)) this.me = saved.player;
     this.initPinTaps();
     onSnapshot(
       collection(db, 'awards'),
@@ -4782,10 +5501,9 @@ Alpine.store('awards', {
     );
   },
 
-  setMe(player) {
-    if (!PLAYERS.includes(player)) return;
-    this.me = player;
-    saveJson(ME_KEY, { player });
+  // Der Pin-Index hängt am angemeldeten Spieler (Spoilerschutz) und muss deshalb
+  // nach einem Kontowechsel neu gebaut werden.
+  onPlayerChange() {
     this.rebuildIndex();
   },
   get other() {
@@ -5156,6 +5874,7 @@ Alpine.store('press', {
         eloRows: Alpine.store('elo')?.rows || [],
         awardDocs: Alpine.store('awards')?.docs || [],
         articles: this.articles,
+        battleLogs: Alpine.store('battleLogs')?.logs || [],
       },
       focus,
     );
@@ -5174,9 +5893,122 @@ Alpine.store('press', {
     if (!this.articlesLoaded || !this.hasKey) return;
     // Bewusst aus dem Effekt heraus verzögert: generateReport liest und schreibt
     // reaktive Felder (busy, articles) und würde den Effekt sonst selbst neu auslösen.
-    [...done]
-      .filter((id) => !known.has(id))
-      .forEach((id) => { setTimeout(() => this.generateReport(id).catch(() => {}), 0); });
+    const fresh = [...done].filter((id) => !known.has(id));
+    fresh.forEach((id) => { setTimeout(() => this.generateReport(id).catch(() => {}), 0); });
+    // Je Spieltag drei freie Beiträge: einer nach dem ersten, zweiten und dritten
+    // abgeschlossenen Spiel dieses Spieltags.
+    [...new Set(fresh.map((id) => (l.results || []).find((r) => r.id === id)?.day).filter((d) => d != null))]
+      .forEach((day) => { setTimeout(() => this.fillRandomArticles(day).catch(() => {}), 1500); });
+  },
+
+  // Wie viele Matches eines Spieltags sind fertig?
+  completedOnDay(day) {
+    const l = Alpine.store('league');
+    return (l.results || []).filter((r) => r.day === day && isMatchComplete(r)).length;
+  },
+
+  randomIdFor(day, index) {
+    return `s1-rand-d${day}-${index + 1}`;
+  },
+
+  // Die Zufallsbeiträge, die für einen Spieltag freigeschaltet, aber noch nicht
+  // geschrieben sind.
+  missingRandomFor(day) {
+    const slots = Math.min(RANDOM_ARTICLES_PER_DAY, this.completedOnDay(day));
+    const out = [];
+    for (let i = 0; i < slots; i++) {
+      const id = this.randomIdFor(day, i);
+      const existing = this.byId(id);
+      if (!existing || existing.status === 'error') out.push({ id, day, index: i });
+    }
+    return out;
+  },
+
+  get missingRandom() {
+    const l = Alpine.store('league');
+    const days = [...new Set((l.schedule?.matchdays || []).map((md) => md.day))]
+      .filter((d) => d >= PRESS_FROM_DAY);
+    return days.flatMap((d) => this.missingRandomFor(d));
+  },
+
+  async fillRandomArticles(day) {
+    for (const row of this.missingRandomFor(day)) {
+      // Nacheinander: sonst schreiben drei Aufrufe gleichzeitig dieselbe Geschichte.
+      await this.generateRandomArticle(day, row.index).catch(() => null);
+    }
+  },
+
+  /**
+   * Freier Beitrag ohne vorausgehenden Termin. Drei Stück je Spieltag, freigeschaltet
+   * mit dem ersten, zweiten und dritten abgeschlossenen Spiel des Spieltags.
+   */
+  async generateRandomArticle(day, index, { force = false } = {}) {
+    if (!this.hasKey) return null;
+    const id = this.randomIdFor(day, index);
+    if (this.busy[id]) return null;
+    const existing = this.byId(id);
+    if (!force && existing && existing.status !== 'error') return null;
+
+    const ref = doc(db, 'press', id);
+    const author = randomAuthor();
+    const createdAt = new Date().toISOString();
+    this.busy = { ...this.busy, [id]: true };
+
+    try {
+      const claimed = await runTransaction(db, async (tx) => {
+        const snap = await tx.get(ref);
+        if (snap.exists() && !force && snap.data()?.status !== 'error') return false;
+        tx.set(ref, {
+          season: 1, category: 'news', categories: ['news', AI_CATEGORY], status: 'pending',
+          authorId: author.id, teamIds: [], day, title: '', subtitle: '', body: '',
+          source: { type: 'random', day, index }, storylines: [], createdAt, publishedAt: createdAt, error: null,
+        });
+        return true;
+      });
+      if (!claimed) return null;
+
+      const l = Alpine.store('league');
+      const dayTeams = (l.schedule?.matchdays || [])
+        .filter((md) => md.day === day)
+        .flatMap((md) => (md.matches || []).flatMap((m) => [m.home, m.away]));
+      const direction = buildDirection(this.recentArchetypes());
+      const data = await generateJson({
+        apiKey: this.apiKey,
+        model: this.model,
+        system: buildSystem({ author }),
+        prompt: buildUserPrompt({
+          task: this.promptFor('random'),
+          direction: direction.text,
+          context: this.contextFor({ teamIds: dayTeams, day }),
+          addendum: `ANLASS: Spieltag ${day} läuft, ${this.completedOnDay(day)} Partien sind abgeschlossen. `
+            + `Dies ist der ${index + 1}. von ${RANDOM_ARTICLES_PER_DAY} freien Beiträgen dieses Spieltags — `
+            + 'such dir ein Thema, das die anderen Beiträge dieses Spieltags nicht schon hatten.',
+        }),
+        schema: ARTICLE_SCHEMA_FREE_CATEGORY,
+        maxOutputTokens: 8192,
+      });
+
+      const known = new Set((l.teams || []).map((t) => t.id));
+      const docData = this._articleDoc(data, {
+        category: ['news', 'klatsch', 'geruechte', 'informationen'].includes(data.kategorie) ? data.kategorie : 'news',
+        authorId: author.id,
+        teamIds: [...new Set(dayTeams)].filter((t) => known.has(t)),
+        day,
+        source: { type: 'random', day, index },
+        createdAt,
+      });
+      await setDoc(ref, docData);
+      window.dispatchEvent(new CustomEvent('toast', { detail: { msg: `Neuer Beitrag: ${docData.title}` } }));
+      return id;
+    } catch (e) {
+      console.error('Zufallsbeitrag fehlgeschlagen:', e);
+      await this._fail(ref, e?.message || 'Unbekannter Fehler');
+      return null;
+    } finally {
+      const next = { ...this.busy };
+      delete next[id];
+      this.busy = next;
+    }
   },
 
   // Matches mit vollständigem Ergebnis, zu denen noch kein Bericht existiert —
@@ -5199,7 +6031,7 @@ Alpine.store('press', {
     const teamIds = [...new Set([...(meta.teamIds || [])])].filter((id) => knownTeams.has(id));
     const storylines = (data.storylines || [])
       .filter((s) => s && (s.id || s.titel))
-      .slice(0, 3)
+      .slice(0, 4)
       .map((s) => ({
         id: storyId(s.id || s.titel),
         title: String(s.titel || '').trim() || storyId(s.id),
@@ -5207,9 +6039,13 @@ Alpine.store('press', {
         status: ['neu', 'laufend', 'eskaliert', 'beruhigt', 'beendet'].includes(s.status) ? s.status : 'laufend',
         summary: String(s.stand || '').trim(),
       }));
+    // Alles, was hier entsteht, ist KI-geschrieben — und steht damit zusätzlich in
+    // der Rubrik „Erste Liga".
+    const cats = normalizeCategories(meta.category, [...(meta.categories || []), AI_CATEGORY]);
     return {
       season: 1,
-      category: meta.category,
+      category: cats.category,
+      categories: cats.categories,
       editorial: !!meta.editorial,
       title: String(data.titel || '').trim() || 'Ohne Titel',
       subtitle: String(data.dachzeile || '').trim(),
@@ -5494,9 +6330,11 @@ Alpine.store('press', {
     const id = input.id || `s1-ed-${Date.now().toString(36)}-${Math.floor(Math.random() * 1296).toString(36)}`;
     const existing = input.id ? this.byId(input.id) : null;
     const body = sanitizeHtml(input.body || '');
+    const cats = normalizeCategories(input.category || 'redaktion', input.categories || []);
     await setDoc(doc(db, 'press', id), {
       season: 1,
-      category: input.category || 'redaktion',
+      category: cats.category,
+      categories: cats.categories,
       editorial: true,
       title: String(input.title || '').trim() || 'Ohne Titel',
       subtitle: String(input.subtitle || '').trim(),
@@ -5520,6 +6358,234 @@ Alpine.store('press', {
   async deleteArticle(id) {
     await deleteDoc(doc(db, 'press', id));
   },
+});
+
+// === Notizen ================================================================
+// Private Freitexte zu Teams und Matches. Sie liegen verschlüsselt im privaten
+// Dokument des angemeldeten Spielers — der andere sieht in der Datenbank nur Chiffrat.
+Alpine.store('notes', {
+  data: blankNotes(),
+  loaded: false,
+  loading: false,
+  saving: false,
+  lastError: null,
+  _timer: null,
+  _pending: null,
+
+  get available() { return Alpine.store('auth').isLoggedIn; },
+
+  async ensureLoaded() {
+    if (this.loaded || this.loading || !this.available) return;
+    this.loading = true;
+    try {
+      this.data = normalizeNotes(await Alpine.store('auth').loadPrivate(NOTE_SCOPE));
+      this.loaded = true;
+    } catch (e) {
+      console.error('Notizen konnten nicht geladen werden:', e);
+      this.lastError = 'Die Notizen konnten nicht geladen werden.';
+    } finally {
+      this.loading = false;
+    }
+  },
+
+  teamNote(teamId) { return teamNote(this.data, teamId); },
+  matchNote(matchId) { return matchNote(this.data, matchId); },
+  hasTeamNote(teamId) { return !!this.teamNote(teamId).trim(); },
+  hasMatchNote(matchId) { return !!this.matchNote(matchId).trim(); },
+  get count() { return countNotes(this.data); },
+
+  // Tippen erzeugt viele Änderungen — gebündelt und verzögert speichern.
+  set(kind, id, text) {
+    if (!this.available) return;
+    this.data = withNote(this.data, kind, id, text);
+    this._pending = this.data;
+    this.saving = true;
+    clearTimeout(this._timer);
+    this._timer = setTimeout(() => this.flush(), 1200);
+  },
+
+  async flush() {
+    clearTimeout(this._timer);
+    if (!this._pending || !this.available) { this.saving = false; return; }
+    const payload = this._pending;
+    this._pending = null;
+    try {
+      await Alpine.store('auth').savePrivate(NOTE_SCOPE, payload);
+      this.lastError = null;
+    } catch (e) {
+      console.error('Notiz konnte nicht gespeichert werden:', e);
+      this.lastError = 'Die Notiz konnte nicht gespeichert werden.';
+    } finally {
+      this.saving = false;
+    }
+  },
+});
+
+// === Kampfverlauf ===========================================================
+// Anders als die Notizen ist der Kampfverlauf GETEILT: beide Spieler führen einen
+// eigenen Abschnitt und dürfen beide lesen. Er ist Gedächtnisstütze für die Rückrunde
+// und Detailquelle für die Presse — deshalb liegt er im Klartext.
+Alpine.store('battleLogs', {
+  logs: [],
+  loaded: false,
+  saving: false,
+  lastError: null,
+
+  init() {
+    onSnapshot(
+      collection(db, 'battleLogs'),
+      (snap) => {
+        this.logs = snap.docs.map((d) => ({ id: d.id, ...d.data() }));
+        this.loaded = true;
+      },
+      (err) => {
+        console.error('battleLogs-Collection nicht lesbar:', err);
+        this.loaded = true;
+      },
+    );
+  },
+
+  byId(matchId) { return this.logs.find((l) => l.id === matchId) || null; },
+  textFor(matchId, player) { return logText(this.byId(matchId), player); },
+  updatedAtFor(matchId, player) { return logUpdatedAt(this.byId(matchId), player); },
+  has(matchId) { return hasLog(this.byId(matchId)); },
+  authorsFor(matchId) { return logAuthors(this.byId(matchId)); },
+  plainFor(matchId) { return logToText(this.byId(matchId)); },
+
+  async save(matchId, player, text, meta = {}) {
+    if (!matchId || !player) return false;
+    this.saving = true;
+    try {
+      await setDoc(
+        doc(db, 'battleLogs', matchId),
+        {
+          ...blankLog(matchId, meta),
+          entries: { [player]: { text: String(text || ''), updatedAt: new Date().toISOString() } },
+        },
+        { merge: true },
+      );
+      this.lastError = null;
+      return true;
+    } catch (e) {
+      console.error('Kampfverlauf konnte nicht gespeichert werden:', e);
+      this.lastError = 'Der Kampfverlauf konnte nicht gespeichert werden.';
+      return false;
+    } finally {
+      this.saving = false;
+    }
+  },
+});
+
+// === Teambuilder-Sync =======================================================
+// Spiegelt die gerätelokalen Teambuilder-Daten verschlüsselt in die Datenbank, damit
+// sie auf jedem Gerät bereitstehen — und nur für den eigenen Spieler lesbar sind.
+Alpine.store('tbsync', {
+  auto: false,
+  busy: false,
+  lastError: null,
+  uploadedAt: null,
+  remoteAt: null,
+  checked: false,
+  _timer: null,
+
+  init() {
+    this.auto = !!loadJson(SYNC_AUTO_KEY).auto;
+    syncHook = () => this.schedule();
+  },
+
+  setAuto(on) {
+    this.auto = !!on;
+    saveJson(SYNC_AUTO_KEY, { auto: this.auto });
+    if (this.auto) this.schedule();
+  },
+
+  // Schreibvorgänge kommen in Serie (Tippen im Moveset, Farbklicks) — deshalb
+  // gebündelt und verzögert hochladen.
+  schedule() {
+    if (!this.auto || !Alpine.store('auth').isLoggedIn) return;
+    clearTimeout(this._timer);
+    this._timer = setTimeout(() => this.upload({ silent: true }), 2500);
+  },
+
+  snapshot() {
+    const data = {};
+    for (let i = 0; i < localStorage.length; i++) {
+      const key = localStorage.key(i);
+      if (!isSyncedKey(key)) continue;
+      data[key] = localStorage.getItem(key);
+    }
+    return data;
+  },
+
+  get localCount() { return Object.keys(this.snapshot()).length; },
+
+  async upload({ silent = false } = {}) {
+    const auth = Alpine.store('auth');
+    if (!auth.isLoggedIn || this.busy) return false;
+    this.busy = true;
+    this.lastError = null;
+    try {
+      const payload = { savedAt: new Date().toISOString(), entries: this.snapshot() };
+      await auth.savePrivate(SYNC_SCOPE, payload);
+      this.uploadedAt = payload.savedAt;
+      this.remoteAt = payload.savedAt;
+      this.checked = true;
+      if (!silent) window.dispatchEvent(new CustomEvent('toast', { detail: { msg: 'Teambuilder-Daten gesichert.' } }));
+      return true;
+    } catch (e) {
+      console.error('Teambuilder-Sync fehlgeschlagen:', e);
+      this.lastError = 'Die Daten konnten nicht gesichert werden.';
+      if (!silent) window.dispatchEvent(new CustomEvent('toast', { detail: { msg: this.lastError } }));
+      return false;
+    } finally {
+      this.busy = false;
+    }
+  },
+
+  async peek() {
+    const auth = Alpine.store('auth');
+    if (!auth.isLoggedIn || this.checked) return;
+    this.checked = true;
+    try {
+      const data = await auth.loadPrivate(SYNC_SCOPE);
+      this.remoteAt = data?.savedAt || null;
+    } catch (e) {
+      this.lastError = 'Der gespeicherte Stand konnte nicht gelesen werden.';
+    }
+  },
+
+  // Der entfernte Stand ersetzt die lokalen Teambuilder-Schlüssel vollständig —
+  // sonst blieben gelöschte Einträge auf dem Gerät zurück.
+  async download() {
+    const auth = Alpine.store('auth');
+    if (!auth.isLoggedIn || this.busy) return false;
+    this.busy = true;
+    this.lastError = null;
+    try {
+      const data = await auth.loadPrivate(SYNC_SCOPE);
+      const entries = data?.entries;
+      if (!entries || !Object.keys(entries).length) {
+        this.lastError = 'Es liegt noch kein gesicherter Stand vor.';
+        return false;
+      }
+      Object.keys(this.snapshot()).forEach((key) => localStorage.removeItem(key));
+      Object.entries(entries).forEach(([key, value]) => {
+        if (isSyncedKey(key) && typeof value === 'string') localStorage.setItem(key, value);
+      });
+      this.remoteAt = data.savedAt || null;
+      window.dispatchEvent(new CustomEvent('toast', { detail: { msg: 'Teambuilder-Daten geladen — die Ansicht wird neu aufgebaut.' } }));
+      setTimeout(() => window.location.reload(), 600);
+      return true;
+    } catch (e) {
+      console.error('Teambuilder-Sync (laden) fehlgeschlagen:', e);
+      this.lastError = 'Die Daten konnten nicht geladen werden.';
+      return false;
+    } finally {
+      this.busy = false;
+    }
+  },
+
+  fmt(iso) { return iso ? formatDateTime(iso) : '—'; },
 });
 
 Alpine.store('nav', { teamId: null, matchId: null, pokemonName: null, from: null, teamAId: null, teamBId: null, canBack: false });
@@ -5562,7 +6628,7 @@ Alpine.store('elo', {
   },
 });
 
-Alpine.data('gate', gate);
+Alpine.data('authGate', authGate);
 Alpine.data('app', app);
 Alpine.data('draftBoard', draftBoard);
 Alpine.data('teamsView', teamsView);

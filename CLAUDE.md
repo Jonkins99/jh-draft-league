@@ -18,7 +18,7 @@ npm run preview
 node scripts/test-scoring.mjs    # Logik-Tests (node:assert, kein Framework, keine Deps)
 ```
 
-Es gibt keinen Linter/Formatter und keinen Test-Runner. `test-scoring.mjs` nutzt einen eigenen `test(name, fn)`-Helper ohne Filter-Option — einzelne Fälle lassen sich nur durch Auskommentieren isolieren. Getestet werden die framework-freien Module: `scoring.mjs`, `awards.mjs`, `trainers.mjs`, `damagecalc.mjs`, `press.mjs`, `press-context.mjs`, `press-prompts.mjs`.
+Es gibt keinen Linter/Formatter und keinen Test-Runner. `test-scoring.mjs` nutzt einen eigenen `test(name, fn)`-Helper ohne Filter-Option — einzelne Fälle lassen sich nur durch Auskommentieren isolieren. Getestet werden die framework-freien Module: `scoring.mjs`, `awards.mjs`, `trainers.mjs`, `damagecalc.mjs`, `press.mjs`, `press-context.mjs`, `press-prompts.mjs`, `auth.mjs`, `notes.mjs`, `ceremony.mjs`, `finale.mjs`. Die Anmelde-Tests rechnen asynchron (WebCrypto) und laufen über den `atest`-Helfer.
 
 Firestore-Wartungsskripte (schreiben direkt in die Live-DB, Client-SDK mit der Config aus `resources/js/firebase.js`):
 
@@ -64,6 +64,9 @@ Konsequenzen beim Anlegen einer neuen View:
 | `press` (Collection) | Presse-Beiträge (Spielberichte, News, Klatsch, Redaktion) inkl. Storylines |
 | `pressSessions` (Collection) | Interviews und Pressekonferenzen: Rolle, Fragen, Antworten, Status |
 | `settings/press` | Die über das Zahnrad änderbaren Redaktionsaufträge (Prompts) |
+| `users` (Collection) | Doc-ID `janik`/`henrik`: `{player, auth:{algo,iterations,salt,hash}, enc:{algo,iterations,salt}}` — Anmeldung |
+| `private` (Collection) | Doc-ID `<user>-<scope>`: `{owner, scope, payload:{v,algo,iv,ct}, updatedAt}` — AES-GCM-verschlüsselt, Scopes `notes` und `teambuilder` |
+| `battleLogs` (Collection) | Doc-ID = Match-ID: `{matchId, day, home, away, entries:{<Spieler>:{text,updatedAt}}}` — geteilter Kampfverlauf |
 | `public/data/pokemon.json` | einzige Pokémon-Stammdatenquelle (`name`, `name_en`, `dex`, `types`, `tier`, `cost`, `image`, `base_speed`); Namen sind global eindeutig und dienen als Fremdschlüssel |
 | `public/data/i18n-de.json` | deutsche Namen für Attacken, Fähigkeiten und Items (nur der Schadensrechner); generiert, nicht von Hand pflegen |
 
@@ -85,11 +88,21 @@ Ein `results`-Doc: `{home, away, day, squads: {home: [names], away: [names]}, ba
 
 **Elo-Prognose.** `elo.mjs` liest ein öffentliches Google Sheet clientseitig über den gviz-Endpoint (kein API-Key, kein Proxy), Cache in localStorage, manueller Refresh über `Alpine.store('elo')`. Das Sheet muss link-öffentlich („Betrachter") bleiben. Der Service-Account-Key (`sheets-api-*.json`) wird bewusst **nicht** ausgeliefert und darf nicht in den Build gelangen.
 
-**Zugang.** Clientseitiges Passwort-Gate: SHA-256-Vergleich gegen `ACCESS_HASH` in `main.js`, Freischaltung in localStorage. Firestore-Regeln sind offen (read/write) — das Gate ist Bequemlichkeit, kein Schutz.
+**Zugang.** Anmeldung über `auth.mjs` + `Alpine.store('auth')`: genau zwei hart verdrahtete Konten (Janik, Henrik). Beim ersten Login wird ein Passwort gesetzt (PBKDF2-SHA256, 210k Runden, Salt je Konto); in `users/<id>` liegt nur die Prüfsumme. Die Gerätesitzung (`jhdl-auth-v1`) hält Spieler, Prüfsumme und den abgeleiteten Datenschlüssel; ein Passwortwechsel entwertet sie automatisch.
+- **Die Anmeldung ist die Quelle für „wer bin ich".** Draft und Transfer lassen nur den Teambesitzer ziehen (`isMyTurn`), `Alpine.store('awards').me` ist ein Getter auf `auth.player`, Presse-Termine und Trainerwechsel prüfen `ownsTeam`.
+- **Vertraulichkeit entsteht über den Inhalt, nicht über Regeln.** Die Firestore-Regeln bleiben offen; alles Private wird clientseitig mit AES-GCM unter einem Schlüssel verschlüsselt, der ausschließlich aus dem Passwort stammt (`encryptJson`/`decryptJson`). Ohne Passwort steht in der Datenbank nur Chiffrat.
+- Die Regeln müssen für `users`, `private` und `battleLogs` freigeschaltet sein — sonst ist keine Anmeldung möglich.
 
-**Gerätelokaler Zustand** liegt konsequent in localStorage unter `jhdl-*`-Keys (Spalteneinstellungen, Speed-/Weakness-Filter, Matchup-Markierungen, Teambuilder-Notizen und -Movesets, Schadensrechner-Eingaben je Paarung, Elo-Cache) und wird nie nach Firestore geschrieben. Die Keys sind oben in `main.js` gebündelt.
+**Notizen** (`notes.mjs`). Zwei Sorten, bewusst unterschiedlich: **privat** (Freitext zu Teams und Matches, verschlüsselt unter `private/<user>-notes`) und **geteilt** (der Kampfverlauf je Match in `battleLogs`, je Spieler ein Abschnitt, beide lesen beides). Der Kampfverlauf geht als eigener Block in die Presse-Metadaten ein.
+- `battleLogMixin()` in `main.js` wird von `scheduleView` und `teambuildingView` eingebunden: Editor, Speichern und die Sprachaufnahme. Aufgenommen wird in beliebig vielen Schnipseln (MediaRecorder), übermittelt wird **einmal** — alle Clips gehen als `inlineData`-Teile in einen Gemini-Aufruf, zusammen mit einer Vokabelliste aus beiden Kadern (`spokenVocabulary`), damit Eigennamen stimmen.
 
-**Presse.** Vier Module: `press.mjs` (Kategorien, Redaktionspool, Slot-Planung, Storylines, Sanitizer), `press-context.mjs` (Liga-Zustand → Metadaten-JSON), `press-prompts.mjs` (Systeminstruktion, Kanon-Regeln, Regie, die fünf änderbaren Aufträge, Antwortschemata) und `gemini.mjs` (ein `fetch` gegen die Gemini Developer API, kein SDK). Alle vier sind framework-frei und unter Node testbar.
+**Saison-Abschluss** (`finale.mjs` + `finale.css`). `buildFinaleScript()` macht aus dem Liga-Zustand ein Drehbuch (Intro → Teams von unten nach oben → Pokal → Abspann), `runFinale()` spielt es ab. Start über `seasonFinaleMixin()` aus Spielplan und Tabelle, sobald jede geplante Partie drei fertige Kämpfe hat; beliebig wiederholbar. Deko (Lichtstrahlen, Goldschein) liegt im Bühnenhintergrund, **nicht** in der Szene — sonst bläht sie den Scrollbereich auf.
+
+**Gerätelokaler Zustand** liegt konsequent in localStorage unter `jhdl-*`-Keys (Spalteneinstellungen, Speed-/Weakness-Filter, Matchup-Markierungen, Teambuilder-Notizen und -Movesets, Schadensrechner-Eingaben je Paarung, Elo-Cache, Anmeldung). Die Keys sind oben in `main.js` gebündelt. Ausnahme ist der Teambuilder-Sync: `Alpine.store('tbsync')` spiegelt genau die Schlüssel unter `SYNC_PREFIXES` verschlüsselt nach `private/<user>-teambuilder`; `saveJson` meldet jede Änderung über `syncHook`.
+
+**Presse.** Vier Module: `press.mjs` (Kategorien, Redaktionspool, Slot-Planung, Storylines, Sanitizer), `press-context.mjs` (Liga-Zustand → Metadaten-JSON), `press-prompts.mjs` (Systeminstruktion, Kanon-Regeln, Regie, die sechs änderbaren Aufträge, Antwortschemata) und `gemini.mjs` (ein `fetch` gegen die Gemini Developer API, kein SDK). Alle vier sind framework-frei und unter Node testbar.
+- **Rubriken sind mehrfach.** `article.category` ist die Hauptrubrik, `article.categories[]` hält alle (`categoriesOf`, `normalizeCategories`). „Erste Liga" (`AI_CATEGORY`) setzt `_articleDoc` automatisch auf jeden KI-Beitrag; „Zweite Liga", „Gerüchte" und „Informationen" werden im Editor vergeben.
+- **Drei Zufallsbeiträge je Spieltag** (`RANDOM_ARTICLES_PER_DAY`, ID `s1-rand-d<day>-<n>`) entstehen mit dem 1., 2. und 3. abgeschlossenen Spiel eines Spieltags — nacheinander, nicht parallel, sonst schreiben drei Aufrufe dieselbe Geschichte.
 - **Kanon:** Die KI darf Transfers, Sperren, Trainerwechsel und Ergebnisse **nie als Tatsache** behaupten — nur als Gerücht, Forderung oder Spekulation. Fakten stammen ausschließlich aus dem Metadatenblock. Diese Regeln stecken fest in `CANON_RULES` und gelten zusätzlich zum änderbaren Auftrag.
 - **Storylines** haben keine eigene Collection: jeder Beitrag trägt die Stränge, die er fortschreibt, bei sich; der Stand ist der jüngste Beitrag, der einen Strang erwähnt (`collectStorylines`).
 - **Spielberichte** entstehen automatisch beim Übergang „Match wird vollständig". Der Auslöser ist die beobachtete Änderung, nicht der Bestand (`pressSeenComplete` liegt bewusst außerhalb der Alpine-Reaktivität); der Platz wird per `runTransaction` belegt, damit zwei offene Geräte nicht doppelt schreiben.
@@ -98,6 +111,8 @@ Ein `results`-Doc: `{home, away, day, squads: {home: [names], away: [names]}, ba
 - **Zwei Schlüsselformate:** `AIza…` geht in den Header `x-goog-api-key`, `AQ.…` (seit 2026 das einzige, das AI Studio ausgibt) in `Authorization: Bearer`. `gemini.mjs` wählt nach Präfix und probiert bei 401 automatisch das andere Verfahren.
 - **Denksteuerung ist modellabhängig:** die 3er-Generation nimmt `thinkingLevel`, die 2.5er ein `thinkingBudget` — beides zusammen ist ein Fehler. Denk-Tokens zählen gegen `maxOutputTokens`; ohne Deckel kommt die Antwort leer mit `MAX_TOKENS` zurück. Gemini 3 läuft ausdrücklich auf Temperatur 1.0.
 - `<select>` mit `<template x-for>`-Optionen: x-model setzt den Startwert, bevor die Optionen im DOM stehen. Die Vorauswahl deshalb über `:selected` am `<option>` lösen, nicht nachträglich per JS.
+
+**Siegerehrung** (`ceremony.mjs` + `awards.css`). Fünf Inszenierungen (`CEREMONY_VARIANTS`) teilen sich denselben Ablauf und werden je Ehrung zufällig gewählt (`pickCeremonyVariant`); sie unterscheiden sich nur in Tempo (`timing`), Enthüllungsgeste (CSS unter `.cer-stage[data-variant="…"]`) und Schlusseffekt (`burst`). `awards-entwurf.html` kann eine Variante zum Ansehen erzwingen.
 
 **Trainer** (`teams/<id>.trainers`) sind eine eigene Position: kein Kampf, kein Draft, keine Statistik, nur im Team-View. Amtszeiten werden in Spieltagen geführt — `fromDay: null` heißt „vor der Saison", `untilDay: null` heißt „amtierend". Logik in `trainers.mjs`, Schreibzugriffe über `appointTrainer` / `updateTrainer` / `dismissTrainer` im league-Store.
 

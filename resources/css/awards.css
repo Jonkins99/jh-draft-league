@@ -532,6 +532,293 @@
   }
 }
 
+/* === Varianten der Siegerehrung =========================================== */
+/* Fünf Inszenierungen desselben Ablaufs (siehe CEREMONY_VARIANTS in ceremony.mjs).
+   Gemeinsam ist ihnen die Dramaturgie; hier unterscheiden sich Enthüllungsgeste,
+   Licht und Schlusseffekt. `spotlight` ist der Grundzustand weiter oben. */
+
+/* --- Schlagzahl: harte Schnitte, Aufprall statt Aufziehen ---------------- */
+.cer-stage[data-variant="countdown"] .cer-spot {
+  background:
+    radial-gradient(50% 36% at 50% 0%, rgb(227 53 13 / 0.22), transparent 70%),
+    radial-gradient(120% 80% at 50% 110%, rgb(255 203 5 / 0.1), transparent 60%);
+}
+
+.cer-stage[data-variant="countdown"] .cer-slot[data-state="next"] {
+  animation: cer-tick 300ms steps(2, end) infinite;
+  border-color: rgb(227 53 13 / 0.6);
+}
+
+@keyframes cer-tick {
+  0%, 49% { background: rgb(227 53 13 / 0.06); }
+  50%, 100% { background: rgb(20 23 31 / 0.55); }
+}
+
+.cer-stage[data-variant="countdown"] .cer-slot[data-state="revealed"] .cer-plate {
+  animation: cer-slam 340ms cubic-bezier(0.22, 1.4, 0.36, 1) both;
+}
+
+@keyframes cer-slam {
+  from {
+    scale: 1.32;
+    filter: blur(6px);
+    opacity: 0;
+  }
+
+  to {
+    scale: 1;
+    filter: blur(0);
+    opacity: 1;
+  }
+}
+
+/* Der Aufprall wackelt kurz die ganze Bühne — bewusst sehr kurz. */
+.cer-stage[data-variant="countdown"][data-beat="hold"] .cer-inner {
+  animation: cer-shake 260ms cubic-bezier(0.36, 0.07, 0.19, 0.97);
+}
+
+@keyframes cer-shake {
+  0%, 100% { translate: 0 0; }
+  20% { translate: -5px 2px; }
+  45% { translate: 4px -2px; }
+  70% { translate: -2px 1px; }
+}
+
+.cer-stage[data-variant="countdown"] .cer-card {
+  animation-duration: 420ms;
+}
+
+.cer-stage[data-variant="countdown"] .cer-card--first {
+  animation-delay: 60ms;
+}
+
+/* --- Anzeigetafel: die Platten klappen mechanisch herein ----------------- */
+.cer-stage[data-variant="flipboard"] .cer-inner {
+  perspective: 1100px;
+}
+
+.cer-stage[data-variant="flipboard"] .cer-spot {
+  background:
+    radial-gradient(70% 45% at 50% 0%, rgb(77 144 213 / 0.16), transparent 70%),
+    radial-gradient(120% 80% at 50% 108%, rgb(255 203 5 / 0.1), transparent 65%);
+}
+
+.cer-stage[data-variant="flipboard"] .cer-slot {
+  transform-style: preserve-3d;
+}
+
+.cer-stage[data-variant="flipboard"] .cer-slot[data-state="next"] {
+  animation: none;
+  border-color: rgb(77 144 213 / 0.5);
+}
+
+.cer-stage[data-variant="flipboard"] .cer-slot[data-state="revealed"] .cer-plate {
+  transform-origin: top center;
+  animation: cer-flip 620ms cubic-bezier(0.3, 1.5, 0.5, 1) both;
+}
+
+@keyframes cer-flip {
+  from {
+    transform: rotateX(-96deg);
+    opacity: 0;
+  }
+
+  70% {
+    transform: rotateX(8deg);
+    opacity: 1;
+  }
+
+  to {
+    transform: rotateX(0deg);
+    opacity: 1;
+  }
+}
+
+/* Die Trennfuge der Klapptafel. */
+.cer-stage[data-variant="flipboard"] .cer-slot[data-state="revealed"] .cer-plate::before {
+  content: "";
+  position: absolute;
+  inset-inline: 0;
+  top: 50%;
+  height: 1px;
+  background: rgb(0 0 0 / 0.55);
+  pointer-events: none;
+}
+
+.cer-stage[data-variant="flipboard"] .cer-plate {
+  position: relative;
+}
+
+.cer-stage[data-variant="flipboard"] .cer-card {
+  transform-origin: top center;
+  animation: cer-flip 700ms cubic-bezier(0.3, 1.4, 0.5, 1) both;
+}
+
+.cer-stage[data-variant="flipboard"] .cer-card--first {
+  animation-delay: 160ms;
+}
+
+/* --- Anflug: alles kommt aus der Tiefe ins Bild -------------------------- */
+.cer-stage[data-variant="anflug"] .cer-spot {
+  background:
+    radial-gradient(45% 45% at 50% 45%, rgb(171 106 200 / 0.18), transparent 70%),
+    radial-gradient(120% 90% at 50% 110%, rgb(77 144 213 / 0.14), transparent 65%);
+}
+
+.cer-stage[data-variant="anflug"] .cer-slot[data-state="next"] {
+  animation: cer-charge 900ms ease-in-out infinite;
+  border-color: rgb(171 106 200 / 0.5);
+}
+
+@keyframes cer-charge {
+  0%, 100% { box-shadow: inset 0 0 0 0 rgb(171 106 200 / 0); }
+  50% { box-shadow: inset 0 0 24px -4px rgb(171 106 200 / 0.5); }
+}
+
+.cer-stage[data-variant="anflug"] .cer-slot[data-state="revealed"] .cer-plate {
+  animation: cer-approach 680ms cubic-bezier(0.16, 1, 0.3, 1) both;
+}
+
+@keyframes cer-approach {
+  from {
+    scale: 0.35;
+    translate: -35% 26px;
+    rotate: -8deg;
+    filter: blur(12px);
+    opacity: 0;
+  }
+
+  to {
+    scale: 1;
+    translate: 0 0;
+    rotate: 0deg;
+    filter: blur(0);
+    opacity: 1;
+  }
+}
+
+.cer-stage[data-variant="anflug"] .cer-card {
+  animation: cer-approach 820ms cubic-bezier(0.16, 1, 0.3, 1) both;
+}
+
+.cer-stage[data-variant="anflug"] .cer-card--first {
+  animation-delay: 220ms;
+}
+
+/* --- Gala: langsam, weich, feierlich ------------------------------------ */
+.cer-stage[data-variant="gala"] .cer-spot {
+  background:
+    radial-gradient(55% 50% at 50% 0%, rgb(255 203 5 / 0.2), transparent 72%),
+    radial-gradient(130% 90% at 50% 112%, rgb(201 162 39 / 0.16), transparent 68%);
+}
+
+.cer-stage[data-variant="gala"] .cer-slot[data-state="next"] {
+  animation: cer-breath 2400ms ease-in-out infinite;
+}
+
+.cer-stage[data-variant="gala"] .cer-slot[data-state="revealed"] .cer-plate {
+  animation: cer-unveil 1100ms cubic-bezier(0.22, 1, 0.36, 1) both;
+}
+
+@keyframes cer-unveil {
+  from {
+    clip-path: inset(0 0 0 0);
+    scale: 1.04;
+    filter: brightness(2.4) blur(5px);
+    opacity: 0;
+  }
+
+  45% {
+    filter: brightness(1.5) blur(1px);
+    opacity: 1;
+  }
+
+  to {
+    scale: 1;
+    filter: brightness(1) blur(0);
+    opacity: 1;
+  }
+}
+
+.cer-stage[data-variant="gala"] .cer-slot[data-state="revealed"]::after {
+  animation-duration: 1500ms;
+}
+
+.cer-stage[data-variant="gala"] .cer-card {
+  animation-duration: 1250ms;
+}
+
+.cer-stage[data-variant="gala"] .cer-card--first {
+  animation-delay: 420ms;
+  box-shadow: 0 30px 80px -26px rgb(255 203 5 / 0.7);
+}
+
+.cer-stage[data-variant="gala"] .cer-seal {
+  animation-duration: 1300ms;
+  animation-delay: 1000ms;
+}
+
+.cer-stage[data-variant="gala"] .cer-bloom {
+  width: 30rem;
+  animation-duration: 1800ms;
+  animation-delay: 1000ms;
+}
+
+/* --- Schlusseffekte ------------------------------------------------------ */
+.cer-ring {
+  position: absolute;
+  left: 50%;
+  top: 40%;
+  translate: -50% -50%;
+  border: 8px solid rgb(255 203 5 / 0.8);
+  border-radius: 9999px;
+  box-sizing: border-box;
+  will-change: width, height, opacity;
+}
+
+.cer-beam {
+  position: absolute;
+  left: 50%;
+  bottom: 22%;
+  width: 0.55rem;
+  transform-origin: bottom center;
+  border-radius: 9999px;
+  will-change: transform, opacity;
+}
+
+.cer-spark {
+  position: absolute;
+  display: block;
+  width: 2px;
+  height: 0.9rem;
+  border-radius: 9999px;
+  will-change: transform, opacity;
+}
+
+.cer-ember {
+  position: absolute;
+  display: block;
+  width: 0.4rem;
+  height: 0.4rem;
+  border-radius: 9999px;
+  background: radial-gradient(circle, rgb(255 236 170 / 0.95), rgb(255 203 5 / 0.35) 60%, transparent 70%);
+  will-change: transform, opacity;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .cer-stage[data-variant] .cer-slot[data-state="revealed"] .cer-plate,
+  .cer-stage[data-variant] .cer-card {
+    animation: cer-fade 260ms ease both;
+  }
+
+  .cer-stage[data-variant="countdown"][data-beat="hold"] .cer-inner,
+  .cer-stage[data-variant="countdown"] .cer-slot[data-state="next"],
+  .cer-stage[data-variant="anflug"] .cer-slot[data-state="next"],
+  .cer-stage[data-variant="gala"] .cer-slot[data-state="next"] {
+    animation: none;
+  }
+}
+
 /* Matchup-Kachel: Gedrückthalten darf keine Textauswahl oder das
    System-Kontextmenü auslösen (iPadOS). */
 .mark-tile {

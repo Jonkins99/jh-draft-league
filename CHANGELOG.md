@@ -1,5 +1,40 @@
 # Changelog
 
+## Accounts & login (new)
+- **One place to sign in.** The old shared access password is gone. Instead there are exactly two hard-wired accounts, Janik and Henrik. The first time an account is picked, its password is set (with confirmation and a clear warning that it cannot be reset), and from then on that account can sign in from any device.
+- **Passwords never leave the device in the clear.** They are stretched with PBKDF2-SHA256 (210 000 rounds, a fresh salt per account) and only the digest is stored in the `users` collection. The signed-in state is kept per device, so nobody has to log in on every visit; changing the password invalidates every stored session automatically.
+- **The login now drives everything that used to be "who am I?"**: in the draft and the winter transfer only the owner of the team on the clock can pick (everybody else sees whose move it is), awards no longer ask who is sitting at the device, interviews and press conferences can only be taken by the team's own player, and trainers can only be appointed, edited or dismissed by their own team.
+- **Private data is encrypted, not merely hidden.** The Firestore rules are open by design, so anything private is encrypted client-side with AES-GCM under a key derived from the password alone. Without the password the database holds nothing but ciphertext.
+- **Teambuilder backup.** Movesets, notes, speed-tier settings, matchup colourings and damage-calculator inputs can be pushed to the database and pulled back on another device — automatically after every change if you want. Encrypted, so the other player cannot read them.
+
+## Notes (new)
+- **Private notes on teams and matches.** Free text, saved encrypted under your own account, available on every device and invisible to the other player. Teams have their own notes module; matches can be annotated straight from the result entry and from the Teambuilder.
+- **Shared battle log.** Optional, and deliberately *not* private: each player keeps their own section on a match, both can read both. It is the memory for the second leg — and the detail source the press draws on for match reports, news, interviews and press conferences.
+- **Dictate the battle log.** Record while you play: several minutes at a stretch or many short push-to-talk snippets. Everything is sent to the AI in a **single** request, which orders it, strips the stumbles and writes it out — with the proper names spelled correctly, because both squads and their trainers are handed over as a vocabulary.
+- **Teambuilder gets a second panel.** Damage calculator and battle log sit side by side as two collapsed bars and each take the full width when opened. The panel picks the current fixture of the two teams, takes the battle log by hand or by voice, holds the matchup note — and folds out the first leg (note plus both players' logs) while you build for the return match.
+
+## Season finale (new)
+- **A hall of fame for the whole season**, startable from the schedule and from the standings as soon as the last result of the season is in, and repeatable as often as you like.
+- Runs for a few minutes and works through the table **from bottom to top**: every team with its record, its path through the season as a drawn curve, every fixture with its result, the trainer with term and personality, the awards it collected and its most effective Pokémon.
+- **The top three get their complete squad**, paraded in one by one with kills and deaths. The champion gets the longest scene, then a trophy scene of its own with gold rain, and the closing scene settles the Janik-versus-Henrik duel and names the league's standout Pokémon.
+- Play, pause, step forward and back; scenes taller than the screen scroll themselves like a set of credits. Reduced motion is respected throughout.
+
+## Awards
+- **Five stagings of the ceremony instead of one**, picked at random each time. The dramaturgy is identical — last place first, up to the podium — but the pace and the gestures differ: *Bühnenlicht* (the original), *Schlagzahl* (hard cuts, impact zoom, shockwaves), *Anzeigetafel* (plates flip in mechanically, light beams), *Anflug* (everything arrives out of the depth, sparks) and *Gala* (slow, soft, gold embers). The design page can force a single variant for previewing.
+
+## Press
+- **Articles can sit in several categories.** Four new ones alongside the existing rubrics: **Erste Liga** (set automatically on everything the AI writes), **Zweite Liga**, **Gerüchte** and **Informationen**. The filter, the badges and the editor all work with multiple categories; the first one is the lead rubric.
+- **Three free articles per matchday** without a preceding interview or press conference, released with the first, second and third completed fixture of that matchday. The model picks its own angle and rubric and is told what the other pieces of the matchday already covered. The briefing is editable like the other five.
+- **Margit joins the newsroom** — radio host at *Radio Ligawelle*, writes the way she presents: spoken language, built around soundbites, warm until it gets uncomfortable.
+- **Teams with a pending appointment are marked** in the team picker of the appointments tab; your own teams pulse, the other player's stay quiet.
+- **Several storylines per team at once** are now explicitly part of the canon: trainer question, slump and squad row are three threads, not one, and a running thread keeps its id instead of being reopened under a new name.
+- **The flash effect is gone from the lead article** in the newsroom; it stays where it belongs, on the press conference stage.
+- **Mobile editing fixed.** Editing an article no longer loses its text: the editor is filled the moment it exists rather than afterwards, and every keystroke is mirrored into the draft. A single Enter now starts a real paragraph — mobile browsers that insert a `<div>` are rewritten to a paragraph instead of having it dissolved by the sanitizer.
+- **Images in the editor can be scaled** — tap an image and set it to 25, 50, 75 or 100 per cent, or remove it.
+
+## Draft
+- **Export the complete draft order** from the export menu of the draft board: every pick in snake order with round, team, player and Pokémon, plus the drawn starting order, as JSON, XML, CSV or Excel.
+
 ## Press (new)
 - **A press view of its own**, in the sidebar above Awards, with two tabs: the **newsroom** (a filterable feed) and **Interview & PK**.
 - **Four categories** — Spielbericht, News, Klatsch und Tratsch, Redaktion — plus a team filter and a full-text search over the archive. Six fixed reporters (Alba, Pia & Udo, Sina, Dexio, LeBelle, Matière) each write in their own documented voice; the portraits ship pre-cropped to head and torso.

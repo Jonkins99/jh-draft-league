@@ -138,7 +138,6 @@ match /settings/{doc} { allow read, write: if true; }</code></pre>
               </div>
               <div class="press-wall relative order-1 hidden min-h-[11rem] items-end justify-center overflow-hidden sm:order-2 sm:flex">
                 <img :src="author(lead.authorId).image" :alt="author(lead.authorId).name" class="press-portrait h-40 w-auto object-contain opacity-90" />
-                <span class="press-flash pointer-events-none absolute inset-0 bg-white"></span>
               </div>
             </div>
           </article>
@@ -151,9 +150,11 @@ match /settings/{doc} { allow read, write: if true; }</code></pre>
                      class="flex flex-col rounded-2xl border border-line bg-panel p-4 transition-colors"
                      :class="a.status === 'ready' ? 'cursor-pointer hover:border-flame-500/40' : 'opacity-70'">
               <div class="flex flex-wrap items-center gap-2">
-                <span class="rounded-full px-2 py-0.5 font-display text-[10px] font-bold uppercase tracking-wider"
-                      :style="`color:${catColor(a.category)};background:${catColor(a.category)}1f;border:1px solid ${catColor(a.category)}55`"
-                      x-text="catLabel(a.category)"></span>
+                <template x-for="c in catsOf(a)" :key="'ac-'+a.id+'-'+c">
+                  <span class="rounded-full px-2 py-0.5 font-display text-[10px] font-bold uppercase tracking-wider"
+                        :style="`color:${catColor(c)};background:${catColor(c)}1f;border:1px solid ${catColor(c)}55`"
+                        x-text="catLabel(c)"></span>
+                </template>
                 <span x-show="a.editorial" class="rounded-full border border-volt-400/50 bg-volt-400/10 px-2 py-0.5 font-display text-[10px] font-bold uppercase tracking-wider text-volt-400">Redaktion</span>
                 <span x-show="a.day" class="text-[11px] text-mist" x-text="`Spieltag ${a.day}`"></span>
                 <span class="ml-auto shrink-0 text-[11px] text-mist" x-text="fmtDate(a.publishedAt)"></span>
@@ -230,10 +231,13 @@ match /settings/{doc} { allow read, write: if true; }</code></pre>
                   <span class="block truncate font-display text-sm font-bold text-ink" x-text="t.name"></span>
                   <span class="block text-[11px]" :style="`color:${playerColor(t.player)}`" x-text="t.player"></span>
                 </span>
-                <span x-show="!bonusComplete && bonusOpenFor(t.id)"
-                      class="grid size-5 shrink-0 place-items-center rounded-full bg-flame-500 font-display text-[10px] font-bold text-white"
-                      :title="`Auftaktrunde: ${bonusOpenFor(t.id)} Termin(e) offen`"
-                      x-text="bonusOpenFor(t.id)"></span>
+                <span x-show="pendingFor(t.id)"
+                      class="relative grid size-5 shrink-0 place-items-center rounded-full font-display text-[10px] font-bold text-white"
+                      :class="ownsTeamId(t.id) ? 'bg-flame-500' : 'bg-line'"
+                      :title="`${pendingFor(t.id)} offene(r) Termin(e)`">
+                  <span x-show="ownsTeamId(t.id)" class="absolute inset-0 animate-ping rounded-full bg-flame-500/70"></span>
+                  <span class="relative" x-text="pendingFor(t.id)"></span>
+                </span>
               </button>
             </template>
           </div>
@@ -241,6 +245,10 @@ match /settings/{doc} { allow read, write: if true; }</code></pre>
 
         <p x-show="!press.hasKey" class="mb-4 rounded-2xl border border-volt-400/40 bg-volt-400/10 px-4 py-3 text-sm text-volt-400">
           Die Redaktion ist noch nicht erreichbar. Zugang über das Zahnrad oben rechts hinterlegen.
+        </p>
+
+        <p x-show="pickTeam && !ownsPickTeam" x-cloak class="mb-4 rounded-2xl border border-dashed border-line bg-elevated/40 px-4 py-3 text-sm text-mist">
+          Termine dieses Teams nimmt <b class="text-ink" x-text="pickTeamPlayer"></b> wahr. Du kannst hier nur mitlesen.
         </p>
 
         <p class="mb-4 rounded-xl border border-line bg-elevated/40 px-4 py-3 text-sm leading-relaxed text-mist">
@@ -275,7 +283,8 @@ match /settings/{doc} { allow read, write: if true; }</code></pre>
                   <p x-show="!row.open" class="text-xs leading-relaxed text-mist" x-text="blockedHint(row)"></p>
 
                   <div x-show="row.open" class="flex flex-wrap items-center gap-2">
-                    <button type="button" @click="beginSlot(row)" :disabled="!press.hasKey && row.session?.status !== 'done'"
+                    <button type="button" @click="beginSlot(row)"
+                            :disabled="(!press.hasKey && row.session?.status !== 'done') || (!ownsPickTeam && row.session?.status !== 'done')"
                             class="rounded-xl px-3.5 py-2 font-display text-xs font-bold uppercase tracking-wider transition-colors disabled:opacity-40"
                             :class="row.session?.status === 'done' ? 'border border-line text-mist hover:text-flame-400' : 'bg-flame-500 text-white hover:bg-flame-600'"
                             x-text="row.session?.status === 'done' ? 'Beitrag lesen' : row.session?.status === 'open' ? 'Fortsetzen' : row.session?.status === 'error' ? 'Neu ansetzen' : 'Termin wahrnehmen'"></button>
@@ -299,9 +308,11 @@ match /settings/{doc} { allow read, write: if true; }</code></pre>
         <div class="press-wall relative flex items-end gap-4 overflow-hidden rounded-t-3xl border-b border-line px-5 pt-6 sm:px-8">
           <div class="min-w-0 flex-1 pb-6">
             <div class="flex flex-wrap items-center gap-2">
-              <span class="rounded-full px-2.5 py-1 font-display text-[10px] font-bold uppercase tracking-wider"
-                    :style="`color:${catColor(article.category)};background:${catColor(article.category)}1f;border:1px solid ${catColor(article.category)}55`"
-                    x-text="catLabel(article.category)"></span>
+              <template x-for="c in catsOf(article)" :key="'dc-'+c">
+                <span class="rounded-full px-2.5 py-1 font-display text-[10px] font-bold uppercase tracking-wider"
+                      :style="`color:${catColor(c)};background:${catColor(c)}1f;border:1px solid ${catColor(c)}55`"
+                      x-text="catLabel(c)"></span>
+              </template>
               <span x-show="article.editorial" class="rounded-full border border-volt-400/50 bg-volt-400/10 px-2.5 py-1 font-display text-[10px] font-bold uppercase tracking-wider text-volt-400">Redaktion</span>
               <span x-show="article.day" class="rounded-full border border-line px-2.5 py-1 font-display text-[10px] font-bold uppercase tracking-wider text-mist" x-text="`Spieltag ${article.day}`"></span>
             </div>
@@ -413,16 +424,22 @@ match /settings/{doc} { allow read, write: if true; }</code></pre>
                    class="w-full rounded-lg border border-line bg-elevated px-3 py-2.5 font-display text-lg font-bold text-ink placeholder:font-normal placeholder:text-mist focus:border-flame-500 focus:outline-none" />
           </label>
 
+          <div>
+            <span class="mb-1.5 block font-display text-[11px] font-bold uppercase tracking-wider text-mist">
+              Rubriken <span class="font-normal normal-case tracking-normal">– mehrere möglich, die erste ist die Hauptrubrik</span>
+            </span>
+            <div class="flex flex-wrap gap-2">
+              <template x-for="c in composerCategories" :key="'cc-'+c.key">
+                <button type="button" @click="toggleComposerCat(c.key)"
+                        class="rounded-xl border px-2.5 py-1.5 text-xs font-semibold transition-colors"
+                        :style="hasComposerCat(c.key) ? `border-color:${catColor(c.key)};background:${catColor(c.key)}1a;color:${catColor(c.key)}` : ''"
+                        :class="hasComposerCat(c.key) ? '' : 'border-line text-mist hover:text-ink'"
+                        x-text="c.label"></button>
+              </template>
+            </div>
+          </div>
+
           <div class="grid gap-4 sm:grid-cols-2">
-            <label class="block">
-              <span class="mb-1.5 block font-display text-[11px] font-bold uppercase tracking-wider text-mist">Rubrik</span>
-              <select x-model="composer.category"
-                      class="w-full rounded-lg border border-line bg-elevated px-3 py-2.5 text-sm text-ink focus:border-flame-500 focus:outline-none">
-                <template x-for="c in categories" :key="'cc-'+c.key">
-                  <option :value="c.key" :selected="c.key === composer.category" x-text="c.label"></option>
-                </template>
-              </select>
-            </label>
             <label class="block">
               <span class="mb-1.5 block font-display text-[11px] font-bold uppercase tracking-wider text-mist">Unter welchem Namen?</span>
               <select x-model="composer.authorId"
@@ -476,10 +493,29 @@ match /settings/{doc} { allow read, write: if true; }</code></pre>
                 <button type="button" @click="rte('removeFormat')" title="Formatierung entfernen"
                         class="ml-auto rounded-lg border border-line px-2 py-1.5 text-xs font-semibold text-mist transition-colors hover:text-flame-400">Format ×</button>
               </div>
+
+              <!-- Bildleiste: erscheint, sobald ein Bild im Text angetippt wurde -->
+              <div x-show="composer.imageSelected" x-cloak class="flex flex-wrap items-center gap-1.5 border-b border-line bg-void/40 p-2">
+                <span class="mr-1 font-display text-[10px] font-bold uppercase tracking-wider text-mist">Bildbreite</span>
+                <template x-for="w in [25, 50, 75, 100]" :key="'iw-'+w">
+                  <button type="button" @click="rteImageWidth(w)"
+                          class="rounded-lg border border-line px-2 py-1.5 text-xs font-semibold text-mist transition-colors hover:text-flame-400"
+                          x-text="`${w} %`"></button>
+                </template>
+                <button type="button" @click="rteImageDrop()"
+                        class="ml-auto rounded-lg border border-flame-500/40 px-2 py-1.5 text-xs font-semibold text-flame-400 transition-colors hover:bg-flame-500/10">Bild entfernen</button>
+              </div>
+
               <div x-ref="editor" contenteditable="true" spellcheck="true"
+                   x-init="hydrateEditor($el)"
+                   @input="syncEditor($el)"
+                   @blur="syncEditor($el)"
+                   @keydown.enter="rteEnter($event)"
+                   @click="rtePick($event)"
                    data-placeholder="Schreib los – Absätze, Zwischenüberschriften, Zitate und Bilder sind möglich."
                    class="rte press-body max-h-[40vh] overflow-y-auto px-4 py-3"></div>
             </div>
+            <p class="mt-1.5 text-[11px] text-mist">Enter beginnt einen neuen Absatz, Umschalt+Enter einen Zeilenumbruch. Ein Tipp auf ein Bild öffnet die Breiteneinstellung.</p>
           </div>
         </div>
 
@@ -760,6 +796,24 @@ match /settings/{doc} { allow read, write: if true; }</code></pre>
             <button type="button" @click="backfillReports()" :disabled="!press.hasKey || settings.backfilling"
                     class="mt-1 rounded-xl bg-flame-500 px-4 py-2.5 font-display text-sm font-bold uppercase tracking-wider text-white transition-colors hover:bg-flame-600 disabled:opacity-40"
                     x-text="settings.backfilling ? 'Arbeitet die Liste ab…' : 'Alle nachholen'"></button>
+          </div>
+
+          <div class="border-t border-line pt-4">
+            <p class="font-display text-sm font-bold uppercase tracking-wider text-ink">Freie Beiträge</p>
+            <p class="mt-1 text-xs leading-relaxed text-mist">Je Spieltag drei Beiträge ohne vorausgehenden Termin – freigeschaltet mit dem ersten, zweiten und dritten abgeschlossenen Spiel des Spieltags.</p>
+            <p x-show="!press.missingRandom.length" class="mt-3 rounded-xl border border-line bg-elevated/40 px-3 py-2.5 text-sm text-mist">Alle freigeschalteten Beiträge sind geschrieben.</p>
+            <div x-show="press.missingRandom.length" class="mt-3 grid gap-2">
+              <template x-for="r in press.missingRandom" :key="'rnd-'+r.id">
+                <div class="flex items-center gap-3 rounded-xl border border-line px-3 py-2">
+                  <span class="font-display text-xs font-bold uppercase tracking-wider text-mist" x-text="`ST ${r.day}`"></span>
+                  <span class="min-w-0 flex-1 truncate text-sm text-ink" x-text="`Freier Beitrag ${r.index + 1}`"></span>
+                  <button type="button" @click="press.generateRandomArticle(r.day, r.index, { force: true })"
+                          :disabled="!press.hasKey || isBusy(r.id)"
+                          class="shrink-0 rounded-lg border border-line px-2.5 py-1.5 text-xs font-semibold text-mist transition-colors hover:text-flame-400 disabled:opacity-40"
+                          x-text="isBusy(r.id) ? 'Schreibt…' : 'Schreiben'"></button>
+                </div>
+              </template>
+            </div>
           </div>
 
           <div class="border-t border-line pt-4">

@@ -42,11 +42,16 @@
             <h2 class="mt-0.5 font-display text-3xl font-bold tracking-wide text-ink" x-text="`${currentTeam.player} ist dran!`"></h2>
             <p class="text-mist" x-text="currentTeam.name"></p>
           </div>
-          <button type="button" @click="skip()" :disabled="busy"
+          <button type="button" @click="skip()" :disabled="busy || !isMyTurn" x-show="isMyTurn"
                   class="ml-auto rounded-xl border border-line px-4 py-2.5 text-sm font-semibold text-mist transition-colors hover:text-flame-400 disabled:opacity-50">
             Verzichten
           </button>
         </div>
+
+        <p x-show="!isMyTurn" x-cloak
+           class="mt-4 rounded-xl border border-dashed border-line bg-void/40 px-4 py-2.5 text-sm text-mist">
+          Warte auf <span class="font-semibold text-ink" x-text="waitingFor"></span> — du kannst nur für deine eigenen Teams ziehen.
+        </p>
 
         <!-- Reihenfolge -->
         <div class="mt-5 border-t border-line pt-4">
@@ -69,7 +74,8 @@
     <h3 class="mb-3 font-display text-lg font-bold uppercase tracking-wider text-ink">Pokémon abgeben</h3>
     <div class="grid grid-cols-2 gap-3 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5">
       <template x-for="mon in currentRoster" :key="'rm-'+mon.name">
-        <div @click="askRemove(mon)" class="cursor-pointer rounded-xl border border-line bg-panel p-2.5 transition hover:border-flame-500/50 hover:-translate-y-0.5">
+        <div @click="askRemove(mon)" class="rounded-xl border border-line bg-panel p-2.5 transition"
+             :class="isMyTurn ? 'cursor-pointer hover:border-flame-500/50 hover:-translate-y-0.5' : 'cursor-not-allowed opacity-50'">
           <span class="grid size-5 place-items-center rounded font-display text-[10px] font-bold" :style="`color:${tierColor(mon.tier)}; background:${tierColor(mon.tier)}1f`" x-text="mon.tier"></span>
           <div class="mt-1 grid aspect-square place-items-center rounded-lg bg-elevated/60">
             <img :src="mon.image" :alt="mon.name" loading="lazy" class="h-4/5 w-4/5 object-contain" />
@@ -108,7 +114,8 @@
         </div>
         <div class="grid grid-cols-2 gap-3 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6">
           <template x-for="p in group.mons" :key="group.tier+'-'+p.dex+'-'+p.name">
-            <div @click="askPick(p)" class="cursor-pointer rounded-xl border border-line bg-panel p-2.5 transition hover:border-flame-500/50 hover:-translate-y-0.5">
+            <div @click="askPick(p)" class="rounded-xl border border-line bg-panel p-2.5 transition"
+                 :class="isMyTurn ? 'cursor-pointer hover:border-flame-500/50 hover:-translate-y-0.5' : 'cursor-not-allowed opacity-50'">
               <div class="grid aspect-square place-items-center rounded-lg bg-elevated/60">
                 <img :src="p.image" :alt="p.name" loading="lazy" decoding="async" class="h-4/5 w-4/5 object-contain" />
               </div>

@@ -18,6 +18,29 @@
     <span x-show="loaded && hasSchedule && hasResults" class="w-full text-sm text-mist">Neu auslosen gesperrt — Ergebnisse erfasst.</span>
   </header>
 
+
+  <!-- Saison-Abschluss: startbar, sobald das letzte Ergebnis steht — wiederholbar. -->
+  <section x-show="seasonComplete()" x-cloak class="fin-teaser mb-6">
+    <div class="relative flex flex-wrap items-center gap-4 overflow-hidden rounded-2xl border border-[#ffcb05]/40 bg-gradient-to-br from-[#ffcb05]/12 via-panel to-panel p-5">
+      <span class="grid size-12 shrink-0 place-items-center rounded-xl bg-[#ffcb05]/15 text-[#ffcb05]">
+        <svg viewBox="0 0 24 24" class="size-6" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M8 21h8"/><path d="M12 17v4"/><path d="M7 4h10v5a5 5 0 0 1-10 0z"/><path d="M17 5h3v2a3 3 0 0 1-3 3"/><path d="M7 5H4v2a3 3 0 0 0 3 3"/></svg>
+      </span>
+      <div class="min-w-0 flex-1">
+        <p class="font-display text-xs font-semibold uppercase tracking-[0.3em] text-[#ffcb05]">Saison abgeschlossen</p>
+        <p class="mt-0.5 font-display text-xl font-bold tracking-wide text-ink">Ruhmeshalle der Saison 1</p>
+        <p class="mt-0.5 text-sm text-mist">Alle acht Teams von unten nach oben — mit Bilanz, Verlauf, Trainern und Kadern. Dauert ein paar Minuten.</p>
+      </div>
+      <button type="button" @click="openFinale()"
+              class="shrink-0 rounded-xl bg-[#ffcb05] px-5 py-3 font-display text-sm font-bold uppercase tracking-wider text-[#1a1406] transition-transform hover:scale-[1.03]">
+        Abschluss starten
+      </button>
+    </div>
+  </section>
+
+  <!-- Bühne der Ruhmeshalle -->
+  <div popover="manual" id="season-finale" class="fin"
+       @toggle="if ($event.newState === 'closed') closeFinale()"></div>
+
   <!-- Export-Popover: Spielplan & Kampf-Details -->
   <div popover id="exp-spieltag" class="modal-pop w-[20rem] max-w-[calc(100vw-2rem)] rounded-2xl border border-line bg-panel p-5 text-ink">
     <div class="space-y-4">
@@ -198,6 +221,11 @@
           <button type="button" x-show="isNewEntry" @click="step = 4"
                   class="shrink-0 rounded-lg px-3 py-1.5 text-sm font-semibold transition-colors md:hidden"
                   :class="step === 4 ? 'bg-flame-500 text-white' : 'text-mist hover:text-ink'">Matchup</button>
+          <button type="button" @click="step = 5"
+                  class="shrink-0 rounded-lg px-3 py-1.5 text-sm font-semibold transition-colors"
+                  :class="step === 5 ? 'bg-flame-500 text-white' : 'text-mist hover:text-ink'">
+            Verlauf <span x-show="logDraft.trim()" class="text-volt-300">✓</span>
+          </button>
         </div>
 
         <!-- Inhalt -->
@@ -371,6 +399,83 @@
                  x-text="currentBattleValid ? 'Kampf vollständig — zählt für die Tabelle.' : 'Kampf unvollständig — wird gespeichert, zählt aber noch nicht für die Tabelle.'"></p>
             </div>
           </template>
+
+          <!-- SCHRITT 5: Kampfverlauf (geteilt) + private Notiz -->
+          <div x-show="step === 5" class="space-y-5">
+            <div>
+              <div class="mb-2 flex flex-wrap items-center justify-between gap-2">
+                <div class="min-w-0">
+                  <h3 class="font-display text-sm font-bold uppercase tracking-wider text-ink">Kampfverlauf</h3>
+                  <p class="mt-0.5 text-xs text-mist">Freiwillig. Beide Spieler sehen diesen Text — als Erinnerung für die Rückrunde und als Detailquelle für die Presse.</p>
+                </div>
+                <span x-show="logUpdatedLabel()" class="shrink-0 text-[11px] text-mist" x-text="`Zuletzt: ${logUpdatedLabel()}`"></span>
+              </div>
+
+              <!-- Diktat: beliebig viele Schnipsel, eine einzige KI-Übermittlung -->
+              <div class="mb-2 rounded-xl border border-line bg-elevated/40 p-3">
+                <div class="flex flex-wrap items-center gap-2">
+                  <button type="button" @click="recToggle()" :disabled="recProcessing || !recSupported()"
+                          class="inline-flex items-center gap-2 rounded-xl px-3.5 py-2.5 font-display text-xs font-bold uppercase tracking-wider transition-colors disabled:opacity-40"
+                          :class="recording ? 'bg-flame-500 text-white' : 'border border-line text-mist hover:border-flame-500/40 hover:text-flame-400'">
+                    <span class="relative flex size-2.5">
+                      <span x-show="recording" class="absolute inline-flex size-full animate-ping rounded-full bg-white/80"></span>
+                      <span class="relative inline-flex size-2.5 rounded-full" :class="recording ? 'bg-white' : 'bg-flame-500'"></span>
+                    </span>
+                    <span x-text="recording ? 'Aufnahme stoppen' : (recHasClips() ? 'Weiter aufnehmen' : 'Aufnahme starten')"></span>
+                  </button>
+                  <span class="font-display text-sm font-bold tabular-nums" :class="recording ? 'text-flame-400' : 'text-mist'" x-text="recTotalLabel()"></span>
+                  <button type="button" x-show="recHasClips() && !recording" @click="recSubmit()" :disabled="recProcessing"
+                          class="ml-auto rounded-xl bg-volt-400/15 px-3.5 py-2.5 font-display text-xs font-bold uppercase tracking-wider text-volt-400 transition-colors hover:bg-volt-400/25 disabled:opacity-40"
+                          x-text="recProcessing ? 'Wird aufbereitet…' : `${recClips.length} Aufnahme(n) aufbereiten`"></button>
+                  <button type="button" x-show="recHasClips() && !recording && !recProcessing" @click="recReset()"
+                          class="rounded-xl border border-line px-3 py-2.5 text-xs font-semibold text-mist transition-colors hover:text-flame-400">Verwerfen</button>
+                </div>
+                <div x-show="recHasClips()" x-cloak class="mt-2 flex flex-wrap gap-1.5">
+                  <template x-for="(c, i) in recClips" :key="'clip-'+i">
+                    <span class="inline-flex items-center gap-1.5 rounded-lg border border-line bg-void/40 px-2 py-1 text-[11px] text-mist">
+                      <span x-text="`#${i+1} · ${recClipLabel(c)}`"></span>
+                      <button type="button" @click="recDrop(i)" class="text-mist transition-colors hover:text-flame-400" aria-label="Schnipsel entfernen">×</button>
+                    </span>
+                  </template>
+                </div>
+                <p class="mt-2 text-[11px] leading-relaxed text-mist">
+                  Du kannst während des Kampfes in Ruhe einsprechen — auch mehrere Minuten oder in vielen kurzen Abschnitten.
+                  Erst beim Aufbereiten geht alles in einem Rutsch an die KI, die daraus einen sauberen Verlauf macht.
+                </p>
+                <p x-show="recError" x-cloak class="mt-2 text-xs text-flame-400" x-text="recError"></p>
+                <p x-show="!recSupported()" x-cloak class="mt-2 text-xs text-mist">Dieses Gerät unterstützt keine Sprachaufnahme.</p>
+              </div>
+
+              <textarea x-model="logDraft" rows="9" placeholder="Was ist passiert? Aufstellungen, Wendepunkte, Pech und Glück…"
+                        class="w-full resize-y rounded-xl border border-line bg-elevated px-3.5 py-3 text-sm leading-relaxed text-ink placeholder:text-mist focus:border-flame-500 focus:outline-none"></textarea>
+              <div class="mt-2 flex flex-wrap items-center gap-2">
+                <button type="button" @click="logSave()" :disabled="logSaving || !logDirty()"
+                        class="rounded-xl border border-line px-3.5 py-2 text-xs font-semibold text-mist transition-colors hover:border-flame-500/40 hover:text-flame-400 disabled:opacity-40"
+                        x-text="logSaving ? 'Speichert…' : 'Verlauf speichern'"></button>
+                <span x-show="logDirty()" class="text-[11px] text-mist">Nicht gespeicherte Änderungen.</span>
+                <span x-show="logError" x-cloak class="text-[11px] text-flame-400" x-text="logError"></span>
+              </div>
+            </div>
+
+            <!-- Der Abschnitt des Gegenübers -->
+            <div x-show="logOtherText()" x-cloak class="rounded-xl border border-line bg-elevated/40 p-3.5">
+              <p class="mb-1.5 font-display text-[11px] font-semibold uppercase tracking-wider text-mist" x-text="`Notiert von ${logOtherPlayer()}`"></p>
+              <p class="whitespace-pre-line text-sm leading-relaxed text-ink" x-text="logOtherText()"></p>
+            </div>
+
+            <!-- Private Notiz zum Match -->
+            <div>
+              <div class="mb-2 flex items-center gap-2">
+                <h3 class="font-display text-sm font-bold uppercase tracking-wider text-ink">Private Notiz</h3>
+                <span class="rounded-full border border-line px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wider text-mist">nur für dich</span>
+                <span x-show="$store.notes.saving" class="text-[11px] text-mist">speichert…</span>
+              </div>
+              <textarea :value="matchNote()" @input="setMatchNote($event.target.value)" rows="4"
+                        placeholder="Gedanken, die niemand sonst lesen soll…"
+                        class="w-full resize-y rounded-xl border border-line bg-elevated px-3.5 py-3 text-sm leading-relaxed text-ink placeholder:text-mist focus:border-flame-500 focus:outline-none"></textarea>
+              <p class="mt-1.5 text-[11px] text-mist">Verschlüsselt mit deinem Passwort gespeichert — auf allen deinen Geräten verfügbar.</p>
+            </div>
+          </div>
         </div>
 
         <!-- Fuß -->
@@ -506,6 +611,29 @@
                 </template>
               </section>
             </template>
+
+            <!-- Kampfverlauf: was beide Spieler notiert haben -->
+            <section x-show="$store.battleLogs.has(matchNoteId())" x-cloak class="mt-6 border-t border-line pt-5">
+              <h3 class="mb-3 font-display text-sm font-bold uppercase tracking-wider text-mist">Kampfverlauf</h3>
+              <div class="grid gap-3">
+                <template x-for="p in $store.battleLogs.authorsFor(matchNoteId())" :key="'bl-'+p">
+                  <div class="rounded-xl border border-line bg-elevated/40 p-3.5">
+                    <p class="mb-1.5 font-display text-[11px] font-semibold uppercase tracking-wider"
+                       :style="`color:${playerColor(p)}`" x-text="p"></p>
+                    <p class="whitespace-pre-line text-sm leading-relaxed text-ink"
+                       x-text="$store.battleLogs.textFor(matchNoteId(), p)"></p>
+                  </div>
+                </template>
+              </div>
+            </section>
+
+            <!-- Private Notiz zu diesem Match -->
+            <section x-show="$store.notes.hasMatchNote(matchNoteId())" x-cloak class="mt-4">
+              <div class="rounded-xl border border-dashed border-line bg-void/30 p-3.5">
+                <p class="mb-1.5 font-display text-[11px] font-semibold uppercase tracking-wider text-mist">Deine private Notiz</p>
+                <p class="whitespace-pre-line text-sm leading-relaxed text-ink" x-text="matchNote()"></p>
+              </div>
+            </section>
           </div>
         </div>
 

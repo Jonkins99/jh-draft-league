@@ -262,3 +262,36 @@ export function buildDraftpoolExport(pokemon, teams) {
   }));
   return { filename: 'jhdl-draftpool', sheets: [{ name: 'Draftpool', rows }] };
 }
+
+// Vollständige Draft-Reihenfolge (Snake) als flacher Datensatz. `picks` stammt aus
+// `draftPicks()`; `approx` markiert Positionen, die der Wintertransfer unscharf macht.
+export function buildDraftOrderExport(picks, draft, teams) {
+  const teamById = Object.fromEntries((teams || []).map((t) => [t.id, t]));
+  const orderRows = (draft?.order || []).map((id, i) => ({
+    Position: i + 1,
+    Team: teamById[id]?.name || id,
+    Spieler: teamById[id]?.player || '',
+  }));
+  const rows = (picks || []).map((p) => ({
+    Pick: p.pickNo,
+    Runde: p.round,
+    Team: p.team?.name || p.teamId,
+    Spieler: p.team?.player || '',
+    Pokémon: p.mon?.name || '',
+    Englisch: p.mon?.name_en || '',
+    Dex: p.mon?.dex ?? '',
+    Typen: (p.mon?.types || []).join('/'),
+    Tier: p.mon?.tier || '',
+    Kosten: p.mon?.cost ?? '',
+    Init: p.mon?.base_speed ?? '',
+    Status: p.gone ? 'im Transfer abgegeben' : 'im Kader',
+    Zuordnung: p.approx ? 'ungefähr' : 'exakt',
+  }));
+  return {
+    filename: 'jhdl-draft-reihenfolge',
+    sheets: [
+      { name: 'Draft-Reihenfolge', rows },
+      { name: 'Startreihenfolge', rows: orderRows },
+    ],
+  };
+}

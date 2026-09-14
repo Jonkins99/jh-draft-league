@@ -6,17 +6,15 @@
         <h1 class="mt-1 font-display text-4xl font-bold tracking-wide text-ink md:text-5xl">Awards</h1>
         <p class="mt-2 text-mist">Nominieren, bewerten, feiern. Beide Spieler schlagen bis zu drei Kandidaten vor, bewerten alle Vorschläge von 0 bis 10 – der Mittelwert entscheidet.</p>
       </div>
-      <!-- Wer sitzt an diesem Gerät? Steuert, wessen Stimmen gespeichert werden. -->
-      <div class="rounded-2xl border border-line bg-panel p-3">
-        <p class="mb-2 font-display text-[11px] font-semibold uppercase tracking-wider text-mist">Ich bin</p>
-        <div class="flex gap-2">
-          <template x-for="p in $store.awards.players" :key="'me-'+p">
-            <button type="button" @click="$store.awards.setMe(p)"
-                    class="rounded-xl border px-4 py-2 font-display text-sm font-bold transition-colors"
-                    :style="$store.awards.me === p ? `border-color:${playerColor(p)};background:${playerColor(p)}1a;color:${playerColor(p)}` : ''"
-                    :class="$store.awards.me === p ? '' : 'border-line text-mist hover:text-ink'"
-                    x-text="p"></button>
-          </template>
+      <!-- Wessen Stimmen gespeichert werden, ergibt sich aus der Anmeldung. -->
+      <div class="flex items-center gap-3 rounded-2xl border border-line bg-panel px-4 py-3">
+        <span class="grid size-9 shrink-0 place-items-center rounded-full font-display text-base font-bold text-white"
+              :style="`background:${playerColor($store.awards.me)}`"
+              x-text="($store.awards.me || '?').slice(0,1)"></span>
+        <div>
+          <p class="font-display text-[11px] font-semibold uppercase tracking-wider text-mist">Angemeldet als</p>
+          <p class="font-display text-lg font-bold tracking-wide"
+             :style="`color:${playerColor($store.awards.me)}`" x-text="$store.awards.me"></p>
         </div>
       </div>
     </div>

@@ -23,13 +23,26 @@ import {
 import {
   pressSlots, slotPlan, bonusSlotsFor, bonusRoundComplete, bonusRoundProgress,
   collectStorylines, paragraphsToHtml, articleMatchesFilter, randomAuthors,
+  categoriesOf, normalizeCategories, manualCategories, AI_CATEGORY,
   BONUS_ROUND_DAY, PRESS_FROM_DAY,
 } from '../resources/js/press.mjs';
+import {
+  blankNotes, normalizeNotes, teamNote, matchNote, withNote, countNotes,
+  logText, hasLog, logAuthors, logToText, totalSeconds, formatDuration, spokenVocabulary,
+} from '../resources/js/notes.mjs';
+import {
+  PLAYERS as AUTH_PLAYERS, userId, playerOf, otherPlayer, createCredential,
+  verifyCredential, isValidSession, encryptJson, decryptJson, ownsTeam, teamIdsOf,
+} from '../resources/js/auth.mjs';
 import { buildContext } from '../resources/js/press-context.mjs';
+import { buildFinaleScript, SCENE_MS } from '../resources/js/finale.mjs';
+import { CEREMONY_VARIANTS, pickCeremonyVariant, VARIANT_BY_KEY } from '../resources/js/ceremony.mjs';
 import { buildDirection, buildSystem, DEFAULT_PROMPTS } from '../resources/js/press-prompts.mjs';
 
 let passed = 0;
 function test(name, fn) { fn(); passed++; console.log('  ok -', name); }
+// Die Anmeldung rechnet asynchron (WebCrypto) — dafür ein eigener, awaitbarer Helfer.
+async function atest(name, fn) { await fn(); passed++; console.log('  ok -', name); }
 
 const pokedex = [
   { name: 'Glurak', name_en: 'Charizard', tier: 'S', types: ['Feuer'], image: 'c.png', base_speed: 100, cost: 20 },
@@ -724,6 +737,193 @@ test('Der Filter „Redaktion" meint die Herkunft, nicht die Rubrik', () => {
   assert.equal(articleMatchesFilter(eigen, { teamId: 's1-b' }), false);
   assert.equal(articleMatchesFilter(eigen, { q: 'hallo' }), true);
   assert.equal(new Set(randomAuthors(3).map((a) => a.id)).size, 3);
+});
+
+// === Rubriken ==============================================================
+test('Ein Beitrag kann in mehreren Rubriken stehen', () => {
+  const a = { category: 'news', categories: ['news', 'geruechte', AI_CATEGORY] };
+  assert.deepEqual(categoriesOf(a), ['news', 'geruechte', 'erste-liga']);
+  // Alt-Beiträge kennen nur `category`.
+  assert.deepEqual(categoriesOf({ category: 'klatsch' }), ['klatsch']);
+  // Unbekannte Schlüssel fallen raus, Dubletten ebenso.
+  assert.deepEqual(categoriesOf({ category: 'news', categories: ['news', 'quatsch'] }), ['news']);
+  assert.equal(articleMatchesFilter(a, { category: 'geruechte' }), true);
+  assert.equal(articleMatchesFilter(a, { category: 'erste-liga' }), true);
+  assert.equal(articleMatchesFilter(a, { category: 'klatsch' }), false);
+
+  const norm = normalizeCategories('zweite-liga', ['informationen', 'zweite-liga']);
+  assert.equal(norm.category, 'zweite-liga');
+  assert.deepEqual(norm.categories, ['zweite-liga', 'informationen']);
+  // Die automatische Rubrik steht im Editor nicht zur Wahl.
+  assert.equal(manualCategories().some((c) => c.key === AI_CATEGORY), false);
+});
+
+// === Notizen ===============================================================
+test('Private Notizen legen leere Einträge gar nicht erst an', () => {
+  let n = blankNotes();
+  n = withNote(n, 'teams', 's1-a', 'Gegner zieht Mega früh');
+  n = withNote(n, 'matches', 's1-d1-m0', 'Lead tauschen');
+  assert.equal(teamNote(n, 's1-a'), 'Gegner zieht Mega früh');
+  assert.equal(matchNote(n, 's1-d1-m0'), 'Lead tauschen');
+  assert.equal(countNotes(n), 2);
+  n = withNote(n, 'teams', 's1-a', '   ');
+  assert.equal(countNotes(n), 1);
+  assert.equal(teamNote(n, 's1-a'), '');
+  assert.equal(countNotes(normalizeNotes({ teams: { x: '' }, matches: null })), 0);
+});
+
+test('Der Kampfverlauf trägt die Abschnitte beider Spieler', () => {
+  const log = {
+    id: 's1-d1-m0',
+    entries: { Janik: { text: 'Kampf 1 ging glatt.' }, Henrik: { text: '' } },
+  };
+  assert.equal(logText(log, 'Janik'), 'Kampf 1 ging glatt.');
+  assert.equal(hasLog(log), true);
+  assert.deepEqual(logAuthors(log), ['Janik']);
+  assert.equal(logToText(log), 'Janik: Kampf 1 ging glatt.');
+  assert.equal(hasLog({ entries: { Janik: { text: '  ' } } }), false);
+});
+
+test('Die Sprachaufnahme misst und benennt ihre Schnipsel', () => {
+  assert.equal(totalSeconds([{ seconds: 65 }, { seconds: 30 }]), 95);
+  assert.equal(formatDuration(95), '01:35');
+  assert.equal(formatDuration(0), '00:00');
+  const vocab = spokenVocabulary({
+    teamA: { name: 'FC ChelZE', pokemon: [{ name: 'Glurak' }], trainers: [{ name: 'Koga' }] },
+    teamB: { name: 'Heerashai SV', pokemon: [{ name: 'Turtok' }] },
+  });
+  assert.deepEqual(vocab, ['FC ChelZE', 'Glurak', 'Koga', 'Heerashai SV', 'Turtok']);
+});
+
+// === Anmeldung =============================================================
+await atest('Ein Konto prüft sein Passwort und nichts anderes', async () => {
+  assert.deepEqual(AUTH_PLAYERS, ['Janik', 'Henrik']);
+  assert.equal(userId('Janik'), 'janik');
+  assert.equal(playerOf('henrik'), 'Henrik');
+  assert.equal(otherPlayer('Janik'), 'Henrik');
+
+  const { record, hash, dataKey } = await createCredential('Janik', 'ganz-geheim');
+  assert.equal(record.player, 'Janik');
+  assert.equal(record.auth.hash, hash);
+  // Das Passwort selbst darf nirgends im Dokument auftauchen.
+  assert.equal(JSON.stringify(record).includes('ganz-geheim'), false);
+  assert.notEqual(record.auth.salt, record.enc.salt);
+
+  assert.equal((await verifyCredential(record, 'ganz-geheim')).ok, true);
+  assert.equal((await verifyCredential(record, 'Ganz-geheim')).ok, false);
+  assert.equal((await verifyCredential(null, 'ganz-geheim')).ok, false);
+
+  // Gerätesitzung: gültig, solange die Prüfsumme zum Konto passt.
+  assert.equal(isValidSession({ player: 'Janik', hash }, record), true);
+  assert.equal(isValidSession({ player: 'Janik', hash: 'x' }, record), false);
+  assert.equal(isValidSession({ player: 'Henrik', hash }, record), false);
+
+  // Derselbe Schlüssel entsteht bei jeder Anmeldung neu.
+  assert.equal((await verifyCredential(record, 'ganz-geheim')).dataKey, dataKey);
+});
+
+await atest('Private Daten sind ohne das Passwort nicht lesbar', async () => {
+  const a = await createCredential('Janik', 'passwort-a');
+  const b = await createCredential('Henrik', 'passwort-b');
+  const payload = await encryptJson(a.dataKey, { notiz: 'Mega zuerst', zahlen: [1, 2, 3] });
+  assert.equal(JSON.stringify(payload).includes('Mega zuerst'), false);
+  assert.deepEqual(await decryptJson(a.dataKey, payload), { notiz: 'Mega zuerst', zahlen: [1, 2, 3] });
+  await assert.rejects(() => decryptJson(b.dataKey, payload));
+  // Zwei Durchläufe erzeugen wegen des zufälligen IV nie dasselbe Chiffrat.
+  const again = await encryptJson(a.dataKey, { notiz: 'Mega zuerst' });
+  assert.notEqual(again.iv, payload.iv);
+});
+
+test('Ein Team gehört genau einem Spieler', () => {
+  const teams = [
+    { id: 's1-a', player: 'Janik' },
+    { id: 's1-b', player: 'Henrik' },
+    { id: 's1-c', player: 'Janik' },
+  ];
+  assert.equal(ownsTeam('Janik', teams[0]), true);
+  assert.equal(ownsTeam('Janik', teams[1]), false);
+  assert.equal(ownsTeam(null, teams[0]), false);
+  assert.deepEqual(teamIdsOf('Janik', teams), ['s1-a', 's1-c']);
+});
+
+// === Siegerehrung: Varianten ===============================================
+test('Es gibt fünf Inszenierungen, und gewählt wird zufällig', () => {
+  assert.equal(CEREMONY_VARIANTS.length, 5);
+  assert.equal(new Set(CEREMONY_VARIANTS.map((v) => v.key)).size, 5);
+  assert.equal(new Set(CEREMONY_VARIANTS.map((v) => v.burst)).size, 5);
+  CEREMONY_VARIANTS.forEach((v) => {
+    ['lead', 'tease', 'hold', 'curtain'].forEach((k) => assert.equal(typeof v.timing[k], 'number'));
+    assert.equal(VARIANT_BY_KEY[v.key], v);
+  });
+  // Die Ausschluss-Option liefert nie dieselbe Variante zurück.
+  for (let i = 0; i < 30; i++) assert.notEqual(pickCeremonyVariant('gala').key, 'gala');
+  // Das Tempo unterscheidet sich hörbar: Schlagzahl ist die schnellste, Gala die langsamste.
+  const sum = (v) => v.timing.lead + v.timing.tease + v.timing.hold + v.timing.curtain;
+  const sorted = [...CEREMONY_VARIANTS].sort((a, b) => sum(a) - sum(b));
+  assert.equal(sorted[0].key, 'countdown');
+  assert.equal(sorted[sorted.length - 1].key, 'gala');
+});
+
+// === Saison-Abschluss ======================================================
+test('Das Drehbuch geht von unten nach oben und endet beim Meister', () => {
+  const mk = (id, name, player) => ({
+    id, season: 1, name, player, logo: `${id}.png`, order: 1,
+    pokemon: [monA, monB, monC].map((m) => ({ ...m })),
+    trainers: [{ id: `t-${id}`, name: `Trainer ${name}`, gender: 'd', traits: ['ruhig'], fromDay: null, untilDay: null }],
+  });
+  const teams = [mk('s1-a', 'Alpha', 'Janik'), mk('s1-b', 'Beta', 'Henrik')];
+  const battle = (winner) => ({
+    done: true, winner,
+    used: { home: ['Glurak', 'Turtok'], away: ['Bisaflor', 'Glurak'] },
+    score: { home: winner === 'home' ? 2 : 0, away: winner === 'away' ? 2 : 0 },
+    kills: [{ victimSide: winner === 'home' ? 'away' : 'home', victim: 'Bisaflor', killerSide: winner, killer: 'Glurak' }],
+  });
+  const results = [
+    { id: 's1-d1-m0', home: 's1-a', away: 's1-b', day: 1, squads: { home: ['Glurak'], away: ['Bisaflor'] }, battles: [battle('home'), battle('home'), battle('away')] },
+    { id: 's1-d2-m0', home: 's1-b', away: 's1-a', day: 2, squads: { home: ['Bisaflor'], away: ['Glurak'] }, battles: [battle('away'), battle('away'), battle('home')] },
+  ];
+  const schedule = {
+    matchdays: [
+      { day: 1, leg: 'hin', matches: [{ home: 's1-a', away: 's1-b' }] },
+      { day: 2, leg: 'rueck', matches: [{ home: 's1-b', away: 's1-a' }] },
+    ],
+  };
+
+  const script = buildFinaleScript({ teams, results, schedule, pokedex, awardDocs: [] });
+  assert.equal(script.complete, true);
+
+  const kinds = script.scenes.map((s) => s.kind);
+  assert.equal(kinds[0], 'intro');
+  assert.equal(kinds[kinds.length - 1], 'outro');
+  assert.equal(kinds[kinds.length - 2], 'trophy');
+
+  const teamScenes = script.scenes.filter((s) => s.kind === 'team' || s.kind === 'champion');
+  assert.equal(teamScenes.length, teams.length);
+  // Letzter Platz zuerst, Meister zuletzt.
+  assert.deepEqual(teamScenes.map((s) => s.place), [2, 1]);
+  assert.equal(teamScenes[teamScenes.length - 1].kind, 'champion');
+  assert.equal(teamScenes[teamScenes.length - 1].rank, 'champion');
+
+  // Der Meister sieht seinen kompletten Kader, jede Szene kennt ihre Länge.
+  const champ = teamScenes[teamScenes.length - 1];
+  assert.equal(champ.rosterFull, true);
+  assert.equal(champ.roster.length, 3);
+  assert.equal(champ.ms, SCENE_MS.champion);
+  assert.equal(champ.trainer.name.startsWith('Trainer '), true);
+  assert.equal(champ.matches.length, 2);
+  assert.equal(champ.path.points.length, 2);
+  assert.ok(script.totalMs > 60000, 'Der Abschluss darf ruhig mehrere Minuten dauern');
+});
+
+test('Ohne vollständigen Spielplan ist die Saison nicht abgeschlossen', () => {
+  const teams = [
+    { id: 's1-a', season: 1, name: 'Alpha', player: 'Janik', pokemon: [] },
+    { id: 's1-b', season: 1, name: 'Beta', player: 'Henrik', pokemon: [] },
+  ];
+  const schedule = { matchdays: [{ day: 1, leg: 'hin', matches: [{ home: 's1-a', away: 's1-b' }, { home: 's1-b', away: 's1-a' }] }] };
+  const script = buildFinaleScript({ teams, results: [], schedule, pokedex, awardDocs: [] });
+  assert.equal(script.complete, false);
+  assert.equal(buildFinaleScript({ teams, results: [], schedule: { matchdays: [] }, pokedex }).complete, false);
 });
 
 console.log(`\n${passed} Tests bestanden.`);
