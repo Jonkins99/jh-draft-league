@@ -2,8 +2,33 @@
   <header class="mb-8">
     <p class="font-display text-xs font-semibold uppercase tracking-[0.3em] text-flame-400">Duell</p>
     <h1 class="mt-1 font-display text-4xl font-bold tracking-wide text-ink md:text-5xl">Spieler</h1>
-    <p class="mt-2 text-mist">Janik gegen Henrik – die Gesamtbilanz über alle Teams und Spieltage.</p>
+    <p class="mt-2 text-mist" x-text="isAll
+      ? 'Janik gegen Henrik – alle Saisons, alle Teams, alle Spieltage zusammengefasst.'
+      : 'Janik gegen Henrik – die Gesamtbilanz über alle Teams und Spieltage.'"></p>
   </header>
+
+  <!-- Nur saisonübergreifend: Titel und Saisonbilanz je Spieler -->
+  <section x-show="isAll && loaded" class="mb-6 grid gap-3 sm:grid-cols-2">
+    <template x-for="p in playerSeasons" :key="'ps-'+p.player">
+      <div class="rounded-2xl border border-line bg-panel p-5" :style="`border-color:${playerColor(p.player)}55`">
+        <p class="font-display text-lg font-bold tracking-wide" :style="`color:${playerColor(p.player)}`" x-text="p.player"></p>
+        <div class="mt-3 grid grid-cols-3 gap-2 text-center">
+          <div class="rounded-xl bg-elevated p-2.5">
+            <div class="font-display text-xl font-bold tabular-nums text-volt-400" x-text="p.titles"></div>
+            <div class="mt-0.5 text-[11px] text-mist">Titel</div>
+          </div>
+          <div class="rounded-xl bg-elevated p-2.5">
+            <div class="font-display text-xl font-bold tabular-nums text-ink" x-text="p.seasons.length"></div>
+            <div class="mt-0.5 text-[11px] text-mist">Saisons</div>
+          </div>
+          <div class="rounded-xl bg-elevated p-2.5">
+            <div class="font-display text-xl font-bold tabular-nums text-ink" x-text="p.avgPlace ? p.avgPlace.toFixed(1).replace('.', ',') : '—'"></div>
+            <div class="mt-0.5 text-[11px] text-mist">Ø-Platz</div>
+          </div>
+        </div>
+      </div>
+    </template>
+  </section>
 
   <div x-show="!loaded" class="py-12 text-center text-mist">Lade Duell…</div>
 

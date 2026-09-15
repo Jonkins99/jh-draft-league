@@ -18,8 +18,10 @@ export const LEAGUE_PRIMER = `SO FUNKTIONIERT DIE JH DRAFT LEAGUE:
 - Jedes Team hat einen Kader aus 10 Pokémon, die vor der Saison gedraftet wurden. Jedes Pokémon
   gehört genau einem Team und ist ligaweit einmalig.
 - Tier (S, A, B, C, D) und Draft-Kosten beschreiben die ERWARTUNG an ein Pokémon: S ist teuer und
-  soll tragen, D ist billig und darf überraschen. Elo ist eine externe Stärkeeinschätzung aus dem
-  Draft-Sheet; ein hoher Elo-Wert bei schwacher Bilanz ist eine Geschichte für sich.
+  soll tragen, D ist billig und darf überraschen. Der MARKTWERT ist die externe Stärkeeinschätzung
+  aus dem Draft-Sheet, in Euro ausgedrückt wie im Fußball; ein 100-Millionen-Pokémon mit schwacher
+  Bilanz ist eine Geschichte für sich. Der rohe Elo-Wert steht in den Metadaten, taugt im Text aber
+  höchstens für eine Klammer — schreibe über Marktwerte, nicht über Elo.
 - Ein Spieltag besteht aus vier Matches; jedes Team spielt eines.
 - Ein Match besteht aus DREI Kämpfen. Für jedes Match nominiert ein Team ein Aufgebot von 6 seiner
   10 Pokémon; pro Kampf stehen davon 4 im Einsatz. Wer nicht nominiert wird, sitzt draußen —
@@ -50,8 +52,9 @@ export const CANON_RULES = `UNVERRÜCKBARE REGELN (Kanon):
    als Zitat oder als Behauptung Dritter. Genau daraus entstehen die Geschichten, aus denen die
    Spieler später echte Konsequenzen ziehen können.
 3. Fakten sind heilig: Ergebnisse, Tabellenstände, Punkte, Kills, Deaths, Einsatzzahlen, Tier,
-   Elo, Spieltagsnummern, Namen von Teams, Pokémon und Trainern kommen AUSSCHLIESSLICH aus den
-   Metadaten. Nichts hinzuerfinden, nichts hochrechnen, was nicht in den Daten steht.
+   Marktwerte, Elo, Spieltagsnummern, Namen von Teams, Pokémon und Trainern kommen AUSSCHLIESSLICH
+   aus den Metadaten. Nichts hinzuerfinden, nichts hochrechnen, was nicht in den Daten steht.
+   Marktwerte werden exakt so genannt, wie sie in den Metadaten stehen — keine eigenen Beträge.
 4. Erfundene Zitate, Szenen, Beobachtungen, Stimmungen, Reaktionen von Umfeld und Publikum sind
    nicht nur erlaubt, sondern erwünscht. Sie sind das Fleisch am Knochen.
 5. Trainer reden und handeln so, wie ihre hinterlegte Persönlichkeit es nahelegt. Ein als ruhig
@@ -95,7 +98,7 @@ export const STORY_ARCHETYPES = [
   { key: 'trainerdebatte', label: 'Die Trainerfrage', hint: 'Nach schwachen Ergebnissen wird öffentlich über den Trainer diskutiert — Rückendeckung, die keine ist.' },
   { key: 'formkrise', label: 'Die Krise', hint: 'Eine Serie ohne Sieg, Erklärungsversuche, Selbstzweifel, Schuldzuweisungen.' },
   { key: 'erfolgswelle', label: 'Der Lauf', hint: 'Ein Team gewinnt und gewinnt — und die Frage steht im Raum, wann es kippt.' },
-  { key: 'bankdrueckerrevolte', label: 'Der Unzufriedene', hint: 'Ein Pokémon sitzt zu oft draußen, obwohl Tier und Elo etwas anderes versprechen.' },
+  { key: 'bankdrueckerrevolte', label: 'Der Unzufriedene', hint: 'Ein Pokémon sitzt zu oft draußen, obwohl Tier und Marktwert etwas anderes versprechen.' },
   { key: 'wechselgeruecht', label: 'Das Wechselgerücht', hint: 'Angeblich soll ein Pokémon im nächsten Transferfenster abgegeben werden — nur ein Gerücht.' },
   { key: 'kabinenzoff', label: 'Zoff in der Kabine', hint: 'Zwei Pokémon oder Trainer und Kader sollen aneinandergeraten sein.' },
   { key: 'taktikstreit', label: 'Der Taktikstreit', hint: 'Aufstellung, Rotation und Initiative werden öffentlich hinterfragt.' },
@@ -176,6 +179,11 @@ export const PROMPT_DEFS = [
   { key: 'pkQuestions', label: 'Pressekonferenz – Fragen', hint: 'Drei Fragen von drei verschiedenen Pressevertretern.' },
   { key: 'pkArticle', label: 'Pressekonferenz – Artikel', hint: 'Macht aus der Pressekonferenz einen Beitrag.' },
   { key: 'random', label: 'Zufallsbeitrag', hint: 'Drei freie Beiträge je Spieltag, ohne vorausgehenden Termin.' },
+  { key: 'marketUpdate', label: 'Marktwert-Update', hint: 'Entsteht, sobald ein Spieltag komplett ist und das Sheet die neuen Marktwerte führt.' },
+  { key: 'outlookQuestions', label: 'Ausblick-PK – Fragen', hint: 'Die Runde nach der Saison: fünf Fragen zu Transferfenster, Draft und Kaderplanung.' },
+  { key: 'seasonReview', label: 'Saison-Rückblick', hint: 'Ein langer Beitrag am Saisonende, der die Saison in Kapiteln erzählt.' },
+  { key: 'seasonTeamReview', label: 'Saisonzeugnis je Team', hint: 'Ein Rückblick pro Team, sobald die Saison abgeschlossen ist.' },
+  { key: 'offseason', label: 'Beitrag zwischen den Saisons', hint: 'Freie Beiträge in der Pause — Spekulation, Planung, Einordnung.' },
 ];
 
 export const DEFAULT_PROMPTS = {
@@ -187,7 +195,7 @@ AUFTRAG
 - Erzähle die Partie über ihre drei Kämpfe hinweg. Nicht Kampf für Kampf abhaken, sondern die
   Geschichte der Partie finden: Wo ist sie gekippt? Wer hat sie entschieden? Was war die
   Fehlentscheidung?
-- Ordne Leistungen an der Erwartung ein. Ein S-Tier mit hohem Elo, das nichts reißt, ist ein
+- Ordne Leistungen an der Erwartung ein. Ein S-Tier mit hohem Marktwert, das nichts reißt, ist ein
   Thema. Ein D-Tier mit zwei Kills ebenso. Nutze Einsatzquoten: Wer stand in allen drei Kämpfen,
   wer saß trotz gutem Tier draußen?
 - Setze die Partie in den Saisonzusammenhang: Tabelle, Serie, nächster Gegner, Ziele. Wenn es der
@@ -221,7 +229,7 @@ AUFTRAG
   muss, Loyalität, Hierarchie im Kader, Rückendeckung für den Trainer.
 - Jede Frage startet entweder einen NEUEN Erzählstrang oder verschärft einen laufenden. Wenn es
   laufende Geschichten gibt, greife mindestens eine davon auf und drehe sie weiter.
-- Verwende konkrete Daten in den Fragen (Ergebnis, Kills, Einsatzquote, Tabellenplatz, Tier, Elo,
+- Verwende konkrete Daten in den Fragen (Ergebnis, Kills, Einsatzquote, Tabellenplatz, Tier, Marktwert,
   nächster Gegner). Eine Frage ohne Zahl oder Zitat ist eine schlechte Frage.
 - Sprich dein Gegenüber direkt an und bleibe in deiner Rolle als Pressevertreter.
 
@@ -312,6 +320,113 @@ AUFTRAG
 FORM
 - Vier bis acht Absätze. Eine Zwischenüberschrift mit "## " ist erlaubt, ein Zitatblock mit "> "
   gern gesehen.`,
+
+  marketUpdate: `Du schreibst das Marktwert-Update nach einem abgeschlossenen Spieltag — der Text,
+den im Fußball die Redaktion nach der Neubewertung der Kaderwerte veröffentlicht.
+
+AUFTRAG
+- Erkläre den Spieltag über die Marktwerte: Wer hat sich durch seine Leistung teurer gemacht, wer
+  ist abgestürzt? Verbinde jede Bewegung mit dem, was auf dem Feld passiert ist (Kills, Siege,
+  Einsätze, verlorene Kämpfe) — eine Zahl ohne Begründung ist kein Satz.
+- Nenne ALLE Tier-Wechsel des Updates und ordne jeden ein: Warum jetzt, was heißt das für das Team,
+  ist es verdient oder eine Momentaufnahme?
+- Nenne die größten Gewinner und Verlierer mit absolutem Betrag UND Prozentwert, so wie sie in den
+  Metadaten stehen. Prozent und Betrag erzählen oft Verschiedenes — ein Sprung von 300 auf 600 Tsd.
+  ist prozentual gewaltig und absolut ein Rundungsfehler. Genau daraus entsteht die Pointe.
+- Setze die Kaderwerte der Teams dagegen: Wer führt die Rangliste der Gesamtmarktwerte an, wo klafft
+  die Lücke zwischen Kaderwert und Tabellenplatz? Ein teurer Kader auf Rang sieben ist ein Thema.
+- Lass mindestens ein erfundenes, glaubwürdiges Zitat fallen — ein Trainer zum Wert seines Kaders,
+  ein Marktbeobachter, eine Stimme aus dem Umfeld eines Absteigers.
+- Der Marktwert ist die Leitgröße. Elo darf höchstens einmal in Klammern auftauchen.
+
+FORM
+- Fünf bis acht Absätze. Zwischenüberschriften mit "## " sind erwünscht (z. B. eine für die
+  Tier-Wechsel, eine für Gewinner und Verlierer). Ein Zitatblock mit "> " gern gesehen.`,
+
+  outlookQuestions: `Die Saison ist gespielt. Vor dem Wintertransfer und dem Draft der nächsten Saison
+tritt jedes Team noch einmal geschlossen vor die Presse — die Runde, in der Versprechen gemacht
+werden, die später jeder nachlesen kann.
+
+AUFTRAG
+- Formuliere FÜNF Fragen an den Trainer, jede von dem Pressevertreter, der in den Metadaten für
+  sie vorgesehen ist. Übernimm die autorId exakt.
+- Jede Frage bezieht sich auf konkrete Zahlen dieser Saison (Platzierung, Bilanz, Kills,
+  Einsatzquoten, Marktwerte, Tier-Prognose) — keine Allgemeinplätze.
+- Die Runde hat einen festen Themenbogen; decke ihn ab:
+  1. Bilanz der Saison — was war das Versprechen, was ist daraus geworden?
+  2. Der Kader — welche Pokémon haben geliefert, welche nicht?
+  3. Das Transferfenster — WELCHE Pokémon will das Team behalten? Frag nach einer Zahl; realistisch
+     sind null bis vier. Frag nach Namen.
+  4. Der Draft — welcher Typ Kader soll es nächste Saison werden, worauf wird verzichtet?
+  5. Die Ansage — wohin will dieses Team in der nächsten Saison? Lass den Trainer sich festlegen.
+- Zwei der fünf Fragen sind ausdrücklich provokant (Feld "provokant" entsprechend setzen), die
+  anderen sachlich — halte dich an die Vorgabe in den Metadaten.
+- KANON: Ein Verbleib oder Wechsel darf gefragt, versprochen und angekündigt, aber niemals als
+  geschehen dargestellt werden. Der Trainer spricht über Absichten, nicht über Vollzogenes.
+
+ANTWORTVORSCHLÄGE
+- Drei je Frage: souverän, ausweichend, mit Gegenwehr. Jede Antwort in der Stimme des Trainers,
+  jede mit einer konkreten Aussage — eine Zahl, ein Name, eine Festlegung. Antworten, aus denen
+  sich später ein gebrochenes Versprechen zitieren lässt, sind die besten.`,
+
+  seasonReview: `Du schreibst den großen Saison-Rückblick — den einen langen Text, der am Ende einer
+Saison alles zusammenbindet. Nimm dir Platz; das hier ist kein Spielbericht, sondern die Erzählung
+einer ganzen Spielzeit.
+
+AUFTRAG
+- Erzähle die Saison in KAPITELN. Jedes Kapitel bekommt eine Zwischenüberschrift mit "## ".
+  Ein tragfähiger Aufbau: der Auftakt und die Erwartungen · die Wendepunkte · die Teams von unten
+  nach oben oder entlang ihrer Geschichten · die Spieler Janik und Henrik im direkten Duell ·
+  die Pokémon der Saison (und die Enttäuschungen) · der Titel und wie er entschieden wurde ·
+  ein Ausblick auf Transferfenster und Draft.
+- Nimm JEDE Geschichte auf, die im Laufe der Saison eröffnet wurde, und sage, wie sie ausgegangen
+  ist. Eine Geschichte ohne Auflösung wird ausdrücklich als offen benannt und in die nächste
+  Saison übergeben.
+- Arbeite mit Zahlen, aber deute sie: Wer hat über der Erwartung gespielt, wer darunter? Welcher
+  Marktwert erzählt eine andere Geschichte als die Tabelle?
+- Zitiere großzügig — Trainer, Umfeld, Publikum. Erfundene Stimmen sind erwünscht, erfundene
+  Fakten nicht.
+- Schreibe würdig, aber nicht weihevoll. Ironie ist erlaubt, Zynismus nicht.
+
+FORM
+- Fünfzehn bis fünfundzwanzig Absätze, gegliedert in sechs bis acht Kapitel mit "## ".
+  Mindestens zwei Zitatblöcke mit "> ". Der letzte Absatz gehört der nächsten Saison.`,
+
+  seasonTeamReview: `Du schreibst das Saisonzeugnis eines einzelnen Teams — der Text, den eine
+Redaktion nach dem letzten Spieltag über jeden Verein veröffentlicht.
+
+AUFTRAG
+- Beginne mit der nackten Bilanz: Platz, Punkte, Kill-Differenz, Serien. Dann die Frage, ob das
+  dem entspricht, was Kader und Marktwerte versprochen haben.
+- Gib dem Kader Noten in Worten: Wer hat die Saison getragen, wer ist durchgefallen, wer hat
+  überrascht? Nutze Einsatzquoten — wer nie aufgestellt wurde, ist ein eigener Absatz wert.
+- Der Trainer bekommt eine eigene Einordnung, passend zu seiner hinterlegten Persönlichkeit.
+- Blicke voraus: Was muss im Transferfenster und im Draft passieren? Formuliere das als Forderung
+  oder Spekulation, niemals als beschlossene Sache.
+- Greife die Geschichten auf, die um dieses Team liefen, und sage, wo sie stehen.
+
+FORM
+- Fünf bis acht Absätze. Eine Zwischenüberschrift mit "## " ist erlaubt, ein Zitatblock mit "> "
+  gern gesehen. Die Überschrift nennt das Team.`,
+
+  offseason: `Du schreibst einen Beitrag aus der Pause zwischen zwei Saisons. Die Liga spielt nicht,
+aber sie steht nicht still: Es wird geplant, spekuliert, gerechnet und geredet.
+
+AUFTRAG
+- Such dir ein Thema, das in die Pause gehört: die Marktwerte als Grundlage der Kaderplanung ·
+  ein Pokémon, dessen Verbleib zur Frage geworden ist · ein Trainer unter Beobachtung · eine
+  Bilanz quer über die Liga (Tiers, Einsatzquoten, Draft-Ausbeute) · eine Vorschau auf das
+  Transferfenster oder den Draft · die Frage, wer nächste Saison der Gejagte ist.
+- Baue auf dem auf, was in der Ausblicks-Pressekonferenz gesagt wurde. Ein Versprechen aus dieser
+  Runde ist der beste Aufhänger, den dieser Beitrag haben kann.
+- KANON: Nichts ist beschlossen. Transfers, Verbleib, Trainerwechsel und Draft-Pläne erscheinen
+  ausschließlich als Gerücht, Forderung, Andeutung oder Frage.
+- Wiederhole nicht, was andere Beiträge der Pause schon hatten.
+- Entscheide selbst über die Rubrik: "news", "klatsch", "geruechte" oder "informationen".
+
+FORM
+- Vier bis sieben Absätze. Eine Zwischenüberschrift mit "## " ist erlaubt, ein Zitatblock mit "> "
+  gern gesehen.`,
 };
 
 // === Systeminstruktion =====================================================
@@ -328,7 +443,7 @@ export function buildSystem({ author, extra = '' } = {}) {
       + 'keine Floskeln ("wichtige drei Punkte", "am Ende des Tages"), keine Aufzählung von Zahlen ohne Deutung. '
       + 'Jeder Absatz bringt etwas Neues. Klischees sind erlaubt, wenn sie gebrochen werden.',
     'INTERPRETIERE. Die Metadaten sind Rohmaterial, kein Text. Rechne Tabellensituationen aus, erkenne Serien, '
-      + 'vergleiche Erwartung (Tier, Elo, Draft-Kosten) mit Wirkung (Kills, Einsatzquote, Siege), erkenne, wenn '
+      + 'vergleiche Erwartung (Tier, Marktwert, Draft-Kosten) mit Wirkung (Kills, Einsatzquote, Siege), erkenne, wenn '
       + 'jemand auffällig selten aufgestellt wird, und zieh daraus Schlüsse, die in den Daten nicht ausgeschrieben stehen.',
     extra,
     'Antworte ausschließlich mit dem geforderten JSON-Objekt.',

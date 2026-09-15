@@ -3,10 +3,12 @@
 @import "./font/font.css";
 @import "./awards.css";
 @import "./press.css";
+@import "./market.css";
 @import "./finale.css";
 
 @source "../../index.html";
 @source "../../awards-entwurf.html";
+@source "../../marktwert-entwurf.html";
 @source "../../public/pages/*.html";
 @source "../js/*.{js,mjs}";
 

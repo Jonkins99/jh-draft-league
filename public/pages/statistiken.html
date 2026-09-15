@@ -4,7 +4,9 @@
       <div>
         <p class="font-display text-xs font-semibold uppercase tracking-[0.3em] text-flame-400">Analyse</p>
         <h1 class="mt-1 font-display text-4xl font-bold tracking-wide text-ink md:text-5xl">Statistiken</h1>
-        <p class="mt-2 text-mist">Pokémon-Kennzahlen der Saison und die Elo-basierte Tier-Prognose für die nächste Saison.</p>
+        <p class="mt-2 text-mist" x-text="isAll
+        ? 'Pokémon-Kennzahlen über alle Saisons hinweg, dazu die aktuellen Marktwerte und die Tier-Prognose.'
+        : 'Pokémon-Kennzahlen der Saison sowie Marktwerte und die daraus abgeleitete Tier-Prognose für die nächste Saison.'"></p>
       </div>
       <button type="button" popovertarget="exp-stats" title="Ranking exportieren" x-show="tab === 'stats'"
               class="mt-1 grid size-10 shrink-0 place-items-center rounded-xl border border-line text-mist transition-colors hover:text-flame-400">
@@ -12,9 +14,9 @@
       </button>
     </div>
 
-    <!-- Umschalter Stats | Elo -->
+    <!-- Umschalter Stats | Marktwerte -->
     <div class="flex gap-2">
-      <template x-for="t in [{v:'stats', l:'Stats'},{v:'elo', l:'Elo'}]" :key="'tab-'+t.v">
+      <template x-for="t in [{v:'stats', l:'Stats'},{v:'elo', l:'Marktwerte'}]" :key="'tab-'+t.v">
         <button type="button" @click="setTab(t.v)"
                 class="rounded-xl border px-4 py-2 font-display text-sm font-semibold uppercase tracking-wider transition-colors"
                 :class="tab === t.v ? 'border-flame-500 bg-flame-500/10 text-flame-300' : 'border-line text-mist hover:text-ink'"
@@ -196,30 +198,45 @@
     </div>
   </div>
 
-  <!-- ============================ ELO-TAB ============================ -->
+  <!-- ========================= MARKTWERT-TAB ========================= -->
   <div x-show="tab === 'elo'">
-    <!-- Kopf: Aktualisieren + Zeitstempel -->
-    <section class="mb-6 flex flex-col gap-3 rounded-2xl border border-line bg-panel p-4 sm:flex-row sm:items-center sm:justify-between sm:p-5">
-      <div class="min-w-0">
-        <h2 class="font-display text-xl font-bold uppercase tracking-wider text-ink">Tier-Prognose</h2>
-        <p class="mt-1 text-sm text-mist">Errechnetes Tier für die nächste Saison anhand des aktuellen Elo-Stands. <span x-show="hasElo">Aktualisiert <span x-text="eloUpdatedText"></span>.</span></p>
+    <!-- Kopf: Gesamtwert, Update starten, Zeitstempel -->
+    <section class="mb-6 rounded-2xl border border-line bg-panel p-4 sm:p-5">
+      <div class="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
+        <div class="min-w-0">
+          <h2 class="font-display text-xl font-bold uppercase tracking-wider text-ink">Marktwerte</h2>
+          <p class="mt-1 text-sm text-mist">
+            Der Marktwert übersetzt den Elo-Stand aus dem Draft-Sheet in einen Betrag — und daraus entsteht die Tier-Prognose für die nächste Saison.
+            <span x-show="hasElo">Aktualisiert <span x-text="eloUpdatedText"></span>.</span>
+          </p>
+          <p x-show="hasElo" class="mt-3 flex flex-wrap items-baseline gap-x-2 gap-y-1">
+            <span class="font-display text-2xl font-black tabular-nums text-volt-400 sm:text-3xl" x-text="marketTotal"></span>
+            <span class="text-xs text-mist">Gesamtwert aller gelisteten Pokémon</span>
+          </p>
+        </div>
+        <div class="flex shrink-0 flex-col gap-2 sm:items-end">
+          <button type="button" @click="startMarketUpdate()" :disabled="eloLoading"
+                  class="inline-flex items-center justify-center gap-2 rounded-xl bg-flame-500 px-4 py-2.5 font-display text-sm font-bold uppercase tracking-wide text-white transition-colors hover:bg-flame-600 disabled:opacity-60">
+            <svg viewBox="0 0 24 24" class="size-4" :class="eloLoading ? 'animate-spin' : ''" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M21 12a9 9 0 1 1-2.64-6.36"/><path d="M21 3v5h-5"/></svg>
+            <span x-text="eloLoading ? 'Lädt…' : 'Marktwert-Update starten'"></span>
+          </button>
+          <button type="button" x-show="hasLastUpdate" @click="showMarketUpdate()"
+                  class="inline-flex items-center justify-center gap-2 rounded-xl border border-line px-3 py-2 font-display text-xs font-semibold uppercase tracking-wider text-mist transition-colors hover:border-flame-500/40 hover:text-flame-400">
+            Letztes Update ansehen (<span x-text="lastUpdateText"></span>)
+          </button>
+        </div>
       </div>
-      <button type="button" @click="refreshElo()" :disabled="eloLoading"
-              class="inline-flex shrink-0 items-center justify-center gap-2 rounded-xl border border-line px-4 py-2.5 font-display text-sm font-semibold text-mist transition-colors hover:border-flame-500/40 hover:text-flame-400 disabled:opacity-60">
-        <svg viewBox="0 0 24 24" class="size-4" :class="eloLoading ? 'animate-spin' : ''" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M21 12a9 9 0 1 1-2.64-6.36"/><path d="M21 3v5h-5"/></svg>
-        <span x-text="eloLoading ? 'Lädt…' : 'Aktualisieren'"></span>
-      </button>
     </section>
 
     <div x-show="eloUnresolved.length" class="mb-6 rounded-2xl border border-flame-500/40 bg-flame-500/5 p-4 text-sm text-flame-300">
       <p class="font-semibold">Namen aus dem Sheet ohne Zuordnung</p>
-      <p class="mt-1 text-mist">Diese Einträge lassen sich keinem Pokémon der Stammdaten zuordnen und bleiben ohne Elo — vermutlich wurden sie im Sheet umbenannt: <span class="font-semibold text-ink" x-text="eloUnresolved.join(', ')"></span></p>
+      <p class="mt-1 break-words text-mist">Diese Einträge lassen sich keinem Pokémon der Stammdaten zuordnen und bleiben ohne Marktwert — vermutlich wurden sie im Sheet umbenannt: <span class="font-semibold text-ink" x-text="eloUnresolved.join(', ')"></span></p>
     </div>
 
-    <div x-show="!hasElo && eloLoading" class="py-12 text-center text-mist">Lade Elo-Daten…</div>
+    <div x-show="!hasElo && eloLoading" class="py-12 text-center text-mist">Lade Marktwerte…</div>
     <div x-show="!hasElo && !eloLoading" class="rounded-2xl border border-line bg-panel p-8 text-center text-mist">
-      <p x-show="eloError" class="text-flame-400">Elo-Daten konnten nicht geladen werden.</p>
-      <p x-show="!eloError">Noch keine Elo-Daten geladen.</p>
+      <p x-show="eloError" class="text-flame-400">Marktwerte konnten nicht geladen werden.</p>
+      <p x-show="!eloError">Noch keine Marktwerte geladen.</p>
       <button type="button" @click="refreshElo()" class="mt-3 rounded-lg border border-line px-3 py-2 text-sm font-semibold text-mist transition-colors hover:text-flame-400">Jetzt laden</button>
     </div>
 
@@ -238,7 +255,7 @@
               <div class="grid grid-cols-1 gap-2 sm:grid-cols-2">
                 <template x-for="r in tierChanges.up" :key="'up-'+r.name">
                   <button type="button" @click="goMon(r.name)"
-                          class="flex items-center gap-3 rounded-xl border border-line bg-elevated/40 p-2.5 text-left transition-colors hover:border-flame-500/40"
+                          class="flex min-w-0 items-center gap-3 rounded-xl border border-line bg-elevated/40 p-2.5 text-left transition-colors hover:border-flame-500/40"
                           style="border-left:3px solid #63bc5a">
                     <img :src="r.image" :alt="r.name" loading="lazy" class="size-11 shrink-0 object-contain" />
                     <div class="min-w-0 flex-1">
@@ -249,7 +266,10 @@
                         <span class="rounded px-1.5 py-0.5 font-bold" :style="`color:${tierColor(r.projectedTier)};background:${tierColor(r.projectedTier)}26`" x-text="r.projectedTier"></span>
                       </p>
                     </div>
-                    <span class="shrink-0 font-display text-xs font-bold tabular-nums text-mist" x-text="r.elo"></span>
+                    <span class="shrink-0 text-right">
+                      <span class="block font-display text-xs font-bold tabular-nums text-ink" x-text="fmtMarket(r.market)"></span>
+                      <span class="block text-[10px] tabular-nums text-mist" x-text="`(Elo ${r.elo ?? '—'})`"></span>
+                    </span>
                   </button>
                 </template>
               </div>
@@ -263,7 +283,7 @@
               <div class="grid grid-cols-1 gap-2 sm:grid-cols-2">
                 <template x-for="r in tierChanges.down" :key="'down-'+r.name">
                   <button type="button" @click="goMon(r.name)"
-                          class="flex items-center gap-3 rounded-xl border border-line bg-elevated/40 p-2.5 text-left transition-colors hover:border-flame-500/40"
+                          class="flex min-w-0 items-center gap-3 rounded-xl border border-line bg-elevated/40 p-2.5 text-left transition-colors hover:border-flame-500/40"
                           style="border-left:3px solid #e3350d">
                     <img :src="r.image" :alt="r.name" loading="lazy" class="size-11 shrink-0 object-contain" />
                     <div class="min-w-0 flex-1">
@@ -274,7 +294,10 @@
                         <span class="rounded px-1.5 py-0.5 font-bold" :style="`color:${tierColor(r.projectedTier)};background:${tierColor(r.projectedTier)}26`" x-text="r.projectedTier"></span>
                       </p>
                     </div>
-                    <span class="shrink-0 font-display text-xs font-bold tabular-nums text-mist" x-text="r.elo"></span>
+                    <span class="shrink-0 text-right">
+                      <span class="block font-display text-xs font-bold tabular-nums text-ink" x-text="fmtMarket(r.market)"></span>
+                      <span class="block text-[10px] tabular-nums text-mist" x-text="`(Elo ${r.elo ?? '—'})`"></span>
+                    </span>
                   </button>
                 </template>
               </div>
@@ -282,10 +305,12 @@
           </div>
         </section>
 
-        <!-- Elo-Tabelle (sortierbar) -->
+        <!-- Marktwert-Tabelle (sortierbar) -->
         <section class="rounded-2xl border border-line bg-panel p-4 sm:p-6">
-          <h3 class="mb-4 font-display text-lg font-bold uppercase tracking-wider text-ink">Elo-Rangliste</h3>
-          <div class="-mx-1 overflow-x-auto px-1">
+          <h3 class="mb-4 font-display text-lg font-bold uppercase tracking-wider text-ink">Marktwert-Rangliste</h3>
+          <!-- Ohne seitliche Polsterung: sonst bleibt links der sticky Spalte ein Streifen,
+               durch den beim Scrollen der Text dahinter sichtbar wird. -->
+          <div class="overflow-x-auto">
             <table class="w-full min-w-max border-collapse text-sm">
               <thead>
                 <tr class="border-b border-line">
@@ -302,6 +327,11 @@
                   <th class="whitespace-nowrap px-3 py-2 text-left">
                     <button type="button" @click="setEloSort('team')" class="inline-flex items-center gap-1 font-display text-xs font-semibold uppercase tracking-wider transition-colors" :class="eloSortKey === 'team' ? 'text-flame-400' : 'text-mist hover:text-ink'">
                       Team <span x-text="eloSortIndicator('team')"></span>
+                    </button>
+                  </th>
+                  <th class="whitespace-nowrap px-3 py-2 text-right">
+                    <button type="button" @click="setEloSort('market')" class="inline-flex items-center gap-1 font-display text-xs font-semibold uppercase tracking-wider transition-colors" :class="eloSortKey === 'market' ? 'text-flame-400' : 'text-mist hover:text-ink'">
+                      Marktwert <span x-text="eloSortIndicator('market')"></span>
                     </button>
                   </th>
                   <th class="whitespace-nowrap px-3 py-2 text-right">
@@ -324,9 +354,8 @@
               <tbody>
                 <template x-for="r in eloRows" :key="'elo-'+r.name">
                   <tr class="cursor-pointer border-b border-line/40 transition-colors hover:bg-elevated/40" @click="goMon(r.name)"
-                      :style="r.delta > 0 ? 'background:rgba(99,188,90,0.07)' : (r.delta < 0 ? 'background:rgba(227,53,13,0.07)' : '')">
-                    <td class="sticky left-0 z-10 bg-panel py-2 pr-2"
-                        :style="r.delta > 0 ? 'background:rgba(99,188,90,0.07)' : (r.delta < 0 ? 'background:rgba(227,53,13,0.07)' : '')">
+                      :style="rowTint(r.delta)">
+                    <td class="sticky left-0 z-10 bg-panel py-2 pr-2" :style="stickyTint(r.delta)">
                       <div class="flex items-center gap-2">
                         <span class="w-6 shrink-0 text-right font-display text-xs font-bold tabular-nums text-mist/70" x-text="r.rang ?? '—'"></span>
                         <img x-show="r.image" :src="r.image" :alt="r.name" loading="lazy" class="size-8 shrink-0 object-contain" />
@@ -343,7 +372,8 @@
                       </div>
                       <span x-show="!r.team" class="text-xs text-mist">Frei</span>
                     </td>
-                    <td class="whitespace-nowrap px-3 py-2 text-right font-display font-bold tabular-nums text-ink" x-text="r.elo ?? '—'"></td>
+                    <td class="whitespace-nowrap px-3 py-2 text-right font-display font-bold tabular-nums text-ink" x-text="fmtMarket(r.market)"></td>
+                    <td class="whitespace-nowrap px-3 py-2 text-right tabular-nums text-mist" x-text="r.elo ?? '—'"></td>
                     <td class="whitespace-nowrap px-3 py-2 text-center">
                       <span x-show="r.currentTier" class="inline-block rounded-full px-2 py-0.5 text-xs font-bold" :style="`color:${tierColor(r.currentTier)};background:${tierColor(r.currentTier)}26`" x-text="r.currentTier"></span>
                       <span x-show="!r.currentTier" class="text-mist">—</span>
@@ -366,4 +396,8 @@
       </div>
     </template>
   </div>
+
+  <!-- ===================== MARKTWERT-UPDATE (Bühne) ===================== -->
+  <div popover="manual" id="market-show" class="mvx"
+       @toggle="if ($event.newState === 'closed') closeMarketShow()"></div>
 </div>

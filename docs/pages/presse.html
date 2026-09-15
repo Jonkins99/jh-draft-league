@@ -120,9 +120,9 @@ match /settings/{doc} { allow read, write: if true; }</code></pre>
                   <span x-show="lead.day" class="rounded-full border border-line px-2.5 py-1 font-display text-[10px] font-bold uppercase tracking-wider text-mist" x-text="`Spieltag ${lead.day}`"></span>
                   <span class="text-[11px] text-mist" x-text="fmtDate(lead.publishedAt)"></span>
                 </div>
-                <p x-show="lead.subtitle" class="mt-4 font-display text-xs font-bold uppercase tracking-[0.25em] text-flame-400" x-text="lead.subtitle"></p>
-                <h2 class="mt-1 font-display text-2xl font-bold leading-tight tracking-wide text-ink transition-colors group-hover:text-flame-300 md:text-4xl" x-text="lead.title"></h2>
-                <p class="mt-3 text-sm leading-relaxed text-mist md:text-base" x-text="excerptOf(lead)"></p>
+                <p x-show="lead.subtitle" class="press-break mt-4 font-display text-xs font-bold uppercase tracking-[0.25em] text-flame-400" x-text="lead.subtitle"></p>
+                <h2 class="press-break mt-1 font-display text-2xl font-bold leading-tight tracking-wide text-ink transition-colors group-hover:text-flame-300 md:text-4xl" x-text="lead.title"></h2>
+                <p class="press-break mt-3 text-sm leading-relaxed text-mist md:text-base" x-text="excerptOf(lead)"></p>
                 <div class="mt-5 flex flex-wrap items-center gap-3">
                   <img :src="author(lead.authorId).image" :alt="author(lead.authorId).name" class="press-portrait size-10 rounded-full border border-line bg-elevated" />
                   <div class="min-w-0">
@@ -169,7 +169,7 @@ match /settings/{doc} { allow read, write: if true; }</code></pre>
               <template x-if="a.status === 'error'">
                 <div class="mt-3">
                   <p class="font-display text-base font-bold text-flame-300">Der Beitrag ist nicht fertig geworden.</p>
-                  <p class="mt-1 text-xs text-mist" x-text="a.error"></p>
+                  <p class="press-break mt-1 text-xs text-mist" x-text="a.error"></p>
                   <div class="mt-2 flex gap-2">
                     <button type="button" x-show="a.source?.type === 'match'" @click.stop="regenerate(a.id)"
                             class="rounded-lg border border-line px-2.5 py-1.5 text-xs font-semibold text-mist transition-colors hover:text-flame-400">Erneut versuchen</button>
@@ -180,9 +180,9 @@ match /settings/{doc} { allow read, write: if true; }</code></pre>
               </template>
               <template x-if="a.status === 'ready'">
                 <div class="mt-2 flex min-w-0 flex-1 flex-col">
-                  <p x-show="a.subtitle" class="font-display text-[11px] font-bold uppercase tracking-[0.22em] text-flame-400" x-text="a.subtitle"></p>
-                  <h3 class="mt-0.5 font-display text-lg font-bold leading-snug text-ink" x-text="a.title"></h3>
-                  <p class="mt-2 line-clamp-3 text-sm leading-relaxed text-mist" x-text="excerptOf(a)"></p>
+                  <p x-show="a.subtitle" class="press-break font-display text-[11px] font-bold uppercase tracking-[0.22em] text-flame-400" x-text="a.subtitle"></p>
+                  <h3 class="press-break mt-0.5 font-display text-lg font-bold leading-snug text-ink" x-text="a.title"></h3>
+                  <p class="press-break mt-2 line-clamp-3 text-sm leading-relaxed text-mist" x-text="excerptOf(a)"></p>
                   <div class="mt-4 flex items-center gap-2.5 pt-1">
                     <img :src="author(a.authorId).image" :alt="author(a.authorId).name" class="press-portrait size-8 rounded-full border border-line bg-elevated" />
                     <span class="min-w-0 truncate font-display text-xs font-semibold text-mist" x-text="author(a.authorId).name"></span>
@@ -316,8 +316,8 @@ match /settings/{doc} { allow read, write: if true; }</code></pre>
               <span x-show="article.editorial" class="rounded-full border border-volt-400/50 bg-volt-400/10 px-2.5 py-1 font-display text-[10px] font-bold uppercase tracking-wider text-volt-400">Redaktion</span>
               <span x-show="article.day" class="rounded-full border border-line px-2.5 py-1 font-display text-[10px] font-bold uppercase tracking-wider text-mist" x-text="`Spieltag ${article.day}`"></span>
             </div>
-            <p x-show="article.subtitle" class="mt-4 font-display text-xs font-bold uppercase tracking-[0.25em] text-flame-400" x-text="article.subtitle"></p>
-            <h2 class="mt-1 font-display text-2xl font-bold leading-tight tracking-wide text-ink sm:text-3xl" x-text="article.title"></h2>
+            <p x-show="article.subtitle" class="press-break mt-4 font-display text-xs font-bold uppercase tracking-[0.25em] text-flame-400" x-text="article.subtitle"></p>
+            <h2 class="press-break mt-1 font-display text-2xl font-bold leading-tight tracking-wide text-ink sm:text-3xl" x-text="article.title"></h2>
           </div>
           <img :src="author(article.authorId).image" :alt="author(article.authorId).name"
                class="press-portrait hidden h-32 w-auto shrink-0 self-end object-contain sm:block" />
@@ -350,16 +350,16 @@ match /settings/{doc} { allow read, write: if true; }</code></pre>
             <div class="flex flex-wrap gap-2">
               <template x-for="tid in (article.teamIds || [])" :key="'at-'+tid">
                 <button type="button" @click="goTeam(tid)"
-                        class="inline-flex items-center gap-2 rounded-xl border border-line px-3 py-1.5 text-sm text-mist transition-colors hover:border-flame-500/40 hover:text-ink">
-                  <img :src="teamLogo(tid)" alt="" class="size-5 object-contain" />
-                  <span x-text="teamById(tid)?.name || tid"></span>
+                        class="inline-flex max-w-full items-center gap-2 rounded-xl border border-line px-3 py-1.5 text-sm text-mist transition-colors hover:border-flame-500/40 hover:text-ink">
+                  <img :src="teamLogo(tid)" alt="" class="size-5 shrink-0 object-contain" />
+                  <span class="press-break" x-text="teamById(tid)?.name || tid"></span>
                 </button>
               </template>
               <template x-for="name in (article.pokemonNames || [])" :key="'am-'+name">
                 <button type="button" @click="goMon(name)"
-                        class="inline-flex items-center gap-2 rounded-xl border border-line px-3 py-1.5 text-sm text-mist transition-colors hover:border-flame-500/40 hover:text-ink">
-                  <img :src="monImage(name)" alt="" class="size-5 object-contain" />
-                  <span x-text="name"></span>
+                        class="inline-flex max-w-full items-center gap-2 rounded-xl border border-line px-3 py-1.5 text-sm text-mist transition-colors hover:border-flame-500/40 hover:text-ink">
+                  <img :src="monImage(name)" alt="" class="size-5 shrink-0 object-contain" />
+                  <span class="press-break" x-text="name"></span>
                 </button>
               </template>
             </div>
@@ -370,11 +370,11 @@ match /settings/{doc} { allow read, write: if true; }</code></pre>
             <div class="grid gap-2">
               <template x-for="s in (article.storylines || [])" :key="'as-'+s.id">
                 <div class="rounded-xl border px-3 py-2" :style="`border-color:${storyColor(s.status)}44;background:${storyColor(s.status)}0f`">
-                  <p class="font-display text-sm font-bold" :style="`color:${storyColor(s.status)}`">
+                  <p class="press-break font-display text-sm font-bold" :style="`color:${storyColor(s.status)}`">
                     <span x-text="s.title"></span>
                     <span class="font-normal opacity-70" x-text="`· ${s.status}`"></span>
                   </p>
-                  <p class="mt-0.5 text-xs leading-relaxed text-mist" x-text="s.summary"></p>
+                  <p class="press-break mt-0.5 text-xs leading-relaxed text-mist" x-text="s.summary"></p>
                 </div>
               </template>
             </div>
@@ -567,15 +567,16 @@ match /settings/{doc} { allow read, write: if true; }</code></pre>
           <div class="mt-6 grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
             <template x-for="r in roleOptions" :key="'role-'+r.kind+'-'+r.name">
               <button type="button" @click="chooseRole(r)"
-                      class="flex items-center gap-3 rounded-2xl border border-line bg-panel/80 p-3 text-left backdrop-blur transition-colors hover:border-flame-500/50">
+                      class="flex min-w-0 items-start gap-3 overflow-hidden rounded-2xl border border-line bg-panel/80 p-3 text-left backdrop-blur transition-colors hover:border-flame-500/50">
                 <span class="grid size-14 shrink-0 place-items-center overflow-hidden rounded-xl border border-line bg-elevated">
                   <img x-show="r.image" :src="r.image" :alt="r.name" class="size-12 object-contain" />
                   <svg x-show="!r.image" viewBox="0 0 24 24" class="size-6 text-mist" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"><circle cx="12" cy="8" r="3.4"/><path d="M5 20a7 7 0 0 1 14 0"/></svg>
                 </span>
-                <span class="min-w-0">
-                  <span class="block truncate font-display text-base font-bold text-ink" x-text="r.name"></span>
+                <span class="press-break flex-1">
+                  <span class="block font-display text-base font-bold text-ink" x-text="r.name"></span>
                   <span class="block text-[11px] uppercase tracking-wider text-flame-400" x-text="r.kind === 'trainer' ? 'Trainer' : 'Pokémon'"></span>
-                  <span x-show="r.traits?.length" class="mt-0.5 block truncate text-[11px] text-mist" x-text="(r.traits || []).join(', ')"></span>
+                  <span x-show="r.traits?.length" class="mt-0.5 line-clamp-3 block text-[11px] leading-snug text-mist"
+                        x-text="(r.traits || []).join(', ')" :title="(r.traits || []).join(', ')"></span>
                 </span>
               </button>
             </template>
@@ -626,7 +627,7 @@ match /settings/{doc} { allow read, write: if true; }</code></pre>
               <p class="text-center font-display text-[11px] font-bold uppercase tracking-[0.25em]"
                  :class="q.provocative ? 'text-flame-400' : 'text-mist'"
                  x-text="q.topic || (q.provocative ? 'Nachgehakt' : 'Zur Lage')"></p>
-              <blockquote class="mt-3 text-center font-display text-xl font-bold leading-snug tracking-wide text-ink sm:text-2xl">
+              <blockquote class="press-break mt-3 text-center font-display text-xl font-bold leading-snug tracking-wide text-ink sm:text-2xl">
                 <span x-text="`„${q.text}“`"></span>
               </blockquote>
               <p class="mt-3 text-center text-xs text-mist">
@@ -640,7 +641,7 @@ match /settings/{doc} { allow read, write: if true; }</code></pre>
             <template x-for="(o, i) in (stageQuestion.options || [])" :key="'opt-'+stage.index+'-'+i">
               <button type="button" @click="answerWith(o)"
                       class="group rounded-2xl border border-line bg-panel/80 p-4 text-left backdrop-blur transition-colors hover:border-flame-500/50 hover:bg-panel">
-                <p class="text-sm leading-relaxed text-ink" x-text="`„${o.text}“`"></p>
+                <p class="press-break text-sm leading-relaxed text-ink" x-text="`„${o.text}“`"></p>
                 <p class="mt-2 font-display text-[10px] font-bold uppercase tracking-wider text-mist transition-colors group-hover:text-flame-400"
                    x-text="o.stance === 'souveraen' ? 'ruhig und klar' : o.stance === 'ausweichend' ? 'ausweichend' : 'mit Gegenwehr'"></p>
               </button>
@@ -664,9 +665,9 @@ match /settings/{doc} { allow read, write: if true; }</code></pre>
         <!-- Abschluss -->
         <div x-show="stage.phase === 'done'" class="relative flex flex-1 flex-col items-center justify-center gap-4 px-6 py-20 text-center">
           <p class="font-display text-xs font-semibold uppercase tracking-[0.3em] text-flame-400">Abgedruckt</p>
-          <h2 class="max-w-2xl font-display text-2xl font-bold tracking-wide text-ink sm:text-3xl"
+          <h2 class="press-break max-w-2xl font-display text-2xl font-bold tracking-wide text-ink sm:text-3xl"
               x-text="press.byId(stage.articleId)?.title || 'Der Beitrag ist online.'"></h2>
-          <p class="max-w-lg text-sm text-mist" x-text="press.byId(stage.articleId)?.subtitle || ''"></p>
+          <p class="press-break max-w-lg text-sm text-mist" x-text="press.byId(stage.articleId)?.subtitle || ''"></p>
           <div class="mt-2 flex flex-wrap justify-center gap-2">
             <button type="button" @click="readStageArticle()"
                     class="rounded-xl bg-flame-500 px-5 py-2.5 font-display text-sm font-bold uppercase tracking-wider text-white transition-colors hover:bg-flame-600">Beitrag lesen</button>
@@ -678,7 +679,7 @@ match /settings/{doc} { allow read, write: if true; }</code></pre>
         <!-- Fehlschlag -->
         <div x-show="stage.phase === 'error'" class="relative flex flex-1 flex-col items-center justify-center gap-4 px-6 py-20 text-center">
           <p class="font-display text-xl font-bold tracking-wide text-flame-300">Der Termin ist geplatzt.</p>
-          <p class="max-w-md text-sm text-mist" x-text="session?.error || press.lastError || 'Die Redaktion war nicht erreichbar.'"></p>
+          <p class="press-break max-w-md text-sm text-mist" x-text="session?.error || press.lastError || 'Die Redaktion war nicht erreichbar.'"></p>
           <div class="flex flex-wrap justify-center gap-2">
             <button type="button" @click="retryStage()"
                     class="rounded-xl bg-flame-500 px-5 py-2.5 font-display text-sm font-bold uppercase tracking-wider text-white transition-colors hover:bg-flame-600">Neu ansetzen</button>
@@ -808,6 +809,45 @@ match /settings/{doc} { allow read, write: if true; }</code></pre>
                   <span class="font-display text-xs font-bold uppercase tracking-wider text-mist" x-text="`ST ${r.day}`"></span>
                   <span class="min-w-0 flex-1 truncate text-sm text-ink" x-text="`Freier Beitrag ${r.index + 1}`"></span>
                   <button type="button" @click="press.generateRandomArticle(r.day, r.index, { force: true })"
+                          :disabled="!press.hasKey || isBusy(r.id)"
+                          class="shrink-0 rounded-lg border border-line px-2.5 py-1.5 text-xs font-semibold text-mist transition-colors hover:text-flame-400 disabled:opacity-40"
+                          x-text="isBusy(r.id) ? 'Schreibt…' : 'Schreiben'"></button>
+                </div>
+              </template>
+            </div>
+          </div>
+
+          <div class="border-t border-line pt-4">
+            <p class="font-display text-sm font-bold uppercase tracking-wider text-ink">Saisonende und Pause</p>
+            <p class="mt-1 text-xs leading-relaxed text-mist">Sobald jede Partie der Saison ein Ergebnis hat, entstehen der große Rückblick und je Team ein Saisonzeugnis. Die freien Beiträge der Pause werden nacheinander freigeschaltet – einer je abgeschlossener Ausblicks-Pressekonferenz.</p>
+            <p x-show="!press.seasonDone" class="mt-3 rounded-xl border border-line bg-elevated/40 px-3 py-2.5 text-sm text-mist">Die Saison läuft noch.</p>
+            <p x-show="press.seasonDone && !press.missingSeasonPress.length" class="mt-3 rounded-xl border border-line bg-elevated/40 px-3 py-2.5 text-sm text-mist">Alles geschrieben, was bisher freigeschaltet ist.</p>
+            <div x-show="press.seasonDone && press.missingSeasonPress.length" class="mt-3 grid gap-2">
+              <template x-for="r in press.missingSeasonPress" :key="'sp-'+r.id">
+                <div class="flex items-center gap-3 rounded-xl border border-line px-3 py-2">
+                  <span class="shrink-0 font-display text-xs font-bold uppercase tracking-wider text-mist"
+                        x-text="r.kind === 'review' ? 'Rückblick' : r.kind === 'team' ? 'Zeugnis' : 'Pause'"></span>
+                  <span class="min-w-0 flex-1 truncate text-sm text-ink" x-text="r.label"></span>
+                  <button type="button" @click="writeSeasonPiece(r)" :disabled="!press.hasKey || isBusy(r.id)"
+                          class="shrink-0 rounded-lg border border-line px-2.5 py-1.5 text-xs font-semibold text-mist transition-colors hover:text-flame-400 disabled:opacity-40"
+                          x-text="isBusy(r.id) ? 'Schreibt…' : 'Schreiben'"></button>
+                </div>
+              </template>
+              <button type="button" @click="press.fillSeasonPress()" :disabled="!press.hasKey || anyBusy"
+                      class="mt-1 rounded-xl bg-flame-500 px-4 py-2.5 font-display text-sm font-bold uppercase tracking-wider text-white transition-colors hover:bg-flame-600 disabled:opacity-40">Alle nachholen</button>
+            </div>
+          </div>
+
+          <div class="border-t border-line pt-4">
+            <p class="font-display text-sm font-bold uppercase tracking-wider text-ink">Marktwert-Updates</p>
+            <p class="mt-1 text-xs leading-relaxed text-mist">Ein Beitrag je Spieltag – sobald alle Partien eingetragen sind und das Draft-Sheet die neuen Marktwerte für diesen Spieltag führt.</p>
+            <p x-show="!press.missingMarketUpdates.length" class="mt-3 rounded-xl border border-line bg-elevated/40 px-3 py-2.5 text-sm text-mist">Zu jedem bewerteten Spieltag liegt ein Update vor.</p>
+            <div x-show="press.missingMarketUpdates.length" class="mt-3 grid gap-2">
+              <template x-for="r in press.missingMarketUpdates" :key="'mu-'+r.id">
+                <div class="flex items-center gap-3 rounded-xl border border-line px-3 py-2">
+                  <span class="font-display text-xs font-bold uppercase tracking-wider text-mist" x-text="`ST ${r.day}`"></span>
+                  <span class="min-w-0 flex-1 truncate text-sm text-ink">Marktwert-Update</span>
+                  <button type="button" @click="press.generateMarketUpdate(r.day, { force: true })"
                           :disabled="!press.hasKey || isBusy(r.id)"
                           class="shrink-0 rounded-lg border border-line px-2.5 py-1.5 text-xs font-semibold text-mist transition-colors hover:text-flame-400 disabled:opacity-40"
                           x-text="isBusy(r.id) ? 'Schreibt…' : 'Schreiben'"></button>

@@ -188,14 +188,24 @@ export function randomAuthors(n, exclude = []) {
 // === Matches & Slots =======================================================
 export const BATTLES_PER_MATCH = 3;
 
-export function matchDocId(day, matchIndex) {
-  return `s1-d${day}-m${matchIndex}`;
+// Die Saison steckt im Präfix jeder Dokument-ID. Der Vorgabewert hält alle
+// bestehenden Aufrufe (und die Saison-1-Daten) unverändert gültig.
+export function matchDocId(day, matchIndex, season = 1) {
+  return `s${season}-d${day}-m${matchIndex}`;
 }
 
 // Spielplan in die tatsächliche Reihenfolge bringen: Spieltag für Spieltag, darin
 // die Paarungen in Listenreihenfolge. Diese Kette entscheidet, wann der Slot „vor
 // dem Spiel“ eines Teams freigeschaltet wird (nämlich mit dem Ergebnis davor).
+// Die Saison steht im Spielplan-Dokument selbst — damit tragen alle abgeleiteten
+// IDs (Matches, Termine) automatisch das richtige Präfix, ohne dass eine Aufrufstelle
+// die Saison durchreichen muss.
+export function seasonOfSchedule(schedule) {
+  return Number.isFinite(schedule?.season) ? schedule.season : 1;
+}
+
 export function matchSequence(schedule) {
+  const season = seasonOfSchedule(schedule);
   const out = [];
   (schedule?.matchdays || []).forEach((md) => {
     (md.matches || []).forEach((m, i) => {
@@ -204,7 +214,7 @@ export function matchSequence(schedule) {
         matchIndex: i,
         home: m.home,
         away: m.away,
-        id: matchDocId(md.day, i),
+        id: matchDocId(md.day, i, season),
         seq: out.length,
       });
     });
@@ -223,8 +233,8 @@ export function slotPlan(teamId, day) {
   return { pre: first, post: first === 'interview' ? 'pk' : 'interview' };
 }
 
-export function sessionDocId(day, teamId, type) {
-  return `s1-d${day}-${teamId}-${type}`;
+export function sessionDocId(day, teamId, type, season = 1) {
+  return `s${season}-d${day}-${teamId}-${type}`;
 }
 
 // Einmalige Auftaktrunde: vor diesem Spieltag tritt JEDES Team einmal zur
@@ -237,15 +247,16 @@ export const BONUS_ROUND_DAY = 8;
 // (Gleiches Muster wie MATCHDAY_AWARDS_FROM in awards.mjs.)
 export const PRESS_FROM_DAY = BONUS_ROUND_DAY;
 
-export function bonusSessionId(teamId, type) {
-  return `s1-bonus-${teamId}-${type}`;
+export function bonusSessionId(teamId, type, season = 1) {
+  return `s${season}-bonus-${teamId}-${type}`;
 }
 
 export function bonusSlotsFor(teamId, schedule, sessions = []) {
+  const season = seasonOfSchedule(schedule);
   const match = matchSequence(schedule).find((m) => m.day === BONUS_ROUND_DAY && (m.home === teamId || m.away === teamId));
   if (!match) return [];
   return ['pk', 'interview'].map((type) => {
-    const id = bonusSessionId(teamId, type);
+    const id = bonusSessionId(teamId, type, season);
     return {
       id,
       day: BONUS_ROUND_DAY,
@@ -273,12 +284,59 @@ export function bonusRoundProgress(teamIds, schedule, sessions) {
   return { done: rows.filter((r) => r.done).length, total: rows.length };
 }
 
+// === Ausblicksrunde nach der Saison ========================================
+// Wenn die Saison gespielt ist, tritt jedes Team ein letztes Mal an: die Runde vor
+// Transferfenster und Draft. Sie hat fünf statt drei Fragen und ist der Aufhänger
+// für alles, was die Presse in der Pause noch schreibt.
+export const OUTLOOK_QUESTIONS = 5;
+
+export function outlookSessionId(teamId, season = 1) {
+  return `s${season}-outlook-${teamId}`;
+}
+
+/** Ist jede geplante Partie der Saison gespielt? */
+export function seasonComplete(schedule, results) {
+  const seq = matchSequence(schedule);
+  if (!seq.length) return false;
+  const byId = {};
+  (results || []).forEach((r) => { if (r?.id) byId[r.id] = r; });
+  return seq.every((m) => isMatchComplete(byId[m.id]));
+}
+
+export function outlookSlotFor(teamId, schedule, results, sessions = []) {
+  const seq = matchSequence(schedule);
+  if (!seq.some((m) => m.home === teamId || m.away === teamId)) return null;
+  const season = seasonOfSchedule(schedule);
+  const id = outlookSessionId(teamId, season);
+  const open = seasonComplete(schedule, results);
+  return {
+    id,
+    day: null,
+    teamId,
+    opponentId: null,
+    home: false,
+    matchId: null,
+    slot: 'outlook',
+    type: 'pk',
+    open,
+    blockedBy: open ? null : 'season',
+    done: (sessions || []).some((s) => s?.id === id && s.status === 'done'),
+  };
+}
+
+/** Wie viele Teams haben ihre Ausblicks-PK schon hinter sich? */
+export function outlookProgress(teamIds, schedule, results, sessions) {
+  const rows = (teamIds || []).map((id) => outlookSlotFor(id, schedule, results, sessions)).filter(Boolean);
+  return { done: rows.filter((r) => r.done).length, total: rows.length };
+}
+
 // Alle Presse-Termine eines Teams: je Spieltag ein Interview und eine Pressekonferenz.
 //   „vor dem Spiel“  — frei, sobald das im Spielplan davorliegende Match fertig ist
 //   „nach dem Spiel“ — frei, sobald das eigene Match fertig ist (3. Kampf eingetragen)
 // Davor liegt einmalig die Auftaktrunde; solange sie läuft, bleibt der Vor-dem-Spiel-
 // Termin des Auftakt-Spieltags gesperrt.
 export function pressSlots(teamId, schedule, results, sessions = [], bonusComplete = false) {
+  const season = seasonOfSchedule(schedule);
   const seq = matchSequence(schedule);
   const byId = {};
   (results || []).forEach((r) => { if (r?.id) byId[r.id] = r; });
@@ -291,7 +349,7 @@ export function pressSlots(teamId, schedule, results, sessions = [], bonusComple
     const plan = slotPlan(teamId, m.day);
     // Spieltage vor dem Pressestart bleiben leer — es sei denn, dort hat schon
     // einmal ein Termin stattgefunden.
-    if (m.day < PRESS_FROM_DAY && !['pre', 'post'].some((s) => hasSession(sessionDocId(m.day, teamId, plan[s])))) return;
+    if (m.day < PRESS_FROM_DAY && !['pre', 'post'].some((s) => hasSession(sessionDocId(m.day, teamId, plan[s], season)))) return;
     const prev = m.seq > 0 ? seq[m.seq - 1] : null;
     const waitsForBonus = m.day === BONUS_ROUND_DAY && !bonusComplete;
     const preOpen = (!prev || isMatchComplete(byId[prev.id])) && !waitsForBonus;
@@ -299,7 +357,7 @@ export function pressSlots(teamId, schedule, results, sessions = [], bonusComple
     const opponent = m.home === teamId ? m.away : m.home;
     [['pre', preOpen], ['post', postOpen]].forEach(([slot, open]) => {
       out.push({
-        id: sessionDocId(m.day, teamId, plan[slot]),
+        id: sessionDocId(m.day, teamId, plan[slot], season),
         day: m.day,
         teamId,
         opponentId: opponent,
@@ -314,12 +372,17 @@ export function pressSlots(teamId, schedule, results, sessions = [], bonusComple
     });
   });
 
+  const outlook = outlookSlotFor(teamId, schedule, results, sessions);
+
   const rank = { bonus: 0, pre: 1, post: 2 };
-  return out.sort((a, b) => a.day - b.day || rank[a.slot] - rank[b.slot]);
+  const sorted = out.sort((a, b) => a.day - b.day || rank[a.slot] - rank[b.slot]);
+  // Die Ausblicksrunde liegt hinter allen Spieltagen und trägt deshalb keinen Tag.
+  return outlook ? [...sorted, outlook] : sorted;
 }
 
 export function slotLabel(slot) {
   if (slot === 'bonus') return 'Auftaktrunde';
+  if (slot === 'outlook') return 'Nach der Saison';
   return slot === 'pre' ? 'Vor dem Spiel' : 'Nach dem Spiel';
 }
 

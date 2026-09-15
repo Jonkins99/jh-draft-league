@@ -10,7 +10,14 @@
 import { battleStats, computeStandings, pokemonStats } from './scoring.mjs';
 import { AWARD_BY_KEY, awardWinners } from './awards.mjs';
 import { currentTrainer, trainerHistory, periodLabel, genderLabel } from './trainers.mjs';
-import { activeStorylines, authorById, categoryLabel, matchSequence, isMatchComplete, plainText } from './press.mjs';
+import {
+  activeStorylines, collectStorylines, authorById, categoryLabel,
+  matchSequence, isMatchComplete, plainText, seasonComplete,
+} from './press.mjs';
+import {
+  marketValue, formatMarket, formatMarketDelta, formatPercent,
+  historyDiff, stopKeyForDay, squadMarketValue, eloIndex, historyStops, squadHistory,
+} from './market.mjs';
 
 const round2 = (n) => Math.round((Number(n) || 0) * 100) / 100;
 const pct = (n) => `${Math.round((Number(n) || 0) * 100)} %`;
@@ -19,9 +26,74 @@ function teamById(teams, id) {
   return (teams || []).find((t) => t.id === id) || null;
 }
 
+// Marktwert ist die führende Größe; Elo bleibt als Rohwert dabei, damit das Modell
+// die Herkunft kennt — im Text darf er höchstens in Klammern auftauchen.
 function eloFor(eloRows, name) {
   const row = (eloRows || []).find((r) => r?.resolved === name);
-  return row ? { elo: row.elo, eloRang: row.rang, prognoseTier: row.projectedTier } : {};
+  if (!row) return {};
+  return {
+    marktwert: formatMarket(marketValue(row.elo)),
+    marktwertEuro: marketValue(row.elo),
+    elo: row.elo,
+    eloRang: row.rang,
+    prognoseTier: row.projectedTier,
+  };
+}
+
+// === Marktwert-Update ======================================================
+// Was ein Spieltag mit den Marktwerten gemacht hat: Tier-Wechsel und die größten
+// Bewegungen. Grundlage sind die Verlaufsspalten des Sheets, nicht der lokale
+// Zwischenstand eines Geräts — dieser Block sieht damit auf jedem Gerät gleich aus.
+export function marketBlock(eloRows, teams, day) {
+  const rows = eloRows || [];
+  if (!rows.length) return null;
+  const index = eloIndex(rows);
+  const teamOf = {};
+  (teams || []).forEach((t) => (t.pokemon || []).forEach((p) => { teamOf[p.name] = t.name; }));
+
+  const line = (r) => ({
+    pokemon: r.name,
+    team: teamOf[r.name] || null,
+    vorher: formatMarket(r.fromValue),
+    nachher: formatMarket(r.toValue),
+    veraenderung: formatMarketDelta(r.delta),
+    prozent: formatPercent(r.pct),
+    tierVorher: r.fromTier,
+    tierNachher: r.toTier,
+    elo: `${r.fromElo} -> ${r.toElo}`,
+  });
+
+  const stopKey = day != null ? stopKeyForDay(rows, day) : null;
+  const diff = stopKey ? historyDiff(rows, stopKey, { limit: 8 }) : null;
+
+  const stops = historyStops(rows);
+  const kaderwerte = (teams || [])
+    .map((t) => {
+      const verlauf = squadHistory(t.pokemon || [], index, stops);
+      const first = verlauf[0];
+      const last = verlauf[verlauf.length - 1];
+      return {
+        team: t.name,
+        teamId: t.id,
+        gesamtmarktwert: formatMarket(squadMarketValue(t.pokemon || [], index)),
+        gesamtmarktwertEuro: squadMarketValue(t.pokemon || [], index),
+        veraenderungSeitStart: first && last ? formatMarketDelta(last.value - first.value) : null,
+      };
+    })
+    .sort((a, b) => b.gesamtmarktwertEuro - a.gesamtmarktwertEuro)
+    .map((t, i) => ({ platz: i + 1, ...t }));
+
+  return {
+    hinweis: 'Marktwerte sind die Fußball-Metapher für den Elo-Stand des Draft-Sheets. '
+      + 'Im Text ist der Marktwert die Leitgröße; der Elo-Wert darf höchstens in Klammern stehen.',
+    spieltag: day ?? null,
+    stand: stopKey,
+    tierWechsel: diff ? diff.tierChanges.map(line) : [],
+    groessteGewinner: diff ? diff.up.map(line) : [],
+    groessteVerlierer: diff ? diff.down.map(line) : [],
+    bewegtePokemon: diff ? diff.changed : null,
+    kaderwerte,
+  };
 }
 
 // === Tabelle ===============================================================
@@ -193,7 +265,7 @@ function awardsBlock(team, awardDocs) {
 
 export function teamBlock(team, { teams, results, schedule, pokedex, eloRows, awardDocs }) {
   if (!team) return null;
-  const table = standingsBlock((teams || []).filter((t) => t.season === 1), results);
+  const table = standingsBlock(teams || [], results);
   const row = table.find((r) => r.teamId === team.id);
   return {
     name: team.name,
@@ -278,14 +350,46 @@ export function storyBlock(articles, teamId) {
   }));
 }
 
+/**
+ * Alles, was am Saisonende zusammengefasst werden muss: Endtabelle, Meister und
+ * JEDE Geschichte, die im Lauf der Saison eröffnet wurde — nicht nur die noch
+ * laufenden. Ohne diesen Block könnte der Rückblick keine Stränge auflösen.
+ */
+export function seasonEndBlock(seasonTeams, results, schedule, articles, season) {
+  const table = standingsBlock(seasonTeams, results);
+  const done = seasonComplete(schedule, results);
+  return {
+    saison: season,
+    abgeschlossen: done,
+    meister: done && table.length ? table[0].team : null,
+    endtabelle: table,
+    alleGeschichten: collectStorylines(articles).map((x) => ({
+      id: x.id,
+      titel: x.title,
+      status: x.status,
+      stand: x.summary,
+      beitraege: x.beats,
+      letzterSpieltag: x.day,
+      teams: x.teams,
+    })),
+    hinweis: 'Jede hier gelistete Geschichte gehört in den Rückblick — offene Stränge werden '
+      + 'ausdrücklich als offen benannt und in die nächste Saison übergeben.',
+  };
+}
+
 // === Gesamtkontext =========================================================
 /**
  * Der vollständige Metadatensatz für einen Prompt.
- * @param {object} src   { teams, results, schedule, pokedex, eloRows, awardDocs, articles }
+ * @param {object} src   { teams, results, schedule, pokedex, eloRows, awardDocs, articles, season }
  * @param {object} focus { teamIds:[…], matchId, day }
+ *
+ * `src.teams` darf alle Saisons enthalten; gerechnet wird mit der Saison aus
+ * `src.season` (Vorgabe 1), damit Tabelle und Bestwerte nicht über Saisongrenzen
+ * hinweg vermischt werden.
  */
 export function buildContext(src, focus = {}) {
-  const seasonTeams = (src.teams || []).filter((t) => t.season === 1);
+  const season = Number.isFinite(src.season) ? src.season : 1;
+  const seasonTeams = (src.teams || []).filter((t) => (Number.isFinite(t.season) ? t.season : 1) === season);
   const focusIds = (focus.teamIds || []).filter(Boolean);
   const result = focus.matchId ? (src.results || []).find((r) => r.id === focus.matchId) : null;
 
@@ -302,6 +406,10 @@ export function buildContext(src, focus = {}) {
     laufendeGeschichten: storyBlock(src.articles, focusIds[0] || null),
     letzteBerichte: newsBlock(src.articles, focusIds[0] || null),
     letzteBerichteLigaweit: newsBlock(src.articles, null, 6),
+    marktwerte: marketBlock(src.eloRows, seasonTeams, focus.marketDay ?? null),
+    saisonabschluss: focus.seasonEnd
+      ? seasonEndBlock(seasonTeams, src.results, src.schedule, src.articles, season)
+      : null,
   };
 }
 

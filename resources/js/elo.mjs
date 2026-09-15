@@ -3,14 +3,33 @@
 // über den gviz-JSON-Endpoint gelesen — ohne API-Key, ohne Proxy. Der Service-Account
 // (sheets-api-*.json) wird bewusst NICHT ausgeliefert.
 //
-// Spalten des Sheets: Rang | Pokémon | Elo | Tier
-// „Tier" ist das anhand des aktuellen Elo-Stands PROGNOSTIZIERTE Tier für die nächste Saison.
+// Spalten des Sheets: Rang | Pokémon | Elo | Tier | dann der VERLAUF
+// („S1 Pre", „S1 Draft", „S1 MD1" … „S1 Post"). „Tier" ist das anhand des aktuellen
+// Elo-Stands PROGNOSTIZIERTE Tier für die nächste Saison.
+//
+// Die Verlaufsspalten sind nicht fest verdrahtet: alles ab Spalte E mit einer
+// Beschriftung gilt als Zeitpunkt, leere Zellen sind „noch nicht erreicht".
+// Kommen im Sheet weitere Spalten dazu (S2 …), erscheinen sie ohne Codeänderung.
 
 export const ELO_SHEET_ID = '1qWr50U4FrzUEtHV69P75JvwZMUPUJcSyNFnJoZO-WJg';
 export const ELO_GVIZ_URL =
   `https://docs.google.com/spreadsheets/d/${ELO_SHEET_ID}/gviz/tq?tqx=out:json&gid=0`;
 
-const CACHE_KEY = 'jhdl-elo-cache-v1';
+// v2: Zeilen tragen jetzt zusätzlich `history`. Ein alter Cache würde die
+// Verlaufsdiagramme leer lassen — der neue Schlüssel erzwingt ein frisches Laden.
+const CACHE_KEY = 'jhdl-elo-cache-v2';
+
+// Ab dieser Spalte beginnt der Verlauf (0-basiert: E).
+const HISTORY_FROM = 4;
+
+// Spaltenbeschriftung -> stabiler Schlüssel („S1 MD3" -> „s1-md3").
+export function historyKey(label) {
+  return String(label || '')
+    .trim()
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, '-')
+    .replace(/(^-|-$)/g, '');
+}
 
 // Namensabweichungen Sheet -> pokemon.json (Formnamen). Sheet-Schreibweise links.
 // „Skarabron" stand hier, bis das Sheet den Tippfehler zu „Skaraborn" korrigiert
@@ -43,11 +62,17 @@ function parseGviz(text) {
   const end = text.lastIndexOf('}');
   if (start < 0 || end < 0) throw new Error('Unerwartetes gviz-Format');
   const json = JSON.parse(text.slice(start, end + 1));
-  const cols = (json.table?.cols || []).map((c) => normalize(c.label).toLowerCase());
+  const labels = (json.table?.cols || []).map((c) => normalize(c.label));
+  const cols = labels.map((c) => c.toLowerCase());
   const idxRang = cols.findIndex((c) => c.startsWith('rang'));
   const idxName = cols.findIndex((c) => c.includes('pok'));
   const idxElo = cols.findIndex((c) => c.startsWith('elo'));
   const idxTier = cols.findIndex((c) => c.startsWith('tier'));
+  // Verlaufsspalten: alles ab E, das überhaupt eine Beschriftung trägt.
+  const histCols = labels
+    .map((label, i) => ({ i, label }))
+    .filter((c) => c.i >= HISTORY_FROM && c.label && c.i !== idxElo && c.i !== idxTier)
+    .map((c) => ({ ...c, key: historyKey(c.label) }));
   const rows = [];
   (json.table?.rows || []).forEach((r) => {
     const c = r.c || [];
@@ -57,12 +82,20 @@ function parseGviz(text) {
     const rangRaw = cell(idxRang >= 0 ? idxRang : 0);
     const eloRaw = cell(idxElo >= 0 ? idxElo : 2);
     const tier = normalize(cell(idxTier >= 0 ? idxTier : 3)).toUpperCase();
+    const history = histCols
+      .map((hc) => {
+        const raw = cell(hc.i);
+        const num = raw == null || raw === '' ? null : +raw;
+        return { key: hc.key, label: hc.label, elo: Number.isFinite(num) ? num : null };
+      })
+      .filter((h) => h.elo != null);
     rows.push({
       rang: Number.isFinite(+rangRaw) ? +rangRaw : null,
       name,
       resolved: resolveEloName(name),
       elo: Number.isFinite(+eloRaw) ? +eloRaw : null,
       projectedTier: tier || null,
+      history,
     });
   });
   return rows;

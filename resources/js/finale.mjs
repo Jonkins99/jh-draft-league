@@ -180,7 +180,8 @@ function awardsOf(team, awardDocs) {
  * Rückgabe: { complete, scenes: [...], season: {...} }
  */
 export function buildFinaleScript(src = {}) {
-  const seasonTeams = (src.teams || []).filter((t) => t.season === 1);
+  const season = Number.isFinite(src.season) ? src.season : 1;
+  const seasonTeams = (src.teams || []).filter((t) => (Number.isFinite(t.season) ? t.season : 1) === season);
   const results = src.results || [];
   const teamById = Object.fromEntries(seasonTeams.map((t) => [t.id, t]));
   const table = computeStandings(seasonTeams, results);
@@ -215,7 +216,7 @@ export function buildFinaleScript(src = {}) {
   scenes.push({
     kind: 'intro',
     title: 'Ruhmeshalle',
-    subtitle: 'Saison 1 der JH Draft League',
+    subtitle: `Saison ${season} der JH Draft League`,
     facts: [
       { label: 'Teams', value: String(seasonTeams.length) },
       { label: 'Spieltage', value: String(new Set((src.schedule?.matchdays || []).map((m) => m.day)).size || 0) },
@@ -263,6 +264,7 @@ export function buildFinaleScript(src = {}) {
   if (champ) {
     scenes.push({
       kind: 'trophy',
+      season,
       team: { id: champ.team.id, name: champ.team.name, player: champ.team.player, logo: champ.team.logo },
       points: champ.points,
       record: `${champ.won} Siege · ${champ.draw} Unentschieden · ${champ.lost} Niederlagen`,
@@ -275,6 +277,7 @@ export function buildFinaleScript(src = {}) {
 
   scenes.push({
     kind: 'outro',
+    season,
     title: 'Und am Ende zählt nur eins',
     duel: { Janik: playerSum('Janik'), Henrik: playerSum('Henrik') },
     leaders: [
@@ -385,7 +388,7 @@ function sceneHtml(scene, ctx) {
 
   if (scene.kind === 'trophy') {
     return `<div class="fin-scene fin-scene--trophy">
-      <p class="fin-kicker">Meister der Saison 1</p>
+      <p class="fin-kicker">Meister der Saison ${esc(scene.season)}</p>
       <div class="fin-trophy">${TROPHY_SVG}</div>
       <h2 class="fin-title">${esc(scene.team.name)}</h2>
       <p class="fin-champ-player" data-player="${esc(scene.team.player)}">${esc(scene.team.player)}</p>
@@ -421,7 +424,7 @@ function sceneHtml(scene, ctx) {
           <b>${esc(l.name)}</b>
           <em>${esc(l.value)}</em>
         </span>`).join('')}</div>
-      <p class="fin-outro-end">Saison 1 · Ende</p>
+      <p class="fin-outro-end">Saison ${esc(scene.season)} · Ende</p>
     </div>`;
   }
 

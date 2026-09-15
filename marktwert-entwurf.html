@@ -1,0 +1,203 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Marktwerte – Optischer Entwurf · JH Draft League</title>
+  <link rel="stylesheet" href="./resources/css/style.css">
+  <meta name="robots" content="noindex,nofollow" />
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Roboto:ital,wght@0,100..900;1,100..900&display=swap" rel="stylesheet">
+</head>
+<body class="min-h-screen bg-void font-sans text-ink antialiased selection:bg-flame-500/30">
+  <div class="pointer-events-none fixed inset-0 -z-10 bg-[radial-gradient(75%_45%_at_88%_-8%,rgba(227,53,13,0.12),transparent_60%)]"></div>
+
+  <main class="mx-auto max-w-5xl px-4 py-12 md:px-8">
+    <header class="mb-12 max-w-3xl">
+      <h1 class="font-display text-4xl font-bold tracking-wide text-ink md:text-6xl">Marktwerte</h1>
+      <p class="mt-4 text-lg leading-relaxed text-mist">
+        Entwurf der Optik: die Umrechnung Elo → Marktwert, das interaktive Verlaufsdiagramm
+        mit Tier-Grenzen und die Inszenierung eines Marktwert-Updates. Alles unten ist der
+        echte Code der Anwendung, kein Bild — die Daten kommen live aus dem Draft-Sheet.
+      </p>
+    </header>
+
+    <section class="mb-14">
+      <h2 class="font-display text-2xl font-bold uppercase tracking-wider text-ink">Umrechnung</h2>
+      <p class="mt-2 max-w-2xl text-mist">
+        Zwischen den Stützstellen wird im Logarithmus linear interpoliert; anschließend
+        wird gestuft gerundet. Nach oben eskalieren die Beträge, unten liegen sie dicht beieinander.
+      </p>
+      <div class="mt-5 overflow-x-auto rounded-2xl border border-line bg-panel p-4">
+        <table class="w-full min-w-[22rem] text-sm">
+          <thead>
+            <tr class="border-b border-line text-left font-display text-xs uppercase tracking-wider text-mist">
+              <th class="py-2 pr-4">Elo</th>
+              <th class="py-2 pr-4">Marktwert</th>
+              <th class="py-2">Tier</th>
+            </tr>
+          </thead>
+          <tbody data-table></tbody>
+        </table>
+      </div>
+    </section>
+
+    <section class="mb-14">
+      <h2 class="font-display text-2xl font-bold uppercase tracking-wider text-ink">Verlauf</h2>
+      <p class="mt-2 max-w-2xl text-mist">
+        Werteachse logarithmisch, Tier-Grenzen als Bänder, Tier-Wechsel als Ring am Punkt.
+        Zeigen oder Tippen setzt die Führungslinie und nennt die genauen Werte.
+      </p>
+      <div class="mt-5 rounded-2xl border border-line bg-panel p-4 sm:p-6">
+        <label class="mb-3 block">
+          <span class="font-display text-xs font-semibold uppercase tracking-wider text-mist">Pokémon</span>
+          <select data-mon class="mt-1 w-full rounded-xl border border-line bg-elevated px-3 py-2 text-sm text-ink focus:border-flame-500 focus:outline-none"></select>
+        </label>
+        <div data-chart-mon></div>
+      </div>
+      <div class="mt-5 rounded-2xl border border-line bg-panel p-4 sm:p-6">
+        <p class="mb-3 font-display text-sm font-bold uppercase tracking-wider text-ink">Zehn Pokémon nebeneinander</p>
+        <div data-chart-multi></div>
+      </div>
+    </section>
+
+    <section class="mb-14">
+      <h2 class="font-display text-2xl font-bold uppercase tracking-wider text-ink">Marktwert-Update</h2>
+      <p class="mt-2 max-w-2xl text-mist">
+        Anlauf mit dem Gesamtwert, dann jeder Tier-Wechsel einzeln und groß, danach die fünf
+        größten Gewinner und Verlierer mit Betrag und Prozent. Es steht immer nur ein Element
+        im Mittelpunkt — damit bleibt der Fokus auch auf dem Telefon im Bild.
+      </p>
+      <div class="mt-5 flex flex-wrap gap-2">
+        <button type="button" data-demo="day" class="rounded-xl bg-flame-500 px-5 py-3 font-display text-sm font-bold uppercase tracking-wide text-white transition-colors hover:bg-flame-600">
+          Update eines Spieltags
+        </button>
+        <button type="button" data-demo="empty" class="rounded-xl border border-line px-5 py-3 font-display text-sm font-bold uppercase tracking-wide text-mist transition-colors hover:border-flame-500/40 hover:text-flame-400">
+          Update ohne Veränderung
+        </button>
+      </div>
+    </section>
+
+    <p data-status class="text-sm text-mist">Lade Sheet-Daten…</p>
+  </main>
+
+  <div popover="manual" id="market-show" class="mvx"></div>
+
+  <script type="module">
+    import { fetchEloRows } from './resources/js/elo.mjs';
+    import {
+      marketValue, formatMarket, tierBoundaries, tierForElo, historyPoints,
+      historyStops, historyDiff, stopKeyForDay, parseHistoryLabel,
+    } from './resources/js/market.mjs';
+    import { renderMarketChart } from './resources/js/marketchart.mjs';
+    import { runMarketShow } from './resources/js/marketshow.mjs';
+
+    const TIER_COLORS = { S: '#ffcb05', A: '#ff5a36', B: '#4d90d5', C: '#63bc5a', D: '#98a2b3' };
+    const SERIES = ['#e3350d', '#4d90d5', '#63bc5a', '#ffcb05', '#ab6ac8', '#ff9d55', '#38bdf8', '#f472b6', '#22d3ee', '#a3e635'];
+    const tierColor = (t) => TIER_COLORS[t] || '#6b7280';
+
+    const $ = (sel) => document.querySelector(sel);
+    const status = $('[data-status]');
+
+    function bandsOf(rows) {
+      return tierBoundaries(rows).map((b) => ({
+        tier: b.tier,
+        color: tierColor(b.tier),
+        from: b.minElo == null ? null : marketValue(b.minElo),
+        to: b.maxElo == null ? null : marketValue(b.maxElo),
+      }));
+    }
+
+    function seriesOf(row, bounds, color, highlight) {
+      let prev = null;
+      return {
+        key: row.resolved,
+        label: row.resolved,
+        color,
+        highlight,
+        points: historyPoints(row).map((h) => {
+          const meta = parseHistoryLabel(h.label);
+          const tier = tierForElo(bounds, h.elo);
+          const changed = prev != null && tier != null && tier !== prev;
+          prev = tier;
+          return { key: h.key, label: meta.label, short: meta.short, value: h.value, elo: h.elo, tier, tierChanged: changed, tierColor: tierColor(tier) };
+        }),
+      };
+    }
+
+    const { rows } = await fetchEloRows();
+    const bounds = tierBoundaries(rows);
+    const stops = historyStops(rows);
+    status.textContent = `${rows.length} Einträge · ${stops.length} Zeitpunkte · Stand ${new Date().toLocaleString('de-DE')}`;
+
+    // Umrechnungstabelle
+    $('[data-table]').innerHTML = [1020, 1100, 1200, 1300, 1400, 1500, 1600, 1700, 1800, 1900, 2000, 2100]
+      .map((elo) => `<tr class="border-b border-line/40">
+        <td class="py-2 pr-4 tabular-nums text-mist">${elo}</td>
+        <td class="py-2 pr-4 font-display font-bold tabular-nums text-volt-400">${formatMarket(marketValue(elo))}</td>
+        <td class="py-2"><span class="rounded-full px-2 py-0.5 text-xs font-bold" style="color:${tierColor(tierForElo(bounds, elo))};background:${tierColor(tierForElo(bounds, elo))}26">${tierForElo(bounds, elo) || '—'}</span></td>
+      </tr>`)
+      .join('');
+
+    // Einzelverlauf
+    const withHistory = rows.filter((r) => (r.history || []).length > 1);
+    const select = $('[data-mon]');
+    select.innerHTML = withHistory.map((r) => `<option value="${r.resolved}">${r.resolved}</option>`).join('');
+    const monChart = renderMarketChart($('[data-chart-mon]'), buildMon(withHistory[0]));
+    select.addEventListener('change', () => {
+      monChart.update(buildMon(withHistory.find((r) => r.resolved === select.value)));
+    });
+
+    function buildMon(row) {
+      return {
+        series: row ? [seriesOf(row, bounds, '#ff5a36', true)] : [],
+        stops,
+        bands: bandsOf(rows),
+        scale: 'log',
+        format: (v) => formatMarket(v, { unit: false }),
+      };
+    }
+
+    // Zehn Linien
+    renderMarketChart($('[data-chart-multi]'), {
+      series: withHistory.slice(0, 10).map((r, i) => seriesOf(r, bounds, SERIES[i % SERIES.length], false)),
+      stops,
+      bands: bandsOf(rows),
+      scale: 'log',
+      legend: true,
+      format: (v) => formatMarket(v, { unit: false }),
+    });
+
+    // Inszenierung
+    const pop = $('#market-show');
+    let running = null;
+    const totalValue = rows.reduce((sum, r) => sum + (marketValue(r.elo) || 0), 0);
+    const imageOf = () => null;
+
+    function play(diff) {
+      running?.stop?.();
+      pop.showPopover();
+      running = runMarketShow(pop, {
+        title: 'Marktwert-Update',
+        subtitle: 'Optischer Entwurf',
+        note: `${diff.tierChanges.length} Tier-Wechsel · ${diff.changed} von ${diff.total} Pokémon bewegt.`,
+        totalValue,
+        changedCount: diff.changed,
+        tierChanges: diff.tierChanges.map((r) => ({ ...r, image: imageOf(r.name) })),
+        up: diff.up.map((r) => ({ ...r, image: imageOf(r.name) })),
+        down: diff.down.map((r) => ({ ...r, image: imageOf(r.name) })),
+      }, { tierColor, onClose: () => pop.hidePopover() });
+    }
+
+    const lastDay = [...stops].reverse().find((s) => s.kind === 'md')?.day ?? null;
+    document.querySelector('[data-demo="day"]').addEventListener('click', () => {
+      const key = lastDay != null ? stopKeyForDay(rows, lastDay) : null;
+      play(key ? historyDiff(rows, key) : { tierChanges: [], up: [], down: [], changed: 0, total: 0 });
+    });
+    document.querySelector('[data-demo="empty"]').addEventListener('click', () => {
+      play({ tierChanges: [], up: [], down: [], changed: 0, total: rows.length });
+    });
+  </script>
+</body>
+</html>

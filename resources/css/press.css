@@ -2,6 +2,12 @@
   color: var(--color-mist);
   font-size: 1rem;
   line-height: 1.75;
+  overflow-wrap: anywhere;
+}
+
+.press-break {
+  min-width: 0;
+  overflow-wrap: anywhere;
 }
 
 .press-body > * + * {
@@ -64,6 +70,18 @@
   text-underline-offset: 0.15em;
 }
 
+.press-body pre,
+.press-body code {
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+
+.press-body table {
+  display: block;
+  max-width: 100%;
+  overflow-x: auto;
+}
+
 .press-body img {
   max-width: 100%;
   height: auto;
@@ -99,6 +117,7 @@
   margin: 0;
   padding: 0;
   border: 0;
+  overflow-x: clip;
   overflow-y: auto;
   overscroll-behavior: contain;
   background:
@@ -188,6 +207,7 @@
 .rte {
   min-height: 16rem;
   outline: none;
+  overflow-wrap: anywhere;
 }
 
 /* Die Initiale des Beitrags stört im Schreibfeld die Cursor-Positionierung. */

@@ -13,9 +13,9 @@ export const MAX_NOMINATIONS = 3;
 export const VOTE_MIN = 0;
 export const VOTE_MAX = 10;
 
-// Das Awards-Feature ist mitten in Saison 1 dazugekommen. Spieltag-Awards gibt es
-// darum erst ab diesem Spieltag — frühere Spieltage werden nicht nachträglich
-// ausgezeichnet. Für eine neue Saison auf 1 setzen.
+// Erster Spieltag, für den es Spieltag-Awards gibt. Auf 1 werden alle gespielten
+// Spieltage einer Saison ausgezeichnet — auch rückwirkend. Ein höherer Wert blendet
+// die Spieltage davor aus (die Awards-View weist dann darauf hin).
 export const MATCHDAY_AWARDS_FROM = 1;
 
 // Spieltage, für die Spieltag-Awards vergeben werden dürfen.
@@ -71,10 +71,11 @@ export const ALL_AWARDS = [...MATCHDAY_AWARDS, ...SEASON_AWARDS];
 export const AWARD_BY_KEY = Object.fromEntries(ALL_AWARDS.map((a) => [a.key, a]));
 
 // Doc-ID einer Abstimmung. Spieltag-Awards je Spieltag, Team-MVP je Team.
-export function awardDocId(key, { day = null, teamId = null } = {}) {
-  if (day != null) return `s1-${key}-d${day}`;
-  if (teamId) return `s1-${key}-${teamId}`;
-  return `s1-${key}`;
+export function awardDocId(key, { day = null, teamId = null, season = 1 } = {}) {
+  const p = `s${season}`;
+  if (day != null) return `${p}-${key}-d${day}`;
+  if (teamId) return `${p}-${key}-${teamId}`;
+  return `${p}-${key}`;
 }
 
 // Stabile Option-ID. Bei Paaren reihenfolge-unabhängig.

@@ -22,6 +22,7 @@ import {
 } from '../resources/js/damagecalc.mjs';
 import {
   pressSlots, slotPlan, bonusSlotsFor, bonusRoundComplete, bonusRoundProgress,
+  outlookSlotFor, outlookSessionId, outlookProgress, seasonComplete, OUTLOOK_QUESTIONS,
   collectStorylines, paragraphsToHtml, articleMatchesFilter, randomAuthors,
   categoriesOf, normalizeCategories, manualCategories, AI_CATEGORY,
   BONUS_ROUND_DAY, PRESS_FROM_DAY,
@@ -38,6 +39,13 @@ import { buildContext } from '../resources/js/press-context.mjs';
 import { buildFinaleScript, SCENE_MS } from '../resources/js/finale.mjs';
 import { CEREMONY_VARIANTS, pickCeremonyVariant, VARIANT_BY_KEY } from '../resources/js/ceremony.mjs';
 import { buildDirection, buildSystem, DEFAULT_PROMPTS } from '../resources/js/press-prompts.mjs';
+import {
+  MARKET_ANCHORS, marketValue, marketValueRaw, roundMarketValue, formatMarket,
+  formatMarketDelta, formatPercent, tierBoundaries, tierForElo, historyPoints,
+  historyStops, squadHistory, squadMarketValue, eloIndex, snapshotOf, diffSnapshots,
+  historyDiff, stopKeyForDay, parseHistoryLabel,
+} from '../resources/js/market.mjs';
+import { historyKey } from '../resources/js/elo.mjs';
 
 let passed = 0;
 function test(name, fn) { fn(); passed++; console.log('  ok -', name); }
@@ -645,7 +653,8 @@ test('Je Spieltag gibt es genau ein Interview und eine Pressekonferenz', () => {
 
 test('Vor dem Pressestart gibt es keine Termine', () => {
   const slots = pressSlots('s1-a', pressSchedule, pressResults, [], true);
-  assert.equal(slots.filter((s) => s.day < PRESS_FROM_DAY).length, 0);
+  // Die Ausblicksrunde trägt bewusst keinen Spieltag und bleibt hier außen vor.
+  assert.equal(slots.filter((s) => s.day != null && s.day < PRESS_FROM_DAY).length, 0);
   // Ein bereits stattgefundener Termin bleibt sichtbar, auch wenn er davor liegt.
   const alt = slotPlan('s1-a', 3).pre;
   const mit = pressSlots('s1-a', pressSchedule, pressResults, [{ id: `s1-d3-s1-a-${alt}`, status: 'done' }], true);
@@ -660,6 +669,35 @@ test('Termine haengen am Ergebnisstand des Spielplans', () => {
   assert.equal(slots.find((s) => s.day === 9 && s.slot === 'pre').open, false);
   const ids = slots.map((s) => s.id);
   assert.equal(new Set(ids).size, ids.length);
+});
+
+test('Die Ausblicksrunde öffnet erst, wenn die Saison komplett gespielt ist', () => {
+  // pressResults deckt nur 7 der 14 Spieltage ab — die Saison läuft also noch.
+  assert.equal(seasonComplete(pressSchedule, pressResults), false);
+  const slot = outlookSlotFor('s1-a', pressSchedule, pressResults, []);
+  assert.equal(slot.slot, 'outlook');
+  assert.equal(slot.type, 'pk');
+  assert.equal(slot.day, null, 'die Runde hängt an keinem Spieltag');
+  assert.equal(slot.open, false);
+  assert.equal(slot.blockedBy, 'season');
+  assert.equal(slot.id, outlookSessionId('s1-a'));
+  assert.equal(pressSlots('s1-a', pressSchedule, pressResults, [], true).filter((x) => x.slot === 'outlook').length, 1);
+
+  // Mit vollständigem Ergebnisstand ist sie für jedes Team frei.
+  const full = pressSchedule.matchdays.flatMap((md) => md.matches.map((m, i) => ({
+    id: `s1-d${md.day}-m${i}`, day: md.day, home: m.home, away: m.away,
+    battles: [{ done: true }, { done: true }, { done: true }],
+  })));
+  assert.equal(seasonComplete(pressSchedule, full), true);
+  assert.equal(outlookSlotFor('s1-a', pressSchedule, full, []).open, true);
+  const progress = outlookProgress(pressTeamIds, pressSchedule, full, [
+    { id: outlookSessionId('s1-a'), status: 'done' },
+  ]);
+  assert.deepEqual(progress, { done: 1, total: 8 });
+  assert.equal(OUTLOOK_QUESTIONS, 5);
+
+  // Ein Team, das im Spielplan nicht vorkommt, bekommt auch keine Runde.
+  assert.equal(outlookSlotFor('s1-zzz', pressSchedule, full, []), null);
 });
 
 test('Die Auftaktrunde umfasst 16 Termine und geht Spieltag 8 voraus', () => {
@@ -924,6 +962,146 @@ test('Ohne vollständigen Spielplan ist die Saison nicht abgeschlossen', () => {
   const script = buildFinaleScript({ teams, results: [], schedule, pokedex, awardDocs: [] });
   assert.equal(script.complete, false);
   assert.equal(buildFinaleScript({ teams, results: [], schedule: { matchdays: [] }, pokedex }).complete, false);
+});
+
+// === Marktwerte ============================================================
+
+test('Die Marktwert-Formel trifft alle vorgegebenen Stützstellen exakt', () => {
+  MARKET_ANCHORS.forEach(([elo, value]) => {
+    assert.equal(marketValue(elo), value, `Elo ${elo}`);
+  });
+});
+
+test('Der Marktwert steigt streng monoton mit der Elo', () => {
+  let prev = -1;
+  for (let elo = 900; elo <= 2400; elo += 1) {
+    const v = marketValueRaw(elo);
+    assert.ok(v > prev, `bei Elo ${elo}`);
+    prev = v;
+  }
+});
+
+test('Gerundet wird in Stufen — je größer der Betrag, desto gröber', () => {
+  assert.equal(roundMarketValue(234_567), 230_000);
+  assert.equal(roundMarketValue(1_234_567), 1_200_000);
+  assert.equal(roundMarketValue(6_234_567), 6_000_000);
+  assert.equal(roundMarketValue(6_300_000), 6_500_000);
+  assert.equal(roundMarketValue(23_400_000), 23_000_000);
+  assert.equal(roundMarketValue(123_400_000), 125_000_000);
+  assert.equal(roundMarketValue(0), 0);
+  assert.equal(roundMarketValue(null), 0);
+});
+
+test('Beträge werden deutsch formatiert, Veränderungen mit Vorzeichen', () => {
+  assert.equal(formatMarket(200_000_000), '200 Mio. €');
+  assert.equal(formatMarket(1_500_000), '1,5 Mio. €');
+  assert.equal(formatMarket(500_000), '500 Tsd. €');
+  assert.equal(formatMarket(1_230_000_000), '1,23 Mrd. €');
+  assert.equal(formatMarket(0), '—');
+  assert.equal(formatMarket(10_000_000, { unit: false }), '10 Mio.');
+  assert.equal(formatMarketDelta(0), '±0');
+  assert.equal(formatMarketDelta(5_000_000), '+5 Mio. €');
+  assert.equal(formatMarketDelta(-5_000_000), '−5 Mio. €');
+  assert.equal(formatPercent(12.34), '+12,3 %');
+  assert.equal(formatPercent(-4), '−4,0 %');
+});
+
+// Ein kleiner Sheet-Auszug: vier Pokémon, zwei Zeitpunkte, klare Tier-Grenzen.
+const eloRows = [
+  { name: 'Alpha', resolved: 'Alpha', rang: 1, elo: 1900, projectedTier: 'S', history: [
+    { key: 's1-pre', label: 'S1 Pre', elo: 1700 },
+    { key: 's1-md1', label: 'S1 MD1', elo: 1750 },
+    { key: 's1-md2', label: 'S1 MD2', elo: 1900 },
+  ] },
+  { name: 'Beta', resolved: 'Beta', rang: 2, elo: 1700, projectedTier: 'A', history: [
+    { key: 's1-pre', label: 'S1 Pre', elo: 1750 },
+    { key: 's1-md1', label: 'S1 MD1', elo: 1720 },
+    { key: 's1-md2', label: 'S1 MD2', elo: 1700 },
+  ] },
+  { name: 'Gamma', resolved: 'Gamma', rang: 3, elo: 1500, projectedTier: 'B', history: [
+    { key: 's1-pre', label: 'S1 Pre', elo: 1400 },
+    { key: 's1-md1', label: 'S1 MD1', elo: 1450 },
+    { key: 's1-md2', label: 'S1 MD2', elo: 1500 },
+  ] },
+  { name: 'Delta', resolved: 'Delta', rang: 4, elo: 1300, projectedTier: 'C', history: [
+    { key: 's1-pre', label: 'S1 Pre', elo: 1300 },
+    { key: 's1-md1', label: 'S1 MD1', elo: 1300 },
+  ] },
+];
+
+test('Tier-Grenzen werden aus dem Sheet abgeleitet und sind lückenlos', () => {
+  const bounds = tierBoundaries(eloRows);
+  assert.deepEqual(bounds.map((b) => b.tier), ['S', 'A', 'B', 'C']);
+  assert.equal(bounds[0].maxElo, null, 'oben offen');
+  assert.equal(bounds[bounds.length - 1].minElo, null, 'unten offen');
+  assert.equal(bounds[0].minElo, 1800);
+  assert.equal(tierForElo(bounds, 2000), 'S');
+  assert.equal(tierForElo(bounds, 1799), 'A');
+  assert.equal(tierForElo(bounds, 1000), 'C');
+  assert.equal(tierForElo(bounds, null), null);
+});
+
+test('Der Verlauf liefert Marktwerte je Zeitpunkt, leere Spalten fallen heraus', () => {
+  const pts = historyPoints(eloRows[0]);
+  assert.equal(pts.length, 3);
+  assert.equal(pts[0].value, marketValue(1700));
+  assert.equal(pts[2].value, marketValue(1900));
+  const stops = historyStops(eloRows);
+  assert.deepEqual(stops.map((s) => s.key), ['s1-pre', 's1-md1', 's1-md2']);
+  assert.equal(stops[2].short, 'ST 2');
+  assert.equal(parseHistoryLabel('S1 Transfer').kind, 'transfer');
+  assert.equal(parseHistoryLabel('S1 Post').kind, 'post');
+  assert.equal(historyKey('S1 MD3'), 's1-md3');
+});
+
+test('Kaderwert und Kaderverlauf summieren die gerundeten Einzelwerte', () => {
+  const index = eloIndex(eloRows);
+  const squad = [{ name: 'Alpha' }, { name: 'Gamma' }];
+  assert.equal(squadMarketValue(squad, index), marketValue(1900) + marketValue(1500));
+  const verlauf = squadHistory(squad, index, historyStops(eloRows));
+  assert.equal(verlauf.length, 3);
+  assert.equal(verlauf[0].value, marketValue(1700) + marketValue(1400));
+  // Ein Pokémon ohne Wert zu diesem Zeitpunkt zieht die Summe nicht auf null.
+  const mitLuecke = squadHistory([{ name: 'Delta' }], index, historyStops(eloRows));
+  assert.equal(mitLuecke.length, 2);
+});
+
+test('Zwei Momentaufnahmen ergeben Tier-Wechsel sowie Gewinner und Verlierer', () => {
+  const before = { Alpha: { elo: 1700, tier: 'A' }, Beta: { elo: 1750, tier: 'A' } };
+  const after = { Alpha: { elo: 1900, tier: 'S' }, Beta: { elo: 1700, tier: 'A' } };
+  const diff = diffSnapshots(before, after);
+  assert.equal(diff.total, 2);
+  assert.equal(diff.changed, 2);
+  assert.equal(diff.tierChanges.length, 1);
+  assert.equal(diff.tierChanges[0].name, 'Alpha');
+  assert.equal(diff.tierChanges[0].tierDelta, 1);
+  assert.equal(diff.up[0].name, 'Alpha');
+  assert.equal(diff.up[0].delta, marketValue(1900) - marketValue(1700));
+  assert.ok(diff.up[0].pct > 0);
+  assert.equal(diff.down[0].name, 'Beta');
+  assert.ok(diff.down[0].delta < 0);
+  // Neue Namen ohne Vorgängerstand tauchen nicht als Gewinner auf.
+  assert.equal(diffSnapshots({}, after).total, 0);
+});
+
+test('Der Sprung auf einen Spieltag kommt ohne lokale Momentaufnahme aus', () => {
+  assert.equal(stopKeyForDay(eloRows, 2), 's1-md2');
+  assert.equal(stopKeyForDay(eloRows, 9), null);
+  const diff = historyDiff(eloRows, 's1-md2');
+  // Delta hat keinen Wert für MD2 und bleibt außen vor.
+  assert.equal(diff.total, 3);
+  assert.equal(diff.up[0].name, 'Alpha');
+  // Alpha springt zwischen den beiden Spieltagen von A nach S.
+  assert.equal(diff.tierChanges.length, 1);
+  assert.equal(diff.tierChanges[0].name, 'Alpha');
+  assert.equal(diff.tierChanges[0].fromTier, 'A');
+  assert.equal(diff.tierChanges[0].toTier, 'S');
+});
+
+test('Die Momentaufnahme überspringt Zeilen ohne Elo', () => {
+  const snap = snapshotOf([...eloRows, { resolved: 'Ohne', elo: null, projectedTier: 'D' }]);
+  assert.equal(Object.keys(snap).length, 4);
+  assert.equal(snap.Alpha.tier, 'S');
 });
 
 console.log(`\n${passed} Tests bestanden.`);

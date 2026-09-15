@@ -2,8 +2,10 @@
   <header class="mb-8 flex items-start justify-between gap-4">
     <div>
       <p class="font-display text-xs font-semibold uppercase tracking-[0.3em] text-flame-400">Standings</p>
-      <h1 class="mt-1 font-display text-4xl font-bold tracking-wide text-ink md:text-5xl">Tabelle</h1>
-      <p class="mt-2 text-mist">Ein Punkt pro gewonnenem Kampf. Bei Gleichstand entscheidet die Kill-Differenz.</p>
+      <h1 class="mt-1 font-display text-4xl font-bold tracking-wide text-ink md:text-5xl" x-text="isAll ? 'Ewige Tabelle' : 'Tabelle'"></h1>
+      <p class="mt-2 text-mist" x-text="isAll
+        ? 'Alle Saisons zusammengefasst. Ein Team bleibt über Auf- und Abstiege hinweg dasselbe Franchise.'
+        : 'Ein Punkt pro gewonnenem Kampf. Bei Gleichstand entscheidet die Kill-Differenz.'"></p>
     </div>
     <button type="button" popovertarget="exp-tabelle" title="Exportieren"
             class="mt-1 grid size-10 shrink-0 place-items-center rounded-xl border border-line text-mist transition-colors hover:text-flame-400">
@@ -22,6 +24,88 @@
   </div>
 
 
+  <!-- ====================== SAISONÜBERGREIFEND ====================== -->
+  <div x-show="isAll">
+    <!-- Die Saisons im Überblick -->
+    <section class="mb-6 grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
+      <template x-for="sm in seasonCards" :key="'sm-'+sm.season">
+        <div class="rounded-2xl border border-line bg-panel p-4">
+          <div class="flex items-center justify-between gap-2">
+            <p class="font-display text-lg font-bold uppercase tracking-wider text-ink" x-text="`Saison ${sm.season}`"></p>
+            <span class="rounded-full border border-line px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wider"
+                  :class="sm.running ? 'border-volt-400/50 text-volt-400' : 'text-mist'"
+                  x-text="sm.running ? 'läuft' : (sm.matches ? 'abgeschlossen' : 'offen')"></span>
+          </div>
+          <div x-show="sm.champion" class="mt-3 flex items-center gap-3">
+            <img :src="logoUrl(sm.champion?.logo)" :alt="sm.champion?.name" class="size-10 shrink-0 rounded-lg object-contain" />
+            <span class="min-w-0">
+              <span class="block font-display text-[10px] font-semibold uppercase tracking-wider text-volt-400" x-text="sm.running ? 'Tabellenführer' : 'Meister'"></span>
+              <span class="block truncate font-display text-sm font-bold text-ink" x-text="sm.champion?.name"></span>
+            </span>
+          </div>
+          <p class="mt-3 text-xs text-mist" x-text="`${sm.teams} Teams · ${sm.matches} Partien · ${sm.kills} Kills`"></p>
+        </div>
+      </template>
+    </section>
+
+    <!-- Ewige Tabelle -->
+    <section class="overflow-hidden rounded-2xl border border-line bg-panel">
+      <div class="overflow-x-auto">
+        <table class="w-full min-w-max border-collapse text-sm">
+          <thead>
+            <tr class="border-b border-line">
+              <th class="sticky left-0 z-10 bg-panel px-4 py-3 text-left font-display text-xs font-semibold uppercase tracking-wider text-mist">#</th>
+              <th class="px-3 py-3 text-left font-display text-xs font-semibold uppercase tracking-wider text-mist">Team</th>
+              <th class="whitespace-nowrap px-3 py-3 text-center font-display text-xs font-semibold uppercase tracking-wider text-mist" title="Gespielte Saisons">Sais.</th>
+              <th class="whitespace-nowrap px-3 py-3 text-center font-display text-xs font-semibold uppercase tracking-wider text-mist" title="Meistertitel">Titel</th>
+              <th class="whitespace-nowrap px-3 py-3 text-center font-display text-xs font-semibold uppercase tracking-wider text-mist">Spiele</th>
+              <th class="whitespace-nowrap px-3 py-3 text-center font-display text-xs font-semibold uppercase tracking-wider text-mist">S-U-N</th>
+              <th class="whitespace-nowrap px-3 py-3 text-center font-display text-xs font-semibold uppercase tracking-wider text-mist">K : D</th>
+              <th class="whitespace-nowrap px-3 py-3 text-center font-display text-xs font-semibold uppercase tracking-wider text-mist">Diff</th>
+              <th class="whitespace-nowrap px-3 py-3 text-center font-display text-xs font-semibold uppercase tracking-wider text-mist" title="Beste Platzierung">Beste</th>
+              <th class="whitespace-nowrap px-3 py-3 text-center font-display text-xs font-semibold uppercase tracking-wider text-mist" title="Durchschnittliche Platzierung">Ø-Platz</th>
+              <th class="whitespace-nowrap px-4 py-3 text-right font-display text-xs font-semibold uppercase tracking-wider text-mist">Punkte</th>
+            </tr>
+          </thead>
+          <tbody>
+            <template x-for="(r, i) in allTimeRows" :key="'at-'+r.slug">
+              <tr class="cursor-pointer border-b border-line/40 transition-colors hover:bg-elevated/40"
+                  @click="$dispatch('navigate', { key:'teams', teamId: r.team.id })">
+                <td class="sticky left-0 z-10 bg-panel px-4 py-3 font-display font-bold tabular-nums text-mist" x-text="i + 1"></td>
+                <td class="px-3 py-3">
+                  <div class="flex min-w-0 items-center gap-3">
+                    <img :src="logoUrl(r.team.logo)" :alt="r.team.name" loading="lazy" class="size-9 shrink-0 rounded-lg object-contain" />
+                    <span class="min-w-0">
+                      <span class="block max-w-[12rem] truncate font-display font-bold tracking-wide" :style="`color:${playerColor(r.team.player)}`" x-text="r.team.name" :title="r.team.name"></span>
+                      <span class="block text-[11px] text-mist" x-text="r.team.player"></span>
+                    </span>
+                  </div>
+                </td>
+                <td class="whitespace-nowrap px-3 py-3 text-center tabular-nums text-mist" x-text="r.seasonCount"></td>
+                <td class="whitespace-nowrap px-3 py-3 text-center">
+                  <span x-show="r.titles" class="font-display font-bold tabular-nums text-volt-400" x-text="`${r.titles}×`"></span>
+                  <span x-show="!r.titles" class="text-mist">—</span>
+                </td>
+                <td class="whitespace-nowrap px-3 py-3 text-center tabular-nums text-mist" x-text="r.played"></td>
+                <td class="whitespace-nowrap px-3 py-3 text-center tabular-nums text-mist" x-text="`${r.won}-${r.draw}-${r.lost}`"></td>
+                <td class="whitespace-nowrap px-3 py-3 text-center tabular-nums text-mist" x-text="`${r.kills} : ${r.deaths}`"></td>
+                <td class="whitespace-nowrap px-3 py-3 text-center font-display font-bold tabular-nums"
+                    :style="`color:${r.diff > 0 ? '#63bc5a' : (r.diff < 0 ? '#ff5a36' : '#98a2b3')}`"
+                    x-text="fmtDiff(r.diff)"></td>
+                <td class="whitespace-nowrap px-3 py-3 text-center tabular-nums text-mist" x-text="r.bestPlace ? `#${r.bestPlace}` : '—'"></td>
+                <td class="whitespace-nowrap px-3 py-3 text-center tabular-nums text-mist" x-text="r.avgPlace ? r.avgPlace.toFixed(1).replace('.', ',') : '—'"></td>
+                <td class="whitespace-nowrap px-4 py-3 text-right font-display text-lg font-bold tabular-nums text-ink" x-text="r.points"></td>
+              </tr>
+            </template>
+          </tbody>
+        </table>
+      </div>
+      <p x-show="!allTimeRows.length" class="px-5 py-8 text-center text-mist">Noch keine Ergebnisse.</p>
+      <p x-show="allTimeRows.length" class="border-t border-line px-5 py-2.5 text-xs text-mist">Teams werden über alle Saisons hinweg als dasselbe Franchise geführt — Auf- und Abstiege ändern daran nichts.</p>
+    </section>
+  </div>
+
+  <div x-show="!isAll">
   <!-- Saison-Abschluss: startbar, sobald das letzte Ergebnis steht — wiederholbar. -->
   <section x-show="seasonComplete()" x-cloak class="fin-teaser mb-6">
     <div class="relative flex flex-wrap items-center gap-4 overflow-hidden rounded-2xl border border-[#ffcb05]/40 bg-gradient-to-br from-[#ffcb05]/12 via-panel to-panel p-5">
@@ -162,4 +246,5 @@
       </template>
     </div>
   </section>
+  </div>
 </div>
