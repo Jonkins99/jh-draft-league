@@ -343,7 +343,7 @@ match /settings/{doc} { allow read, write: if true; }</code></pre>
             </p>
           </div>
 
-          <div class="press-body" x-html="article.body"></div>
+          <div class="press-body" x-html="articleBody"></div>
 
           <div x-show="(article.teamIds || []).length || (article.pokemonNames || []).length" class="mt-8 border-t border-line pt-5">
             <p class="mb-3 font-display text-[11px] font-bold uppercase tracking-[0.22em] text-mist">Im Text</p>
@@ -781,7 +781,20 @@ match /settings/{doc} { allow read, write: if true; }</code></pre>
         <div x-show="settings.tab === 'wartung'" class="grid gap-4">
           <div>
             <p class="font-display text-sm font-bold uppercase tracking-wider text-ink">Fehlende Spielberichte</p>
-            <p class="mt-1 text-xs leading-relaxed text-mist">Berichte entstehen automatisch, wenn der dritte Kampf eines Matches eingetragen wird – solange ein Gerät mit Zugang geöffnet ist. Was dabei liegen geblieben ist, lässt sich hier nachholen.</p>
+            <p class="mt-1 text-xs leading-relaxed text-mist">Berichte entstehen automatisch, sobald ein Match für die Presse freigegeben wird – solange ein Gerät mit Zugang geöffnet ist. Was dabei liegen geblieben ist, lässt sich hier nachholen.</p>
+          </div>
+
+          <div x-show="awaitingRelease.length" x-cloak class="rounded-xl border border-dashed border-line px-3 py-2.5">
+            <p class="font-display text-[11px] font-bold uppercase tracking-wider text-mist">Warten auf Pressefreigabe</p>
+            <p class="mt-1 text-xs leading-relaxed text-mist">Diese Matches sind vollständig eingetragen, aber noch nicht freigegeben. Die Automatik rührt sie deshalb nicht an – die Freigabe erfolgt im Spielplan.</p>
+            <div class="mt-2 grid gap-1.5">
+              <template x-for="r in awaitingRelease" :key="'ar-'+r.id">
+                <div class="flex items-center gap-3 text-sm">
+                  <span class="font-display text-xs font-bold uppercase tracking-wider text-mist" x-text="`ST ${r.day}`"></span>
+                  <span class="min-w-0 flex-1 truncate press-break text-ink" x-text="r.label"></span>
+                </div>
+              </template>
+            </div>
           </div>
           <p x-show="!missingReports.length" class="rounded-xl border border-line bg-elevated/40 px-3 py-2.5 text-sm text-mist">Zu jedem abgeschlossenen Match liegt ein Bericht vor.</p>
           <div x-show="missingReports.length" class="grid gap-2">

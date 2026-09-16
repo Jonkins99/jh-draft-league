@@ -156,13 +156,26 @@
                     </button>
                   </div>
 
-                  <div class="flex items-center justify-between gap-2 border-t border-line px-4 py-2.5">
+                  <div class="flex flex-wrap items-center gap-x-2 gap-y-1 border-t border-line px-4 py-2.5">
                     <button type="button" x-show="!summaryFor(day.day, i)"
                             @click.stop="$dispatch('navigate', { key: 'teambuilding', teamAId: m.home, teamBId: m.away })"
                             class="inline-flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-xs font-semibold text-mist transition-colors hover:text-flame-400">
                       <svg viewBox="0 0 24 24" class="size-3.5" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M3 7h7"/><path d="M3 12h7"/><path d="M3 17h7"/><path d="M14 7h7"/><path d="M14 12h7"/><path d="M14 17h7"/></svg>
                       Teambuilding
                     </button>
+
+                    <!-- Video zum Match: deckt alle drei Kämpfe ab -->
+                    <button type="button" x-show="hasVideo(day.day, i)" @click.stop="openVideo(day.day, i)"
+                            class="inline-flex items-center gap-1.5 rounded-lg bg-flame-500/15 px-3 py-1.5 text-xs font-semibold text-flame-400 transition-colors hover:bg-flame-500/25"
+                            aria-label="Video ansehen">
+                      <svg viewBox="0 0 24 24" class="size-3.5" fill="currentColor" aria-hidden="true"><path d="M8 5.5v13l11-6.5z"/></svg>
+                      Video
+                    </button>
+
+                    <span x-show="summaryFor(day.day, i) && !pressReadyFor(day.day, i)"
+                          class="inline-flex items-center gap-1.5 rounded-lg border border-dashed border-line px-2.5 py-1 text-[11px] font-semibold text-mist"
+                          title="Die Presse wartet auf die Freigabe">Presse offen</span>
+
                     <button type="button" @click.stop="openEntry(day.day, i, m.home, m.away)"
                             class="ml-auto rounded-lg px-3 py-1.5 text-xs font-semibold text-mist transition-colors hover:text-flame-400"
                             x-text="resultFor(day.day, i) ? 'Bearbeiten' : 'Ergebnis eintragen'"></button>
@@ -411,48 +424,14 @@
                 <span x-show="logUpdatedLabel()" class="shrink-0 text-[11px] text-mist" x-text="`Zuletzt: ${logUpdatedLabel()}`"></span>
               </div>
 
-              <!-- Diktat: beliebig viele Schnipsel, eine einzige KI-Übermittlung -->
-              <div class="mb-2 rounded-xl border border-line bg-elevated/40 p-3">
-                <div class="flex flex-wrap items-center gap-2">
-                  <button type="button" @click="recToggle()" :disabled="recProcessing || !recSupported()"
-                          class="inline-flex items-center gap-2 rounded-xl px-3.5 py-2.5 font-display text-xs font-bold uppercase tracking-wider transition-colors disabled:opacity-40"
-                          :class="recording ? 'bg-flame-500 text-white' : 'border border-line text-mist hover:border-flame-500/40 hover:text-flame-400'">
-                    <span class="relative flex size-2.5">
-                      <span x-show="recording" class="absolute inline-flex size-full animate-ping rounded-full bg-white/80"></span>
-                      <span class="relative inline-flex size-2.5 rounded-full" :class="recording ? 'bg-white' : 'bg-flame-500'"></span>
-                    </span>
-                    <span x-text="recording ? 'Aufnahme stoppen' : (recHasClips() ? 'Weiter aufnehmen' : 'Aufnahme starten')"></span>
-                  </button>
-                  <span class="font-display text-sm font-bold tabular-nums" :class="recording ? 'text-flame-400' : 'text-mist'" x-text="recTotalLabel()"></span>
-                  <button type="button" x-show="recHasClips() && !recording" @click="recSubmit()" :disabled="recProcessing"
-                          class="ml-auto rounded-xl bg-volt-400/15 px-3.5 py-2.5 font-display text-xs font-bold uppercase tracking-wider text-volt-400 transition-colors hover:bg-volt-400/25 disabled:opacity-40"
-                          x-text="recProcessing ? 'Wird aufbereitet…' : `${recClips.length} Aufnahme(n) aufbereiten`"></button>
-                  <button type="button" x-show="recHasClips() && !recording && !recProcessing" @click="recReset()"
-                          class="rounded-xl border border-line px-3 py-2.5 text-xs font-semibold text-mist transition-colors hover:text-flame-400">Verwerfen</button>
-                </div>
-                <div x-show="recHasClips()" x-cloak class="mt-2 flex flex-wrap gap-1.5">
-                  <template x-for="(c, i) in recClips" :key="'clip-'+i">
-                    <span class="inline-flex items-center gap-1.5 rounded-lg border border-line bg-void/40 px-2 py-1 text-[11px] text-mist">
-                      <span x-text="`#${i+1} · ${recClipLabel(c)}`"></span>
-                      <button type="button" @click="recDrop(i)" class="text-mist transition-colors hover:text-flame-400" aria-label="Schnipsel entfernen">×</button>
-                    </span>
-                  </template>
-                </div>
-                <p class="mt-2 text-[11px] leading-relaxed text-mist">
-                  Du kannst während des Kampfes in Ruhe einsprechen — auch mehrere Minuten oder in vielen kurzen Abschnitten.
-                  Erst beim Aufbereiten geht alles in einem Rutsch an die KI, die daraus einen sauberen Verlauf macht.
-                </p>
-                <p x-show="recError" x-cloak class="mt-2 text-xs text-flame-400" x-text="recError"></p>
-                <p x-show="!recSupported()" x-cloak class="mt-2 text-xs text-mist">Dieses Gerät unterstützt keine Sprachaufnahme.</p>
-              </div>
-
-              <textarea x-model="logDraft" rows="9" placeholder="Was ist passiert? Aufstellungen, Wendepunkte, Pech und Glück…"
+              <textarea :value="logDraft" @input="logTouch($event.target.value)" rows="12"
+                        placeholder="Was ist passiert? Aufstellungen, Wendepunkte, Pech und Glück…"
                         class="w-full resize-y rounded-xl border border-line bg-elevated px-3.5 py-3 text-sm leading-relaxed text-ink placeholder:text-mist focus:border-flame-500 focus:outline-none"></textarea>
               <div class="mt-2 flex flex-wrap items-center gap-2">
                 <button type="button" @click="logSave()" :disabled="logSaving || !logDirty()"
                         class="rounded-xl border border-line px-3.5 py-2 text-xs font-semibold text-mist transition-colors hover:border-flame-500/40 hover:text-flame-400 disabled:opacity-40"
                         x-text="logSaving ? 'Speichert…' : 'Verlauf speichern'"></button>
-                <span x-show="logDirty()" class="text-[11px] text-mist">Nicht gespeicherte Änderungen.</span>
+                <span x-show="logDirty()" class="text-[11px] text-mist">Nicht gespeichert — der Entwurf liegt auf diesem Gerät.</span>
                 <span x-show="logError" x-cloak class="text-[11px] text-flame-400" x-text="logError"></span>
               </div>
             </div>
@@ -461,6 +440,25 @@
             <div x-show="logOtherText()" x-cloak class="rounded-xl border border-line bg-elevated/40 p-3.5">
               <p class="mb-1.5 font-display text-[11px] font-semibold uppercase tracking-wider text-mist" x-text="`Notiert von ${logOtherPlayer()}`"></p>
               <p class="whitespace-pre-line text-sm leading-relaxed text-ink" x-text="logOtherText()"></p>
+            </div>
+
+            <!-- Video zum Match: eine Adresse für alle drei Kämpfe -->
+            <div>
+              <div class="mb-2">
+                <h3 class="font-display text-sm font-bold uppercase tracking-wider text-ink">Video</h3>
+                <p class="mt-0.5 text-xs text-mist">Eine Adresse für das ganze Match — am besten YouTube. Im Spielplan erscheint dann ein Abspielknopf.</p>
+              </div>
+              <input type="url" inputmode="url" :value="form.videoUrl" @input="setVideoUrl($event.target.value)"
+                     placeholder="https://www.youtube.com/watch?v=…"
+                     class="w-full rounded-xl border border-line bg-elevated px-3.5 py-3 text-sm text-ink placeholder:text-mist focus:border-flame-500 focus:outline-none"
+                     :class="videoValid() ? '' : 'border-flame-500'" />
+              <p x-show="!videoValid()" x-cloak class="mt-1.5 text-[11px] text-flame-400">Das sieht nicht nach einer gültigen Adresse aus.</p>
+              <template x-if="videoValid() && videoInfo(form.videoUrl)">
+                <p class="mt-1.5 text-[11px] text-mist">
+                  <span x-show="videoInfo(form.videoUrl).kind === 'youtube'">Wird im Spielplan direkt abgespielt.</span>
+                  <span x-show="videoInfo(form.videoUrl).kind !== 'youtube'" x-text="`Wird als Link zu ${videoHost(form.videoUrl)} geöffnet.`"></span>
+                </p>
+              </template>
             </div>
 
             <!-- Private Notiz zum Match -->
@@ -479,14 +477,40 @@
         </div>
 
         <!-- Fuß -->
-        <div class="flex flex-wrap items-center justify-between gap-2 border-t border-line px-4 py-4 sm:gap-3 sm:px-6">
-          <button type="button" @click="step = Math.max(0, step - 1)" :disabled="step === 0"
-                  class="rounded-xl border border-line px-3.5 py-2.5 font-semibold text-mist transition-colors hover:text-ink disabled:opacity-40 sm:px-4">Zurück</button>
-          <div class="flex gap-2 sm:gap-3">
-            <button type="button" x-show="step < 3" @click="step = step + 1"
-                    class="rounded-xl border border-line px-3.5 py-2.5 font-semibold text-mist transition-colors hover:text-ink sm:px-4">Weiter</button>
-            <button type="button" @click="save()" :disabled="saving"
-                    class="rounded-xl bg-flame-500 px-4 py-2.5 font-display font-bold uppercase tracking-wide text-white transition-colors hover:bg-flame-600 disabled:opacity-60 sm:px-5">Speichern</button>
+        <div class="border-t border-line px-4 py-4 sm:px-6">
+          <!-- Pressefreigabe: erst danach schreibt die Redaktion über dieses Spiel -->
+          <div class="mb-3 flex flex-wrap items-center gap-2 rounded-xl border px-3 py-2.5"
+               :class="entryPressReady ? 'border-volt-400/40 bg-volt-400/10' : 'border-dashed border-line'">
+            <span class="grid size-7 shrink-0 place-items-center rounded-lg"
+                  :class="entryPressReady ? 'bg-volt-400/20 text-volt-400' : 'bg-elevated text-mist'">
+              <svg viewBox="0 0 24 24" class="size-4" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                <path x-show="entryPressReady" d="M20 6 9 17l-5-5"/>
+                <path x-show="!entryPressReady" d="M12 8v5"/><circle x-show="!entryPressReady" cx="12" cy="16.5" r="0.6" fill="currentColor"/>
+                <circle x-show="!entryPressReady" cx="12" cy="12" r="9"/>
+              </svg>
+            </span>
+            <p class="min-w-0 flex-1 text-xs leading-relaxed" :class="entryPressReady ? 'text-ink' : 'text-mist'">
+              <span x-show="entryPressReady">Freigegeben — die Redaktion darf über dieses Spiel schreiben.</span>
+              <span x-show="!entryPressReady && entryComplete">Kampfverlauf und Ergebnis final? Dann gib das Spiel für die Presse frei.</span>
+              <span x-show="!entryPressReady && !entryComplete">Erst wenn alle drei Kämpfe vollständig gespeichert sind, lässt sich das Spiel freigeben.</span>
+            </p>
+            <button type="button" @click="togglePressRelease()" :disabled="releasing || (!entryComplete && !entryPressReady)"
+                    class="shrink-0 rounded-xl px-3.5 py-2 font-display text-xs font-bold uppercase tracking-wider transition-colors disabled:opacity-40"
+                    :class="entryPressReady ? 'border border-line text-mist hover:text-flame-400' : 'bg-volt-400/15 text-volt-400 hover:bg-volt-400/25'"
+                    x-text="releasing ? '…' : (entryPressReady ? 'Freigabe zurücknehmen' : 'Pressefreigabe')"></button>
+          </div>
+
+          <p x-show="saveError" x-cloak class="mb-3 rounded-xl border border-flame-500/40 bg-flame-500/10 px-3 py-2 text-xs text-flame-400" x-text="saveError"></p>
+
+          <div class="flex flex-wrap items-center justify-between gap-2 sm:gap-3">
+            <button type="button" @click="step = Math.max(0, step - 1)" :disabled="step === 0"
+                    class="rounded-xl border border-line px-3.5 py-2.5 font-semibold text-mist transition-colors hover:text-ink disabled:opacity-40 sm:px-4">Zurück</button>
+            <div class="flex gap-2 sm:gap-3">
+              <button type="button" x-show="step < 3" @click="step = step + 1"
+                      class="rounded-xl border border-line px-3.5 py-2.5 font-semibold text-mist transition-colors hover:text-ink sm:px-4">Weiter</button>
+              <button type="button" @click="save()" :disabled="saving || !videoValid()"
+                      class="rounded-xl bg-flame-500 px-4 py-2.5 font-display font-bold uppercase tracking-wide text-white transition-colors hover:bg-flame-600 disabled:opacity-60 sm:px-5">Speichern</button>
+            </div>
           </div>
         </div>
       </div>
@@ -638,11 +662,60 @@
         </div>
 
         <!-- Fuß -->
-        <div class="flex items-center justify-between gap-3 border-t border-line p-4 sm:px-6">
+        <div class="flex flex-wrap items-center gap-2 border-t border-line p-4 sm:gap-3 sm:px-6">
           <button type="button" @click="closeDetail()"
                   class="rounded-xl border border-line px-4 py-2.5 font-semibold text-mist transition-colors hover:text-ink">Schließen</button>
+          <button type="button" x-show="hasVideo(detail.day, detail.matchIndex)"
+                  @click="closeDetail(); openVideo(detail.day, detail.matchIndex)"
+                  class="inline-flex items-center gap-1.5 rounded-xl bg-flame-500/15 px-3.5 py-2.5 font-display text-xs font-bold uppercase tracking-wider text-flame-400 transition-colors hover:bg-flame-500/25">
+            <svg viewBox="0 0 24 24" class="size-3.5" fill="currentColor" aria-hidden="true"><path d="M8 5.5v13l11-6.5z"/></svg>
+            Video
+          </button>
+          <span x-show="pressReadyFor(detail.day, detail.matchIndex)"
+                class="rounded-lg border border-volt-400/40 bg-volt-400/10 px-2.5 py-1 text-[11px] font-semibold text-volt-400">Presse freigegeben</span>
+          <button type="button" x-show="!pressReadyFor(detail.day, detail.matchIndex) && matchDetail.complete"
+                  @click="togglePressRelease()" :disabled="releasing"
+                  class="rounded-xl bg-volt-400/15 px-3.5 py-2.5 font-display text-xs font-bold uppercase tracking-wider text-volt-400 transition-colors hover:bg-volt-400/25 disabled:opacity-40"
+                  x-text="releasing ? '…' : 'Pressefreigabe'"></button>
           <button type="button" @click="editFromDetail()"
-                  class="rounded-xl bg-flame-500 px-5 py-2.5 font-display font-bold uppercase tracking-wide text-white transition-colors hover:bg-flame-600">Bearbeiten</button>
+                  class="ml-auto rounded-xl bg-flame-500 px-5 py-2.5 font-display font-bold uppercase tracking-wide text-white transition-colors hover:bg-flame-600">Bearbeiten</button>
+        </div>
+      </div>
+    </template>
+  </div>
+
+  <!-- Video zum Match -->
+  <div popover="manual" id="match-video" class="modal-pop w-[56rem] max-w-[96vw] rounded-2xl border border-line bg-panel p-0 text-ink">
+    <template x-if="video">
+      <div class="flex max-h-[92vh] flex-col">
+        <div class="flex items-center justify-between gap-3 border-b border-line px-4 py-3 sm:px-5">
+          <div class="min-w-0">
+            <p class="font-display text-xs font-semibold uppercase tracking-[0.25em] text-flame-400" x-text="`Spieltag ${video.day} · Video`"></p>
+            <p class="mt-0.5 truncate text-sm font-semibold" x-text="`${teamById(video.home)?.name || ''} vs ${teamById(video.away)?.name || ''}`"></p>
+          </div>
+          <button type="button" @click="closeVideo()" class="shrink-0 rounded-lg p-1.5 text-mist transition-colors hover:text-ink" aria-label="Schließen">
+            <svg viewBox="0 0 24 24" class="size-5" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M6 6l12 12M18 6L6 18"/></svg>
+          </button>
+        </div>
+
+        <div class="min-h-0 flex-1 overflow-y-auto p-4 sm:p-5">
+          <template x-if="video.embed?.embedUrl">
+            <div class="overflow-hidden rounded-xl border border-line bg-void" style="aspect-ratio:16/9">
+              <iframe :src="video.embed.embedUrl" class="size-full" style="border:0"
+                      allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share"
+                      referrerpolicy="strict-origin-when-cross-origin"
+                      allowfullscreen title="Video zum Match"></iframe>
+            </div>
+          </template>
+          <template x-if="!video.embed?.embedUrl">
+            <div class="rounded-xl border border-dashed border-line p-6 text-center">
+              <p class="text-sm text-mist">Dieses Video lässt sich hier nicht einbetten.</p>
+              <a :href="video.url" target="_blank" rel="noopener noreferrer"
+                 class="mt-3 inline-block rounded-xl bg-flame-500 px-4 py-2.5 font-display text-xs font-bold uppercase tracking-wider text-white transition-colors hover:bg-flame-600"
+                 x-text="`Bei ${videoHost(video.url)} öffnen`"></a>
+            </div>
+          </template>
+          <p class="mt-3 text-[11px] text-mist">Das Video deckt alle drei Kämpfe ab.</p>
         </div>
       </div>
     </template>

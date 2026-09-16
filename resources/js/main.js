@@ -1,7 +1,7 @@
 import Alpine from 'alpinejs';
 import { db } from './firebase.js';
 import { collection, doc, getDoc, onSnapshot, writeBatch, arrayUnion, setDoc, deleteDoc, runTransaction } from 'firebase/firestore';
-import { battleStats, computeStandings, pokemonStats, placementHistory, speedTiers, speedCases, clampSp, applySpeedMod, typeMultiplier, ALL_TYPES, pokemonProfile, defensiveChart, offensiveChart, playerDuel, showdownExport, teamBattleTotals, isMega, baseFormOf, pokezoneUrl, draftPicks } from './scoring.mjs';
+import { battleStats, mergeResult, computeStandings, pokemonStats, placementHistory, speedTiers, speedCases, clampSp, applySpeedMod, typeMultiplier, ALL_TYPES, pokemonProfile, defensiveChart, offensiveChart, playerDuel, showdownExport, teamBattleTotals, isMega, baseFormOf, pokezoneUrl, draftPicks } from './scoring.mjs';
 import {
   exportDataset, buildScheduleExport, buildBattleDetailsExport, buildStandingsExport,
   buildRankingExport, buildTeamsExport, buildDraftpoolExport, buildDraftOrderExport,
@@ -17,12 +17,15 @@ import {
   marketValue, formatMarket, formatMarketDelta, formatPercent, eloIndex,
   squadMarketValue, tierBoundaries, historyPoints, historyStops, squadHistory,
   snapshotOf, diffSnapshots, historyDiff, stopKeyForDay, parseHistoryLabel, tierForElo,
+  transferCutIndex, rosterAtIndex, rosterSpans,
 } from './market.mjs';
 import {
   SEASON_ALL, seasonPrefix, seasonOfId, seasonOfTeam, franchiseSlug, seasonsFrom,
   teamsOfSeason, resultsOfSeason, allTimeTable, seasonSummaries, allTimePlayers,
   allTimePokemon, buildRecords, awardLeaderboard,
 } from './seasons.mjs';
+import { normalizeVideoUrl, videoEmbed, videoHostLabel } from './video.mjs';
+import { renderTiles, TILE_KINDS } from './press-tiles.mjs';
 import { renderMarketChart } from './marketchart.mjs';
 import { runMarketShow } from './marketshow.mjs';
 import { runCeremony } from './ceremony.mjs';
@@ -44,7 +47,7 @@ import {
 import {
   PRESS_CATEGORIES, PRESS_AUTHORS, AI_CATEGORY, authorById, categoryLabel, categoryColor,
   manualCategories, categoriesOf, normalizeCategories,
-  randomAuthor, randomAuthors, pressSlots, slotLabel, typeLabel, isMatchComplete, matchDocId,
+  randomAuthor, randomAuthors, pressSlots, slotLabel, typeLabel, isMatchComplete, isPressReleased, matchDocId,
   bonusRoundComplete, bonusRoundProgress, bonusSlotsFor, BONUS_ROUND_DAY, PRESS_FROM_DAY,
   outlookSlotFor, outlookSessionId, outlookProgress, seasonComplete, OUTLOOK_QUESTIONS,
   collectStorylines, sanitizeHtml, paragraphsToHtml, excerpt, readingMinutes,
@@ -54,7 +57,6 @@ import { buildContext } from './press-context.mjs';
 import {
   DEFAULT_PROMPTS, PROMPT_DEFS, buildSystem, buildUserPrompt, buildDirection,
   ARTICLE_SCHEMA, ARTICLE_SCHEMA_WITH_CATEGORY, ARTICLE_SCHEMA_FREE_CATEGORY, QUESTIONS_SCHEMA,
-  BATTLE_LOG_SCHEMA, buildBattleLogSystem, buildBattleLogPrompt,
 } from './press-prompts.mjs';
 import { generateJson, testKey, GEMINI_MODELS, DEFAULT_MODEL } from './gemini.mjs';
 import {
@@ -65,7 +67,6 @@ import {
 import {
   NOTE_SCOPE, blankNotes, normalizeNotes, teamNote, matchNote, withNote, countNotes,
   blankLog, logText, logUpdatedAt, hasLog, logAuthors, logToText,
-  totalSeconds, formatDuration, spokenVocabulary,
 } from './notes.mjs';
 
 const PICKS_PER_TEAM = 10;
@@ -141,7 +142,7 @@ const TB_TILEVIEW_KEY = 'jhdl-tb-tileview-v1'; // { v: 'nur'|'notes'|'moves'|'al
 // Filter „nur grün markierte" – getrennt für Kader-Kacheln und Initiative-Tierlist.
 const TB_GREENONLY_KEY = 'jhdl-tb-greenonly-v1'; // { tiles: bool, speed: bool }
 const TB_CALC_KEY = 'jhdl-tb-calc-v1';           // { open: bool }  (Eingaben je Paarung separat)
-const TB_LOG_KEY = 'jhdl-tb-log-v1';             // { open: bool }  (Kampfverlauf-Bereich)
+const TB_LOG_KEY = 'jhdl-tb-log-v1';             // { open: bool }  (Notiz-/Verlaufsbereich)
 
 // Presse: Zugangsdaten der Redaktion liegen bewusst NUR auf dem Gerät. Firestore ist
 // offen lesbar — ein API-Key hätte dort nichts verloren.
@@ -624,7 +625,8 @@ function seriesColor(i) {
 // Punkt markiert, damit im Diagramm sichtbar wird, wann sich die Klasse ändert.
 function monSeries(row, bounds, opts = {}) {
   let prevTier = null;
-  const points = historyPoints(row).map((h) => {
+  const only = opts.only || null;
+  const points = historyPoints(row).filter((h) => !only || only.has(h.key)).map((h) => {
     const meta = parseHistoryLabel(h.label);
     const tier = tierForElo(bounds, h.elo);
     const changed = prevTier != null && tier != null && tier !== prevTier;
@@ -1466,9 +1468,37 @@ function teamsView() {
         })
         .sort((a, b) => (b.value || 0) - (a.value || 0));
     },
+    // --- Kaderstand zu einem Zeitpunkt -------------------------------------
+    // Der Wintertransfer teilt die Saison: an den Spieltagen davor stand ein anderer
+    // Kader auf dem Platz als danach. Das Transfer-Dokument kennt keinen Spieltag —
+    // der Schnitt kommt aus der Verlaufsspalte „Transfer", ersatzweise aus dem
+    // letzten Spieltag der Hinrunde.
+    _rosterCut(team) {
+      const season = seasonOfTeam(team);
+      const days = (this.league.scheduleOf(season).matchdays || [])
+        .filter((md) => md.leg === 'hin')
+        .map((md) => md.day);
+      return {
+        transfer: this.league.transferOf(season),
+        cutIndex: transferCutIndex(this.$store.elo.stops(), {
+          season,
+          afterDay: days.length ? Math.max(...days) : null,
+        }),
+      };
+    },
+    _squadPoints(team) {
+      if (!team) return [];
+      const { transfer, cutIndex } = this._rosterCut(team);
+      return squadHistory(
+        (stop, i) => rosterAtIndex(team, transfer, i, cutIndex),
+        this.$store.elo.index(),
+        this.$store.elo.stops(),
+      );
+    },
+
     // Entwicklung des Gesamtwerts über den bekannten Verlauf.
     get teamMarketSpan() {
-      const pts = squadHistory(this.selectedTeam?.pokemon || [], this.$store.elo.index(), this.$store.elo.stops());
+      const pts = this._squadPoints(this.selectedTeam);
       if (pts.length < 2) return null;
       const first = pts[0];
       const last = pts[pts.length - 1];
@@ -1480,15 +1510,13 @@ function teamsView() {
     },
 
     _teamSeries(highlightId) {
-      const index = this.$store.elo.index();
-      const stops = this.$store.elo.stops();
       return this.teams.map((t, i) => ({
         key: t.id,
         label: t.name,
         color: seriesColor(i),
         highlight: highlightId === t.id,
         dimmed: !!highlightId && highlightId !== t.id,
-        points: squadHistory(t.pokemon || [], index, stops),
+        points: this._squadPoints(t),
       }));
     },
     _teamChartConfig(highlightId) {
@@ -1512,17 +1540,27 @@ function teamsView() {
       bindMarketChart(this, el, 'leaguevalue', () => this._teamChartConfig(null));
     },
     // Jedes Pokémon des Kaders als eigene Linie, mit Tier-Grenzen im Hintergrund.
+    // Gezeigt wird jedes Pokémon nur für die Zeitpunkte, an denen es dem Team gehörte:
+    // Abgänge enden am Wintertransfer, Zugänge beginnen dort.
     mountRosterChart(el) {
       bindMarketChart(this, el, 'roster', () => {
         const store = this.$store.elo;
         const index = store.index();
         const bounds = tierBoundaries(store.rows);
-        const series = (this.selectedTeam?.pokemon || [])
-          .map((p, i) => {
-            const row = index[p.name];
-            return row ? monSeries(row, bounds, { color: seriesColor(i) }) : null;
+        const team = this.selectedTeam;
+        const { transfer, cutIndex } = this._rosterCut(team);
+        const series = rosterSpans(team, transfer, store.stops(), cutIndex)
+          .map((span, i) => {
+            const row = index[span.name];
+            if (!row) return null;
+            const suffix = span.left ? ' (abgegeben)' : span.joined ? ' (Zugang)' : '';
+            return monSeries(row, bounds, {
+              color: seriesColor(i),
+              label: `${span.name}${suffix}`,
+              only: span.keys,
+            });
           })
-          .filter(Boolean);
+          .filter((s) => s && s.points.length);
         return {
           series,
           stops: store.stops(),
@@ -1952,10 +1990,13 @@ function scheduleView() {
     ...seasonFinaleMixin(),
     busy: false,
     saving: false,
+    saveError: null,
+    releasing: false,
     editing: null, // { day, matchIndex, home, away, docId }
     step: 0, // 0 = Aufgebot, 1..3 = Kämpfe
     form: null,
     detail: null, // { day, matchIndex, home, away }
+    video: null,  // { day, matchIndex, url, embed, home, away }
     _pendingMatch: null,
     _scrolledToOpen: false,
 
@@ -2192,6 +2233,9 @@ function scheduleView() {
         day: dt.day, home, away, battles, squads, played,
         homeWins, awayWins, homeKills, awayKills,
         winner: homeWins > awayWins ? 'home' : awayWins > homeWins ? 'away' : 'draw',
+        complete: isMatchComplete(r),
+        videoUrl: r?.videoUrl || null,
+        pressReady: !!r?.pressReady,
       };
     },
 
@@ -2219,6 +2263,12 @@ function scheduleView() {
       return this.roster(side);
     },
     openEntry(day, matchIndex, home, away) {
+      // Ohne geladene Ergebnisse wüsste das Formular nicht, was schon eingetragen
+      // ist — und würde es beim Speichern überschreiben.
+      if (!this.league.resultsLoaded) {
+        window.dispatchEvent(new CustomEvent('toast', { detail: { msg: 'Ergebnisse werden noch geladen — einen Moment.' } }));
+        return;
+      }
       const existing = this.resultFor(day, matchIndex);
       this.editing = { day, matchIndex, home, away, docId: this.resultDocId(day, matchIndex) };
       this.logSelect(this.resultDocId(day, matchIndex), { day, home, away });
@@ -2227,6 +2277,7 @@ function scheduleView() {
       this.form = existing ? this.hydrate(existing) : {
         squads: { home: [], away: [] },
         battles: [this.blankBattle(), this.blankBattle(), this.blankBattle()],
+        videoUrl: '',
       };
       this.$nextTick(() => document.getElementById('result-entry')?.showPopover());
     },
@@ -2252,7 +2303,11 @@ function scheduleView() {
         }
         return { used, winner, score: { home: b.score?.home ?? null, away: b.score?.away ?? null }, fate };
       });
-      return { squads: { home: [...(r.squads?.home || [])], away: [...(r.squads?.away || [])] }, battles };
+        return {
+        squads: { home: [...(r.squads?.home || [])], away: [...(r.squads?.away || [])] },
+        battles,
+        videoUrl: r.videoUrl || '',
+      };
     },
     closeEntry() {
       const el = document.getElementById('result-entry');
@@ -2260,6 +2315,7 @@ function scheduleView() {
       this.editing = null;
       this.form = null;
       this.step = 0;
+      this.saveError = null;
     },
 
     // Aufgebot (6 von 10)
@@ -2384,21 +2440,10 @@ function scheduleView() {
         away: this.editing.away,
         squads: { home: [...this.form.squads.home], away: [...this.form.squads.away] },
         battles,
+        videoUrl: normalizeVideoUrl(this.form.videoUrl) || null,
       };
     },
     // --- Kampfverlauf & Notizen ---
-    // Die Vokabelliste entscheidet darüber, ob die Spracherkennung die Eigennamen
-    // trifft — deshalb beide Kader samt Trainern mitgeben.
-    recVocabulary() {
-      const m = this.editing || this.detail;
-      return spokenVocabulary({ teamA: this.teamById(m?.home), teamB: this.teamById(m?.away) });
-    },
-    recSituation() {
-      const m = this.editing || this.detail;
-      if (!m) return '';
-      return `Spieltag ${m.day}: ${this.teamById(m.home)?.name || m.home} gegen ${this.teamById(m.away)?.name || m.away}. `
-        + 'Ein Match besteht aus drei Kämpfen zu je vier gegen vier Pokémon.';
-    },
     matchNoteId() {
       const m = this.editing || this.detail;
       return m ? this.resultDocId(m.day, m.matchIndex) : null;
@@ -2412,17 +2457,113 @@ function scheduleView() {
       if (id) this.$store.notes.set('matches', id, text);
     },
 
+    // Erst der Kampfverlauf, dann das Ergebnis: Der Verlauf ist der Teil, der sich
+    // nicht rekonstruieren lässt. Scheitert etwas, bleibt die Eingabe offen und der
+    // Fehler steht auf dem Bildschirm — nicht nur in der Konsole.
     async save() {
       if (this.saving) return;
       this.saving = true;
+      const docId = this.editing.docId;
+      let logOk = true;
       try {
-        await this.league.saveResult(this.editing.docId, this.serialize());
-        if (this.logDirty()) await this.logSave();
-        this.closeEntry();
+        if (this.logDirty()) logOk = await this.logSave(docId);
+        await this.league.saveResult(docId, this.serialize());
+        if (logOk) {
+          const wasReady = this.entryPressReady;
+          const complete = this.form.battles.every((b) => this.battleValid(b));
+          this.closeEntry();
+          // Der Freigabe-Knopf braucht das gespeicherte Ergebnis — nach dem Schließen
+          // bleibt sonst unklar, dass die Presse noch wartet.
+          if (complete && !wasReady) {
+            window.dispatchEvent(new CustomEvent('toast', {
+              detail: { msg: 'Gespeichert. Für die Presse ist das Spiel noch nicht freigegeben.' },
+            }));
+          }
+        } else {
+          window.dispatchEvent(new CustomEvent('toast', {
+            detail: { msg: 'Ergebnis gespeichert — der Kampfverlauf noch nicht. Bitte erneut speichern.' },
+          }));
+        }
       } catch (e) {
         console.error('Ergebnis speichern fehlgeschlagen:', e);
+        this.saveError = e?.message || 'Das Ergebnis konnte nicht gespeichert werden.';
+        window.dispatchEvent(new CustomEvent('toast', { detail: { msg: this.saveError } }));
       }
       this.saving = false;
+    },
+
+    // --- Video zum Match ----------------------------------------------------
+    // Ein Video deckt alle drei Kämpfe ab und hängt deshalb am Ergebnis.
+    setVideoUrl(value) {
+      this.form.videoUrl = value;
+    },
+    videoValid() {
+      const v = String(this.form?.videoUrl || '').trim();
+      return !v || !!normalizeVideoUrl(v);
+    },
+    videoInfo(url) {
+      return videoEmbed(url);
+    },
+    videoHost(url) {
+      return videoHostLabel(url);
+    },
+    videoFor(day, matchIndex) {
+      return this.resultFor(day, matchIndex)?.videoUrl || null;
+    },
+    hasVideo(day, matchIndex) {
+      return !!this.videoFor(day, matchIndex);
+    },
+    openVideo(day, matchIndex) {
+      const url = this.videoFor(day, matchIndex);
+      if (!url) return;
+      const match = (this.matchdays.find((d) => d.day === day)?.matches || [])[matchIndex];
+      this.video = {
+        day,
+        matchIndex,
+        url,
+        embed: videoEmbed(url),
+        home: match?.home || null,
+        away: match?.away || null,
+      };
+      this.$nextTick(() => document.getElementById('match-video')?.showPopover());
+    },
+    closeVideo() {
+      const el = document.getElementById('match-video');
+      if (el && el.matches(':popover-open')) el.hidePopover();
+      // Das iframe muss aus dem DOM, sonst spielt der Ton weiter.
+      this.video = null;
+    },
+
+    // --- Pressefreigabe -----------------------------------------------------
+    // Die Presse beginnt erst, wenn Ergebnis UND Kampfverlauf final sind. Vorher
+    // schriebe sie über einen Stand, der sich noch ändert.
+    pressReadyFor(day, matchIndex) {
+      return !!this.resultFor(day, matchIndex)?.pressReady;
+    },
+    get entryComplete() {
+      const r = this.editing ? this.resultFor(this.editing.day, this.editing.matchIndex) : null;
+      return isMatchComplete(r);
+    },
+    get entryPressReady() {
+      return !!this.editing && this.pressReadyFor(this.editing.day, this.editing.matchIndex);
+    },
+    async togglePressRelease() {
+      const e = this.editing || this.detail;
+      if (!e || this.releasing) return;
+      const docId = this.resultDocId(e.day, e.matchIndex);
+      const next = !this.pressReadyFor(e.day, e.matchIndex);
+      this.releasing = true;
+      try {
+        if (next && this.logDirty()) await this.logSave(docId);
+        await this.league.setPressReady(docId, next, this.$store.auth.me);
+        window.dispatchEvent(new CustomEvent('toast', {
+          detail: { msg: next ? 'Für die Presse freigegeben.' : 'Freigabe zurückgenommen.' },
+        }));
+      } catch (err) {
+        console.error('Pressefreigabe fehlgeschlagen:', err);
+        window.dispatchEvent(new CustomEvent('toast', { detail: { msg: 'Die Freigabe konnte nicht gespeichert werden.' } }));
+      }
+      this.releasing = false;
     },
 
     // --- Export ---
@@ -2897,7 +3038,9 @@ function pokemonView() {
     get eloLoading() { return this.$store.elo.loading; },
     fmtMarket(v) { return formatMarket(v); },
     fmtMarketDelta(v) { return formatMarketDelta(v); },
-    fmtPct(v) { return formatPercent(v); },
+    // Marktwert-Veränderungen kommen bereits in Prozent (0–100), die Kennzahlen
+    // dieser Ansicht dagegen als Anteil (0–1) — deshalb zwei getrennte Helfer.
+    fmtMarketPct(v) { return formatPercent(v); },
 
     // === Marktwert-Verlauf =================================================
     get marketRow() {
@@ -3195,27 +3338,33 @@ function recordsView() {
     },
     // „Saison 1 · Spieltag 6" — ein Kalenderdatum führt die Liga nicht.
     whenLabel(rec) {
-      const w = rec.when;
-      if (!w) return 'über alle Saisons';
+      return this.holderWhen(rec.holders?.[0]) || 'über alle Saisons';
+    },
+    // Dasselbe je Halter: Teilen sich mehrere den Rekord, stellten sie ihn zu
+    // unterschiedlichen Zeitpunkten auf.
+    holderWhen(holder) {
+      const w = holder?.when;
+      if (!w) return '';
       const parts = [];
       if (w.season) parts.push(`Saison ${w.season}`);
       if (w.day) parts.push(`Spieltag ${w.day}`);
       if (w.battle) parts.push(`Kampf ${w.battle}`);
       if (w.stop) parts.push(w.stop);
-      return parts.join(' · ') || 'über alle Saisons';
+      return parts.join(' · ');
     },
-    open(rec) {
-      if (rec.holder?.teamId && !rec.holder?.image) {
-        this.$dispatch('navigate', { key: 'teams', teamId: rec.holder.teamId });
+    open(rec, holder = null) {
+      const h = holder || rec.holder;
+      if (h?.teamId && !h?.image) {
+        this.$dispatch('navigate', { key: 'teams', teamId: h.teamId });
         return;
       }
-      if (rec.holder?.image || rec.group === 'pokemon' || rec.group === 'markt') {
-        if (this.league.pokemon.some((p) => p.name === rec.holder?.name)) {
-          this.$dispatch('navigate', { key: 'pokemon', pokemonName: rec.holder.name });
+      if (h?.image || rec.group === 'pokemon' || rec.group === 'markt') {
+        if (this.league.pokemon.some((p) => p.name === h?.name)) {
+          this.$dispatch('navigate', { key: 'pokemon', pokemonName: h.name });
           return;
         }
       }
-      if (rec.holder?.teamId) this.$dispatch('navigate', { key: 'teams', teamId: rec.holder.teamId });
+      if (h?.teamId) this.$dispatch('navigate', { key: 'teams', teamId: h.teamId });
     },
     logoUrl(file) { return `./img/teams/${file}`; },
     teamById(id) { return this.league.teams.find((t) => t.id === id) || null; },
@@ -3639,6 +3788,15 @@ function damageCalcMixin() {
 // Ergebnisses (Spieltag) und im Teambuilder neben dem Schadensrechner.
 // Achtung: Mixins werden per Spread eingesetzt — deshalb ausschließlich Methoden,
 // keine Getter (ein Getter würde beim Spread einmalig ausgewertet und eingefroren).
+// Der geteilte Kampfverlauf eines Matches. Nur noch die Ergebniseingabe bindet ihn
+// ein: Er gehört zum Ergebnis und wird von Hand geschrieben.
+//
+// Robustheit hat hier Vorrang vor Bequemlichkeit — ein verlorener Verlauf lässt sich
+// nicht rekonstruieren. Deshalb:
+// - Der Entwurf liegt zusätzlich gerätelokal und wird beim Öffnen zurückgeholt.
+// - Gespeichert wird nur, wenn der Bestand aus der Datenbank bekannt ist; sonst
+//   wüsste der Editor nicht, was er überschreibt.
+// - Der Text wird an die Match-ID gebunden, mit der er geschrieben wurde.
 function battleLogMixin() {
   return {
     logMatchId: null,
@@ -3648,17 +3806,6 @@ function battleLogMixin() {
     logSaving: false,
     logError: null,
     logOpen: false,
-
-    // Aufnahme
-    recording: false,
-    recClips: [],        // [{ blob, seconds, mimeType }]
-    recSeconds: 0,
-    recProcessing: false,
-    recError: null,
-    _recorder: null,
-    _recChunks: [],
-    _recTicker: null,
-    _recStartedAt: 0,
 
     logStore() { return this.$store.battleLogs; },
     logMe() { return this.$store.auth.me; },
@@ -3670,13 +3817,21 @@ function battleLogMixin() {
       this.logMatchId = matchId || null;
       this.logMeta = meta;
       const text = matchId ? this.logStore().textFor(matchId, this.logMe()) : '';
-      this.logDraft = text;
       this.logSynced = text;
+      // Ein Entwurf, der beim letzten Mal nicht ankam, wird nicht stillschweigend
+      // verworfen — er ist der jüngere Stand.
+      const local = matchId ? logDraftRead(matchId, this.logMe()) : null;
+      this.logDraft = local != null && local !== text ? local : text;
       this.logError = null;
-      this.recReset();
     },
 
     logDirty() { return this.logDraft !== this.logSynced; },
+
+    // Jede Änderung im Editor sofort gerätelokal sichern.
+    logTouch(value) {
+      this.logDraft = value;
+      if (this.logMatchId) logDraftWrite(this.logMatchId, this.logMe(), value);
+    },
 
     // Der Verlauf kommt per Snapshot: beim ersten Laden und wenn der andere Spieler
     // schreibt. Solange nichts Eigenes im Editor steht, zieht er nach.
@@ -3698,12 +3853,25 @@ function battleLogMixin() {
       return at ? formatDateTime(at) : '';
     },
 
-    async logSave() {
-      if (!this.logMatchId || this.logSaving) return false;
+    async logSave(matchId = this.logMatchId) {
+      if (!matchId || this.logSaving) return false;
+      // Die Match-ID darf sich zwischen Tippen und Speichern nicht verschoben haben,
+      // sonst landet der Text am falschen Match.
+      if (matchId !== this.logMatchId) return false;
+      if (!this.logStore().loaded) {
+        this.logError = 'Der gespeicherte Stand ist noch nicht geladen — bitte kurz warten.';
+        return false;
+      }
+      if (!this.logMe()) {
+        this.logError = 'Ohne Anmeldung lässt sich der Verlauf nicht speichern.';
+        return false;
+      }
       this.logSaving = true;
-      const ok = await this.logStore().save(this.logMatchId, this.logMe(), this.logDraft, this.logMeta || {});
+      const text = this.logDraft;
+      const ok = await this.logStore().save(matchId, this.logMe(), text, this.logMeta || {});
       if (ok) {
-        this.logSynced = this.logDraft;
+        this.logSynced = text;
+        logDraftClear(matchId, this.logMe());
         window.dispatchEvent(new CustomEvent('toast', { detail: { msg: 'Kampfverlauf gespeichert.' } }));
       } else {
         this.logError = this.logStore().lastError;
@@ -3711,148 +3879,40 @@ function battleLogMixin() {
       this.logSaving = false;
       return ok;
     },
-
-    // --- Sprachaufnahme ------------------------------------------------------
-    // Mehrere Minuten sind ausdrücklich erwünscht, ebenso viele kurze Schnipsel
-    // (Push-to-Talk). Übermittelt wird am Ende alles zusammen in EINEM Aufruf.
-    recSupported() {
-      return typeof MediaRecorder !== 'undefined' && !!navigator.mediaDevices?.getUserMedia;
-    },
-    recTotalSeconds() { return totalSeconds(this.recClips) + (this.recording ? this.recSeconds : 0); },
-    recTotalLabel() { return formatDuration(this.recTotalSeconds()); },
-    recClipLabel(clip) { return formatDuration(clip?.seconds || 0); },
-    recHasClips() { return this.recClips.length > 0; },
-
-    async recStart() {
-      if (this.recording || !this.recSupported()) return;
-      this.recError = null;
-      try {
-        const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
-        const mime = ['audio/webm;codecs=opus', 'audio/webm', 'audio/mp4']
-          .find((t) => MediaRecorder.isTypeSupported?.(t)) || '';
-        const rec = new MediaRecorder(stream, mime ? { mimeType: mime, audioBitsPerSecond: 32000 } : undefined);
-        this._recChunks = [];
-        rec.ondataavailable = (e) => { if (e.data?.size) this._recChunks.push(e.data); };
-        rec.onstop = () => {
-          const type = rec.mimeType || mime || 'audio/webm';
-          const blob = new Blob(this._recChunks, { type });
-          const seconds = Math.round((Date.now() - this._recStartedAt) / 1000);
-          if (blob.size > 0 && seconds > 0) {
-            this.recClips = [...this.recClips, { blob, seconds, mimeType: type.split(';')[0] }];
-          }
-          stream.getTracks().forEach((t) => t.stop());
-        };
-        this._recorder = rec;
-        this._recStartedAt = Date.now();
-        this.recSeconds = 0;
-        this.recording = true;
-        rec.start(1000);
-        this._recTicker = setInterval(() => {
-          this.recSeconds = Math.round((Date.now() - this._recStartedAt) / 1000);
-        }, 500);
-      } catch (e) {
-        console.error('Aufnahme nicht möglich:', e);
-        this.recError = 'Kein Zugriff auf das Mikrofon.';
-      }
-    },
-
-    recStop() {
-      if (!this.recording) return;
-      clearInterval(this._recTicker);
-      this.recording = false;
-      this.recSeconds = 0;
-      try { this._recorder?.stop(); } catch (e) {}
-      this._recorder = null;
-    },
-
-    recToggle() { return this.recording ? this.recStop() : this.recStart(); },
-
-    recDrop(index) {
-      this.recClips = this.recClips.filter((_, i) => i !== index);
-    },
-
-    recReset() {
-      this.recStop();
-      this.recClips = [];
-      this.recError = null;
-      this.recProcessing = false;
-    },
-
-    // Alle Schnipsel in einem Aufruf ans Modell: es transkribiert, ordnet und
-    // schreibt die Eigennamen korrekt (Vokabular aus beiden Kadern).
-    async recSubmit() {
-      if (this.recProcessing) return;
-      this.recStop();
-      await new Promise((r) => setTimeout(r, 250)); // letzten Schnipsel einsammeln
-      if (!this.recClips.length) return;
-      const press = this.$store.press;
-      if (!press.hasKey) {
-        this.recError = 'Ohne hinterlegten KI-Zugang lässt sich die Aufnahme nicht aufbereiten.';
-        return;
-      }
-      this.recProcessing = true;
-      this.recError = null;
-      try {
-        const media = await Promise.all(this.recClips.map(async (c) => ({
-          mimeType: c.mimeType || 'audio/webm',
-          data: await blobToBase64(c.blob),
-        })));
-        const data = await generateJson({
-          apiKey: press.apiKey,
-          model: press.model,
-          system: buildBattleLogSystem(),
-          prompt: buildBattleLogPrompt({
-            vocabulary: this.recVocabulary(),
-            situation: this.recSituation(),
-            existing: this.logDraft.trim(),
-          }),
-          media,
-          schema: BATTLE_LOG_SCHEMA,
-          temperature: 0.4,
-          maxOutputTokens: 8192,
-          thinking: 'low',
-        });
-        const text = (data.absaetze || []).map((p) => String(p || '').trim()).filter(Boolean).join('\n\n');
-        if (!text) throw new Error('Die Aufbereitung kam leer zurück.');
-        this.logDraft = this.logDraft.trim() ? `${this.logDraft.trim()}\n\n${text}` : text;
-        if ((data.unklar || []).length) {
-          window.dispatchEvent(new CustomEvent('toast', {
-            detail: { msg: `Nicht eindeutig verstanden: ${data.unklar.slice(0, 4).join(', ')}` },
-          }));
-        }
-        this.recClips = [];
-        await this.logSave();
-      } catch (e) {
-        console.error('Aufbereitung fehlgeschlagen:', e);
-        this.recError = e?.message || 'Die Aufnahme konnte nicht aufbereitet werden.';
-      } finally {
-        this.recProcessing = false;
-      }
-    },
-
-    // Von der einbindenden Ansicht überschrieben — hier nur ein sinnvoller Standard.
-    recVocabulary() { return []; },
-    recSituation() { return ''; },
   };
 }
 
-// Blob -> base64 ohne den `data:`-Kopf (so will die API die Anhänge).
-function blobToBase64(blob) {
-  return new Promise((resolve, reject) => {
-    const reader = new FileReader();
-    reader.onerror = () => reject(reader.error);
-    reader.onload = () => resolve(String(reader.result).split(',')[1] || '');
-    reader.readAsDataURL(blob);
-  });
+// Der Entwurf des Kampfverlaufs liegt zusätzlich gerätelokal. Er ist das Netz für
+// den Fall, dass das Speichern fehlschlägt oder der Browser dazwischen schließt.
+const LOG_DRAFT_KEY = 'jhdl-battlelog-draft-v1'; // { "<matchId>|<player>": text }
+
+function logDraftRead(matchId, player) {
+  const all = loadJson(LOG_DRAFT_KEY);
+  const v = all[`${matchId}|${player}`];
+  return typeof v === 'string' ? v : null;
+}
+
+function logDraftWrite(matchId, player, text) {
+  const all = loadJson(LOG_DRAFT_KEY);
+  all[`${matchId}|${player}`] = String(text || '');
+  saveJson(LOG_DRAFT_KEY, all);
+}
+
+function logDraftClear(matchId, player) {
+  const all = loadJson(LOG_DRAFT_KEY);
+  delete all[`${matchId}|${player}`];
+  saveJson(LOG_DRAFT_KEY, all);
 }
 
 // === Teambuilding: zwei Teams gegenüberstellen =============================
 function teambuildingView() {
   return {
     ...damageCalcMixin(),
-    ...battleLogMixin(),
-    // Kampfverlauf-Bereich neben dem Rechner (gerätelokal gemerkt)
-    logPanelOpen: false,
+    // Notiz-/Verlaufsbereich neben dem Rechner (gerätelokal gemerkt). Geschrieben
+    // wird hier nur die private Matchup-Notiz — der geteilte Kampfverlauf gehört
+    // zum Ergebnis und entsteht ausschließlich in der Ergebniseingabe.
+    notePanelOpen: false,
+    pairMatchId: null,
     priorOpen: false,
     teamAId: null,
     teamBId: null,
@@ -3880,9 +3940,8 @@ function teambuildingView() {
       this.greenOnly = { tiles: !!go.tiles, speed: !!go.speed };
       this.calcOpen = !!loadJson(TB_CALC_KEY).open;
       if (this.calcOpen) this.ensureCalc();
-      this.logPanelOpen = !!loadJson(TB_LOG_KEY).open;
+      this.notePanelOpen = !!loadJson(TB_LOG_KEY).open;
       this.$store.notes.ensureLoaded();
-      this.$watch('$store.battleLogs.logs', () => this.logRehydrate());
       const store = loadJson(TB_RECENT_KEY);
       this.recent = Array.isArray(store.recent) ? store.recent : [];
       const nav = this.$store.nav;
@@ -4348,12 +4407,12 @@ function teambuildingView() {
       return 'color:#5b6573';
     },
 
-    // === Kampfverlauf & Matchup-Notizen im Teambuilder =======================
-    // Der Teambuilder ist die Stelle, an der man ohnehin sitzt, während gespielt
-    // wird — deshalb lassen sich Verlauf und Notizen auch von hier aus führen.
-    toggleLogPanel() {
-      this.logPanelOpen = !this.logPanelOpen;
-      saveJson(TB_LOG_KEY, { open: this.logPanelOpen });
+    // === Matchup-Notizen im Teambuilder ======================================
+    // Die private Notiz zur Paarung wird hier geführt; der geteilte Kampfverlauf
+    // ist nur lesbar — geschrieben wird er zum Ergebnis im Spielplan.
+    toggleNotePanel() {
+      this.notePanelOpen = !this.notePanelOpen;
+      saveJson(TB_LOG_KEY, { open: this.notePanelOpen });
     },
 
     // Alle Partien dieser beiden Teams aus dem Spielplan, in Spieltagsreihenfolge.
@@ -4385,15 +4444,22 @@ function teambuildingView() {
     // Standardwahl: die erste noch nicht abgeschlossene Partie, sonst die letzte.
     selectPairMatch(matchId = null) {
       const list = this.pairMatches();
-      if (!list.length) { this.logSelect(null); return; }
+      if (!list.length) { this.pairMatchId = null; return; }
       const target = (matchId && list.find((m) => m.id === matchId))
         || list.find((m) => !m.complete)
         || list[list.length - 1];
-      this.logSelect(target.id, { day: target.day, home: target.home, away: target.away });
+      this.pairMatchId = target.id;
     },
 
     currentPairMatch() {
-      return this.pairMatches().find((m) => m.id === this.logMatchId) || null;
+      return this.pairMatches().find((m) => m.id === this.pairMatchId) || null;
+    },
+    // Der geteilte Verlauf zur gewählten Partie — nur zum Nachlesen.
+    pairLogAuthors() {
+      return this.pairMatchId ? this.$store.battleLogs.authorsFor(this.pairMatchId) : [];
+    },
+    pairLogText(player) {
+      return this.pairMatchId ? this.$store.battleLogs.textFor(this.pairMatchId, player) : '';
     },
     pairMatchLabel(m) {
       return m ? `Spieltag ${m.day} · ${m.leg}${m.complete ? ' · gespielt' : ''}` : '';
@@ -4412,20 +4478,10 @@ function teambuildingView() {
     },
 
     matchupNote(matchId) {
-      return this.$store.notes.matchNote(matchId || this.logMatchId || '');
+      return this.$store.notes.matchNote(matchId || this.pairMatchId || '');
     },
     setMatchupNote(text) {
-      if (this.logMatchId) this.$store.notes.set('matches', this.logMatchId, text);
-    },
-
-    recVocabulary() {
-      return spokenVocabulary({ teamA: this.teamA, teamB: this.teamB });
-    },
-    recSituation() {
-      const m = this.currentPairMatch();
-      const head = m ? `Spieltag ${m.day} (${m.leg}): ` : '';
-      return `${head}${this.teamA?.name || ''} gegen ${this.teamB?.name || ''}. `
-        + 'Ein Match besteht aus drei Kämpfen zu je vier gegen vier Pokémon.';
+      if (this.pairMatchId) this.$store.notes.set('matches', this.pairMatchId, text);
     },
   };
 }
@@ -5102,6 +5158,21 @@ function presseView() {
       this.openId = null;
     },
     get article() { return this.openId ? this.press.byId(this.openId) : null; },
+    // Der Textkörper mit aufgelösten Bausteinen. Aufgelöst wird beim Anzeigen, damit
+    // eine Marktwertkachel den heutigen Stand zeigt und nicht den vom Redaktionstag.
+    get articleBody() {
+      const a = this.article;
+      if (!a) return '';
+      const l = this.league;
+      return renderTiles(a.body || '', {
+        pokedex: l.pokemon,
+        eloIndex: this.$store.elo.index(),
+        teams: l.teams,
+        results: l.allResults,
+        logoBase: './img/teams/',
+        squadValue: (team) => squadMarketValue(team.pokemon || [], this.$store.elo.index()),
+      });
+    },
     goTeam(id) {
       this.closeArticle();
       this.$dispatch('navigate', { key: 'teams', teamId: id });
@@ -5510,6 +5581,13 @@ function presseView() {
         label: `${this.teamById(r.home)?.name || '?'} vs ${this.teamById(r.away)?.name || '?'}`,
       }));
     },
+    get awaitingRelease() {
+      return this.press.awaitingRelease.map((r) => ({
+        id: r.id,
+        day: r.day,
+        label: `${this.teamById(r.home)?.name || '?'} vs ${this.teamById(r.away)?.name || '?'}`,
+      }));
+    },
     // Einen einzelnen Saison-/Pausenbeitrag von Hand anstoßen.
     writeSeasonPiece(row) {
       if (row.kind === 'review') return this.press.generateSeasonReview({ force: true });
@@ -5791,7 +5869,16 @@ Alpine.store('league', {
     return this._drafts[this.prefix] || { status: 'idle', order: [], pickIndex: 0 };
   },
   get transfer() {
-    return this._drafts[`transfer-${this.prefix}`] || { status: 'idle', order: [], pickIndex: 0, removed: [], added: [], skipped: [] };
+    return this.transferOf(this.season);
+  },
+  // Dieselben Dokumente für eine beliebige Saison — die Marktwert-Verläufe brauchen
+  // den Transfer der Saison, zu der ein Team gehört, nicht den der aktiven.
+  transferOf(season) {
+    return this._drafts[`transfer-${seasonPrefix(season)}`]
+      || { status: 'idle', order: [], pickIndex: 0, removed: [], added: [], skipped: [] };
+  },
+  scheduleOf(season) {
+    return this._schedules[seasonPrefix(season)] || { matchdays: [] };
   },
   get schedule() {
     return this._schedules[this.prefix] || { matchdays: [] };
@@ -5946,8 +6033,37 @@ Alpine.store('league', {
     });
   },
 
+  // Ein Ergebnis wird im Ganzen geschrieben — deshalb in einer Transaktion und
+  // über `mergeResult`: ein fertiger Kampf im Bestand wird nie durch einen leeren
+  // ersetzt, egal ob das Formular veraltet ist oder ein zweites Gerät schneller war.
   async saveResult(docId, data) {
-    await setDoc(doc(db, 'results', docId), { ...data, updatedAt: new Date().toISOString() });
+    const ref = doc(db, 'results', docId);
+    await runTransaction(db, async (tx) => {
+      const snap = await tx.get(ref);
+      const merged = mergeResult(snap.exists() ? snap.data() : null, data);
+      tx.set(ref, { ...merged, updatedAt: new Date().toISOString() });
+    });
+  },
+
+  // Freigabe für die Presse: erst danach entstehen Spielbericht und Zufallsbeiträge.
+  // Sie bestätigt, dass Ergebnis UND Kampfverlauf final sind.
+  async setPressReady(docId, ready, player = null) {
+    await setDoc(
+      doc(db, 'results', docId),
+      {
+        pressReady: !!ready,
+        pressReadyAt: ready ? new Date().toISOString() : null,
+        pressReadyBy: ready ? player || null : null,
+      },
+      { merge: true },
+    );
+  },
+
+  // Video zum Match (deckt alle drei Kämpfe ab). Leere Eingabe löscht den Eintrag.
+  async saveMatchVideo(docId, url) {
+    const clean = normalizeVideoUrl(url);
+    await setDoc(doc(db, 'results', docId), { videoUrl: clean || null }, { merge: true });
+    return clean;
   },
 
   // === Trainer ==============================================================
@@ -6497,6 +6613,7 @@ Alpine.store('press', {
         teams: l.teams,
         results: l.results,
         schedule: l.schedule,
+        transfer: l.transfer,
         pokedex: l.pokemon,
         eloRows: Alpine.store('elo')?.rows || [],
         awardDocs: Alpine.store('awards')?.docs || [],
@@ -6511,8 +6628,10 @@ Alpine.store('press', {
   _watchResults() {
     const l = Alpine.store('league');
     if (!l.resultsLoaded || !l.scheduleLoaded || !l.teamsLoaded) return;
+    // Nicht die Vollständigkeit löst aus, sondern die Freigabe: erst sie sagt, dass
+    // Ergebnis und Kampfverlauf endgültig sind.
     const done = new Set((l.results || [])
-      .filter((r) => (r.day ?? 0) >= PRESS_FROM_DAY && isMatchComplete(r))
+      .filter((r) => (r.day ?? 0) >= PRESS_FROM_DAY && isPressReleased(r))
       .map((r) => r.id));
     const known = pressSeenComplete;
     pressSeenComplete = done;
@@ -6528,10 +6647,12 @@ Alpine.store('press', {
       .forEach((day) => { setTimeout(() => this.fillRandomArticles(day).catch(() => {}), 1500); });
   },
 
-  // Wie viele Matches eines Spieltags sind fertig?
-  completedOnDay(day) {
+  // Wie viele Matches eines Spieltags sind fertig? Für die Automatik zählt nur, was
+  // auch freigegeben ist; von Hand nachholen lässt sich jedes vollständige Match.
+  completedOnDay(day, { released = true } = {}) {
     const l = Alpine.store('league');
-    return (l.results || []).filter((r) => r.day === day && isMatchComplete(r)).length;
+    const ok = released ? isPressReleased : isMatchComplete;
+    return (l.results || []).filter((r) => r.day === day && ok(r)).length;
   },
 
   randomIdFor(day, index) {
@@ -6540,8 +6661,8 @@ Alpine.store('press', {
 
   // Die Zufallsbeiträge, die für einen Spieltag freigeschaltet, aber noch nicht
   // geschrieben sind.
-  missingRandomFor(day) {
-    const slots = Math.min(RANDOM_ARTICLES_PER_DAY, this.completedOnDay(day));
+  missingRandomFor(day, opts = {}) {
+    const slots = Math.min(RANDOM_ARTICLES_PER_DAY, this.completedOnDay(day, opts));
     const out = [];
     for (let i = 0; i < slots; i++) {
       const id = this.randomIdFor(day, i);
@@ -6555,7 +6676,7 @@ Alpine.store('press', {
     const l = Alpine.store('league');
     const days = [...new Set((l.schedule?.matchdays || []).map((md) => md.day))]
       .filter((d) => d >= PRESS_FROM_DAY);
-    return days.flatMap((d) => this.missingRandomFor(d));
+    return days.flatMap((d) => this.missingRandomFor(d, { released: false }));
   },
 
   async fillRandomArticles(day) {
@@ -6579,6 +6700,8 @@ Alpine.store('press', {
     const ref = doc(db, 'press', id);
     const author = randomAuthor();
     const createdAt = new Date().toISOString();
+    // Vor der Transaktion holen: `l` wird schon im Platzhalter-Dokument gebraucht.
+    const l = Alpine.store('league');
     this.busy = { ...this.busy, [id]: true };
 
     try {
@@ -6594,7 +6717,6 @@ Alpine.store('press', {
       });
       if (!claimed) return null;
 
-      const l = Alpine.store('league');
       const dayTeams = (l.schedule?.matchdays || [])
         .filter((md) => md.day === day)
         .flatMap((md) => (md.matches || []).flatMap((m) => [m.home, m.away]));
@@ -6646,10 +6768,13 @@ Alpine.store('press', {
   // fertige Kämpfe hat UND das Sheet eine Verlaufsspalte für den Spieltag führt.
   // Der zweite Teil ist der eigentliche Auslöser: er erscheint erst, wenn nach dem
   // letzten Spiel tatsächlich aktualisiert wurde.
-  marketDaysReady() {
+  // `released` unterscheidet Automatik von Nachholen: die Automatik wartet auf die
+  // Pressefreigabe, von Hand nachholen lässt sich jeder vollständige Spieltag.
+  marketDaysReady({ released = true } = {}) {
     const l = Alpine.store('league');
     const rows = Alpine.store('elo')?.rows || [];
     if (!rows.length) return [];
+    const ok = released ? isPressReleased : isMatchComplete;
     return (l.schedule?.matchdays || [])
       .filter((md) => (md.day ?? 0) >= PRESS_FROM_DAY)
       .filter((md) => {
@@ -6657,14 +6782,14 @@ Alpine.store('press', {
         if (!matches.length) return false;
         return matches.every((_, i) => {
           const r = (l.results || []).find((x) => x.id === matchDocId(md.day, i));
-          return r && isMatchComplete(r);
+          return r && ok(r);
         });
       })
       .map((md) => md.day)
       .filter((day) => !!stopKeyForDay(rows, day));
   },
   get missingMarketUpdates() {
-    return this.marketDaysReady()
+    return this.marketDaysReady({ released: false })
       .filter((day) => {
         const existing = this.byId(this.marketIdFor(day));
         return !existing || existing.status === 'error';
@@ -6963,6 +7088,14 @@ Alpine.store('press', {
     const l = Alpine.store('league');
     return (l.results || [])
       .filter((r) => (r.day ?? 0) >= PRESS_FROM_DAY && isMatchComplete(r) && !this.byId(this.reportIdFor(r.id)))
+      .sort((a, b) => (a.day || 0) - (b.day || 0) || String(a.id).localeCompare(String(b.id)));
+  },
+  // Vollständig eingetragen, aber noch nicht freigegeben. Solange ein Match hier
+  // steht, rührt die Automatik es nicht an — das erklärt, warum nichts entsteht.
+  get awaitingRelease() {
+    const l = Alpine.store('league');
+    return (l.results || [])
+      .filter((r) => (r.day ?? 0) >= PRESS_FROM_DAY && isMatchComplete(r) && !r.pressReady)
       .sort((a, b) => (a.day || 0) - (b.day || 0) || String(a.id).localeCompare(String(b.id)));
   },
 

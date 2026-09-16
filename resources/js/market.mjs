@@ -205,13 +205,19 @@ export function historyStops(rows) {
   return [...seen.values()].sort((a, b) => a.index - b.index);
 }
 
-/** Verlauf des Gesamtmarktwerts eines Kaders über alle belegten Zeitpunkte. */
+/**
+ * Verlauf des Gesamtmarktwerts eines Kaders über alle belegten Zeitpunkte.
+ * `names` ist entweder eine feste Liste oder eine Funktion `(stop, i) => names` —
+ * letzteres für Kader, die sich im Lauf der Saison ändern (Wintertransfer).
+ */
 export function squadHistory(names, index, stops) {
-  const list = (names || []).map((n) => (typeof n === 'string' ? n : n?.name)).filter(Boolean);
-  return (stops || []).map((stop) => {
+  const pick = typeof names === 'function'
+    ? (stop, i) => toNames(names(stop, i))
+    : (() => { const fixed = toNames(names); return () => fixed; })();
+  return (stops || []).map((stop, i) => {
     let sum = 0;
     let known = 0;
-    list.forEach((name) => {
+    pick(stop, i).forEach((name) => {
       const h = (index[name]?.history || []).find((x) => x.key === stop.key);
       if (!Number.isFinite(h?.elo)) return;
       known++;
@@ -219,6 +225,81 @@ export function squadHistory(names, index, stops) {
     });
     return { key: stop.key, label: stop.label, short: stop.short, value: known ? sum : null, known };
   }).filter((p) => p.value != null);
+}
+
+function toNames(list) {
+  return (list || []).map((n) => (typeof n === 'string' ? n : n?.name)).filter(Boolean);
+}
+
+// === Kaderstand zu einem Zeitpunkt =========================================
+//
+// Das Sheet kennt nur Pokémon, nicht Kader. Wem ein Pokémon zu welchem Zeitpunkt
+// gehörte, steht ausschließlich im Transfer-Dokument — und zwar ohne Spieltag,
+// nur als `removed[]`/`added[]`. Der Schnitt wird deshalb über die Verlaufsspalte
+// „Transfer" bestimmt, ersatzweise über den letzten Spieltag der Hinrunde.
+
+/**
+ * Index des ersten Zeitpunkts, ab dem der Kader NACH dem Wintertransfer gilt.
+ * `-1`, wenn sich kein Schnitt bestimmen lässt (dann gilt überall der aktuelle Kader).
+ */
+export function transferCutIndex(stops, { season = null, afterDay = null } = {}) {
+  const list = stops || [];
+  const sameSeason = (s) => season == null || s.season == null || s.season === season;
+  const byColumn = list.findIndex((s) => s.kind === 'transfer' && sameSeason(s));
+  if (byColumn >= 0) return byColumn;
+  if (!Number.isFinite(afterDay)) return -1;
+  const byDay = list.findIndex((s) => sameSeason(s) && s.kind === 'md' && Number(s.day) > Number(afterDay));
+  return byDay;
+}
+
+/**
+ * Der Kader eines Teams vor dem Wintertransfer: der heutige Kader ohne die dort
+ * gezogenen Pokémon, dafür mit den abgegebenen.
+ */
+export function rosterBeforeTransfer(team, transfer) {
+  const names = new Set(toNames(team?.pokemon));
+  const teamId = team?.id;
+  (transfer?.added || []).forEach((a) => { if (a?.teamId === teamId && a.name) names.delete(a.name); });
+  (transfer?.removed || []).forEach((r) => { if (r?.teamId === teamId && r.name) names.add(r.name); });
+  return [...names];
+}
+
+/**
+ * Der Kader eines Teams zum Zeitpunkt mit dem Index `i` in `stops`.
+ * `cutIndex < 0` heißt „kein Transfer bekannt" — dann gilt überall der heutige Kader.
+ */
+export function rosterAtIndex(team, transfer, i, cutIndex) {
+  if (cutIndex < 0 || i >= cutIndex) return toNames(team?.pokemon);
+  return rosterBeforeTransfer(team, transfer);
+}
+
+/**
+ * Alle Pokémon, die in dieser Saison je zum Kader gehörten — mit den Zeitpunkten,
+ * an denen sie es taten. Grundlage der Kader-Verlaufsdiagramme: ein abgegebenes
+ * Pokémon endet am Transfer, ein gezogenes beginnt dort.
+ * [{ name, keys: Set<stopKey>, current, left, joined }]
+ */
+export function rosterSpans(team, transfer, stops, cutIndex) {
+  const list = stops || [];
+  const current = toNames(team?.pokemon);
+  const before = cutIndex < 0 ? current : rosterBeforeTransfer(team, transfer);
+  const currentSet = new Set(current);
+  const beforeSet = new Set(before);
+  const all = [...new Set([...before, ...current])];
+  return all.map((name) => {
+    const keys = new Set();
+    list.forEach((stop, i) => {
+      const owned = cutIndex < 0 || i >= cutIndex ? currentSet.has(name) : beforeSet.has(name);
+      if (owned) keys.add(stop.key);
+    });
+    return {
+      name,
+      keys,
+      current: currentSet.has(name),
+      left: beforeSet.has(name) && !currentSet.has(name),
+      joined: !beforeSet.has(name) && currentSet.has(name),
+    };
+  });
 }
 
 // === Veränderungen =========================================================

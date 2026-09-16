@@ -38,6 +38,48 @@ export function battleStats(b) {
   };
 }
 
+/**
+ * Ein neu eingetragenes Ergebnis mit dem gespeicherten Stand zusammenführen.
+ *
+ * Ein Ergebnis-Dokument wird im Ganzen geschrieben. Wer die Eingabe öffnet, bevor
+ * der Bestand da ist — oder auf einem zweiten Gerät —, würde damit fertige Kämpfe
+ * durch leere ersetzen. Das ist der Datenverlust, gegen den diese Funktion steht:
+ *
+ * - Ein fertiger Kampf (`done`) wird NIE durch einen unfertigen ersetzt.
+ * - Unter zwei unfertigen gewinnt der inhaltsreichere (mehr Aufstellung, mehr Kills).
+ * - Ein leeres Aufgebot ersetzt kein gefülltes.
+ * - Felder, die die Eingabe gar nicht kennt (Video, Pressefreigabe), bleiben stehen.
+ *
+ * Überschrieben wird also nur, was der Eintragende auch wirklich eingetragen hat.
+ */
+export function mergeResult(existing, next) {
+  if (!existing) return next;
+  if (!next) return existing;
+
+  const weight = (b) => {
+    if (!b) return -1;
+    if (b.done) return 1000;
+    return (b.used?.home?.length || 0) + (b.used?.away?.length || 0) + (b.kills?.length || 0)
+      + (b.winner ? 1 : 0);
+  };
+  const count = Math.max((existing.battles || []).length, (next.battles || []).length, 3);
+  const battles = [];
+  for (let i = 0; i < count; i++) {
+    const a = (existing.battles || [])[i];
+    const b = (next.battles || [])[i];
+    battles.push(weight(b) >= weight(a) ? b : a);
+  }
+
+  const squads = {};
+  ['home', 'away'].forEach((side) => {
+    const a = existing.squads?.[side] || [];
+    const b = next.squads?.[side] || [];
+    squads[side] = b.length ? b : a;
+  });
+
+  return { ...existing, ...next, squads, battles: battles.filter(Boolean) };
+}
+
 // Tabelle aus allen Match-Ergebnissen berechnen.
 // teams: [{id, name, player, logo}], results: [{home, away, battles:[{done, score}]}]
 // Punkte = gewonnene Kämpfe; 2. Sortierung = Kill-Differenz (kills − deaths).

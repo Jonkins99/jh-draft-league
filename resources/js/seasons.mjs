@@ -257,22 +257,47 @@ function teamNameOf(teams, id) {
   return (teams || []).find((t) => t.id === id)?.name || null;
 }
 
+// Alle Einträge mit dem HÖCHSTEN Wert, nicht nur der erste. Ein Rekord, den sich
+// mehrere teilen, gehört auch mehreren — sonst entscheidet die Reihenfolge der
+// Ergebnisse darüber, wer genannt wird.
+// Gleitkommawerte (K/D, Quoten) werden vor dem Vergleich gerundet, sonst trennt
+// Rechenungenauigkeit Einträge, die in der Anzeige identisch aussehen.
+const EPS = 1e-6;
+
+function bestAll(list, pick) {
+  let max = null;
+  const items = [];
+  (list || []).forEach((entry) => {
+    const raw = pick(entry);
+    if (!Number.isFinite(raw)) return;
+    const v = Math.round(raw / EPS) * EPS;
+    if (max === null || v > max + EPS) { max = v; items.length = 0; items.push(entry); }
+    else if (Math.abs(v - max) <= EPS) items.push(entry);
+  });
+  return { value: max, items };
+}
+
 /**
  * Bestmarken über alle Saisons. Jeder Eintrag:
- *   { key, label, info, value, display, holder:{ name, image, teamId, teamName }, when }
+ *   { key, label, info, value, display, holders:[{ name, image, teamId, teamName, when }] }
+ * `holder`/`when` bleiben als Kurzform des ersten Halters erhalten.
  * `when` trägt Saison und Spieltag — ein Kalenderdatum führt die Liga nicht.
  */
 export function buildRecords({ teams = [], results = [], pokedex = [], eloRows = [], awardDocs = [] } = {}) {
   const out = [];
-  const push = (rec) => { if (rec && rec.value != null && rec.holder) out.push(rec); };
-  const best = (list, pick) => list.reduce((a, b) => (!a || pick(b) > pick(a) ? b : a), null);
+  // Ein Rekord wird über `holders` gepflegt; `holder`/`when` sind der erste Eintrag.
+  const push = (rec) => {
+    if (!rec || rec.value == null) return;
+    const holders = (rec.holders || []).filter((h) => h && h.name);
+    if (!holders.length) return;
+    out.push({ ...rec, holders, holder: holders[0], when: holders[0].when ?? null });
+  };
 
   // --- Einzelne Kämpfe und Matches ---------------------------------------
-  let bestBattleKills = null;
-  let bestMatchKills = null;
+  const battleKillRows = [];
+  const matchKillRows = [];
+  const matchDiffRows = [];
   let perfectBattles = 0;
-  let bestMatchDiff = null;
-  let bestDayKills = null;
   const dayKills = {};
 
   (results || []).forEach((r) => {
@@ -288,9 +313,7 @@ export function buildRecords({ teams = [], results = [], pokedex = [], eloRows =
         matchKills[k.killer] = (matchKills[k.killer] || 0) + 1;
       });
       Object.entries(perMon).forEach(([name, n]) => {
-        if (!bestBattleKills || n > bestBattleKills.n) {
-          bestBattleKills = { name, n, result: r, battle: bi + 1 };
-        }
+        battleKillRows.push({ name, n, result: r, battle: bi + 1 });
       });
       const side = seasonOfId(r.id);
       const key = `${side}|${dayOfResult(r)}`;
@@ -298,7 +321,7 @@ export function buildRecords({ teams = [], results = [], pokedex = [], eloRows =
       dayKills[`${key}|${r.away}`] = (dayKills[`${key}|${r.away}`] || 0) + s.awayKills;
     });
     Object.entries(matchKills).forEach(([name, n]) => {
-      if (!bestMatchKills || n > bestMatchKills.n) bestMatchKills = { name, n, result: r };
+      matchKillRows.push({ name, n, result: r });
     });
     const done = (r.battles || []).filter((b) => b?.done);
     if (done.length) {
@@ -308,68 +331,82 @@ export function buildRecords({ teams = [], results = [], pokedex = [], eloRows =
       }, { hk: 0, ak: 0, hp: 0, ap: 0 });
       const diff = Math.abs(sum.hk - sum.ak);
       const winner = sum.hp === sum.ap ? null : sum.hp > sum.ap ? 'home' : 'away';
-      if (winner && (!bestMatchDiff || diff > bestMatchDiff.diff)) {
-        bestMatchDiff = { diff, result: r, winner, score: `${winner === 'home' ? sum.hp : sum.ap}:${winner === 'home' ? sum.ap : sum.hp}` };
+      if (winner) {
+        matchDiffRows.push({
+          diff, result: r, winner,
+          score: `${winner === 'home' ? sum.hp : sum.ap}:${winner === 'home' ? sum.ap : sum.hp}`,
+        });
       }
     }
   });
 
-  Object.entries(dayKills).forEach(([key, n]) => {
+  const dayKillRows = Object.entries(dayKills).map(([key, n]) => {
     const [season, day, teamId] = key.split('|');
-    if (!bestDayKills || n > bestDayKills.n) bestDayKills = { n, season: Number(season), day: Number(day), teamId };
+    return { n, season: Number(season), day: Number(day), teamId };
   });
 
-  if (bestBattleKills) {
-    const mon = monMeta(pokedex, bestBattleKills.name);
-    const side = sideOfMon(bestBattleKills.result, bestBattleKills.name);
+  const monHolder = (name, result, extra = {}) => {
+    const side = sideOfMon(result, name);
+    return {
+      name,
+      image: monMeta(pokedex, name)?.image || null,
+      teamId: side ? result[side] : null,
+      teamName: side ? teamNameOf(teams, result[side]) : null,
+      when: { ...whenOf(result), ...extra },
+    };
+  };
+
+  const topBattleKills = bestAll(battleKillRows, (r) => r.n);
+  if (topBattleKills.value) {
     push({
       key: 'battleKills', label: 'Meiste Kills in einem Kampf', group: 'pokemon',
       info: 'Kills eines einzelnen Pokémon in einem einzigen Kampf. Self-Kills zählen nicht.',
-      value: bestBattleKills.n, display: `${bestBattleKills.n} Kills`,
-      holder: {
-        name: bestBattleKills.name, image: mon?.image || null,
-        teamId: side ? bestBattleKills.result[side] : null,
-        teamName: side ? teamNameOf(teams, bestBattleKills.result[side]) : null,
-      },
-      when: { ...whenOf(bestBattleKills.result), battle: bestBattleKills.battle },
+      value: topBattleKills.value, display: `${topBattleKills.value} Kills`,
+      holders: topBattleKills.items.map((r) => monHolder(r.name, r.result, { battle: r.battle })),
     });
   }
 
-  if (bestMatchKills) {
-    const mon = monMeta(pokedex, bestMatchKills.name);
-    const side = sideOfMon(bestMatchKills.result, bestMatchKills.name);
+  const topMatchKills = bestAll(matchKillRows, (r) => r.n);
+  if (topMatchKills.value) {
     push({
       key: 'matchKills', label: 'Meiste Kills in einem Match', group: 'pokemon',
       info: 'Kills eines Pokémon über die drei Kämpfe eines Matches hinweg.',
-      value: bestMatchKills.n, display: `${bestMatchKills.n} Kills`,
-      holder: {
-        name: bestMatchKills.name, image: mon?.image || null,
-        teamId: side ? bestMatchKills.result[side] : null,
-        teamName: side ? teamNameOf(teams, bestMatchKills.result[side]) : null,
-      },
-      when: whenOf(bestMatchKills.result),
+      value: topMatchKills.value, display: `${topMatchKills.value} Kills`,
+      holders: topMatchKills.items.map((r) => monHolder(r.name, r.result)),
     });
   }
 
-  if (bestMatchDiff) {
-    const teamId = bestMatchDiff.result[bestMatchDiff.winner];
-    const other = bestMatchDiff.result[bestMatchDiff.winner === 'home' ? 'away' : 'home'];
+  const topMatchDiff = bestAll(matchDiffRows, (r) => r.diff);
+  if (topMatchDiff.value) {
     push({
       key: 'matchDiff', label: 'Höchster Sieg', group: 'team',
       info: 'Größte Kill-Differenz eines gewonnenen Matches.',
-      value: bestMatchDiff.diff, display: `+${bestMatchDiff.diff} Kills · ${bestMatchDiff.score}`,
-      holder: { name: teamNameOf(teams, teamId) || teamId, teamId, teamName: `gegen ${teamNameOf(teams, other) || other}` },
-      when: whenOf(bestMatchDiff.result),
+      value: topMatchDiff.value,
+      display: `+${topMatchDiff.value} Kills`,
+      holders: topMatchDiff.items.map((row) => {
+        const teamId = row.result[row.winner];
+        const other = row.result[row.winner === 'home' ? 'away' : 'home'];
+        return {
+          name: teamNameOf(teams, teamId) || teamId,
+          teamId,
+          teamName: `${row.score} gegen ${teamNameOf(teams, other) || other}`,
+          when: whenOf(row.result),
+        };
+      }),
     });
   }
 
-  if (bestDayKills) {
+  const topDayKills = bestAll(dayKillRows, (r) => r.n);
+  if (topDayKills.value) {
     push({
       key: 'dayKills', label: 'Meiste Kills an einem Spieltag', group: 'team',
       info: 'Kills eines Teams in seinem Match an einem Spieltag.',
-      value: bestDayKills.n, display: `${bestDayKills.n} Kills`,
-      holder: { name: teamNameOf(teams, bestDayKills.teamId) || bestDayKills.teamId, teamId: bestDayKills.teamId },
-      when: { season: bestDayKills.season, day: bestDayKills.day, matchId: null },
+      value: topDayKills.value, display: `${topDayKills.value} Kills`,
+      holders: topDayKills.items.map((row) => ({
+        name: teamNameOf(teams, row.teamId) || row.teamId,
+        teamId: row.teamId,
+        when: { season: row.season, day: row.day, matchId: null },
+      })),
     });
   }
 
@@ -378,8 +415,7 @@ export function buildRecords({ teams = [], results = [], pokedex = [], eloRows =
       key: 'perfectBattles', label: 'Makellose Kämpfe', group: 'liga',
       info: 'Kämpfe, in denen eine Seite alle vier Pokémon im Feld behalten hat.',
       value: perfectBattles, display: `${perfectBattles}×`,
-      holder: { name: 'Die Liga' },
-      when: null,
+      holders: [{ name: 'Die Liga', when: null }],
     });
   }
 
@@ -388,7 +424,7 @@ export function buildRecords({ teams = [], results = [], pokedex = [], eloRows =
     .filter((r) => (r.battles || []).some((b) => b?.done))
     .sort((a, b) => seasonOfId(a.id) - seasonOfId(b.id) || (dayOfResult(a) || 0) - (dayOfResult(b) || 0));
   const streak = {};
-  const bestStreak = { win: null, unbeaten: null, loss: null };
+  const streakRows = { win: [], unbeaten: [], loss: [] };
   order.forEach((r) => {
     const done = (r.battles || []).filter((b) => b?.done);
     const sum = done.reduce((acc, b) => {
@@ -402,7 +438,15 @@ export function buildRecords({ teams = [], results = [], pokedex = [], eloRows =
       else if (own === opp) { st.win = 0; st.unbeaten++; st.loss = 0; }
       else { st.win = 0; st.unbeaten = 0; st.loss++; }
       [['win', st.win], ['unbeaten', st.unbeaten], ['loss', st.loss]].forEach(([k, n]) => {
-        if (!bestStreak[k] || n > bestStreak[k].n) bestStreak[k] = { n, teamId: r[side], result: r };
+        if (n < 2) return;
+        // Je Franchise zählt nur die längste Serie — sonst stünde dieselbe Serie
+        // mit jedem Zwischenstand mehrfach in der Liste.
+        const prev = streakRows[k].findIndex((x) => franchiseSlug(x.teamId) === slug);
+        if (prev >= 0) {
+          if (streakRows[k][prev].n >= n) return;
+          streakRows[k].splice(prev, 1);
+        }
+        streakRows[k].push({ n, teamId: r[side], result: r });
       });
     });
   });
@@ -412,13 +456,17 @@ export function buildRecords({ teams = [], results = [], pokedex = [], eloRows =
     unbeaten: ['Längste Serie ohne Niederlage', 'Matches in Folge ohne Niederlage — Unentschieden zählen mit.'],
     loss: ['Längste Durststrecke', 'Matches in Folge verloren. Auch das ist ein Rekord.'],
   };
-  Object.entries(bestStreak).forEach(([k, v]) => {
-    if (!v || v.n < 2) return;
+  Object.entries(streakRows).forEach(([k, rows]) => {
+    const top = bestAll(rows, (v) => v.n);
+    if (!top.value || top.value < 2) return;
     push({
       key: `streak-${k}`, label: streakLabels[k][0], group: 'team', info: streakLabels[k][1],
-      value: v.n, display: `${v.n} Matches`,
-      holder: { name: teamNameOf(teams, v.teamId) || v.teamId, teamId: v.teamId },
-      when: whenOf(v.result),
+      value: top.value, display: `${top.value} Matches`,
+      holders: top.items.map((v) => ({
+        name: teamNameOf(teams, v.teamId) || v.teamId,
+        teamId: v.teamId,
+        when: whenOf(v.result),
+      })),
     });
   });
 
@@ -430,25 +478,27 @@ export function buildRecords({ teams = [], results = [], pokedex = [], eloRows =
       .filter((r) => r.played)
       .forEach((r) => seasonRows.push({ season, ...r }));
   });
-  const topPoints = best(seasonRows, (r) => r.points);
+  const seasonHolders = (items) => items.map((r) => ({
+    name: r.team.name, teamId: r.team.id,
+    when: { season: r.season, day: null, matchId: null },
+  }));
 
-  if (topPoints) {
+  const topPoints = bestAll(seasonRows, (r) => r.points);
+  if (topPoints.value != null) {
     push({
       key: 'seasonPoints', label: 'Meiste Punkte in einer Saison', group: 'team',
       info: 'Ein Punkt je gewonnenem Kampf.',
-      value: topPoints.points, display: `${topPoints.points} Punkte`,
-      holder: { name: topPoints.team.name, teamId: topPoints.team.id },
-      when: { season: topPoints.season, day: null, matchId: null },
+      value: topPoints.value, display: `${topPoints.value} Punkte`,
+      holders: seasonHolders(topPoints.items),
     });
   }
-  const topDiff = best(seasonRows, (r) => r.diff);
-  if (topDiff) {
+  const topDiff = bestAll(seasonRows, (r) => r.diff);
+  if (topDiff.value != null) {
     push({
       key: 'seasonDiff', label: 'Beste Kill-Differenz einer Saison', group: 'team',
       info: 'Eigene Kills minus eigene Deaths über eine komplette Saison.',
-      value: topDiff.diff, display: `${topDiff.diff > 0 ? '+' : ''}${topDiff.diff}`,
-      holder: { name: topDiff.team.name, teamId: topDiff.team.id },
-      when: { season: topDiff.season, day: null, matchId: null },
+      value: topDiff.value, display: `${topDiff.value > 0 ? '+' : ''}${topDiff.value}`,
+      holders: seasonHolders(topDiff.items),
     });
   }
 
@@ -456,16 +506,16 @@ export function buildRecords({ teams = [], results = [], pokedex = [], eloRows =
   const mons = allTimePokemon(teams, results, pokedex);
   const monRecord = (key, label, info, pick, display, minBattles = 0) => {
     const pool = mons.filter((s) => s.battles >= minBattles);
-    const top = best(pool, pick);
-    if (!top || !pick(top)) return;
+    const top = bestAll(pool, pick);
+    if (!top.value) return;
     push({
       key, label, group: 'pokemon', info,
-      value: pick(top), display: display(top),
-      holder: {
-        name: top.pokemon?.name, image: top.pokemon?.image || null,
-        teamId: top.team?.id || null, teamName: top.team?.name || null,
-      },
-      when: null,
+      value: top.value, display: display(top.items[0]),
+      holders: top.items.map((t) => ({
+        name: t.pokemon?.name, image: t.pokemon?.image || null,
+        teamId: t.team?.id || null, teamName: t.team?.name || null,
+        when: null,
+      })),
     });
   };
   monRecord('totalKills', 'Meiste Kills insgesamt', 'Über alle Saisons hinweg.', (s) => s.kills, (s) => `${s.kills} Kills`);
@@ -478,48 +528,49 @@ export function buildRecords({ teams = [], results = [], pokedex = [], eloRows =
   // --- Marktwerte ---------------------------------------------------------
   const rows = eloRows || [];
   if (rows.length) {
-    const topValue = best(rows, (r) => marketValue(r.elo) || 0);
-    if (topValue) {
-      const mon = monMeta(pokedex, topValue.resolved);
+    const topValue = bestAll(rows, (r) => marketValue(r.elo) || 0);
+    if (topValue.value) {
       push({
         key: 'marketTop', label: 'Höchster Marktwert', group: 'markt',
         info: 'Aktueller Stand aus dem Draft-Sheet.',
-        value: marketValue(topValue.elo), display: null, money: marketValue(topValue.elo),
-        holder: { name: topValue.resolved, image: mon?.image || null },
-        when: null,
+        value: topValue.value, display: null, money: topValue.value,
+        holders: topValue.items.map((r) => ({
+          name: r.resolved, image: monMeta(pokedex, r.resolved)?.image || null, when: null,
+        })),
       });
     }
-    let jump = null;
-    let drop = null;
+
+    const steps = [];
     rows.forEach((r) => {
       const pts = historyPoints(r);
       for (let i = 1; i < pts.length; i++) {
-        const delta = (pts[i].value || 0) - (pts[i - 1].value || 0);
-        const entry = { name: r.resolved, delta, from: pts[i - 1], to: pts[i] };
-        if (!jump || delta > jump.delta) jump = entry;
-        if (!drop || delta < drop.delta) drop = entry;
+        steps.push({ name: r.resolved, delta: (pts[i].value || 0) - (pts[i - 1].value || 0), to: pts[i] });
       }
     });
-    if (jump && jump.delta > 0) {
-      const mon = monMeta(pokedex, jump.name);
+    const stepHolders = (items) => items.map((e) => ({
+      name: e.name, image: monMeta(pokedex, e.name)?.image || null,
+      when: { season: null, day: null, matchId: null, stop: e.to.label },
+    }));
+
+    const jump = bestAll(steps, (e) => e.delta);
+    if (jump.value > 0) {
       push({
         key: 'marketJump', label: 'Größter Marktwertsprung', group: 'markt',
         info: 'Größter Zuwachs zwischen zwei Zeitpunkten des Draft-Sheets.',
-        value: jump.delta, display: null, money: jump.delta, signed: true,
-        holder: { name: jump.name, image: mon?.image || null },
-        when: { season: null, day: null, matchId: null, stop: jump.to.label },
+        value: jump.value, display: null, money: jump.value, signed: true,
+        holders: stepHolders(jump.items),
       });
     }
-    if (drop && drop.delta < 0) {
-      const mon = monMeta(pokedex, drop.name);
+    const drop = bestAll(steps, (e) => -e.delta);
+    if (drop.value > 0) {
       push({
         key: 'marketDrop', label: 'Größter Marktwertverlust', group: 'markt',
         info: 'Größter Rückgang zwischen zwei Zeitpunkten des Draft-Sheets.',
-        value: Math.abs(drop.delta), display: null, money: drop.delta, signed: true,
-        holder: { name: drop.name, image: mon?.image || null },
-        when: { season: null, day: null, matchId: null, stop: drop.to.label },
+        value: drop.value, display: null, money: -drop.value, signed: true,
+        holders: stepHolders(drop.items),
       });
     }
+
     // Teuerster Kader — je Franchise der jüngste Auftritt.
     const squads = (teams || []).map((t) => ({
       team: t,
@@ -528,38 +579,38 @@ export function buildRecords({ teams = [], results = [], pokedex = [], eloRows =
         return sum + (row ? marketValue(row.elo) || 0 : 0);
       }, 0),
     }));
-    const topSquad = best(squads, (s) => s.value);
-    if (topSquad?.value) {
+    const topSquad = bestAll(squads, (x) => x.value);
+    if (topSquad.value) {
       push({
         key: 'marketSquad', label: 'Teuerster Kader', group: 'markt',
         info: 'Summe der Marktwerte aller zehn Kader-Pokémon.',
         value: topSquad.value, display: null, money: topSquad.value,
-        holder: { name: topSquad.team.name, teamId: topSquad.team.id },
-        when: { season: seasonOfTeam(topSquad.team), day: null, matchId: null },
+        holders: topSquad.items.map((x) => ({
+          name: x.team.name, teamId: x.team.id,
+          when: { season: seasonOfTeam(x.team), day: null, matchId: null },
+        })),
       });
     }
   }
 
   // --- Auszeichnungen -----------------------------------------------------
   const board = awardLeaderboard(awardDocs, pokedex, teams);
-  const topMon = board.pokemon[0];
-  if (topMon && topMon.n > 1) {
+  const topMon = bestAll(board.pokemon, (r) => r.n);
+  if (topMon.value > 1) {
     push({
       key: 'awardsPokemon', label: 'Meiste Auszeichnungen (Pokémon)', group: 'liga',
       info: 'Gewonnene Awards über alle Saisons.',
-      value: topMon.n, display: `${topMon.n} Awards`,
-      holder: { name: topMon.label, image: topMon.image || null },
-      when: null,
+      value: topMon.value, display: `${topMon.value} Awards`,
+      holders: topMon.items.map((r) => ({ name: r.label, image: r.image || null, when: null })),
     });
   }
-  const topTeam = board.team[0];
-  if (topTeam && topTeam.n > 1) {
+  const topTeam = bestAll(board.team, (r) => r.n);
+  if (topTeam.value > 1) {
     push({
       key: 'awardsTeam', label: 'Meiste Auszeichnungen (Team)', group: 'liga',
       info: 'Gewonnene Awards über alle Saisons.',
-      value: topTeam.n, display: `${topTeam.n} Awards`,
-      holder: { name: topTeam.label, teamId: topTeam.id },
-      when: null,
+      value: topTeam.value, display: `${topTeam.value} Awards`,
+      holders: topTeam.items.map((r) => ({ name: r.label, teamId: r.id, when: null })),
     });
   }
 

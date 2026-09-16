@@ -226,6 +226,17 @@ export function isMatchComplete(result) {
   return (result?.battles || []).filter((b) => b && b.done === true).length >= BATTLES_PER_MATCH;
 }
 
+/**
+ * Freigegeben ist ein Match erst, wenn jemand bestätigt hat, dass Ergebnis UND
+ * Kampfverlauf final sind. Vorher schriebe die Presse über einen Stand, der sich
+ * noch ändert — deshalb hängt jede Automatik an dieser Marke, nicht an
+ * `isMatchComplete`. Fürs Nachholen von Hand zählt weiterhin nur die
+ * Vollständigkeit.
+ */
+export function isPressReleased(result) {
+  return isMatchComplete(result) && result?.pressReady === true;
+}
+
 // Welches Format liegt auf welchem Slot? Pro Team und Spieltag individuell gelost,
 // aber deterministisch aus dem Schlüssel — ohne Schreibzugriff, auf jedem Gerät gleich.
 export function slotPlan(teamId, day) {

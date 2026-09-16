@@ -1,5 +1,27 @@
 # Changelog
 
+## Result entry, battle log & video (new)
+- **The battle log is written by hand again.** Voice recording is gone — from the result entry and from the Teambuilder, along with the transcription briefing behind it. It never reached the quality the log needs, and a log nobody trusts is worse than no log.
+- **The log lives with the result.** It is written in one place only: the battle-log step of the result entry in the schedule. The Teambuilder keeps the matchup note and still shows both players' logs — including the first leg — but read-only.
+- **Nothing that was entered can be overwritten by something emptier.** A result document is written whole, so a stale form (opened before the results had loaded, or on a second device) used to be able to replace finished battles with blank ones. Saving now runs in a transaction and merges: a finished battle is never replaced by an unfinished one, an empty squad never replaces a filled one, and fields the form does not know — video, press release — survive untouched. The entry refuses to open at all until the results are there.
+- **The log draft is kept on the device.** Every keystroke is mirrored to local storage and restored when the match is reopened, so a failed save or a closed browser costs nothing. Saving is blocked while the stored state is unknown, the text is tied to the match id it was written for, and a failure is now shown on screen instead of only in the console.
+- **"Pressefreigabe" — the newsroom waits for a go.** Match reports, the three free articles of a matchday and the market-value update no longer start the moment the third battle is entered. They start when someone confirms that result *and* battle log are final. The button sits in the result entry and in the match detail; the schedule card shows "Presse offen" until then, and the maintenance tab lists what is waiting. Catching up by hand still works for anything complete, released or not.
+- **A video per match.** One URL covers all three battles and is entered with the result. The schedule card then carries a play button that opens the video in a popover — YouTube in every notation (watch, youtu.be, shorts, live, embed, with timestamp) plays inline, anything else opens as a link.
+- **The press embeds the video.** If a URL is on file before the match is released, the report carries it at the end.
+
+## Press
+- **Tiles in the article body.** The newsroom can now place a market-value tile for a Pokémon, a club crest with its squad value, a trainer's photo, a scoreline with both crests and the kill count, or the video of the match — each as its own paragraph, up to three per piece. They are resolved when the article is displayed, not when it is written, so a market value always shows today's figure.
+- **A championship is only a championship once it cannot be lost.** The table metadata now carry, per team, the number of fixtures still open and the maximum points still reachable (three per match), and the canon spells out the arithmetic: as long as a chaser can pass on points *or*, level on points, on kill difference, nothing is decided. A three-point lead with a game in hand for second is not a title.
+- **The newsroom is allowed to be impressed.** The critical stance stays, but a new, deliberately rare tone makes a genuine achievement the main subject — without the relativising "but" in the last paragraph. Roughly every fourth piece gives a real performance the lead.
+- **Fixed: free articles could crash before they started.** The placeholder document read the league store before it was declared and failed with "Cannot access 'l' before initialization"; the article never appeared.
+
+## Records
+- **A record shared is a record shared by all.** Where several Pokémon or teams hold the same best mark, every one of them is listed, each with the moment they set it, instead of whichever result happened to be processed first. Ties are compared on rounded values, so K/D and survival rates that look identical are treated as identical.
+
+## Market values
+- **The history respects the winter transfer.** Squad value over time used to run today's squad backwards through the whole season, so the first half showed Pokémon that only arrived in the second. The split is now taken from the sheet's "Transfer" column, or from the last matchday of the first leg, and every point before it is computed with the squad as it was: departures are added back, arrivals removed. The squad chart shows a departure up to the transfer and an arrival from it, each labelled.
+- **Fixed: percentage changes were a hundred times too high.** The Pokémon page had two `fmtPct` helpers under one name — one for shares (0–1), one for percentages (0–100) — and the later one won.
+
 ## Seasons (new)
 - **A season switcher in the navigation.** Where the sidebar used to read "Season 1 · Live" there is now a picker: every season the database knows about, plus a cross-season area. The choice is device-local, so both players can be in different places at once, and the live dot only pulses for the newest season.
 - **Every season stands on its own.** Table, schedule, squads, draft, transfer, results, press appointments, awards and statistics are scoped to the selected season. The season lives in the document id (`s1-…`), not in a field, so even results — which never carried a `season` — are assigned correctly. Nothing from season 2 will leak into season 1, and nothing from season 1 into season 2.

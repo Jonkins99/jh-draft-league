@@ -1,7 +1,7 @@
 // Reine Logik-Tests der framework-freien Module — Ausfuehren: node scripts/test-scoring.mjs
 import assert from 'node:assert/strict';
 import {
-  pokemonStats, pokemonProfile,
+  pokemonStats, pokemonProfile, mergeResult,
   showdownSpecies, showdownExport,
   speedAt, speedTiers, speedCases, clampSp, applySpeedMod,
   teamBattleTotals, isMega, baseFormOf, normalizeNature,
@@ -29,7 +29,7 @@ import {
 } from '../resources/js/press.mjs';
 import {
   blankNotes, normalizeNotes, teamNote, matchNote, withNote, countNotes,
-  logText, hasLog, logAuthors, logToText, totalSeconds, formatDuration, spokenVocabulary,
+  logText, hasLog, logAuthors, logToText,
 } from '../resources/js/notes.mjs';
 import {
   PLAYERS as AUTH_PLAYERS, userId, playerOf, otherPlayer, createCredential,
@@ -44,7 +44,12 @@ import {
   formatMarketDelta, formatPercent, tierBoundaries, tierForElo, historyPoints,
   historyStops, squadHistory, squadMarketValue, eloIndex, snapshotOf, diffSnapshots,
   historyDiff, stopKeyForDay, parseHistoryLabel,
+  transferCutIndex, rosterBeforeTransfer, rosterAtIndex, rosterSpans,
 } from '../resources/js/market.mjs';
+import { normalizeVideoUrl, youtubeId, videoEmbed, videoHostLabel } from '../resources/js/video.mjs';
+import { parseTile, TILE_KINDS } from '../resources/js/press-tiles.mjs';
+import { buildRecords } from '../resources/js/seasons.mjs';
+import { standingsBlock } from '../resources/js/press-context.mjs';
 import { historyKey } from '../resources/js/elo.mjs';
 
 let passed = 0;
@@ -822,17 +827,6 @@ test('Der Kampfverlauf trägt die Abschnitte beider Spieler', () => {
   assert.equal(hasLog({ entries: { Janik: { text: '  ' } } }), false);
 });
 
-test('Die Sprachaufnahme misst und benennt ihre Schnipsel', () => {
-  assert.equal(totalSeconds([{ seconds: 65 }, { seconds: 30 }]), 95);
-  assert.equal(formatDuration(95), '01:35');
-  assert.equal(formatDuration(0), '00:00');
-  const vocab = spokenVocabulary({
-    teamA: { name: 'FC ChelZE', pokemon: [{ name: 'Glurak' }], trainers: [{ name: 'Koga' }] },
-    teamB: { name: 'Heerashai SV', pokemon: [{ name: 'Turtok' }] },
-  });
-  assert.deepEqual(vocab, ['FC ChelZE', 'Glurak', 'Koga', 'Heerashai SV', 'Turtok']);
-});
-
 // === Anmeldung =============================================================
 await atest('Ein Konto prüft sein Passwort und nichts anderes', async () => {
   assert.deepEqual(AUTH_PLAYERS, ['Janik', 'Henrik']);
@@ -1102,6 +1096,189 @@ test('Die Momentaufnahme überspringt Zeilen ohne Elo', () => {
   const snap = snapshotOf([...eloRows, { resolved: 'Ohne', elo: null, projectedTier: 'D' }]);
   assert.equal(Object.keys(snap).length, 4);
   assert.equal(snap.Alpha.tier, 'S');
+});
+
+// === Ergebnis-Zusammenführung ==============================================
+test('Ein fertiger Kampf wird nie durch einen leeren ersetzt', () => {
+  const blank = { done: false, used: { home: [], away: [] }, score: { home: 0, away: 0 }, winner: null, kills: [] };
+  const full = (n) => ({
+    done: true,
+    used: { home: ['A', 'B', 'C', 'D'], away: ['E', 'F', 'G', 'H'] },
+    score: { home: n, away: 4 - n }, winner: 'home',
+    kills: [{ victimSide: 'away', victim: 'E', killerSide: 'home', killer: 'A' }],
+  });
+  const existing = {
+    home: 's1-a', away: 's1-b', day: 1,
+    squads: { home: ['A', 'B', 'C', 'D', 'X', 'Y'], away: ['E', 'F', 'G', 'H', 'V', 'W'] },
+    battles: [full(3), full(2), full(1)],
+    videoUrl: 'https://youtu.be/aaaaaaaaaaa',
+    pressReady: true,
+  };
+  // Ein veraltetes Formular schreibt nur den dritten Kampf.
+  const stale = {
+    home: 's1-a', away: 's1-b', day: 1,
+    squads: { home: [], away: [] },
+    battles: [blank, blank, full(4)],
+  };
+  const merged = mergeResult(existing, stale);
+  assert.equal(merged.battles[0].done, true);
+  assert.equal(merged.battles[0].score.home, 3);
+  assert.equal(merged.battles[2].score.home, 4, 'der neu eingetragene Kampf gewinnt');
+  assert.deepEqual(merged.squads.home, existing.squads.home, 'ein leeres Aufgebot ersetzt kein gefülltes');
+  assert.equal(merged.videoUrl, existing.videoUrl, 'Felder, die die Eingabe nicht kennt, bleiben stehen');
+  assert.equal(merged.pressReady, true);
+  // Ohne Bestand bleibt das Neue unverändert.
+  assert.deepEqual(mergeResult(null, stale), stale);
+});
+
+// === Videos ================================================================
+test('Video-Adressen werden erkannt, egal in welcher YouTube-Schreibweise', () => {
+  const id = 'dQw4w9WgXcQ';
+  ['https://www.youtube.com/watch?v=' + id,
+    'https://youtu.be/' + id,
+    'https://www.youtube.com/shorts/' + id,
+    'https://www.youtube.com/live/' + id,
+    'https://www.youtube.com/embed/' + id,
+    'youtube.com/watch?v=' + id,
+  ].forEach((url) => assert.equal(youtubeId(url), id, url));
+
+  assert.equal(youtubeId('https://example.com/video.mp4'), null);
+  assert.equal(normalizeVideoUrl('  '), '');
+  assert.equal(normalizeVideoUrl('javascript:alert(1)'), '');
+
+  const embed = videoEmbed(`https://youtu.be/${id}?t=1m5s`);
+  assert.equal(embed.kind, 'youtube');
+  assert.equal(embed.start, 65);
+  assert.ok(embed.embedUrl.includes('start=65'));
+  assert.ok(embed.embedUrl.startsWith('https://www.youtube-nocookie.com/embed/'));
+
+  const other = videoEmbed('https://example.com/spiel');
+  assert.equal(other.kind, 'link');
+  assert.equal(other.embedUrl, null);
+  assert.equal(videoHostLabel('https://www.example.com/x'), 'example.com');
+  assert.equal(videoEmbed(''), null);
+});
+
+// === Presse-Bausteine ======================================================
+test('Ein Baustein steht allein im Absatz und nennt seine Art', () => {
+  assert.deepEqual(parseTile('[marktwert: Glurak]'), { kind: 'marktwert', key: 'Glurak' });
+  assert.deepEqual(parseTile('  [ergebnis:s1-d3-m0] '), { kind: 'ergebnis', key: 's1-d3-m0' });
+  assert.equal(parseTile('Davor noch Text [video: s1-d3-m0]'), null);
+  assert.equal(parseTile('[unbekannt: x]'), null);
+  assert.deepEqual(TILE_KINDS, ['marktwert', 'team', 'trainer', 'ergebnis', 'video']);
+});
+
+// === Kaderstand vor und nach dem Wintertransfer ============================
+test('Der Marktwert-Verlauf rechnet vor dem Transfer mit dem damaligen Kader', () => {
+  const stops = [
+    { key: 's1-pre', label: 'S1 Pre', kind: 'pre', season: 1, day: null },
+    { key: 's1-md1', label: 'S1 MD1', kind: 'md', season: 1, day: 1 },
+    { key: 's1-md5', label: 'S1 MD5', kind: 'md', season: 1, day: 5 },
+  ];
+  const team = { id: 's1-a', pokemon: [{ name: 'Alt' }, { name: 'Neu' }] };
+  const transfer = {
+    removed: [{ teamId: 's1-a', name: 'Weg' }],
+    added: [{ teamId: 's1-a', name: 'Neu' }],
+  };
+  // Ohne Transfer-Spalte entscheidet der letzte Spieltag der Hinrunde.
+  const cut = transferCutIndex(stops, { season: 1, afterDay: 4 });
+  assert.equal(cut, 2, 'der erste Zeitpunkt nach Spieltag 4');
+
+  assert.deepEqual(rosterBeforeTransfer(team, transfer).sort(), ['Alt', 'Weg']);
+  assert.deepEqual(rosterAtIndex(team, transfer, 1, cut).sort(), ['Alt', 'Weg']);
+  assert.deepEqual(rosterAtIndex(team, transfer, 2, cut).sort(), ['Alt', 'Neu']);
+
+  const spans = rosterSpans(team, transfer, stops, cut);
+  const by = Object.fromEntries(spans.map((s) => [s.name, s]));
+  assert.deepEqual([...by.Weg.keys], ['s1-pre', 's1-md1'], 'der Abgang endet am Transfer');
+  assert.deepEqual([...by.Neu.keys], ['s1-md5'], 'der Zugang beginnt am Transfer');
+  assert.equal(by.Alt.keys.size, 3);
+  assert.equal(by.Weg.left, true);
+  assert.equal(by.Neu.joined, true);
+
+  // Eine eigene Transfer-Spalte schlägt den Spieltags-Ersatz.
+  const withColumn = [...stops.slice(0, 2), { key: 's1-tr', label: 'S1 Transfer', kind: 'transfer', season: 1, day: null }, stops[2]];
+  assert.equal(transferCutIndex(withColumn, { season: 1, afterDay: 4 }), 2);
+  // Ohne jeden Anhaltspunkt gilt überall der heutige Kader.
+  assert.equal(transferCutIndex(stops, { season: 1 }), -1);
+  assert.deepEqual(rosterAtIndex(team, transfer, 0, -1).sort(), ['Alt', 'Neu']);
+});
+
+test('Der Kaderverlauf summiert zu jedem Zeitpunkt die damaligen Pokémon', () => {
+  const stops = [
+    { key: 'p', label: 'S1 Pre', short: 'Vor S1', kind: 'pre', season: 1, day: null },
+    { key: 'm5', label: 'S1 MD5', short: 'ST 5', kind: 'md', season: 1, day: 5 },
+  ];
+  const index = {
+    Alt: { resolved: 'Alt', history: [{ key: 'p', elo: 1300 }, { key: 'm5', elo: 1300 }] },
+    Weg: { resolved: 'Weg', history: [{ key: 'p', elo: 1300 }, { key: 'm5', elo: 2100 }] },
+    Neu: { resolved: 'Neu', history: [{ key: 'p', elo: 2100 }, { key: 'm5', elo: 1300 }] },
+  };
+  const team = { id: 's1-a', pokemon: [{ name: 'Alt' }, { name: 'Neu' }] };
+  const transfer = { removed: [{ teamId: 's1-a', name: 'Weg' }], added: [{ teamId: 's1-a', name: 'Neu' }] };
+  const cut = 1;
+  const pts = squadHistory((stop, i) => rosterAtIndex(team, transfer, i, cut), index, stops);
+  // Vorher Alt+Weg = 2 Mio, nachher Alt+Neu = 2 Mio — mit dem heutigen Kader wären
+  // es vorher 1 Mio + 200 Mio gewesen.
+  assert.equal(pts[0].value, 2_000_000);
+  assert.equal(pts[1].value, 2_000_000);
+});
+
+// === Rekorde ===============================================================
+test('Einen geteilten Rekord halten alle Beteiligten', () => {
+  const teams = [
+    { id: 's1-a', season: 1, name: 'Alpha', order: 1, player: 'Janik', pokemon: [{ name: 'Glurak' }] },
+    { id: 's1-b', season: 1, name: 'Beta', order: 2, player: 'Henrik', pokemon: [{ name: 'Turtok' }] },
+  ];
+  const mk = (id, day, killer) => ({
+    id, home: 's1-a', away: 's1-b', day,
+    squads: { home: ['Glurak', 'Lahmus'], away: ['Turtok'] },
+    battles: [{
+      done: true,
+      used: { home: ['Glurak', 'Lahmus'], away: ['Turtok'] },
+      score: { home: 2, away: 0 }, winner: 'home',
+      kills: [{ victimSide: 'away', victim: 'Turtok', killerSide: 'home', killer }],
+    }],
+  });
+  const recs = buildRecords({
+    teams,
+    results: [mk('s1-d1-m0', 1, 'Glurak'), mk('s1-d2-m0', 2, 'Lahmus')],
+    pokedex: [{ name: 'Glurak' }, { name: 'Lahmus' }, { name: 'Turtok' }],
+  });
+  const battleKills = recs.find((r) => r.key === 'battleKills');
+  assert.equal(battleKills.value, 1);
+  assert.deepEqual(battleKills.holders.map((h) => h.name).sort(), ['Glurak', 'Lahmus']);
+  // Jeder Halter trägt seinen eigenen Zeitpunkt.
+  assert.deepEqual(battleKills.holders.map((h) => h.when.day).sort(), [1, 2]);
+  // Die Kurzform zeigt weiterhin auf den ersten Halter.
+  assert.equal(battleKills.holder, battleKills.holders[0]);
+  assert.equal(battleKills.when, battleKills.holders[0].when);
+});
+
+// === Tabelle: was noch möglich ist =========================================
+test('Die Tabelle nennt offene Partien und das Punktemaximum', () => {
+  const teams = [
+    { id: 's1-a', season: 1, name: 'Alpha', order: 1, player: 'Janik', pokemon: [] },
+    { id: 's1-b', season: 1, name: 'Beta', order: 2, player: 'Henrik', pokemon: [] },
+  ];
+  const schedule = {
+    matchdays: [
+      { day: 1, leg: 'hin', matches: [{ home: 's1-a', away: 's1-b' }] },
+      { day: 2, leg: 'rueck', matches: [{ home: 's1-b', away: 's1-a' }] },
+    ],
+  };
+  const win = { done: true, used: { home: [], away: [] }, score: { home: 4, away: 0 }, winner: 'home', kills: [] };
+  const results = [{ id: 's1-d1-m0', home: 's1-a', away: 's1-b', day: 1, squads: {}, battles: [win, win, win] }];
+  const rows = standingsBlock(teams, results, schedule);
+  const alpha = rows.find((r) => r.teamId === 's1-a');
+  const beta = rows.find((r) => r.teamId === 's1-b');
+  assert.equal(alpha.punkte, 3);
+  assert.equal(alpha.offeneMatches, 1);
+  assert.equal(alpha.maximalPunkte, 6);
+  assert.equal(beta.punkte, 0);
+  // Beta kann Alpha noch einholen — drei Punkte Rückstand sind hier keine Entscheidung.
+  assert.equal(beta.maximalPunkte, 3);
+  assert.ok(beta.maximalPunkte >= alpha.punkte);
 });
 
 console.log(`\n${passed} Tests bestanden.`);

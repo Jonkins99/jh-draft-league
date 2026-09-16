@@ -92,27 +92,3 @@ export function logToText(log, { limit = 4000 } = {}) {
   const text = parts.join('\n\n');
   return text.length > limit ? `${text.slice(0, limit)}…` : text;
 }
-
-// === Sprachaufnahme ========================================================
-// Die Aufnahme darf mehrere Minuten dauern und in Schnipseln entstehen (Push-to-Talk).
-// Übermittelt wird sie in einem einzigen Aufruf — deshalb hier nur die Aufbereitung.
-export function totalSeconds(clips) {
-  return (clips || []).reduce((sum, c) => sum + (c?.seconds || 0), 0);
-}
-
-export function formatDuration(seconds) {
-  const s = Math.max(0, Math.round(seconds || 0));
-  return `${String(Math.floor(s / 60)).padStart(2, '0')}:${String(s % 60).padStart(2, '0')}`;
-}
-
-// Namen, die die Spracherkennung treffen muss: beide Kader, Trainer, Teamnamen.
-export function spokenVocabulary({ teamA, teamB, extra = [] } = {}) {
-  const out = new Set();
-  [teamA, teamB].filter(Boolean).forEach((t) => {
-    if (t.name) out.add(t.name);
-    (t.pokemon || []).forEach((p) => { if (p?.name) out.add(p.name); });
-    (t.trainers || []).forEach((tr) => { if (tr?.name) out.add(tr.name); });
-  });
-  extra.filter(Boolean).forEach((x) => out.add(x));
-  return [...out];
-}

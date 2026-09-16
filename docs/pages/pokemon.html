@@ -179,7 +179,7 @@
                   <p class="text-xs text-mist">
                     <span x-text="marketSpan.first.short"></span> → <span x-text="marketSpan.last.short"></span>:
                     <span class="font-semibold" :style="`color:${marketSpan.delta > 0 ? '#63bc5a' : (marketSpan.delta < 0 ? '#ff5a36' : '#98a2b3')}`"
-                          x-text="`${fmtMarketDelta(marketSpan.delta)} (${fmtPct(marketSpan.pct)})`"></span>
+                          x-text="`${fmtMarketDelta(marketSpan.delta)} (${fmtMarketPct(marketSpan.pct)})`"></span>
                     · Höchststand <span class="font-semibold text-ink" x-text="fmtMarket(marketSpan.peak.value)"></span>
                   </p>
                 </template>

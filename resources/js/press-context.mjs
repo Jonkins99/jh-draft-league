@@ -17,6 +17,7 @@ import {
 import {
   marketValue, formatMarket, formatMarketDelta, formatPercent,
   historyDiff, stopKeyForDay, squadMarketValue, eloIndex, historyStops, squadHistory,
+  transferCutIndex, rosterAtIndex,
 } from './market.mjs';
 
 const round2 = (n) => Math.round((Number(n) || 0) * 100) / 100;
@@ -44,7 +45,7 @@ function eloFor(eloRows, name) {
 // Was ein Spieltag mit den Marktwerten gemacht hat: Tier-Wechsel und die größten
 // Bewegungen. Grundlage sind die Verlaufsspalten des Sheets, nicht der lokale
 // Zwischenstand eines Geräts — dieser Block sieht damit auf jedem Gerät gleich aus.
-export function marketBlock(eloRows, teams, day) {
+export function marketBlock(eloRows, teams, day, opts = {}) {
   const rows = eloRows || [];
   if (!rows.length) return null;
   const index = eloIndex(rows);
@@ -67,9 +68,22 @@ export function marketBlock(eloRows, teams, day) {
   const diff = stopKey ? historyDiff(rows, stopKey, { limit: 8 }) : null;
 
   const stops = historyStops(rows);
+  // Vor dem Wintertransfer stand ein anderer Kader auf dem Platz — der Verlauf muss
+  // die damaligen Pokémon summieren, nicht die heutigen.
+  const hinDays = (opts.schedule?.matchdays || [])
+    .filter((md) => md.leg === 'hin')
+    .map((md) => md.day);
+  const cutIndex = transferCutIndex(stops, {
+    season: opts.season ?? null,
+    afterDay: hinDays.length ? Math.max(...hinDays) : null,
+  });
   const kaderwerte = (teams || [])
     .map((t) => {
-      const verlauf = squadHistory(t.pokemon || [], index, stops);
+      const verlauf = squadHistory(
+        (stop, i) => rosterAtIndex(t, opts.transfer, i, cutIndex),
+        index,
+        stops,
+      );
       const first = verlauf[0];
       const last = verlauf[verlauf.length - 1];
       return {
@@ -97,21 +111,45 @@ export function marketBlock(eloRows, teams, day) {
 }
 
 // === Tabelle ===============================================================
-export function standingsBlock(seasonTeams, results) {
-  return computeStandings(seasonTeams, results).map((r, i) => ({
-    platz: i + 1,
-    team: r.team.name,
-    teamId: r.team.id,
-    spieler: r.team.player,
-    matches: r.played,
-    punkte: r.points,
-    kaempfeGewonnen: r.won,
-    kaempfeUnentschieden: r.draw,
-    kaempfeVerloren: r.lost,
-    kills: r.kills,
-    deaths: r.deaths,
-    killDifferenz: r.diff,
-  }));
+/**
+ * Die Tabelle — und zu jedem Team, was rechnerisch noch möglich ist.
+ *
+ * Ohne die offenen Partien je Team lässt sich nicht sagen, ob eine Führung schon
+ * eine Entscheidung ist. Genau daran ist die Redaktion schon einmal gescheitert:
+ * drei Punkte Vorsprung am letzten Spieltag sind keine Meisterschaft, wenn der
+ * Zweite noch ein Match (bis zu 3 Punkte) vor sich hat und über die Kill-Differenz
+ * vorbeiziehen kann. Deshalb stehen `offeneMatches` und `maximalPunkte` hier drin.
+ */
+export function standingsBlock(seasonTeams, results, schedule = null) {
+  const byId = Object.fromEntries((results || []).map((r) => [r.id, r]));
+  const open = {};
+  (seasonTeams || []).forEach((t) => { open[t.id] = 0; });
+  matchSequence(schedule).forEach((m) => {
+    if (isMatchComplete(byId[m.id])) return;
+    if (open[m.home] != null) open[m.home] += 1;
+    if (open[m.away] != null) open[m.away] += 1;
+  });
+
+  return computeStandings(seasonTeams, results).map((r, i) => {
+    const offen = open[r.team.id] ?? 0;
+    return {
+      platz: i + 1,
+      team: r.team.name,
+      teamId: r.team.id,
+      spieler: r.team.player,
+      matches: r.played,
+      punkte: r.points,
+      offeneMatches: offen,
+      // Ein Match bringt höchstens 3 Punkte (drei Kämpfe, je einer).
+      maximalPunkte: r.points + offen * 3,
+      kaempfeGewonnen: r.won,
+      kaempfeUnentschieden: r.draw,
+      kaempfeVerloren: r.lost,
+      kills: r.kills,
+      deaths: r.deaths,
+      killDifferenz: r.diff,
+    };
+  });
 }
 
 // === Matchdaten ============================================================
@@ -150,6 +188,9 @@ export function matchBlock(result, teams, day) {
 
   return {
     spieltag: day ?? result.day ?? null,
+    matchId: result.id || null,
+    // Ist ein Video hinterlegt, gehört der Baustein [video: <matchId>] in den Bericht.
+    video: result.videoUrl ? { vorhanden: true, matchId: result.id || null } : { vorhanden: false },
     heim: home?.name || result.home,
     heimId: result.home,
     auswaerts: away?.name || result.away,
@@ -265,7 +306,7 @@ function awardsBlock(team, awardDocs) {
 
 export function teamBlock(team, { teams, results, schedule, pokedex, eloRows, awardDocs }) {
   if (!team) return null;
-  const table = standingsBlock(teams || [], results);
+  const table = standingsBlock(teams || [], results, schedule);
   const row = table.find((r) => r.teamId === team.id);
   return {
     name: team.name,
@@ -356,7 +397,7 @@ export function storyBlock(articles, teamId) {
  * laufenden. Ohne diesen Block könnte der Rückblick keine Stränge auflösen.
  */
 export function seasonEndBlock(seasonTeams, results, schedule, articles, season) {
-  const table = standingsBlock(seasonTeams, results);
+  const table = standingsBlock(seasonTeams, results, schedule);
   const done = seasonComplete(schedule, results);
   return {
     saison: season,
@@ -395,7 +436,10 @@ export function buildContext(src, focus = {}) {
 
   return {
     saison: seasonBlock(src.schedule, src.results),
-    tabelle: standingsBlock(seasonTeams, src.results),
+    tabelle: standingsBlock(seasonTeams, src.results, src.schedule),
+    tabelleHinweis: 'Ein offenes Match bringt bis zu 3 Punkte. Entschieden ist ein Platz erst, wenn ihn '
+      + 'kein Verfolger mehr erreichen kann — weder nach Punkten (maximalPunkte) noch, bei Gleichstand, '
+      + 'nach Kill-Differenz. Bis dahin wird nichts als feststehend behauptet.',
     spielerDuell: playerDuelBlock(seasonTeams, src.results),
     match: result ? matchBlock(result, src.teams, focus.day) : null,
     // Von den Spielern selbst notierter Kampfverlauf — die einzige Quelle mit Details
@@ -406,7 +450,11 @@ export function buildContext(src, focus = {}) {
     laufendeGeschichten: storyBlock(src.articles, focusIds[0] || null),
     letzteBerichte: newsBlock(src.articles, focusIds[0] || null),
     letzteBerichteLigaweit: newsBlock(src.articles, null, 6),
-    marktwerte: marketBlock(src.eloRows, seasonTeams, focus.marketDay ?? null),
+    marktwerte: marketBlock(src.eloRows, seasonTeams, focus.marketDay ?? null, {
+      transfer: src.transfer,
+      schedule: src.schedule,
+      season,
+    }),
     saisonabschluss: focus.seasonEnd
       ? seasonEndBlock(seasonTeams, src.results, src.schedule, src.articles, season)
       : null,

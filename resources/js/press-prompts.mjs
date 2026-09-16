@@ -65,7 +65,21 @@ export const CANON_RULES = `UNVERRÜCKBARE REGELN (Kanon):
 8. Ein Team kann MEHRERE Geschichten gleichzeitig haben, und mehrere dürfen im selben Beitrag neu
    entstehen. Eine laufende Geschichte behält ihre id — führe sie fort, statt sie unter neuem Namen
    noch einmal zu eröffnen. Umgekehrt: presse nicht alles in einen Strang, nur weil es dasselbe Team
-   betrifft. Trainerfrage, Formkrise und Kaderstreit sind drei Geschichten, keine eine.`;
+   betrifft. Trainerfrage, Formkrise und Kaderstreit sind drei Geschichten, keine eine.
+9. RECHNE NACH, BEVOR DU ETWAS ENTSCHIEDEN NENNST. Ein Titel, ein Abstieg, ein Platz, eine
+   Qualifikation, eine uneinholbare Führung: all das darfst du nur dann als feststehend bezeichnen,
+   wenn es RECHNERISCH nicht mehr zu ändern ist. Ein Match bringt bis zu 3 Punkte; ein Team mit
+   noch n ausstehenden Matches kann also noch bis zu 3n Punkte holen. Bei Punktgleichheit
+   entscheidet die Kill-Differenz — auch sie kann sich in einem einzigen Match noch um zweistellige
+   Beträge drehen. Solange ein Verfolger nach Punkten UND Kill-Differenz vorbeiziehen kann, heißt es
+   "so gut wie", "vor der Entscheidung", "braucht noch", niemals "ist Meister". Steht die Zahl der
+   offenen Partien nicht in den Metadaten, behauptest du gar nichts.
+10. HALTUNG: Der Grundton dieser Redaktion ist kritisch, fordernd und unbestechlich — das bleibt so.
+   Aber eine Redaktion, die NIE anerkennt, verliert ihre Glaubwürdigkeit und damit ihre Schärfe.
+   Wo eine Leistung die Erwartung schlägt — ein billiges Pokémon trägt ein Team, ein Kader dreht
+   eine Krise, jemand hält einem Druck stand, den er nicht bestellt hat —, benenne das klar und
+   ohne Relativierung. Kein Lob als Anlauf zur nächsten Spitze: wenn gelobt wird, dann ganz.
+   Als Faustregel: etwa jeder vierte Beitrag räumt einer echten Leistung den Hauptplatz ein.`;
 
 // === Regie: Tonlage ========================================================
 // Gewichtung statt Gleichverteilung — die Liga soll überwiegend ernst genommen werden,
@@ -78,6 +92,9 @@ export const TONES = [
   { key: 'boulevard', weight: 12, text: 'Boulevardesk. Zuspitzung, Verdacht, Insider, ein Schuss zu viel Behauptung — aber juristisch gerade noch sauber.' },
   { key: 'sueffisant', weight: 10, text: 'Süffisant und trocken. Der Spott steckt zwischen den Zeilen, nie in der Überschrift.' },
   { key: 'absurd', weight: 8, text: 'Ein Schuss Absurdität. Ein kurioses Detail wird zum Zentrum des Textes und völlig ernst genommen — Satire mit ernstem Gesicht. Fakten bleiben trotzdem korrekt.' },
+  // Gegengewicht: Eine Redaktion, die nur austeilt, wird beliebig. Dieser Ton ist
+  // bewusst selten, dafür ohne Hintertür — hier wird wirklich anerkannt.
+  { key: 'anerkennend', weight: 12, text: 'Anerkennend. Hier wird eine Leistung ernst genommen, die die Erwartung geschlagen hat — ohne einschränkendes "aber" im letzten Absatz, ohne Spott zwischen den Zeilen. Kritisch bleibt der Blick trotzdem: Anerkennung ist begründet, nicht verteilt.' },
 ];
 
 export const OPENINGS = [
@@ -159,13 +176,16 @@ export function buildDirection(recentArchetypes = []) {
     suggestions,
     text: [
       `TONLAGE FÜR DIESEN TEXT: ${tone.text}`,
+      tone.key === 'anerkennend'
+        ? 'Diese Tonlage ist verbindlich: such dir die stärkste Leistung in den Daten und räum ihr den Hauptplatz ein.'
+        : '',
       `ERZÄHLIMPULS: ${opening}`,
       `MÖGLICHE ERZÄHLSTRÄNGE (wähle einen, der wirklich zu den Daten passt, oder erfinde einen besseren):`,
       ...suggestions.map((a) => `  - ${a.key}: ${a.label} — ${a.hint}`),
       recent.size
         ? `ZULETZT SCHON ERZÄHLT (nicht wiederholen): ${[...recent].join(', ')}`
         : 'Bisher wurde noch nichts erzählt — setze den ersten Akzent.',
-    ].join('\n'),
+    ].filter(Boolean).join('\n'),
   };
 }
 
@@ -215,6 +235,9 @@ FORM
 - Acht bis zwölf Absätze. Absätze sind einzelne Einträge im Feld "absaetze".
 - Ein Absatz, der mit "> " beginnt, wird als hervorgehobenes Zitat gesetzt — nutze das ein- bis
   zweimal. Ein Absatz, der mit "## " beginnt, wird zur Zwischenüberschrift; setze höchstens eine.
+- Setze die Ergebniskachel [ergebnis: <matchId>] als eigenen Absatz dorthin, wo die Partie erzählt
+  ist — nicht an den Anfang. Ist im Metadatenblock "match.video.vorhanden" wahr, setze zusätzlich
+  [video: <matchId>] ans Ende des Berichts.
 - Keine Aufzählungen, keine Tabellen, keine Emojis.`,
 
   interviewQuestions: `Du bist ein einzelner Pressevertreter und führst ein Einzelinterview. Dein
@@ -430,6 +453,24 @@ FORM
 };
 
 // === Systeminstruktion =====================================================
+// Bausteine im Textkörper: kleine Kacheln, die beim Anzeigen mit echten Daten
+// gefüllt werden. Sie stehen als eigener Absatz zwischen den Absätzen, nie im Satz.
+export const TILE_RULES = `BAUSTEINE (Bilder und Kacheln im Text):
+Du darfst einzelne Absätze durch einen Baustein ersetzen. Ein Baustein steht IMMER allein in
+seinem Absatz, ohne weiteren Text davor oder dahinter, und in genau dieser Schreibweise:
+- [marktwert: <Pokémon-Name>]  -> Bild, Marktwert und Tier des Pokémon
+- [team: <Team-Id>]            -> Vereinslogo, Name und Kaderwert
+- [trainer: <Team-Id>]         -> Foto und Name des amtierenden Trainers
+- [ergebnis: <Match-Id>]       -> Ergebniskachel mit Logos, Kampf- und Kill-Stand
+- [video: <Match-Id>]          -> das Video zum Spiel, sofern eines hinterlegt ist
+Team-Ids, Pokémon-Namen und Match-Ids stehen in den Metadaten und werden EXAKT übernommen.
+Höchstens drei Bausteine je Beitrag, und nur dort, wo sie den Text tragen — ein Marktwert neben
+der Behauptung, jemand sei zu teuer; die Ergebniskachel nach der Schilderung der Partie. Ein
+Baustein ersetzt nie das, was du zu sagen hast: Was in der Kachel steht, muss im Text nicht noch
+einmal buchstabiert werden, aber die Kachel allein ist kein Absatz.
+Ist zum Match ein Video hinterlegt (Metadatenfeld "video"), setze [video: <Match-Id>] in den
+Spielbericht. Ist keines hinterlegt, setzt du den Baustein NICHT.`;
+
 export function buildSystem({ author, extra = '' } = {}) {
   const voice = author
     ? `DEINE IDENTITÄT:\nDu bist ${author.name}, ${author.role} bei ${author.outlet}.\nSchreibweise: ${author.voice}\nRessort: ${author.beat}\nSchreibe erkennbar als diese Person — eine andere Handschrift wäre ein Fehler.`
@@ -445,6 +486,7 @@ export function buildSystem({ author, extra = '' } = {}) {
     'INTERPRETIERE. Die Metadaten sind Rohmaterial, kein Text. Rechne Tabellensituationen aus, erkenne Serien, '
       + 'vergleiche Erwartung (Tier, Marktwert, Draft-Kosten) mit Wirkung (Kills, Einsatzquote, Siege), erkenne, wenn '
       + 'jemand auffällig selten aufgestellt wird, und zieh daraus Schlüsse, die in den Daten nicht ausgeschrieben stehen.',
+    TILE_RULES,
     extra,
     'Antworte ausschließlich mit dem geforderten JSON-Objekt.',
   ].filter(Boolean).join('\n\n');
@@ -525,47 +567,3 @@ export const QUESTIONS_SCHEMA = schemaOf({
   ),
 }, ['fragen']);
 
-// === Kampfverlauf aus einer Sprachaufnahme =================================
-// Der Verlauf wird während des Kampfes eingesprochen — in einem Rutsch oder in
-// vielen kleinen Schnipseln. Alle Schnipsel gehen in EINEM Aufruf ans Modell, das
-// daraus einen sauberen Bericht macht. Kritisch sind die Eigennamen: Pokémon-,
-// Team- und Trainernamen werden deshalb als Vokabular mitgegeben.
-export const BATTLE_LOG_SCHEMA = schemaOf({
-  absaetze: S.array(S.string(), 'Der aufbereitete Kampfverlauf in Absätzen, chronologisch.'),
-  unklar: S.array(S.string(), 'Stellen, die akustisch nicht eindeutig waren — kurz benannt.'),
-}, ['absaetze']);
-
-export function buildBattleLogSystem() {
-  return [
-    'Du bereitest die Sprachnotizen eines Spielers der JH Draft League zu einem sauberen Kampfverlauf auf.',
-    LEAGUE_PRIMER,
-    'DEINE AUFGABE IST PROTOKOLL, NICHT JOURNALISMUS: Du erfindest nichts, wertest nicht, schmückst nicht aus. '
-      + 'Du gibst wieder, was gesagt wurde — nur geordnet, entstottert und in ganzen Sätzen.',
-    'Antworte ausschließlich mit dem geforderten JSON-Objekt.',
-  ].join('\n\n');
-}
-
-export function buildBattleLogPrompt({ vocabulary = [], situation = '', existing = '' } = {}) {
-  return [
-    'Im Anhang liegen eine oder mehrere Sprachaufnahmen. Sie gehören zu EINEM Kampf und sind in der '
-      + 'Reihenfolge angehängt, in der sie aufgenommen wurden. Erstelle daraus einen zusammenhängenden '
-      + 'Kampfverlauf.',
-    situation ? `SITUATION\n${situation}` : '',
-    'REGELN',
-    [
-      '- Chronologisch ordnen, Wiederholungen und Versprecher entfernen, Füllwörter streichen.',
-      '- Alles behalten, was inhaltlich gesagt wurde: Aufstellungen, Attacken, Wechsel, Kritische Treffer,',
-      '  Fehlentscheidungen, Glück und Pech, Zwischenstände, Reihenfolge der KOs.',
-      '- Nichts hinzuerfinden. Keine Bewertung, keine Prognose, keine Zitate.',
-      '- Vergangenheitsform, sachlich, in der Ich-Form nur dort, wo der Sprecher selbst spricht.',
-      '- Je Kampf ein Absatz, sofern erkennbar mehrere Kämpfe besprochen werden.',
-      '- Eigennamen MÜSSEN exakt aus der Vokabelliste übernommen werden. Klingt ein Name nur ähnlich,',
-      '  nimm den passenden Eintrag aus der Liste. Kommt ein Name gar nicht vor, schreibe ihn so, wie',
-      '  er gesprochen wurde, und vermerke ihn unter "unklar".',
-    ].join('\n'),
-    vocabulary.length ? `VOKABULAR (exakte Schreibweisen)\n${vocabulary.join('\n')}` : '',
-    existing
-      ? `BEREITS NOTIERT (diesen Text NICHT wiederholen, sondern nahtlos fortsetzen)\n"""\n${existing}\n"""`
-      : '',
-  ].filter(Boolean).join('\n\n');
-}
