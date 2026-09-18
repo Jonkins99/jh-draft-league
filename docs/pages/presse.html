@@ -94,8 +94,14 @@ match /settings/{doc} { allow read, write: if true; }</code></pre>
                    class="min-w-0 flex-1 rounded-lg border border-line bg-elevated px-3 py-2 text-sm text-ink placeholder:text-mist focus:border-flame-500 focus:outline-none" />
             <button type="button" x-show="hasFilters" @click="clearFilters()"
                     class="rounded-lg border border-line px-2.5 py-2 text-sm font-semibold text-mist transition-colors hover:text-flame-400">Filter&nbsp;×</button>
+            <button type="button" x-show="press.hasKey" @click="openCommission()"
+                    class="ml-auto inline-flex items-center gap-2 rounded-xl border border-line px-3.5 py-2 font-display text-sm font-bold uppercase tracking-wider text-mist transition-colors hover:border-flame-500/40 hover:text-flame-400">
+              <svg viewBox="0 0 24 24" class="size-4" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 5h11"/><path d="M4 10h11"/><path d="M4 15h7"/><path d="M17.5 13.5v7"/><path d="m14.5 16.5 3-3 3 3"/></svg>
+              In Auftrag geben
+            </button>
             <button type="button" @click="openComposer()"
-                    class="ml-auto inline-flex items-center gap-2 rounded-xl bg-flame-500 px-4 py-2 font-display text-sm font-bold uppercase tracking-wider text-white transition-colors hover:bg-flame-600">
+                    class="inline-flex items-center gap-2 rounded-xl bg-flame-500 px-4 py-2 font-display text-sm font-bold uppercase tracking-wider text-white transition-colors hover:bg-flame-600"
+                    :class="press.hasKey ? '' : 'ml-auto'">
               <svg viewBox="0 0 24 24" class="size-4" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 20h9"/><path d="M16.5 3.5a2.1 2.1 0 0 1 3 3L7 19l-4 1 1-4z"/></svg>
               Beitrag schreiben
             </button>
@@ -156,6 +162,8 @@ match /settings/{doc} { allow read, write: if true; }</code></pre>
                         x-text="catLabel(c)"></span>
                 </template>
                 <span x-show="a.editorial" class="rounded-full border border-volt-400/50 bg-volt-400/10 px-2 py-0.5 font-display text-[10px] font-bold uppercase tracking-wider text-volt-400">Redaktion</span>
+                <span x-show="isReference(a)" title="Geht in jeden weiteren Beitrag als Kontext ein"
+                      class="rounded-full border border-line px-2 py-0.5 font-display text-[10px] font-bold uppercase tracking-wider text-mist">Referenz</span>
                 <span x-show="a.day" class="text-[11px] text-mist" x-text="`Spieltag ${a.day}`"></span>
                 <span class="ml-auto shrink-0 text-[11px] text-mist" x-text="fmtDate(a.publishedAt)"></span>
               </div>
@@ -170,9 +178,21 @@ match /settings/{doc} { allow read, write: if true; }</code></pre>
                 <div class="mt-3">
                   <p class="font-display text-base font-bold text-flame-300">Der Beitrag ist nicht fertig geworden.</p>
                   <p class="press-break mt-1 text-xs text-mist" x-text="a.error"></p>
-                  <div class="mt-2 flex gap-2">
-                    <button type="button" x-show="a.source?.type === 'match'" @click.stop="regenerate(a.id)"
-                            class="rounded-lg border border-line px-2.5 py-1.5 text-xs font-semibold text-mist transition-colors hover:text-flame-400">Erneut versuchen</button>
+                  <div class="mt-3 flex flex-wrap items-center gap-2" @click.stop>
+                    <template x-if="canRetry(a)">
+                      <label class="flex min-w-0 flex-1 basis-full items-center gap-2 text-[11px] text-mist sm:basis-auto">
+                        <span class="shrink-0">Versucht mit</span>
+                        <select @change="setRetryModel(a.id, $event.target.value)"
+                                class="min-w-0 flex-1 rounded-lg border border-line bg-elevated px-2 py-1.5 text-xs text-ink">
+                          <template x-for="m in models" :key="'rm-'+a.id+'-'+m.id">
+                            <option :value="m.id" :selected="m.id === retryModelFor(a.id)" x-text="m.label"></option>
+                          </template>
+                        </select>
+                      </label>
+                    </template>
+                    <button type="button" x-show="canRetry(a)" @click.stop="regenerate(a.id)" :disabled="isBusy(a.id)"
+                            class="rounded-lg border border-flame-500/40 bg-flame-500/10 px-2.5 py-1.5 text-xs font-semibold text-flame-300 transition-colors hover:bg-flame-500/20 disabled:opacity-40"
+                            x-text="isBusy(a.id) ? 'Läuft…' : 'Erneut versuchen'"></button>
                     <button type="button" @click.stop="removeArticle(a.id)"
                             class="rounded-lg border border-line px-2.5 py-1.5 text-xs font-semibold text-mist transition-colors hover:text-flame-400">Verwerfen</button>
                   </div>
@@ -385,10 +405,98 @@ match /settings/{doc} { allow read, write: if true; }</code></pre>
                     class="rounded-xl border border-line px-3 py-2 font-display text-xs font-bold uppercase tracking-wider text-mist transition-colors hover:text-flame-400">Zum Spielbericht im Spielplan</button>
             <button type="button" x-show="article.editorial" @click="openComposer(article)"
                     class="rounded-xl border border-line px-3 py-2 font-display text-xs font-bold uppercase tracking-wider text-mist transition-colors hover:text-flame-400">Bearbeiten</button>
-            <button type="button" x-show="article.source?.type === 'match'" @click="regenerate(article.id)"
-                    class="rounded-xl border border-line px-3 py-2 font-display text-xs font-bold uppercase tracking-wider text-mist transition-colors hover:text-flame-400">Neu schreiben lassen</button>
+            <template x-if="canRetry(article)">
+              <label class="flex items-center gap-2 text-[11px] text-mist">
+                <span class="shrink-0">Modell</span>
+                <select @change="setRetryModel(article.id, $event.target.value)"
+                        class="min-w-0 rounded-xl border border-line bg-elevated px-2 py-2 text-xs text-ink">
+                  <template x-for="m in models" :key="'am-'+article.id+'-'+m.id">
+                    <option :value="m.id" :selected="m.id === retryModelFor(article.id)" x-text="m.label"></option>
+                  </template>
+                </select>
+              </label>
+            </template>
+            <button type="button" x-show="canRetry(article)" @click="regenerate(article.id)" :disabled="isBusy(article.id)"
+                    class="rounded-xl border border-line px-3 py-2 font-display text-xs font-bold uppercase tracking-wider text-mist transition-colors hover:text-flame-400 disabled:opacity-40"
+                    x-text="isBusy(article.id) ? 'Läuft…' : 'Neu schreiben lassen'"></button>
+            <button type="button" @click="toggleReference(article)" :aria-pressed="isReference(article)"
+                    class="inline-flex items-center gap-2 rounded-xl border px-3 py-2 font-display text-xs font-bold uppercase tracking-wider transition-colors"
+                    :class="isReference(article) ? 'border-volt-400/50 bg-volt-400/10 text-volt-400' : 'border-line text-mist hover:text-flame-400'"
+                    title="Als dauerhafte Referenz merken: Der Beitrag geht dann in jeden weiteren Beitrag als Kontext ein, egal wie alt er ist.">
+              <svg viewBox="0 0 24 24" class="size-4" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M6 3h12a1 1 0 0 1 1 1v17l-7-4-7 4V4a1 1 0 0 1 1-1z"/></svg>
+              <span x-text="isReference(article) ? 'Dauerhafte Referenz' : 'Als Referenz merken'"></span>
+            </button>
             <button type="button" @click="removeArticle(article.id)"
                     class="ml-auto rounded-xl border border-line px-3 py-2 font-display text-xs font-bold uppercase tracking-wider text-mist/60 transition-colors hover:border-flame-500/40 hover:text-flame-400">Aus dem Archiv nehmen</button>
+          </div>
+        </div>
+      </div>
+    </template>
+  </div>
+
+  <!-- ========================== BEITRAG IN AUFTRAG ========================== -->
+  <div popover id="press-commission" class="modal-pop w-[34rem] max-w-[calc(100vw-1.5rem)] rounded-3xl border border-line bg-panel text-ink"
+       @toggle="if ($event.newState === 'closed') commission = null">
+    <template x-if="commission">
+      <div class="max-h-[88vh] overflow-y-auto p-5 sm:p-7">
+        <div class="mb-5 flex items-start justify-between gap-4">
+          <div class="min-w-0">
+            <p class="font-display text-xs font-semibold uppercase tracking-[0.3em] text-flame-400">Redaktionsleitung</p>
+            <h2 class="mt-1 font-display text-2xl font-bold tracking-wide text-ink">Beitrag in Auftrag geben</h2>
+          </div>
+          <button type="button" @click="closeCommission()" class="grid size-9 shrink-0 place-items-center rounded-lg text-mist transition-colors hover:text-ink" aria-label="Schließen">
+            <svg viewBox="0 0 24 24" class="size-5" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M6 6l12 12M18 6L6 18"/></svg>
+          </button>
+        </div>
+
+        <div class="grid gap-4">
+          <label class="grid gap-1.5">
+            <span class="font-display text-xs font-semibold uppercase tracking-wider text-mist">Auftrag</span>
+            <textarea x-model="commission.brief" rows="6" placeholder="Worum soll es gehen? Je genauer, desto besser — Thema, Blickwinkel, Zuspitzung, ein konkretes Team oder Pokémon."
+                      class="w-full resize-y rounded-xl border border-line bg-elevated px-3 py-2.5 text-sm leading-relaxed text-ink placeholder:text-mist/60 focus:border-flame-500 focus:outline-none"></textarea>
+            <span class="text-[11px] leading-relaxed text-mist/70">Der Auftrag gibt das Thema vor, nicht die Fakten: Was die Daten nicht hergeben, behandelt die Redaktion als These und prüft es nach.</span>
+          </label>
+
+          <div class="grid gap-1.5">
+            <span class="font-display text-xs font-semibold uppercase tracking-wider text-mist">Teams im Mittelpunkt <span class="font-normal normal-case tracking-normal opacity-70">(optional)</span></span>
+            <div class="flex flex-wrap gap-1.5">
+              <template x-for="t in league.seasonTeams" :key="'ct-'+t.id">
+                <button type="button" @click="toggleCommissionTeam(t.id)" :aria-pressed="commission.teamIds.includes(t.id)"
+                        class="inline-flex items-center gap-1.5 rounded-lg border px-2.5 py-1.5 text-xs font-semibold transition-colors"
+                        :class="commission.teamIds.includes(t.id) ? 'border-flame-500 bg-flame-500/10 text-flame-300' : 'border-line text-mist hover:text-ink'">
+                  <img :src="teamLogo(t.id)" :alt="t.name" class="size-4 shrink-0 object-contain" />
+                  <span x-text="t.name"></span>
+                </button>
+              </template>
+            </div>
+          </div>
+
+          <div class="grid gap-3 sm:grid-cols-2">
+            <label class="grid gap-1.5">
+              <span class="font-display text-xs font-semibold uppercase tracking-wider text-mist">Autor</span>
+              <select @change="commission.authorId = $event.target.value"
+                      class="w-full rounded-xl border border-line bg-elevated px-3 py-2.5 text-sm text-ink focus:border-flame-500 focus:outline-none">
+                <option value="" :selected="!commission.authorId">Redaktion entscheidet</option>
+                <template x-for="a in authors" :key="'ca-'+a.id">
+                  <option :value="a.id" :selected="a.id === commission.authorId" x-text="`${a.name} · ${a.beat}`"></option>
+                </template>
+              </select>
+            </label>
+            <label class="grid gap-1.5">
+              <span class="font-display text-xs font-semibold uppercase tracking-wider text-mist">Spieltag <span class="font-normal normal-case tracking-normal opacity-70">(optional)</span></span>
+              <input type="number" min="1" x-model.number="commission.day" placeholder="—"
+                     class="w-full rounded-xl border border-line bg-elevated px-3 py-2.5 text-sm tabular-nums text-ink placeholder:text-mist/60 focus:border-flame-500 focus:outline-none" />
+            </label>
+          </div>
+
+          <p x-show="commission.error" class="press-break rounded-xl border border-flame-500/40 bg-flame-500/10 px-3 py-2 text-xs text-flame-300" x-text="commission.error"></p>
+
+          <div class="flex flex-wrap gap-2">
+            <button type="button" @click="sendCommission()" :disabled="commission.busy || (commission.brief || '').trim().length < 8"
+                    class="flex-1 rounded-xl bg-flame-500 px-4 py-2.5 font-display text-sm font-bold uppercase tracking-wider text-white transition-colors hover:bg-flame-600 disabled:opacity-40"
+                    x-text="commission.busy ? 'Die Redaktion schreibt…' : 'Schreiben lassen'"></button>
+            <button type="button" @click="closeCommission()" :disabled="commission.busy"
+                    class="rounded-xl border border-line px-4 py-2.5 font-display text-sm font-semibold uppercase tracking-wider text-mist transition-colors hover:text-ink disabled:opacity-40">Abbrechen</button>
           </div>
         </div>
       </div>
@@ -680,9 +788,20 @@ match /settings/{doc} { allow read, write: if true; }</code></pre>
         <div x-show="stage.phase === 'error'" class="relative flex flex-1 flex-col items-center justify-center gap-4 px-6 py-20 text-center">
           <p class="font-display text-xl font-bold tracking-wide text-flame-300">Der Termin ist geplatzt.</p>
           <p class="press-break max-w-md text-sm text-mist" x-text="session?.error || press.lastError || 'Die Redaktion war nicht erreichbar.'"></p>
+          <label class="flex w-full max-w-sm flex-wrap items-center justify-center gap-2 text-[11px] text-mist">
+            <span class="shrink-0">Versucht mit</span>
+            <select @change="setRetryModel(stage.slot.id, $event.target.value)"
+                    class="min-w-0 flex-1 rounded-xl border border-line bg-elevated px-2 py-2 text-xs text-ink">
+              <template x-for="m in models" :key="'sm-'+m.id">
+                <option :value="m.id" :selected="m.id === retryModelFor(stage.slot.id)" x-text="m.label"></option>
+              </template>
+            </select>
+          </label>
           <div class="flex flex-wrap justify-center gap-2">
+            <button type="button" @click="retryStageNow()"
+                    class="rounded-xl bg-flame-500 px-5 py-2.5 font-display text-sm font-bold uppercase tracking-wider text-white transition-colors hover:bg-flame-600">Erneut versuchen</button>
             <button type="button" @click="retryStage()"
-                    class="rounded-xl bg-flame-500 px-5 py-2.5 font-display text-sm font-bold uppercase tracking-wider text-white transition-colors hover:bg-flame-600">Neu ansetzen</button>
+                    class="rounded-xl border border-line px-4 py-2.5 font-display text-sm font-semibold uppercase tracking-wider text-mist transition-colors hover:text-flame-400">Ganz neu ansetzen</button>
             <button type="button" @click="closeStage()"
                     class="rounded-xl border border-line px-4 py-2.5 font-display text-sm font-semibold uppercase tracking-wider text-mist transition-colors hover:text-flame-400">Schließen</button>
           </div>
@@ -861,6 +980,24 @@ match /settings/{doc} { allow read, write: if true; }</code></pre>
                   <span class="font-display text-xs font-bold uppercase tracking-wider text-mist" x-text="`ST ${r.day}`"></span>
                   <span class="min-w-0 flex-1 truncate text-sm text-ink">Marktwert-Update</span>
                   <button type="button" @click="press.generateMarketUpdate(r.day, { force: true })"
+                          :disabled="!press.hasKey || isBusy(r.id)"
+                          class="shrink-0 rounded-lg border border-line px-2.5 py-1.5 text-xs font-semibold text-mist transition-colors hover:text-flame-400 disabled:opacity-40"
+                          x-text="isBusy(r.id) ? 'Schreibt…' : 'Schreiben'"></button>
+                </div>
+              </template>
+            </div>
+          </div>
+
+          <div class="border-t border-line pt-4">
+            <p class="font-display text-sm font-bold uppercase tracking-wider text-ink">Neu im Draft-Pool</p>
+            <p class="mt-1 text-xs leading-relaxed text-mist">Einmalig je Saison: Sobald der Pokémon-Pool Zugänge für eine neue Saison führt, ordnet Scott sie ein. Elo- und Marktwerte gibt es für Neuzugänge noch nicht.</p>
+            <p x-show="!press.missingNewcomers.length" class="mt-3 rounded-xl border border-line bg-elevated/40 px-3 py-2.5 text-sm text-mist">Zu jedem Zugang in den Pool liegt ein Beitrag vor.</p>
+            <div x-show="press.missingNewcomers.length" class="mt-3 grid gap-2">
+              <template x-for="r in press.missingNewcomers" :key="'nc-'+r.id">
+                <div class="flex items-center gap-3 rounded-xl border border-line px-3 py-2">
+                  <span class="font-display text-xs font-bold uppercase tracking-wider text-mist" x-text="`Saison ${r.season}`"></span>
+                  <span class="min-w-0 flex-1 truncate text-sm text-ink">Die Neuzugänge im Pool</span>
+                  <button type="button" @click="press.generateNewcomers(r.season, { force: true })"
                           :disabled="!press.hasKey || isBusy(r.id)"
                           class="shrink-0 rounded-lg border border-line px-2.5 py-1.5 text-xs font-semibold text-mist transition-colors hover:text-flame-400 disabled:opacity-40"
                           x-text="isBusy(r.id) ? 'Schreibt…' : 'Schreiben'"></button>

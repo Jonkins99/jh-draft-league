@@ -38,6 +38,33 @@
     "base_speed": 130
   },
   {
+    "name": "Gortrom",
+    "name_en": "Rillaboom",
+    "dex": 812,
+    "types": [
+      "Pflanze"
+    ],
+    "tier": "S",
+    "cost": 20,
+    "image": "https://www.serebii.net/pokemonhome/pokemon/812.png",
+    "base_speed": 85,
+    "since": 2
+  },
+  {
+    "name": "Mega-Brutalanda",
+    "name_en": "Mega Salamence",
+    "dex": 373,
+    "types": [
+      "Drache",
+      "Flug"
+    ],
+    "tier": "S",
+    "cost": 20,
+    "image": "https://www.serebii.net/pokemonhome/pokemon/373-m.png",
+    "base_speed": 120,
+    "since": 2
+  },
+  {
     "name": "Briduradon",
     "name_en": "Archaludon",
     "dex": 1018,
@@ -165,6 +192,34 @@
     "cost": 18,
     "image": "https://www.serebii.net/pokemonhome/pokemon/1013.png",
     "base_speed": 70
+  },
+  {
+    "name": "Mega-Tectass",
+    "name_en": "Mega Golisopod",
+    "dex": 768,
+    "types": [
+      "Käfer",
+      "Stahl"
+    ],
+    "tier": "S",
+    "cost": 18,
+    "image": "https://www.serebii.net/pokemonhome/pokemon/768-m.png",
+    "base_speed": 40,
+    "since": 2
+  },
+  {
+    "name": "Servol (weiblich)",
+    "name_en": "Indeedee-F",
+    "dex": 876,
+    "types": [
+      "Psycho",
+      "Normal"
+    ],
+    "tier": "S",
+    "cost": 18,
+    "image": "https://www.serebii.net/pokemonhome/pokemon/876-f.png",
+    "base_speed": 85,
+    "since": 2
   },
   {
     "name": "Aerodactyl",
@@ -360,6 +415,34 @@
     "base_speed": 100
   },
   {
+    "name": "Servol (männlich)",
+    "name_en": "Indeedee",
+    "dex": 876,
+    "types": [
+      "Psycho",
+      "Normal"
+    ],
+    "tier": "A",
+    "cost": 16,
+    "image": "https://www.serebii.net/pokemonhome/pokemon/876.png",
+    "base_speed": 95,
+    "since": 2
+  },
+  {
+    "name": "Mega-Espinodon",
+    "name_en": "Mega Baxcalibur",
+    "dex": 998,
+    "types": [
+      "Drache",
+      "Eis"
+    ],
+    "tier": "A",
+    "cost": 16,
+    "image": "https://www.serebii.net/pokemonhome/pokemon/998-m.png",
+    "base_speed": 87,
+    "since": 2
+  },
+  {
     "name": "Pixi",
     "name_en": "Clefable",
     "dex": 36,
@@ -511,6 +594,33 @@
     "cost": 15,
     "image": "https://www.serebii.net/pokemonhome/pokemon/324.png",
     "base_speed": 20
+  },
+  {
+    "name": "Mega-Knakrack Z",
+    "name_en": "Mega Garchomp Z",
+    "dex": 445,
+    "types": [
+      "Drache"
+    ],
+    "tier": "A",
+    "cost": 15,
+    "image": "https://www.serebii.net/pokemonhome/pokemon/445-mz.png",
+    "base_speed": 151,
+    "since": 2
+  },
+  {
+    "name": "Mega-Lucario Z",
+    "name_en": "Mega Lucario Z",
+    "dex": 448,
+    "types": [
+      "Kampf",
+      "Stahl"
+    ],
+    "tier": "A",
+    "cost": 15,
+    "image": "https://www.serebii.net/pokemonhome/pokemon/448-mz.png",
+    "base_speed": 151,
+    "since": 2
   },
   {
     "name": "Alola-Vulnona",
@@ -667,6 +777,34 @@
     "base_speed": 86
   },
   {
+    "name": "Espinodon",
+    "name_en": "Baxcalibur",
+    "dex": 998,
+    "types": [
+      "Drache",
+      "Eis"
+    ],
+    "tier": "A",
+    "cost": 14,
+    "image": "https://www.serebii.net/pokemonhome/pokemon/998.png",
+    "base_speed": 87,
+    "since": 2
+  },
+  {
+    "name": "Brutalanda",
+    "name_en": "Salamence",
+    "dex": 373,
+    "types": [
+      "Drache",
+      "Flug"
+    ],
+    "tier": "A",
+    "cost": 14,
+    "image": "https://www.serebii.net/pokemonhome/pokemon/373.png",
+    "base_speed": 100,
+    "since": 2
+  },
+  {
     "name": "Krarmor",
     "name_en": "Corviknight",
     "dex": 823,
@@ -755,6 +893,20 @@
     "cost": 13,
     "image": "https://www.serebii.net/pokemonhome/pokemon/003.png",
     "base_speed": 80
+  },
+  {
+    "name": "Pamomamo",
+    "name_en": "Pawmot",
+    "dex": 923,
+    "types": [
+      "Elektro",
+      "Kampf"
+    ],
+    "tier": "A",
+    "cost": 13,
+    "image": "https://www.serebii.net/pokemonhome/pokemon/923.png",
+    "base_speed": 105,
+    "since": 2
   },
   {
     "name": "Azumarill",
@@ -1038,6 +1190,19 @@
     "base_speed": 94
   },
   {
+    "name": "Liberlo",
+    "name_en": "Cinderace",
+    "dex": 815,
+    "types": [
+      "Feuer"
+    ],
+    "tier": "B",
+    "cost": 11,
+    "image": "https://www.serebii.net/pokemonhome/pokemon/815.png",
+    "base_speed": 119,
+    "since": 2
+  },
+  {
     "name": "Guardevoir",
     "name_en": "Gardevoir",
     "dex": 282,
@@ -1163,6 +1328,46 @@
     "cost": 10,
     "image": "https://www.serebii.net/pokemonhome/pokemon/666.png",
     "base_speed": 89
+  },
+  {
+    "name": "Mega-Absol Z",
+    "name_en": "Mega Absol Z",
+    "dex": 359,
+    "types": [
+      "Unlicht",
+      "Geist"
+    ],
+    "tier": "B",
+    "cost": 10,
+    "image": "https://www.serebii.net/pokemonhome/pokemon/359-mz.png",
+    "base_speed": 151,
+    "since": 2
+  },
+  {
+    "name": "Intelleon",
+    "name_en": "Inteleon",
+    "dex": 818,
+    "types": [
+      "Wasser"
+    ],
+    "tier": "B",
+    "cost": 10,
+    "image": "https://www.serebii.net/pokemonhome/pokemon/818.png",
+    "base_speed": 120,
+    "since": 2
+  },
+  {
+    "name": "Lauchzelot",
+    "name_en": "Sirfetch’d",
+    "dex": 865,
+    "types": [
+      "Kampf"
+    ],
+    "tier": "B",
+    "cost": 10,
+    "image": "https://www.serebii.net/pokemonhome/pokemon/865.png",
+    "base_speed": 65,
+    "since": 2
   },
   {
     "name": "Turtok",
@@ -1535,6 +1740,47 @@
     "base_speed": 79
   },
   {
+    "name": "Riffex (Hoch)",
+    "name_en": "Toxtricity",
+    "dex": 849,
+    "types": [
+      "Elektro",
+      "Gift"
+    ],
+    "tier": "C",
+    "cost": 8,
+    "image": "https://www.serebii.net/pokemonhome/pokemon/849.png",
+    "base_speed": 75,
+    "since": 2
+  },
+  {
+    "name": "Britzigel",
+    "name_en": "Pincurchin",
+    "dex": 871,
+    "types": [
+      "Elektro"
+    ],
+    "tier": "C",
+    "cost": 8,
+    "image": "https://www.serebii.net/pokemonhome/pokemon/871.png",
+    "base_speed": 15,
+    "since": 2
+  },
+  {
+    "name": "Tectass",
+    "name_en": "Golisopod",
+    "dex": 768,
+    "types": [
+      "Käfer",
+      "Wasser"
+    ],
+    "tier": "C",
+    "cost": 8,
+    "image": "https://www.serebii.net/pokemonhome/pokemon/768.png",
+    "base_speed": 40,
+    "since": 2
+  },
+  {
     "name": "Meistagrif",
     "name_en": "Conkeldurr",
     "dex": 534,
@@ -1777,6 +2023,33 @@
     "base_speed": 65
   },
   {
+    "name": "Riffex (Tief)",
+    "name_en": "Toxtricity-Low-Key",
+    "dex": 849,
+    "types": [
+      "Elektro",
+      "Gift"
+    ],
+    "tier": "C",
+    "cost": 7,
+    "image": "https://www.serebii.net/pokemonhome/pokemon/849-l.png",
+    "base_speed": 75,
+    "since": 2
+  },
+  {
+    "name": "Alola-Snobilikat",
+    "name_en": "Alolan Persian",
+    "dex": 53,
+    "types": [
+      "Unlicht"
+    ],
+    "tier": "C",
+    "cost": 7,
+    "image": "https://www.serebii.net/pokemonhome/pokemon/053-a.png",
+    "base_speed": 115,
+    "since": 2
+  },
+  {
     "name": "Rexblisar",
     "name_en": "Abomasnow",
     "dex": 460,
@@ -1968,6 +2241,32 @@
     "cost": 6,
     "image": "https://www.serebii.net/pokemonhome/pokemon/571.png",
     "base_speed": 105
+  },
+  {
+    "name": "Kaocto",
+    "name_en": "Grapploct",
+    "dex": 853,
+    "types": [
+      "Kampf"
+    ],
+    "tier": "C",
+    "cost": 6,
+    "image": "https://www.serebii.net/pokemonhome/pokemon/853.png",
+    "base_speed": 42,
+    "since": 2
+  },
+  {
+    "name": "Mauzinger",
+    "name_en": "Perrserker",
+    "dex": 863,
+    "types": [
+      "Stahl"
+    ],
+    "tier": "C",
+    "cost": 6,
+    "image": "https://www.serebii.net/pokemonhome/pokemon/863.png",
+    "base_speed": 50,
+    "since": 2
   },
   {
     "name": "Simsala",
@@ -2252,6 +2551,47 @@
     "cost": 5,
     "image": "https://www.serebii.net/pokemonhome/pokemon/134.png",
     "base_speed": 65
+  },
+  {
+    "name": "Knuddeluff",
+    "name_en": "Wigglytuff",
+    "dex": 40,
+    "types": [
+      "Normal",
+      "Fee"
+    ],
+    "tier": "C",
+    "cost": 5,
+    "image": "https://www.serebii.net/pokemonhome/pokemon/040.png",
+    "base_speed": 45,
+    "since": 2
+  },
+  {
+    "name": "Olithena",
+    "name_en": "Arboliva",
+    "dex": 930,
+    "types": [
+      "Pflanze",
+      "Normal"
+    ],
+    "tier": "C",
+    "cost": 5,
+    "image": "https://www.serebii.net/pokemonhome/pokemon/930.png",
+    "base_speed": 39,
+    "since": 2
+  },
+  {
+    "name": "Mastifioso",
+    "name_en": "Mabosstiff",
+    "dex": 943,
+    "types": [
+      "Unlicht"
+    ],
+    "tier": "C",
+    "cost": 5,
+    "image": "https://www.serebii.net/pokemonhome/pokemon/943.png",
+    "base_speed": 85,
+    "since": 2
   },
   {
     "name": "Pokusan",
@@ -2555,6 +2895,74 @@
     "base_speed": 71
   },
   {
+    "name": "Pantimos",
+    "name_en": "Mr. Mime",
+    "dex": 122,
+    "types": [
+      "Psycho",
+      "Fee"
+    ],
+    "tier": "D",
+    "cost": 4,
+    "image": "https://www.serebii.net/pokemonhome/pokemon/122.png",
+    "base_speed": 90,
+    "since": 2
+  },
+  {
+    "name": "Krawalloro (Grün/Blau)",
+    "name_en": "Squawkabilly",
+    "dex": 931,
+    "types": [
+      "Normal",
+      "Flug"
+    ],
+    "tier": "D",
+    "cost": 4,
+    "image": "https://www.serebii.net/pokemonhome/pokemon/931.png",
+    "base_speed": 92,
+    "since": 2
+  },
+  {
+    "name": "Krawalloro (Gelb/Weiß)",
+    "name_en": "Squawkabilly-Yellow",
+    "dex": 931,
+    "types": [
+      "Normal",
+      "Flug"
+    ],
+    "tier": "D",
+    "cost": 4,
+    "image": "https://www.serebii.net/pokemonhome/pokemon/931-y.png",
+    "base_speed": 92,
+    "since": 2
+  },
+  {
+    "name": "Chevrumm",
+    "name_en": "Gogoat",
+    "dex": 673,
+    "types": [
+      "Pflanze"
+    ],
+    "tier": "D",
+    "cost": 4,
+    "image": "https://www.serebii.net/pokemonhome/pokemon/673.png",
+    "base_speed": 68,
+    "since": 2
+  },
+  {
+    "name": "Gaunux",
+    "name_en": "Thievul",
+    "dex": 828,
+    "types": [
+      "Unlicht"
+    ],
+    "tier": "D",
+    "cost": 4,
+    "image": "https://www.serebii.net/pokemonhome/pokemon/828.png",
+    "base_speed": 90,
+    "since": 2
+  },
+  {
     "name": "Ohrdoch",
     "name_en": "Audino",
     "dex": 531,
@@ -2834,6 +3242,20 @@
     "base_speed": 70
   },
   {
+    "name": "Porenta",
+    "name_en": "Farfetch’d",
+    "dex": 83,
+    "types": [
+      "Normal",
+      "Flug"
+    ],
+    "tier": "D",
+    "cost": 3,
+    "image": "https://www.serebii.net/pokemonhome/pokemon/083.png",
+    "base_speed": 60,
+    "since": 2
+  },
+  {
     "name": "Stolloss",
     "name_en": "Aggron",
     "dex": 306,
@@ -2996,6 +3418,32 @@
     "cost": 2,
     "image": "https://www.serebii.net/pokemonhome/pokemon/128.png",
     "base_speed": 110
+  },
+  {
+    "name": "Schlukwech",
+    "name_en": "Swalot",
+    "dex": 317,
+    "types": [
+      "Gift"
+    ],
+    "tier": "D",
+    "cost": 2,
+    "image": "https://www.serebii.net/pokemonhome/pokemon/317.png",
+    "base_speed": 55,
+    "since": 2
+  },
+  {
+    "name": "Snobilikat",
+    "name_en": "Persian",
+    "dex": 53,
+    "types": [
+      "Normal"
+    ],
+    "tier": "D",
+    "cost": 2,
+    "image": "https://www.serebii.net/pokemonhome/pokemon/053.png",
+    "base_speed": 115,
+    "since": 2
   },
   {
     "name": "Absol",

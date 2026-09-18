@@ -72,10 +72,16 @@
                     <span class="block truncate font-semibold text-ink" x-text="r.label" :title="r.label"></span>
                     <span class="block truncate text-[11px] text-mist" x-text="r.awards.map(a => a.label).join(' · ')"></span>
                   </span>
-                  <span class="shrink-0 rounded-full bg-volt-400/15 px-2.5 py-1 font-display text-xs font-bold tabular-nums text-volt-400" x-text="`${r.n}×`"></span>
+                  <span class="flex shrink-0 items-center gap-1">
+                    <span x-show="r.positive" class="rounded-full bg-volt-400/15 px-2.5 py-1 font-display text-xs font-bold tabular-nums text-volt-400"
+                          :title="`${r.positive} Ehrungen`" x-text="`${r.positive}×`"></span>
+                    <span x-show="r.negative" class="rounded-full bg-flame-500/15 px-2.5 py-1 font-display text-xs font-bold tabular-nums text-flame-300"
+                          :title="`${r.negative} Rügen`" x-text="`${r.negative}×`"></span>
+                  </span>
                 </button>
               </template>
             </div>
+            <p class="mt-3 text-[11px] text-mist/70"><span class="font-semibold text-volt-400">Gelb</span> zählt die Ehrungen, <span class="font-semibold text-flame-300">Rot</span> die Rügen.</p>
             <p x-show="!awardBoard.pokemon.length" class="py-4 text-center text-sm text-mist">Noch keine Pokémon-Auszeichnung vergeben.</p>
           </section>
 

@@ -4,6 +4,7 @@
       <p class="font-display text-xs font-semibold uppercase tracking-[0.3em] text-flame-400">Draft</p>
       <h1 class="mt-1 font-display text-4xl font-bold tracking-wide text-ink md:text-5xl">Draft Board</h1>
       <p class="mt-2 text-mist">Snake-Draft · jedes Team wählt zehn Pokémon, exakt zwei pro Tier.</p>
+      <p x-show="loaded && running && renewalTeams.length" x-cloak class="mt-1 text-sm text-mist">Zu Beginn jeder Runde darf jedes Team aus der Vorsaison eine Vertragsverlängerung einlösen.</p>
     </div>
     <button type="button" popovertarget="exp-draft" title="Draft exportieren"
             class="mt-1 grid size-10 shrink-0 place-items-center rounded-xl border border-line text-mist transition-colors hover:text-flame-400">
@@ -39,7 +40,9 @@
     <span class="pokeball" aria-hidden="true"></span>
     <div>
       <h2 class="font-display text-2xl font-bold tracking-wide text-ink">Bereit für den Draft</h2>
-      <p class="mt-1 text-mist">Beim Start wird die Reihenfolge der acht Teams zufällig ausgelost.</p>
+      <p class="mt-1 text-mist" x-text="hasPreviousSeason
+        ? 'Die Reihenfolge ergibt sich aus der Endtabelle der Vorsaison: Der Erste zieht zuerst, die Aufsteiger schließen hinten an.'
+        : 'Beim Start wird die Reihenfolge der Teams zufällig ausgelost.'"></p>
     </div>
     <button type="button" popovertarget="draft-confirm" :disabled="hasResults"
             class="rounded-xl bg-flame-500 px-6 py-3 font-display font-bold uppercase tracking-wide text-white transition-colors hover:bg-flame-600 disabled:cursor-not-allowed disabled:opacity-50">
@@ -48,8 +51,107 @@
     <p x-show="hasResults" class="text-xs text-mist">Gesperrt — es sind bereits Ergebnisse erfasst.</p>
   </div>
 
+  <!-- ORDER: Die Reihenfolge steht bis auf die beiden Aufsteiger -->
+  <template x-if="loaded && needsOrderChoice">
+  <section class="mb-8 rounded-2xl border border-volt-400/40 bg-gradient-to-br from-volt-400/10 to-panel p-6 md:p-7">
+    <p class="font-display text-xs font-semibold uppercase tracking-[0.25em] text-volt-400">Reihenfolge festzurren</p>
+    <h2 class="mt-1 font-display text-2xl font-bold tracking-wide text-ink">Wer zieht an Position 7?</h2>
+    <p class="mt-2 max-w-2xl text-sm leading-relaxed text-mist">
+      Die Plätze 1 bis 6 stehen über die Endtabelle der Vorsaison fest. Beide Aufsteiger gehören
+      <span class="font-semibold text-ink" x-text="orderChoice.player"></span> — deshalb entscheidet
+      <span x-text="orderChoice.player"></span> selbst, welches der beiden Teams zuerst zieht. Das andere
+      zieht an Position 8. Diese Frage muss vor dem ersten Pick und vor jeder Vertragsverlängerung geklärt sein.
+    </p>
+
+    <div class="mt-5 grid gap-3 sm:grid-cols-2">
+      <template x-for="t in orderChoiceTeams" :key="'oc-'+t.id">
+        <button type="button" @click="chooseFirstPromoted(t.id)" :disabled="!isMyOrderChoice || busy"
+                class="flex items-center gap-4 rounded-2xl border border-line bg-panel p-4 text-left transition-colors hover:border-volt-400/50 disabled:cursor-not-allowed disabled:opacity-50">
+          <img :src="`./img/teams/${t.logo}`" :alt="t.name" class="size-14 shrink-0 rounded-xl object-contain" />
+          <span class="min-w-0">
+            <span class="block truncate font-display text-lg font-bold text-ink" x-text="t.name"></span>
+            <span class="block text-sm text-mist">zieht an Position 7</span>
+          </span>
+        </button>
+      </template>
+    </div>
+
+    <p x-show="!isMyOrderChoice" x-cloak class="mt-4 rounded-xl border border-dashed border-line bg-void/40 px-4 py-2.5 text-sm text-mist">
+      Warte auf <span class="font-semibold text-ink" x-text="orderChoice.player"></span> — nur er kann das entscheiden.
+    </p>
+
+    <div class="mt-5 border-t border-line pt-4">
+      <p class="font-display text-xs font-semibold uppercase tracking-wider text-mist">Bereits gesetzt</p>
+      <div class="mt-2 flex flex-wrap items-center gap-2">
+        <template x-for="(t, i) in orderTeams" :key="'ot-'+t.id">
+          <span class="inline-flex items-center gap-1.5 rounded-lg border border-line bg-elevated/40 px-2 py-1">
+            <span class="font-display text-xs font-bold tabular-nums text-mist" x-text="i + 1"></span>
+            <img :src="`./img/teams/${t.logo}`" :alt="t.name" :title="`${t.name} (${t.player})`" class="size-6 rounded object-contain" />
+          </span>
+        </template>
+      </div>
+    </div>
+  </section>
+  </template>
+
+  <!-- RUNNING: Fenster für Vertragsverlängerungen -->
+  <section x-show="loaded && running && renewalOpen" x-cloak
+           class="mb-8 rounded-2xl border border-volt-400/40 bg-gradient-to-br from-volt-400/10 to-panel p-6 md:p-7">
+    <template x-if="renewalTeam">
+      <div>
+        <div class="flex flex-wrap items-center gap-5">
+          <img :src="`./img/teams/${renewalTeam.logo}`" :alt="renewalTeam.name"
+               @click="$dispatch('navigate', { key: 'teams', teamId: renewalTeam.id })"
+               class="size-16 shrink-0 cursor-pointer rounded-xl object-contain transition-transform hover:scale-105" />
+          <div class="min-w-0">
+            <p class="font-display text-xs font-semibold uppercase tracking-[0.25em] text-volt-400"
+               x-text="`Runde ${renewalTurn.round + 1} · Vertragsverlängerung`"></p>
+            <h2 class="mt-0.5 font-display text-2xl font-bold tracking-wide text-ink sm:text-3xl"
+                x-text="`${renewalTeam.player}: verlängern oder ziehen lassen?`"></h2>
+            <p class="text-mist" x-text="renewalTeam.name"></p>
+          </div>
+        </div>
+
+        <p class="mt-4 max-w-3xl text-sm leading-relaxed text-mist">
+          Vor dem ersten Pick dieser Runde darf <span class="font-semibold text-ink" x-text="renewalTeam.name"></span>
+          ein Pokémon aus dem Kader der Vorsaison zurückholen — eines je Tier, höchstens fünf über den ganzen Draft.
+          Wer verlängert, zieht sofort und hat damit seinen Zug dieser Runde verbraucht. Wer verzichtet, behält die
+          Verlängerung für eine spätere Runde — riskiert aber, dass ein anderes Team zuschlägt.
+        </p>
+
+        <div class="mt-5 flex flex-wrap gap-2">
+          <template x-for="r in renewalsOf(renewalTurn.teamId)" :key="'rn-'+r.tier">
+            <span class="inline-flex items-center gap-2 rounded-xl border px-3 py-2"
+                  :class="r.status === 'open' ? '' : 'opacity-50'"
+                  :style="r.status === 'open' ? `border-color:${tierColor(r.tier)}88;background:${tierColor(r.tier)}14` : 'border-color:var(--color-line)'">
+              <span class="grid size-6 place-items-center rounded font-display text-[11px] font-bold"
+                    :style="`color:${tierColor(r.tier)};background:${tierColor(r.tier)}1f`" x-text="r.tier"></span>
+              <span class="text-xs font-semibold text-mist" x-text="r.status === 'used' ? r.name : renewalLabel(r.status)"></span>
+            </span>
+          </template>
+        </div>
+
+        <div class="mt-5 flex flex-wrap gap-2">
+          <button type="button" @click="openRenewal()" :disabled="!isMyRenewal || busy"
+                  class="rounded-xl bg-volt-400 px-5 py-2.5 font-display text-sm font-bold uppercase tracking-wider text-void transition-opacity hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-40">
+            Vertrag verlängern
+          </button>
+          <button type="button" @click="passRenewal()" :disabled="!isMyRenewal || busy"
+                  class="rounded-xl border border-line px-4 py-2.5 font-display text-sm font-semibold uppercase tracking-wider text-mist transition-colors hover:text-ink disabled:cursor-not-allowed disabled:opacity-40">
+            Diese Runde verzichten
+          </button>
+        </div>
+
+        <p x-show="!isMyRenewal" x-cloak
+           class="mt-4 rounded-xl border border-dashed border-line bg-void/40 px-4 py-2.5 text-sm text-mist">
+          Warte auf <span class="font-semibold text-ink" x-text="renewalTeam.player"></span> — die Entscheidung trifft nur der Teambesitzer.
+        </p>
+      </div>
+    </template>
+  </section>
+
   <!-- RUNNING: Wer ist dran -->
-  <section x-show="loaded && running"
+  <section x-show="loaded && running && !renewalOpen"
            class="mb-8 rounded-2xl border border-flame-500/30 bg-gradient-to-br from-flame-500/10 to-panel p-6 md:p-7">
     <template x-if="currentTeam">
       <div>
@@ -110,6 +212,30 @@
                    :class="t.id === currentPick.teamId ? 'ring-2 ring-flame-500 scale-110' : 'opacity-50 hover:opacity-100'" />
             </template>
           </div>
+        </div>
+
+        <!-- Verbleibende Vertragsverlängerungen je Team -->
+        <div x-show="renewalTeams.length" class="mt-5 border-t border-line pt-4">
+          <p class="font-display text-xs font-semibold uppercase tracking-wider text-mist">Vertragsverlängerungen</p>
+          <div class="mt-2 grid gap-1.5 sm:grid-cols-2">
+            <template x-for="row in renewalBoard" :key="'rb-'+row.team.id">
+              <div class="flex min-w-0 items-center gap-2 rounded-xl border border-line bg-void/30 px-2 py-1.5">
+                <img :src="`./img/teams/${row.team.logo}`" :alt="row.team.name" :title="row.team.name" class="size-6 shrink-0 rounded object-contain" />
+                <span class="min-w-0 flex-1 truncate text-xs font-semibold text-mist" x-text="row.team.name"></span>
+                <span class="flex shrink-0 gap-1">
+                  <template x-for="r in row.renewals" :key="'rbt-'+row.team.id+'-'+r.tier">
+                    <span class="grid size-5 place-items-center rounded font-display text-[10px] font-bold"
+                          :style="r.status === 'open'
+                            ? `color:${tierColor(r.tier)};background:${tierColor(r.tier)}26`
+                            : 'color:#5b6573;background:#5b657322'"
+                          :title="`${r.tier}: ${r.status === 'used' ? 'eingelöst — ' + r.name : renewalLabel(r.status)}`"
+                          x-text="r.tier"></span>
+                  </template>
+                </span>
+              </div>
+            </template>
+          </div>
+          <p class="mt-2 text-[11px] leading-relaxed text-mist/70">Farbig = noch einlösbar, grau = eingelöst oder verfallen. Eine Verlängerung verfällt, sobald beide Pokémon des Tiers weg sind.</p>
         </div>
       </div>
     </template>
@@ -238,6 +364,7 @@
                 </button>
                 <span x-show="p.mon.tier" class="shrink-0 rounded px-1.5 py-0.5 font-display text-[10px] font-bold"
                       :style="`color:${tierColor(p.mon.tier)};background:${tierColor(p.mon.tier)}22`" x-text="p.mon.tier"></span>
+                <span x-show="p.renewed" class="shrink-0 rounded bg-volt-400/15 px-1.5 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-volt-400" title="Über eine Vertragsverlängerung gesichert">Verlängert</span>
                 <span x-show="p.gone" class="shrink-0 rounded bg-elevated px-1.5 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-mist" title="Im Wintertransfer abgegeben">Abgegeben</span>
               </li>
             </template>
@@ -250,13 +377,70 @@
   <!-- Bestätigung: Draft starten -->
   <div popover="manual" id="draft-confirm" class="modal-pop w-[22rem] max-w-[90vw] rounded-2xl border border-line bg-panel p-6 text-center">
     <h3 class="font-display text-xl font-bold tracking-wide text-ink">Draft starten?</h3>
-    <p class="mt-2 text-sm text-mist">Die Reihenfolge der Teams wird zufällig ausgelost. Bereits gedraftete Pokémon werden zurückgesetzt.</p>
+    <p class="mt-2 text-sm text-mist" x-text="hasPreviousSeason
+      ? 'Die Reihenfolge wird aus der Endtabelle der Vorsaison festgezurrt. Bereits gedraftete Pokémon werden zurückgesetzt.'
+      : 'Die Reihenfolge der Teams wird zufällig ausgelost. Bereits gedraftete Pokémon werden zurückgesetzt.'"></p>
     <div class="mt-5 flex gap-3">
       <button type="button" popovertarget="draft-confirm" popovertargetaction="hide"
               class="flex-1 rounded-xl border border-line px-4 py-2.5 font-semibold text-mist transition-colors hover:text-ink">Abbrechen</button>
       <button type="button" @click="startDraft()"
               class="flex-1 rounded-xl bg-flame-500 px-4 py-2.5 font-display font-bold uppercase tracking-wide text-white transition-colors hover:bg-flame-600">Starten</button>
     </div>
+  </div>
+
+  <!-- Vertragsverlängerung einlösen -->
+  <div popover id="renewal-pick" @toggle="if ($event.newState === 'closed') renewPick = null"
+       class="modal-pop w-[30rem] max-w-[calc(100vw-1.5rem)] rounded-2xl border border-line bg-panel p-0 text-ink">
+    <template x-if="renewalTurn && renewalTeam">
+      <div class="max-h-[85vh] overflow-y-auto">
+        <div class="flex items-center gap-3 border-b border-line px-4 py-3">
+          <img :src="`./img/teams/${renewalTeam.logo}`" :alt="renewalTeam.name" class="size-10 shrink-0 rounded-lg object-contain" />
+          <div class="min-w-0 flex-1">
+            <p class="truncate font-display text-sm font-bold uppercase tracking-wider text-ink">Vertrag verlängern</p>
+            <p class="truncate text-xs text-mist" x-text="renewalTeam.name"></p>
+          </div>
+          <button type="button" @click="closeRenewal()" class="grid size-9 shrink-0 place-items-center rounded-lg text-mist transition-colors hover:text-ink" aria-label="Schließen">
+            <svg viewBox="0 0 24 24" class="size-5" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M6 6l12 12M18 6L6 18"/></svg>
+          </button>
+        </div>
+
+        <div class="grid gap-4 p-4">
+          <p class="text-xs leading-relaxed text-mist">Ein Pokémon aus dem Kader der Vorsaison, das noch zu haben ist. Es kommt sofort ins Team und verbraucht den Zug dieser Runde.</p>
+
+          <template x-for="r in renewalOptions" :key="'ro-'+r.tier">
+            <div>
+              <div class="mb-2 flex items-center gap-2">
+                <span class="grid size-6 place-items-center rounded font-display text-[11px] font-bold"
+                      :style="`color:${tierColor(r.tier)};background:${tierColor(r.tier)}1f`" x-text="r.tier"></span>
+                <span class="font-display text-xs font-bold uppercase tracking-wider text-mist" x-text="`Vertragsverlängerung ${r.tier}`"></span>
+              </div>
+              <div class="grid grid-cols-2 gap-2">
+                <template x-for="mon in r.options" :key="'rom-'+r.tier+'-'+mon.name">
+                  <button type="button" @click="chooseRenewal(r.tier, mon)"
+                          class="flex items-center gap-2 rounded-xl border p-2 text-left transition-colors"
+                          :class="renewPick?.mon?.name === mon.name ? 'border-volt-400 bg-volt-400/10' : 'border-line hover:border-volt-400/50'">
+                    <img :src="mon.image" :alt="mon.name" loading="lazy" class="size-10 shrink-0 object-contain" />
+                    <span class="min-w-0 flex-1 truncate text-sm font-semibold text-ink" x-text="mon.name" :title="mon.name"></span>
+                  </button>
+                </template>
+              </div>
+            </div>
+          </template>
+
+          <p x-show="!renewalOptions.length" class="rounded-xl border border-line bg-elevated/40 px-3 py-2.5 text-sm text-mist">
+            Es ist keine Vertragsverlängerung mehr einlösbar.
+          </p>
+
+          <div class="flex flex-wrap gap-2">
+            <button type="button" @click="confirmRenewal()" :disabled="!renewPick || busy"
+                    class="flex-1 rounded-xl bg-volt-400 px-4 py-2.5 font-display text-sm font-bold uppercase tracking-wider text-void transition-opacity hover:opacity-90 disabled:opacity-40"
+                    x-text="renewPick ? `${renewPick.mon.name} verlängern` : 'Pokémon wählen'"></button>
+            <button type="button" @click="closeRenewal()" :disabled="busy"
+                    class="rounded-xl border border-line px-4 py-2.5 font-display text-sm font-semibold uppercase tracking-wider text-mist transition-colors hover:text-ink disabled:opacity-40">Abbrechen</button>
+          </div>
+        </div>
+      </div>
+    </template>
   </div>
 
   <!-- Bestätigung: Pokémon picken -->
