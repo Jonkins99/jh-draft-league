@@ -7,12 +7,14 @@
 //
 // Framework-frei: nur scoring/awards/trainers/press, kein Alpine, kein Firebase.
 
-import { battleStats, computeStandings, pokemonStats } from './scoring.mjs';
+import { battleStats, computeStandings, pokemonStats, transferAvailability } from './scoring.mjs';
+import { newcomersOfSeason } from './seasons.mjs';
+import { RENEWAL_TIERS, renewalState } from './draft.mjs';
 import { AWARD_BY_KEY, awardWinners } from './awards.mjs';
 import { currentTrainer, trainerHistory, periodLabel, genderLabel } from './trainers.mjs';
 import {
   activeStorylines, collectStorylines, authorById, categoryLabel,
-  matchSequence, isMatchComplete, plainText, seasonComplete,
+  matchSequence, isMatchComplete, plainText, seasonComplete, categoriesOf,
 } from './press.mjs';
 import {
   marketValue, formatMarket, formatMarketDelta, formatPercent,
@@ -239,13 +241,21 @@ function formBlock(teamId, results, teams, limit = 5) {
     .reverse();
 }
 
-function rosterBlock(team, results, pokedex, eloRows) {
-  const stats = pokemonStats([team], results, pokedex, { scopeTeamId: team.id });
+function rosterBlock(team, results, pokedex, eloRows, availability) {
+  const stats = pokemonStats([team], results, pokedex, { scopeTeamId: team.id, availability });
   const byName = Object.fromEntries(stats.map((s) => [s.pokemon?.name, s]));
   return (team.pokemon || []).map((p) => {
     const st = byName[p.name] || {};
+    // Ein im Wintertransfer geholtes Pokémon hat die Hinrunde nicht verpasst — es war
+    // schlicht nicht da. Ohne diesen Hinweis liest das Modell die Quoten falsch.
+    const from = availability?.[`${team.id}|${p.name}`]?.from ?? null;
     return {
       name: p.name,
+      ...(from ? {
+        imKaderSeitSpieltag: from,
+        kaderhinweis: `Erst im Wintertransfer geholt — konnte vor Spieltag ${from} gar nicht auflaufen. `
+          + 'Quoten und Summen beziehen sich nur auf die Spieltage ab dann.',
+      } : {}),
       tier: p.tier,
       draftKosten: p.cost ?? null,
       typen: p.types || [],
@@ -304,7 +314,7 @@ function awardsBlock(team, awardDocs) {
   return out;
 }
 
-export function teamBlock(team, { teams, results, schedule, pokedex, eloRows, awardDocs }) {
+export function teamBlock(team, { teams, results, schedule, pokedex, eloRows, awardDocs, availability = null }) {
   if (!team) return null;
   const table = standingsBlock(teams || [], results, schedule);
   const row = table.find((r) => r.teamId === team.id);
@@ -316,10 +326,119 @@ export function teamBlock(team, { teams, results, schedule, pokedex, eloRows, aw
     punkte: row?.punkte ?? 0,
     killDifferenz: row?.killDifferenz ?? 0,
     trainer: trainerBlock(team),
-    kader: rosterBlock(team, results, pokedex, eloRows),
+    kader: rosterBlock(team, results, pokedex, eloRows, availability),
     letzteErgebnisse: formBlock(team.id, results, teams),
     naechsteSpiele: upcomingFor(team.id, schedule, results, teams, 3),
     auszeichnungen: awardsBlock(team, awardDocs),
+  };
+}
+
+// Das Wintertransferfenster liegt fest zwischen Hin- und Rückrunde und ist danach zu.
+// Ohne diesen Block hat die Presse in der Rückrunde immer wieder über „anstehende
+// Wintertransfers" spekuliert, die es zu diesem Zeitpunkt gar nicht mehr geben kann.
+export function transferWindowBlock(schedule, transfer, teams) {
+  const hin = (schedule?.matchdays || [])
+    .filter((md) => md?.leg === 'hin')
+    .map((md) => Number(md.day))
+    .filter(Number.isFinite);
+  if (!hin.length) return null;
+  const cut = Math.max(...hin);
+  const nameOf = (id) => teamById(teams, id)?.name || id || '?';
+  const done = (transfer?.status || 'idle') === 'done';
+  return {
+    lage: `Das Wintertransferfenster liegt genau einmal je Saison: nach Spieltag ${cut}, `
+      + `zwischen Hin- und Rückrunde. Ab Spieltag ${cut + 1} ist es geschlossen.`,
+    nachSpieltag: cut,
+    geschlossenAbSpieltag: cut + 1,
+    status: done ? 'abgeschlossen' : (transfer?.status || 'idle') === 'running' ? 'läuft gerade' : 'noch nicht eröffnet',
+    regel: 'Je Team dürfen bis zu 2 Pokémon abgegeben und aus dem freien Pool ersetzt werden. '
+      + 'Ist das Fenster zu, sind Wechsel bis zum Draft der nächsten Saison ausgeschlossen — '
+      + 'in der Rückrunde darf es deshalb KEINE Transfergerüchte und keine Wechselforderungen '
+      + 'für diese Saison geben. Kaderkritik richtet sich dann auf Aufstellung und Draft.',
+    abgegeben: (transfer?.removed || []).map((r) => ({ team: nameOf(r?.teamId), pokemon: r?.name })),
+    geholt: (transfer?.added || []).map((a) => ({ team: nameOf(a?.teamId), pokemon: a?.name })),
+  };
+}
+
+/**
+ * Die Neuzugänge im Pokémon-Pool einer Saison.
+ *
+ * Wichtig für die Presse: Zu diesem Zeitpunkt steht NUR das Tier fest. Einen Elo-Wert
+ * und damit einen Marktwert haben die Neuzugänge noch nicht — wer trotzdem einen nennt,
+ * erfindet ihn.
+ */
+export function newcomerBlock(pokedex, season) {
+  const list = newcomersOfSeason(pokedex, season);
+  if (!list.length) return null;
+  const byTier = {};
+  list.forEach((p) => {
+    (byTier[p.tier] || (byTier[p.tier] = [])).push({
+      name: p.name,
+      tier: p.tier,
+      draftKosten: p.cost ?? null,
+      typen: p.types || [],
+      initiative: p.base_speed ?? null,
+    });
+  });
+  return {
+    saison: season,
+    anzahl: list.length,
+    hinweis: 'Diese Pokémon kommen mit dieser Saison neu in den Draft-Pool. Festgelegt sind '
+      + 'bisher AUSSCHLIESSLICH Tier und Punktwert. Es gibt für sie noch keinen Elo-Wert und '
+      + 'damit auch keinen Marktwert — nenne für sie also weder Beträge noch Elo-Zahlen, auch '
+      + 'keine geschätzten. Ebenso steht noch nicht fest, wie sich die Tiers der bisherigen '
+      + 'Pokémon verändern: das entscheidet erst der Elo-Stand am Saisonende.',
+    nachTier: byTier,
+    liste: list.map((x) => ({
+      name: x.name, tier: x.tier, draftKosten: x.cost ?? null,
+      typen: x.types || [], initiative: x.base_speed ?? null,
+    })),
+  };
+}
+
+/**
+ * Der Draft der Saison — Reihenfolge, Stand und die Vertragsverlängerungen.
+ *
+ * Nur relevant, solange gedraftet wird; danach erzählt der Kader die Geschichte. Der
+ * Block nennt bewusst auch, was NOCH OFFEN ist: Eine Verlängerung, die ein Team noch
+ * hat, ist kein Versprechen, sondern eine Möglichkeit.
+ */
+export function draftBlock(draft, teams, prevRosters, pokedex) {
+  const status = draft?.status || 'idle';
+  if (status === 'idle' || !(draft?.order || []).length) return null;
+  const nameOf = (id) => teamById(teams, id)?.name || id;
+  const taken = new Set();
+  (teams || []).forEach((t) => (t.pokemon || []).forEach((p) => { if (p?.name) taken.add(p.name); }));
+  const n = draft.order.length;
+  const round = Math.floor((draft.pickIndex || 0) / Math.max(1, n)) + 1;
+
+  const renewals = (draft.order || [])
+    .filter((id) => (prevRosters?.[id] || []).length)
+    .map((id) => {
+      const rows = renewalState(id, prevRosters[id], draft, taken, teamById(teams, id)?.pokemon || []);
+      return {
+        team: nameOf(id),
+        offen: rows.filter((r) => r.status === 'open').map((r) => ({
+          tier: r.tier,
+          kandidaten: r.options.map((o) => o.name),
+        })),
+        eingeloest: rows.filter((r) => r.status === 'used').map((r) => ({ tier: r.tier, pokemon: r.name })),
+        verfallen: rows.filter((r) => r.status === 'expired').map((r) => r.tier),
+      };
+    });
+
+  return {
+    status,
+    reihenfolge: (draft.order || []).map((id, i) => ({ position: i + 1, team: nameOf(id) })),
+    runde: status === 'running' ? round : null,
+    picksGemacht: draft.pickIndex || 0,
+    regel: 'Die Reihenfolge folgt der Endtabelle der Vorsaison; die Plätze 7 und 8 sind abgestiegen '
+      + 'und durch Aufsteiger ersetzt. Jedes Team der Vorsaison darf je Tier ein Pokémon aus seinem '
+      + 'alten Kader zurückholen (Vertragsverlängerung), höchstens fünf insgesamt. Eingelöst wird zu '
+      + `Beginn einer Runde, ${RENEWAL_TIERS.join('/')} sind die Tiers. Garantiert ist nur die erste: `
+      + 'Danach kann jedes andere Team ein Pokémon vorher regulär ziehen, und sind beide Pokémon '
+      + 'eines Tiers weg, verfällt die Verlängerung.',
+    vertragsverlaengerungen: renewals,
   };
 }
 
@@ -364,11 +483,61 @@ export function seasonBlock(schedule, results) {
 // Die letzten Beiträge zu einem Team — damit sich Geschichten fortschreiben, statt
 // bei null anzufangen. Redaktionelle Beiträge der Spieler sind dabei ausdrücklich
 // als Steuerungssignal markiert.
-export function newsBlock(articles, teamId, limit = 8) {
+// Wie viel Archiv in den Kontext geht. Die Zahlen sind großzügig; entscheidend ist,
+// dass sie NICHT über die Referenzen bestimmen — die kommen zusätzlich und ungekürzt.
+const NEWS_TEAM_LIMIT = 14;
+const NEWS_LEAGUE_LIMIT = 10;
+const REFERENCE_LIMIT = 14;
+
+const byDateDesc = (a, b) => String(b.publishedAt || '').localeCompare(String(a.publishedAt || ''));
+const readable = (a) => a && a.status !== 'pending' && a.status !== 'error' && a.title;
+
+/**
+ * Gilt dieser Beitrag dauerhaft? Drei Quellen, bewusst gemischt:
+ *   1. von Hand markiert (`reference: true`) — die Redaktion bestimmt selbst,
+ *      was Bestand hat,
+ *   2. jede Redaktion der Spieler (`redaktion`) — dort werden Regeln, Modus und
+ *      Hintergründe erklärt,
+ *   3. der große Saison-Rückblick.
+ */
+export function isReference(a) {
+  if (!readable(a)) return false;
+  if (a.reference === true) return true;
+  if (categoriesOf(a).includes('redaktion')) return true;
+  return a.source?.type === 'review';
+}
+
+/**
+ * Beiträge, die in JEDEN Kontext gehören, egal wie alt sie sind.
+ *
+ * Vorher fiel ein Erklärstück wie „Wie funktioniert die Liga?" nach acht neuen
+ * Beiträgen aus dem Kontext und war damit für immer weg. Referenzen laufen deshalb
+ * an der Aktualität vorbei — und mit deutlich mehr Text, weil genau dieser Text der
+ * Grund ist, warum sie mitgehen.
+ */
+export function referenceBlock(articles, limit = REFERENCE_LIMIT) {
   return (articles || [])
-    .filter((a) => a && a.status !== 'pending' && a.title)
+    .filter(isReference)
+    .sort(byDateDesc)
+    .slice(0, limit)
+    .map((a) => ({
+      titel: a.title,
+      kategorie: categoryLabel(a.category),
+      autor: authorById(a.authorId)?.name,
+      spieltag: a.day ?? null,
+      vonDerRedaktionDerSpieler: categoriesOf(a).includes('redaktion'),
+      inhalt: plainText(a.body).slice(0, 2600),
+    }));
+}
+
+export function newsBlock(articles, teamId, limit = NEWS_TEAM_LIMIT) {
+  // Referenzen stehen in ihrem eigenen Block — hier würden sie den Platz für das
+  // Aktuelle wegnehmen und doppelt im Prompt landen.
+  return (articles || [])
+    .filter(readable)
+    .filter((a) => !isReference(a))
     .filter((a) => !teamId || (a.teamIds || []).includes(teamId))
-    .sort((a, b) => String(b.publishedAt || '').localeCompare(String(a.publishedAt || '')))
+    .sort(byDateDesc)
     .slice(0, limit)
     .map((a) => ({
       titel: a.title,
@@ -433,6 +602,8 @@ export function buildContext(src, focus = {}) {
   const seasonTeams = (src.teams || []).filter((t) => (Number.isFinite(t.season) ? t.season : 1) === season);
   const focusIds = (focus.teamIds || []).filter(Boolean);
   const result = focus.matchId ? (src.results || []).find((r) => r.id === focus.matchId) : null;
+  // Kaderfenster des Wintertransfers: Grundlage aller prozentualen Kennzahlen.
+  const availability = transferAvailability(src.transfer, src.schedule);
 
   return {
     saison: seasonBlock(src.schedule, src.results),
@@ -445,11 +616,20 @@ export function buildContext(src, focus = {}) {
     // Von den Spielern selbst notierter Kampfverlauf — die einzige Quelle mit Details
     // aus dem Kampf, die über die reinen Zahlen hinausgeht.
     kampfverlauf: battleLogBlock(src.battleLogs, focus),
-    teams: focusIds.map((id) => teamBlock(teamById(src.teams, id), { ...src, teams: src.teams })).filter(Boolean),
-    ligaweiteBestwerte: leaderBlock(seasonTeams, src.results, src.pokedex, src.eloRows),
+    wintertransfer: transferWindowBlock(src.schedule, src.transfer, src.teams),
+    draft: draftBlock(src.draft, seasonTeams, src.prevRosters, src.pokedex),
+    neuImPool: focus.newcomerSeason ? newcomerBlock(src.pokedex, focus.newcomerSeason) : null,
+    teams: focusIds.map((id) => teamBlock(teamById(src.teams, id), { ...src, teams: src.teams, availability })).filter(Boolean),
+    ligaweiteBestwerte: leaderBlock(seasonTeams, src.results, src.pokedex, src.eloRows, availability),
     laufendeGeschichten: storyBlock(src.articles, focusIds[0] || null),
+    // Dauerhaft gültige Beiträge zuerst: Regeln, Modus und der Saison-Rückblick
+    // gelten unabhängig davon, wie viel seither geschrieben wurde.
+    dauerhafteReferenzen: referenceBlock(src.articles),
+    referenzHinweis: 'Diese Beiträge gelten dauerhaft und stehen über dem Tagesgeschehen: '
+      + 'was hier erklärt wird (Modus, Regeln, Hintergründe, Saison-Rückblick), ist Kanon und '
+      + 'darf nicht anders dargestellt werden.',
     letzteBerichte: newsBlock(src.articles, focusIds[0] || null),
-    letzteBerichteLigaweit: newsBlock(src.articles, null, 6),
+    letzteBerichteLigaweit: newsBlock(src.articles, null, NEWS_LEAGUE_LIMIT),
     marktwerte: marketBlock(src.eloRows, seasonTeams, focus.marketDay ?? null, {
       transfer: src.transfer,
       schedule: src.schedule,
@@ -505,8 +685,8 @@ function playerDuelBlock(seasonTeams, results) {
 
 // Die auffälligsten Pokémon der Liga — als Maßstab, an dem eine Leistung gemessen
 // werden kann („acht Kills, ligaweit nur von X übertroffen").
-function leaderBlock(seasonTeams, results, pokedex, eloRows) {
-  const stats = pokemonStats(seasonTeams, results, pokedex)
+function leaderBlock(seasonTeams, results, pokedex, eloRows, availability) {
+  const stats = pokemonStats(seasonTeams, results, pokedex, { availability })
     .filter((s) => s.battles > 0)
     .map((s) => ({
       name: s.pokemon?.name,

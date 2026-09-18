@@ -73,7 +73,10 @@ const batch = writeBatch(db);
 for (const id of order) {
   batch.update(doc(db, 'teams', id), { pokemon: rosters[id] });
 }
-batch.set(doc(db, 'drafts', 's1'), { season: 1, status: 'done', order, pickIndex: PICKS });
+batch.set(doc(db, 'drafts', 's1'), {
+  season: 1, status: 'done', order, pickIndex: PICKS,
+  renewals: [], renewalRound: null, renewalDone: [], orderChoice: null,
+});
 await batch.commit();
 
 console.log('Simulierter Draft nach Firestore geschrieben (status: done).');

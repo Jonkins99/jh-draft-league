@@ -47,11 +47,18 @@ function thinkingConfigFor(model, level) {
 }
 
 export class GeminiError extends Error {
-  constructor(message, { status = 0, detail = '' } = {}) {
+  // `retryable` unterscheidet das, was beim naechsten Anlauf anders ausgehen kann
+  // (Ueberlastung, Kontingent, abgeschnittene oder unlesbare Antwort), von dem, was
+  // ohne Zutun nie gelingt (falscher Schluessel, unbekanntes Modell).
+  constructor(message, { status = 0, detail = '', retryable = false, model = '', truncated = false } = {}) {
     super(message);
     this.name = 'GeminiError';
     this.status = status;
     this.detail = detail;
+    this.retryable = retryable;
+    this.model = model;
+    // Abgeschnitten heisst: der naechste Anlauf braucht mehr Platz, nicht nur Geduld.
+    this.truncated = truncated;
   }
 }
 
@@ -89,23 +96,12 @@ function parseJson(text) {
     const start = cleaned.indexOf('{');
     const end = cleaned.lastIndexOf('}');
     if (start >= 0 && end > start) return JSON.parse(cleaned.slice(start, end + 1));
-    throw new GeminiError('Die Antwort war kein gültiges JSON.', { detail: cleaned.slice(0, 400) });
+    throw new GeminiError('Die Antwort war kein gültiges JSON.', { detail: cleaned.slice(0, 400), retryable: true });
   }
 }
 
-/**
- * Einen JSON-Datensatz erzeugen lassen.
- * @param {object} opts
- * @param {string} opts.apiKey   Gemini-API-Key (gerätelokal)
- * @param {string} opts.model    Modell-ID
- * @param {string} opts.system   Systeminstruktion (Rolle, Regeln)
- * @param {string} opts.prompt   Nutzeranweisung inkl. Metadaten
- * @param {object} opts.schema   Antwortschema
- * @param {number} opts.temperature
- * @param {Array}  opts.media    Optionale Anhänge: [{ mimeType, data(base64) }] —
- *                               z. B. Sprachaufnahmen, die mitgeschickt werden.
- */
-export async function generateJson({
+// Ein einzelner Anlauf. Die Wiederholung liegt eine Ebene darüber in `generateJson`.
+async function attemptGenerate({
   apiKey, model = DEFAULT_MODEL, system, prompt, schema, media = null,
   temperature = 1.15, maxOutputTokens = 4096, signal = null, thinking = null,
 }) {
@@ -152,7 +148,7 @@ export async function generateJson({
       });
     } catch (e) {
       if (e?.name === 'AbortError') throw e;
-      throw new GeminiError('Die Redaktion ist nicht erreichbar (Netzwerkfehler).', { detail: String(e) });
+      throw new GeminiError('Die Redaktion ist nicht erreichbar (Netzwerkfehler).', { detail: String(e), retryable: true, model });
     }
     if (res.ok) return { res, data: await res.json() };
     let detail = '';
@@ -197,12 +193,14 @@ export async function generateJson({
       : res.status === 404 ? `Modell „${model}" ist für diesen Schlüssel nicht verfügbar.`
       : res.status >= 500 ? 'Die Redaktion antwortet gerade nicht (Serverfehler).'
       : `Anfrage fehlgeschlagen (HTTP ${res.status}).`;
-    throw new GeminiError(detail ? `${msg} (${detail})` : msg, { status: res.status, detail });
+    // Überlastung, Kontingent und Serverfehler sind Zustände, keine Fehler in der Anfrage.
+    const retryable = res.status === 429 || res.status >= 500 || res.status === 408;
+    throw new GeminiError(detail ? `${msg} (${detail})` : msg, { status: res.status, detail, retryable, model });
   }
 
   const data = out.data;
   const blocked = data?.promptFeedback?.blockReason;
-  if (blocked) throw new GeminiError(`Die Anfrage wurde blockiert (${blocked}).`);
+  if (blocked) throw new GeminiError(`Die Anfrage wurde blockiert (${blocked}).`, { model });
   const finish = data?.candidates?.[0]?.finishReason;
   const text = extractText(data);
   if (!text) {
@@ -210,9 +208,68 @@ export async function generateJson({
       : finish === 'SAFETY' ? 'Die Antwort wurde von den Inhaltsfiltern gestoppt.'
       : finish === 'RECITATION' ? 'Die Antwort wurde wegen Zitat-Erkennung gestoppt.'
       : `Die Antwort war leer${finish ? ` (${finish})` : ''}.`;
-    throw new GeminiError(msg, { detail: JSON.stringify(data?.usageMetadata || {}) });
+    // Eine abgeschnittene oder leere Antwort geht beim nächsten Anlauf oft durch;
+    // ein Inhaltsfilter dagegen nie.
+    throw new GeminiError(msg, {
+      detail: JSON.stringify(data?.usageMetadata || {}),
+      retryable: finish === 'MAX_TOKENS' || !finish,
+      model,
+      truncated: finish === 'MAX_TOKENS',
+    });
   }
   return parseJson(text);
+}
+
+// Wie oft ein Anlauf, der beim nächsten Mal anders ausgehen kann, wiederholt wird.
+export const GEMINI_ATTEMPTS = 3;
+
+const wait = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
+
+/**
+ * Einen JSON-Datensatz erzeugen lassen — mit Wiederholung bei Zuständen, die vorübergehen.
+ *
+ * Ein überlastetes Modell, ein erschöpftes Minutenkontingent, eine abgeschnittene oder
+ * unlesbare Antwort: das sind keine Fehler in der Anfrage, sondern Momente. Genau daran
+ * ist früher ein Presse-Beitrag als Ruine liegen geblieben. Deshalb wird hier bis zu
+ * `attempts` Mal angeklopft, mit wachsender Pause dazwischen; abgeschnittene Antworten
+ * bekommen beim nächsten Anlauf mehr Platz und weniger Denkzeit, damit der Text auch
+ * wirklich in das Budget passt. Was ohne Zutun nie gelingt (falscher Schlüssel, gesperrtes
+ * Modell, Inhaltsfilter), fliegt sofort nach oben.
+ *
+ * @param {object} opts
+ * @param {string} opts.apiKey   Gemini-API-Key (gerätelokal)
+ * @param {string} opts.model    Modell-ID
+ * @param {string} opts.system   Systeminstruktion (Rolle, Regeln)
+ * @param {string} opts.prompt   Nutzeranweisung inkl. Metadaten
+ * @param {object} opts.schema   Antwortschema
+ * @param {number} opts.temperature
+ * @param {Array}  opts.media    Optionale Anhänge: [{ mimeType, data(base64) }]
+ * @param {number} opts.attempts Anläufe insgesamt (1 = keine Wiederholung)
+ * @param {function} opts.onRetry  Wird vor jeder Wiederholung mit { attempt, attempts, error } gerufen
+ */
+export async function generateJson(opts) {
+  const attempts = Math.max(1, opts?.attempts ?? GEMINI_ATTEMPTS);
+  const onRetry = typeof opts?.onRetry === 'function' ? opts.onRetry : null;
+  const baseTokens = opts?.maxOutputTokens ?? 4096;
+  let last = null;
+
+  for (let attempt = 1; attempt <= attempts; attempt++) {
+    // Nach einer abgeschnittenen Antwort mehr Platz und weniger Denkzeit — sonst
+    // läuft der zweite Anlauf in dieselbe Wand wie der erste.
+    const grown = last?.truncated ? Math.min(32768, Math.round(baseTokens * 1.6)) : baseTokens;
+    const thinking = last?.truncated ? 'minimal' : opts?.thinking ?? null;
+    try {
+      return await attemptGenerate({ ...opts, maxOutputTokens: grown, thinking });
+    } catch (e) {
+      if (e?.name === 'AbortError') throw e;
+      if (!e?.retryable || attempt === attempts) throw e;
+      last = e;
+      if (onRetry) { try { onRetry({ attempt, attempts, error: e }); } catch (err) { /* nur Anzeige */ } }
+      // Wachsende Pause mit etwas Streuung: zwei offene Geräte klopfen sonst im Takt.
+      await wait(Math.round((900 * (2 ** (attempt - 1))) * (0.8 + Math.random() * 0.4)));
+    }
+  }
+  throw last;
 }
 
 // Schneller Funktionstest für die Einstellungen: erzeugt einen winzigen Datensatz.

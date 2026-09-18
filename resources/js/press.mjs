@@ -133,6 +133,20 @@ export const PRESS_AUTHORS = [
       + 'legt Widersprüche offen und lässt Fragen bewusst offen stehen. Nie laut, immer unangenehm.',
     beat: 'Widersprüche, Hintergründe, unbequeme Fragen, Machtverhältnisse.',
   },
+  {
+    id: 'scott',
+    name: 'Scott',
+    outlet: 'Kampfzone-Report',
+    role: 'Scouting- und Transferexperte',
+    image: './img/press/scott.png',
+    voice: 'Der Erbauer der Kampfzone und damit ein Talentsucher aus Berufung: Scott schaut nicht auf die '
+      + 'Tabelle, sondern auf das Potenzial dahinter. Er sitzt bei jedem Kampf ganz vorn, analysiert im '
+      + 'Mitschreiben und schwärmt offen von Trainern, die er selbst eingeladen hat — ihre Entwicklung '
+      + 'nimmt er persönlich. Schreibt schnell, direkt und im Fahrtwind: kurze Sätze, Vollgas, ein Autobild '
+      + 'zu viel. Bewertet Kader wie Fahrzeuge (Motor, Bremse, Reifenwahl) und ordnet jeden Zugang danach '
+      + 'ein, wofür er in einem Jahr gut sein könnte, nicht nur heute.',
+    beat: 'Scouting, Draft, Transfers, Marktwerte, Kaderplanung und die Frage, wer als Nächstes durchstartet.',
+  },
 ];
 
 export const AUTHOR_BY_ID = Object.fromEntries(PRESS_AUTHORS.map((a) => [a.id, a]));

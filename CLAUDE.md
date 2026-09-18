@@ -5,7 +5,8 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 ## Projekt
 
 „JH Draft League" — private Pokémon-Draft-Liga (Janik vs. Henrik, je 4 Teams). Statische Vite-SPA mit Alpine.js, Tailwind v4 und Firestore als Live-Datenbank. Deployment: GitHub Pages aus dem `docs/`-Ordner. UI-Texte und Code-Kommentare sind auf Deutsch.
-Die Kommunikation zwischen Claude und dem Nutzer findet nicht in der Konsole statt. Die zu erledigenden Aufgaben liegen in /tasks mit eindeutigen Aufträgen. Es sind alle Aufträge abzuarbeiten, die in /tasks liegen und jeweils eigene Dateien haben, welche noch nicht umgesetzt wurden. Claude soll Entscheidungen auf sinnvolle Arten und Weisen selbst treffen nachdem es den Auftrag erhalten hat, dass es loslegen soll. Nur wenn es absolut notwendig ist eine kritische Frage an den Nutzer weiterzugeben, soll eine Nachfrage gestellt werden - aber auch dann nicht über das Terminal, sondern indem die Frage am Ende der Datei mit der tasks ergänzt wird. Im Terminal sind jede Form von Textausgaben durch Claude ABSOLUT UNTERSAGT - auch zum Abschluss der Aufgaben.
+Die Kommunikation zwischen Claude und dem Nutzer findet nicht in der Konsole statt. Die zu erledigenden Aufgaben liegen in /tasks mit eindeutigen Aufträgen. Es sind alle Aufträge abzuarbeiten, die in /tasks liegen und jeweils eigene Dateien haben, welche noch nicht umgesetzt wurden. Claude soll Entscheidungen auf sinnvolle Arten und Weisen selbst treffen nachdem es den Auftrag erhalten hat, dass es loslegen soll. Nur wenn es absolut notwendig ist eine kritische Frage an den Nutzer weiterzugeben, soll eine Nachfrage gestellt werden - aber auch dann nicht über das Terminal, sondern indem die Frage am Ende der Datei mit der tasks ergänzt wird. Im Terminal sind JEDE Form von Textausgaben durch Claude ABSOLUT UNTERSAGT - auch zum Abschluss der Aufgaben.
+Tasks die fertig umgesetzt wurden sollen als Prefix in der Datei ein "z_" erhalten, damit sie nach unten sortiert werden. Neue Tasks haben kein Prefix. Aufgaben bei denen eine Frage zwingend beantwortet werden muss sollen ein a_ Prefix erhalten.
 
 ## Commands
 
@@ -18,7 +19,7 @@ npm run preview
 node scripts/test-scoring.mjs    # Logik-Tests (node:assert, kein Framework, keine Deps)
 ```
 
-Es gibt keinen Linter/Formatter und keinen Test-Runner. `test-scoring.mjs` nutzt einen eigenen `test(name, fn)`-Helper ohne Filter-Option — einzelne Fälle lassen sich nur durch Auskommentieren isolieren. Getestet werden die framework-freien Module: `scoring.mjs`, `awards.mjs`, `trainers.mjs`, `damagecalc.mjs`, `press.mjs`, `press-context.mjs`, `press-prompts.mjs`, `auth.mjs`, `notes.mjs`, `ceremony.mjs`, `finale.mjs`, `market.mjs`, `seasons.mjs`, `video.mjs`, `press-tiles.mjs`. Die Anmelde-Tests rechnen asynchron (WebCrypto) und laufen über den `atest`-Helfer.
+Es gibt keinen Linter/Formatter und keinen Test-Runner. `test-scoring.mjs` nutzt einen eigenen `test(name, fn)`-Helper ohne Filter-Option — einzelne Fälle lassen sich nur durch Auskommentieren isolieren. Getestet werden die framework-freien Module: `scoring.mjs`, `awards.mjs`, `trainers.mjs`, `damagecalc.mjs`, `press.mjs`, `press-context.mjs`, `press-prompts.mjs`, `auth.mjs`, `notes.mjs`, `ceremony.mjs`, `finale.mjs`, `market.mjs`, `seasons.mjs`, `video.mjs`, `press-tiles.mjs`, `draft.mjs`. Die Anmelde-Tests rechnen asynchron (WebCrypto) und laufen über den `atest`-Helfer.
 
 Firestore-Wartungsskripte (schreiben direkt in die Live-DB, Client-SDK mit der Config aus `resources/js/firebase.js`):
 
@@ -48,6 +49,7 @@ node scripts/check-calc-species.mjs # prüft, ob jeder Eintrag aus pokemon.json 
 - **Titel zählen erst für abgeschlossene Saisons** (`seasonFinished` prüft jede geplante Partie gegen ihr Ergebnis) — der Tabellenführer einer laufenden Saison ist kein Meister.
 - Kennzahlen im `STAT_CATALOG` können `scope: 'all'` tragen und erscheinen dann ausschließlich saisonübergreifend (`columnsMixin.inScope`).
 - **Die Presse ist bewusst saisonübergreifend** und sieht in jedem Bereich gleich aus; geschrieben wird immer in die aktive Saison.
+- **Statistik-Nenner kennen den Wintertransfer.** `transferAvailability(transfer, schedule)` liefert je `teamId|name` das Fenster, in dem ein Pokémon dem Team gehörte (Schnitt = letzter Spieltag der Hinrunde). Der league-Store bündelt das über alle Saisons in `availability` und reicht es an `pokemonStats`/`pokemonProfile`; ohne die Karte rechnet ein im Winter geholtes Pokémon so, als hätte es die Hinrunde auf der Bank verbracht.
 
 **Partial-SPA ohne Router.** `index.html` enthält Shell (Sidebar, Mobile-Nav, Suche, Toasts, Info-Popover, Zurück-Leiste). Views sind rohe HTML-Fragmente in `public/pages/*.html`; `app().load(key)` in `resources/js/main.js` holt sie per `fetch`, schreibt sie in `$refs.view` und ruft `Alpine.initTree(view)`. Übergänge laufen über `document.startViewTransition`.
 
@@ -65,8 +67,8 @@ Konsequenzen beim Anlegen einer neuen View:
 
 | Quelle | Inhalt |
 |---|---|
-| `teams` (Collection) | `{season, name, player, logo, order, pokemon: [...], trainers: [...]}` — Roster und Trainer inline im Team-Doc |
-| `drafts/s1` | `{status: idle\|running\|done, order, pickIndex}` |
+| `teams` (Collection) | `{season, name, player, logo, color, order, pokemon: [...], trainers: [...]}` — Roster und Trainer inline im Team-Doc |
+| `drafts/s1` | `{status: idle\|order\|running\|done, order, pickIndex, renewals[], renewalRound, renewalDone[], orderChoice}` |
 | `drafts/transfer-s1` | Wintertransfer, zusätzlich `removed[]`, `added[]` |
 | `schedules/s1` | `{matchdays: [{day, matches: [{home, away}]}]}` |
 | `results` (Collection) | Doc-ID `s<N>-d<day>-m<index>`, siehe unten — die Saison steckt nur in der ID |
@@ -76,7 +78,7 @@ Konsequenzen beim Anlegen einer neuen View:
 | `users` (Collection) | Doc-ID `janik`/`henrik`: `{player, auth:{algo,iterations,salt,hash}, enc:{algo,iterations,salt}}` — Anmeldung |
 | `private` (Collection) | Doc-ID `<user>-<scope>`: `{owner, scope, payload:{v,algo,iv,ct}, updatedAt}` — AES-GCM-verschlüsselt, Scopes `notes` und `teambuilder` |
 | `battleLogs` (Collection) | Doc-ID = Match-ID: `{matchId, day, home, away, entries:{<Spieler>:{text,updatedAt}}}` — geteilter Kampfverlauf |
-| `public/data/pokemon.json` | einzige Pokémon-Stammdatenquelle (`name`, `name_en`, `dex`, `types`, `tier`, `cost`, `image`, `base_speed`); Namen sind global eindeutig und dienen als Fremdschlüssel |
+| `public/data/pokemon.json` | einzige Pokémon-Stammdatenquelle (`name`, `name_en`, `dex`, `types`, `tier`, `cost`, `image`, `base_speed`, optional `since`); Namen sind global eindeutig und dienen als Fremdschlüssel. `since: N` heißt „erst zu Saison N in den Pool gekommen" und ist die Quelle für `newcomersOfSeason` und den Neuzugangs-Beitrag |
 | `public/data/i18n-de.json` | deutsche Namen für Attacken, Fähigkeiten und Items (nur der Schadensrechner); generiert, nicht von Hand pflegen |
 
 Ein `results`-Doc: `{home, away, day, squads: {home: [names], away: [names]}, battles: [{done, used: {home, away}, score: {home, away}, winner, kills: [{victimSide, victim, killerSide, killer}]}]}`. Dazu kommen `videoUrl`, `pressReady`, `pressReadyAt` und `pressReadyBy`.
@@ -142,12 +144,24 @@ Ein `results`-Doc: `{home, away, day, squads: {home: [names], away: [names]}, ba
 - **Bausteine im Textkörper** (`press-tiles.mjs`): `[marktwert: …]`, `[team: …]`, `[trainer: …]`, `[ergebnis: …]`, `[video: …]` als eigener Absatz. Aufgelöst wird **beim Anzeigen** (`presseView.articleBody` -> `renderTiles`), nicht beim Speichern: so bleibt der Beitrag reiner Text ohne zusätzliche Whitelist, eine Marktwertkachel zeigt den heutigen Stand, und im Editor bleibt der Baustein als Zeile sichtbar.
 - **Entschieden ist erst, was rechnerisch entschieden ist.** `standingsBlock` liefert je Team `offeneMatches` und `maximalPunkte` (3 je Match); `CANON_RULES` Nr. 9 verbietet, einen Titel oder Platz als feststehend zu nennen, solange ein Verfolger nach Punkten ODER Kill-Differenz vorbeiziehen kann.
 - **Die Grundhaltung bleibt kritisch, aber nicht ausschließlich.** Der Ton `anerkennend` macht regelmäßig eine echte Leistung zum Hauptthema, ohne relativierendes Aber im Schluss (`CANON_RULES` Nr. 10).
+- **Dauerhafte Referenzen statt „die letzten acht".** `referenceBlock` schickt Beiträge, die dauerhaft gelten, in JEDEN Kontext — von Hand markiert (`reference: true`), jede Redaktion der Spieler und den Saison-Rückblick (`isReference`), mit deutlich mehr Text. Ein Erklärstück fällt damit nicht mehr nach ein paar Spieltagen aus dem Kontext.
+- **Auftragsbeiträge** (`commissionArticle`, Quelle `commission`): Freitext aus dem Newsroom bestimmt das Thema, nie die Fakten. Der Auftragstext bleibt an der Quelle stehen, damit ein späterer Anlauf dieselbe Vorgabe hat.
+- **Neuzugänge im Pool** (`s<N>-newcomers`, Quelle `newcomers`): einmalig je Saison, sobald `pokemon.json` ein `since: N` führt. Autor ist fest Scott; der Auftrag verbietet ausdrücklich Elo- und Marktwerte, weil es für Neuzugänge noch keine gibt. Der Auslöser ist der BESTAND, nicht eine Änderung — `pressTriedNewcomers` verhindert deshalb, dass ein Fehlschlag den Effekt im Kreis dreht.
 - **Der API-Key liegt gerätelokal** (`jhdl-press-key-v1`) und darf nie nach Firestore. Ohne Key bleibt die Ansicht bedienbar, es entstehen nur keine neuen Beiträge.
 - **Zwei Schlüsselformate:** `AIza…` geht in den Header `x-goog-api-key`, `AQ.…` (seit 2026 das einzige, das AI Studio ausgibt) in `Authorization: Bearer`. `gemini.mjs` wählt nach Präfix und probiert bei 401 automatisch das andere Verfahren.
 - **Denksteuerung ist modellabhängig:** die 3er-Generation nimmt `thinkingLevel`, die 2.5er ein `thinkingBudget` — beides zusammen ist ein Fehler. Denk-Tokens zählen gegen `maxOutputTokens`; ohne Deckel kommt die Antwort leer mit `MAX_TOKENS` zurück. Gemini 3 läuft ausdrücklich auf Temperatur 1.0.
 - `<select>` mit `<template x-for>`-Optionen: x-model setzt den Startwert, bevor die Optionen im DOM stehen. Die Vorauswahl deshalb über `:selected` am `<option>` lösen, nicht nachträglich per JS.
 
 **Siegerehrung** (`ceremony.mjs` + `awards.css`). Fünf Inszenierungen (`CEREMONY_VARIANTS`) teilen sich denselben Ablauf und werden je Ehrung zufällig gewählt (`pickCeremonyVariant`); sie unterscheiden sich nur in Tempo (`timing`), Enthüllungsgeste (CSS unter `.cer-stage[data-variant="…"]`) und Schlusseffekt (`burst`). `awards-entwurf.html` kann eine Variante zum Ansehen erzwingen.
+
+**Draft ab Saison 2** (`draft.mjs`, framework-frei). Zwei Dinge kommen zum Snake-Draft dazu:
+- **Die Reihenfolge wird nicht mehr ausgelost.** `buildDraftOrder` leitet sie aus der Endtabelle der Vorsaison ab: Platz 1 zieht zuerst, die Plätze 7 und 8 steigen ab. Ein Aufsteiger gehört immer dem Spieler, dessen Team abgestiegen ist; gehören BEIDE Aufsteiger demselben Spieler, lässt sich Position 7 nicht rechnen — der Draft bleibt dann im Status `order` stehen, bis dieser Spieler gewählt hat (`orderChoice`, `chooseFirstPromoted`).
+- **Vertragsverlängerungen** (im Code `renewal`, im Frontend und in der Presse AUSSCHLIESSLICH „Vertragsverlängerung"). Je Tier eine, höchstens fünf. Das Fenster öffnet zu Beginn jeder Runde (`renewalRound`, `renewalDone`); wer einlöst, zieht sofort und hat seinen Zug dieser Runde verbraucht — deshalb rechnen `currentPick` und `draftPicks` die Runde als „erst die Verlängerungen in Snake-Reihenfolge, dann der Rest". Verfall wird NICHT gespeichert, sondern gerechnet (`renewalState`): kein verfügbares Pokémon im Tier oder die zwei Plätze schon gefüllt.
+- **Es gilt das Tier der NEUEN Saison** (`RENEWAL_TIER_SOURCE = 'current'`): Wechselt ein Pokémon zwischen den Saisons die Klasse, zählt die heutige. So hält die Verlängerung die Regel „höchstens zwei je Tier" ein — dafür kann ein Team in einem Tier drei Kandidaten haben und in einem anderen keinen.
+
+**Teamfarbe** (`teams/<id>.color`). Vom Besitzer im Hero gewählt, sonst stabil aus der Team-ID abgeleitet (`teamColor`). Sie trägt den Hero und färbt die Team-Linie in jedem Diagramm — Tabellenverlauf und Marktwertvergleich. Nur waschechte 6-stellige Hex-Werte werden übernommen (`normalizeHexColor`), weil der Wert direkt in einen `:style`-Ausdruck geht.
+
+**Robustheit bei KI-Aufrufen.** `generateJson` unterscheidet Zustände von Fehlern: Überlastung (429), Serverfehler, Netzwerkabbruch, abgeschnittene (`MAX_TOKENS`) und unlesbare Antworten sind `retryable` und werden bis zu `GEMINI_ATTEMPTS` Mal mit wachsender Pause wiederholt; eine abgeschnittene Antwort bekommt beim nächsten Anlauf mehr Platz und weniger Denkzeit. Alles andere (Schlüssel, Modell, Inhaltsfilter) fliegt sofort hoch. Ein gescheiterter Beitrag merkt sich in `errorModel`, WOMIT er gescheitert ist; `retryArticle`/`retrySession` schreiben ihn neu — mit wählbarem Modell und unabhängig von der Quelle. Ein Termin mit vorliegenden Antworten wird nur neu geschrieben, nie neu gestellt.
 
 **Trainer** (`teams/<id>.trainers`) sind eine eigene Position: kein Kampf, kein Draft, keine Statistik, nur im Team-View. Amtszeiten werden in Spieltagen geführt — `fromDay: null` heißt „vor der Saison", `untilDay: null` heißt „amtierend". Logik in `trainers.mjs`, Schreibzugriffe über `appointTrainer` / `updateTrainer` / `dismissTrainer` im league-Store.
 

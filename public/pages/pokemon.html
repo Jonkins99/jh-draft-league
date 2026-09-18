@@ -51,6 +51,8 @@
                 <span x-show="Number.isFinite(mon.cost)" class="opacity-80" x-text="`· ${mon.cost} P`"></span>
               </span>
               <span x-show="Number.isFinite(mon.dex)" class="rounded-full border border-line px-2.5 py-0.5 text-xs font-semibold tabular-nums text-mist" x-text="`#${mon.dex}`"></span>
+              <span x-show="Number.isFinite(mon.since)" class="rounded-full border border-volt-400/50 bg-volt-400/10 px-2.5 py-0.5 text-xs font-bold text-volt-400"
+                    :title="`Kam erst zu Saison ${mon.since} in den Draft-Pool`" x-text="`Neu ab Saison ${mon.since}`"></span>
             </div>
 
             <!-- Team + Draft -->

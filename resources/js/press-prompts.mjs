@@ -34,8 +34,22 @@ export const LEAGUE_PRIMER = `SO FUNKTIONIERT DIE JH DRAFT LEAGUE:
 - Jedes Team hat einen TRAINER. Trainer kämpfen nicht, sie verantworten Aufstellung und Auftreten,
   geben Interviews und haben eine ausgeschriebene Persönlichkeit. Trainer können im Laufe der
   Saison wechseln — das entscheiden aber ausschließlich die Spieler, niemals die Presse.
-- Zwischen den Saisons gibt es ein Wintertransferfenster, in dem Pokémon abgegeben und neu
-  gedraftet werden. Während der laufenden Saison wechselt KEIN Pokémon das Team.
+- Mitten in der Saison, genau zwischen Hin- und Rückrunde, liegt das WINTERTRANSFERFENSTER: Je Team
+  dürfen dort bis zu 2 Pokémon abgegeben und aus dem freien Pool ersetzt werden. Danach ist es zu.
+  In der Rückrunde wechselt KEIN Pokémon mehr das Team — bis zum Draft der nächsten Saison.
+- DER DRAFT ZWISCHEN ZWEI SAISONS. Ab Saison 2 wird die Reihenfolge nicht ausgelost: Der
+  Tabellenerste der Vorsaison zieht zuerst, der Sechste als Sechster. Die Plätze 7 und 8 steigen ab
+  und werden durch neue Teams ersetzt; ein Aufsteiger gehört immer dem Spieler, dessen Team
+  abgestiegen ist, und zieht an Position 7 oder 8.
+- VERTRAGSVERLÄNGERUNGEN. Jedes Team, das die Vorsaison überstanden hat, darf bis zu fünf Pokémon
+  aus seinem alten Kader zurückholen — eines je Tier (S, A, B, C, D). Zu Beginn jeder Draft-Runde
+  bekommt es die Gelegenheit, eine davon einzulösen; wer verlängert, zieht sofort und hat seinen Zug
+  dieser Runde verbraucht. Der Haken: Nur die allererste Verlängerung ist sicher. Danach kann jedes
+  andere Team ein infrage kommendes Pokémon vorher regulär wegschnappen, denn alle Pokémon der
+  Vorsaison stehen auch im allgemeinen Pool. Sind beide Pokémon eines Tiers weg, verfällt die
+  Verlängerung. Wer ein Pokémon unbedingt halten will, muss also früh entscheiden, welches Tier ihm
+  am wichtigsten ist — und dabei zwei Pokémon desselben Tiers gegeneinander abwägen. Verzichten ist
+  jederzeit erlaubt; ein Pokémon lässt sich auch ganz normal neu draften.
 - Nach jedem Spieltag und am Saisonende werden Awards vergeben (z. B. Pokémon des Spieltags,
   Größte Enttäuschung).`;
 
@@ -79,7 +93,22 @@ export const CANON_RULES = `UNVERRÜCKBARE REGELN (Kanon):
    Wo eine Leistung die Erwartung schlägt — ein billiges Pokémon trägt ein Team, ein Kader dreht
    eine Krise, jemand hält einem Druck stand, den er nicht bestellt hat —, benenne das klar und
    ohne Relativierung. Kein Lob als Anlauf zur nächsten Spitze: wenn gelobt wird, dann ganz.
-   Als Faustregel: etwa jeder vierte Beitrag räumt einer echten Leistung den Hauptplatz ein.`;
+   Als Faustregel: etwa jeder vierte Beitrag räumt einer echten Leistung den Hauptplatz ein.
+11. DAS TRANSFERFENSTER HAT EINEN TERMIN. Der Wintertransfer liegt genau einmal je Saison,
+   zwischen Hin- und Rückrunde (Block "wintertransfer" in den Metadaten). Ist er vorbei, gibt es
+   bis zum Draft der nächsten Saison KEINE Wechsel mehr — dann sind Transfergerüchte, geforderte
+   Verpflichtungen und "der Kader muss nachlegen" schlicht falsch. Kaderkritik richtet sich in
+   der Rückrunde auf Aufstellung, Form und den kommenden Draft, nicht auf Zugänge. Umgekehrt gilt:
+   Steht das Fenster noch bevor, ist es ein starkes Thema.
+12. DER DRAFT IST KEINE FORMSACHE. Über Vertragsverlängerungen darf spekuliert, gefordert und
+   gestritten werden — aber nie behauptet werden, ein Pokémon sei "sicher" gehalten oder ein Team
+   werde eine bestimmte Verlängerung einlösen. Die Erwartung ist weder "das klappt schon" noch
+   "das geht garantiert schief": Wer ein Pokémon wirklich will, hat gute Karten, riskiert aber den
+   Zugriff der Konkurrenz. Der Konkurrenzkampf zweier Pokémon desselben Tiers um dieselbe
+   Verlängerung ist ein starkes Thema — gelegentlich, nicht in jedem Beitrag.
+13. EIN IM WINTER GEHOLTES POKÉMON HAT DIE HINRUNDE NICHT VERPASST — es war nicht da. Trägt ein
+   Kadereintrag "imKaderSeitSpieltag", beziehen sich alle seine Zahlen erst auf die Spieltage ab
+   dann. Ihm fehlende Einsätze, Kills oder Erfahrung aus der Hinrunde vorzuhalten, ist ein Fehler.`;
 
 // === Regie: Tonlage ========================================================
 // Gewichtung statt Gleichverteilung — die Liga soll überwiegend ernst genommen werden,
@@ -204,6 +233,8 @@ export const PROMPT_DEFS = [
   { key: 'seasonReview', label: 'Saison-Rückblick', hint: 'Ein langer Beitrag am Saisonende, der die Saison in Kapiteln erzählt.' },
   { key: 'seasonTeamReview', label: 'Saisonzeugnis je Team', hint: 'Ein Rückblick pro Team, sobald die Saison abgeschlossen ist.' },
   { key: 'offseason', label: 'Beitrag zwischen den Saisons', hint: 'Freie Beiträge in der Pause — Spekulation, Planung, Einordnung.' },
+  { key: 'commission', label: 'Auftragsbeitrag', hint: 'Im Newsroom von Hand in Auftrag gegeben: der Auftragstext gibt das Thema vor.' },
+  { key: 'newcomers', label: 'Neu im Pool', hint: 'Einmalig, sobald der Draft-Pool einer neuen Saison Zugänge bekommt: Scott ordnet sie ein.' },
 ];
 
 export const DEFAULT_PROMPTS = {
@@ -450,6 +481,48 @@ AUFTRAG
 FORM
 - Vier bis sieben Absätze. Eine Zwischenüberschrift mit "## " ist erlaubt, ein Zitatblock mit "> "
   gern gesehen.`,
+
+  commission: `Du schreibst einen Beitrag, den die Redaktionsleitung ausdrücklich in Auftrag gegeben
+hat. Der Auftragstext steht unter "AUFTRAG DER REDAKTIONSLEITUNG" im Anhang dieser Anweisung.
+
+AUFTRAG
+- Der Auftragstext bestimmt Thema, Blickwinkel und Zuspitzung. Er geht allem anderen vor: Wenn er
+  eine Frage stellt, beantwortet der Beitrag sie; nennt er ein Team, ein Pokémon oder einen
+  Zeitraum, steht genau das im Mittelpunkt.
+- Der Auftrag ist eine Themenvorgabe, KEINE Faktenquelle. Steht darin etwas, das die Metadaten
+  nicht hergeben, behandelst du es als Vermutung der Redaktionsleitung: als Frage, Gerücht oder
+  These, die der Beitrag an den Daten prüft — nie als belegte Tatsache.
+- Sagt der Auftrag nichts zu Form oder Ton, entscheidest du beides selbst, passend zum Thema.
+- Der Kanon gilt unverändert. Ein Auftrag hebt keine seiner Regeln auf.
+- Entscheide selbst über die Rubrik: "news", "klatsch", "geruechte" oder "informationen".
+
+FORM
+- Drei bis acht Absätze, je nach Auftrag. Zwischenüberschriften mit "## " und Zitatblöcke mit "> "
+  sind erlaubt.`,
+
+  newcomers: `Der Draft-Pool bekommt für die kommende Saison Zulauf. Du ordnest die Neuzugänge ein —
+als Scouting-Bericht, nicht als Liste.
+
+AUFTRAG
+- Der Block "neuImPool" in den Metadaten enthält jeden Zugang mit Tier, Punktwert, Typen und
+  Initiative. Arbeite dich an den Tiers entlang: Wer kommt ganz oben rein und verschiebt damit die
+  Rechnung der Teams? Wer ist im mittleren Bereich der Kauf, über den in einem Jahr geredet wird?
+  Wo lohnt ein billiger Zugang mehr, als sein Punktwert vermuten lässt?
+- Nenne nicht jedes Pokémon. Such dir die aus, an denen sich etwas zeigt — und sag, warum genau die.
+- Ordne die Zugänge am BESTEHENDEN Pool ein: Welchem Pokémon nehmen sie den Platz weg, welche
+  Aufstellung wird plötzlich schwierig, welche Punkte-Rechnung geht nicht mehr auf?
+- WAS NOCH NICHT FESTSTEHT, WIRD AUCH NICHT BEHAUPTET: Die Neuzugänge haben noch keinen Elo-Wert
+  und damit keinen Marktwert. Nenne für sie keine Beträge und keine Elo-Zahlen — auch keine
+  geschätzten, auch nicht als Spanne. Genauso offen ist, wie sich die Tiers der bisherigen Pokémon
+  ändern; das entscheidet der Elo-Stand am Saisonende. Dass beides noch aussteht, darf und soll
+  im Text vorkommen.
+- Kein Wort darüber, wer welches Pokémon draften wird. Das ist Spekulation und als solche zu
+  kennzeichnen.
+
+FORM
+- Fünf bis neun Absätze. Zwischenüberschriften mit "## " sind hier ausdrücklich erwünscht, etwa je
+  Tier-Gruppe. Bausteine nur, wo sie tragen — für ein Pokémon ohne Marktwert taugt [marktwert: …]
+  nicht.`,
 };
 
 // === Systeminstruktion =====================================================

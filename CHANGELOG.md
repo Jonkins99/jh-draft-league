@@ -1,5 +1,40 @@
 # Changelog
 
+## Draft from season 2 on (new)
+- **The order is no longer drawn, it is earned.** From season 2 the draft order comes out of the previous season's final table: first place picks first, sixth picks sixth. Places 7 and 8 are relegated and replaced by promoted teams, and a promoted team always belongs to the player whose team went down. If each player has one newcomer, the relegation places decide which of them picks seventh. If both newcomers belong to the same player, the draft waits at the very start until that player has chosen which of his two teams opens — before a single pick and before any contract extension.
+- **Contract extensions.** Every team that survived the previous season may bring back up to five of its old Pokémon, one per tier. At the start of every draft round each of them is offered the chance to redeem one: whoever extends picks that Pokémon immediately and has spent his turn for that round, whoever passes keeps the extension for later. Only the very first one is safe — after that any other team can take an eligible Pokémon in the regular order, because every Pokémon of the previous season is back in the general pool. When both Pokémon of a tier are gone, that extension expires by itself. Which extensions a team still holds is on screen throughout the draft, per tier and per team, and a Pokémon secured this way is marked in the draft history.
+- **The press understands the system.** The metadata carry the order, the round, and each team's open, redeemed and expired extensions with their candidates, and the canon states the tension: wanting a Pokémon badly gives you good odds, never a guarantee — and two Pokémon of the same tier competing for the same extension is a story worth telling now and then.
+- **The winter transfer window has a date again.** It sits exactly between the two legs, and once it has closed no Pokémon changes team until the next draft. The press used to spend the second half of the season speculating about transfers that could no longer happen; it now knows when the window is, what it allows, and that squad criticism in the second leg is about selection and the coming draft, not about signings.
+
+## Season 2 squad pool (new)
+- **33 Pokémon join the draft pool**, with their tier derived from the points as usual — from Rillaboom and Mega Salamence at the top down to Swalot and Persian at the bottom, including the Z Mega Evolutions, both Indeedee, both Toxtricity and both Squawkabilly pairings. Types, base speed, dex number and artwork come from the Champions data, and the damage calculator, the Showdown export and the PokéZone links all resolve the new forms.
+- **Newcomers are marked as newcomers.** The Pokémon page carries a "Neu ab Saison 2" badge, and the newsroom publishes one piece per pool intake: Scott sorts the arrivals by tier and says what they displace. He is told explicitly what is *not* settled yet — the newcomers have no Elo rating and therefore no market value, and the tiers of the existing Pokémon only move once the season's final Elo is in.
+
+## Press
+- **A new desk: Scott.** The builder of the Battle Zone covers scouting, the draft, transfers and squad planning — he watches the trainers he invited himself, judges a squad the way he judges a car, and writes at the speed he drives.
+- **Commission an article.** The newsroom can hand the desk a free-text brief: a topic, an angle, a team, a question. The brief decides what the piece is about, never what is true — anything the data do not support is treated as the editors' hunch and checked against the numbers.
+- **Nothing valuable falls out of the context any more.** Background pieces used to drop out of the briefing after eight newer articles and were then gone for good. Articles can now be marked as a permanent reference and always travel with the metadata, in full length; anything written by the players themselves and the season review count as references automatically. The recent-article windows grew as well.
+- **Every AI request can be tried again.** A failed piece shows which model it was attempted with, lets that model be swapped for the retry, and can be regenerated regardless of where it came from — match report, free article, market update, season review, report card, off-season piece, commission or interview. An interview whose answers are already in is only rewritten, never asked again. Underneath, overload, quota and truncated answers are retried automatically with a growing pause, and a cut-off answer gets more room and less thinking time on the next attempt.
+
+## Statistics
+- **A Pokémon signed in the winter did not miss the first leg — it was not there.** Percentages that divide by the team's battles now only count the matchdays a Pokémon actually belonged to the squad, in the tables, on the Pokémon page and in the press metadata. The press is told about it explicitly and may no longer hold missing first-leg appearances against a winter arrival.
+- **"Kämpfe % (Kader)" is short again** — the column header reads `Kpf %`.
+
+## Teams
+- **A colour per team.** Behind a gear in the team header the owner picks a colour from a palette or the colour field. It carries the header and represents the team in every chart across the app — the placement curve of the table, the team's own curve and the squad-value comparison. Teams without a chosen colour keep a fixed colour derived from their id, so the charts are consistent from the start.
+- **The team page reads in the order it is used:** header, squad, trainer, season, market values, Pokémon ranking, notes, speed tiers, weaknesses, draft history. A trainer's personality traits now scroll as a single line instead of taking three.
+
+## Teambuilder
+- **Two views instead of four.** "Nur Pokémon" and "Movesets" — the note field moved into the moveset view, where it belongs, and the marking click works in both.
+- **The set tiles are built for working in.** A compact header with the sprite, the name, a PokéZone link and a button that clears the set; item and ability side by side; four moves as a 2×2 grid; the stat points below; the note at the bottom. The grid follows the width of the panel, not the window, so a tablet with the sidebar collapsed fits three tiles where two fit with it open.
+- **Sets can be cleared.** One Pokémon at a time or both squads at once, each after a confirmation — so the second leg does not start against the first leg's leftovers. Markings, speed settings and the damage calculator are untouched.
+
+## Awards
+- **An award is either an honour or a rap on the knuckles.** Each one now carries which it is, the honours board counts both separately, and the records tell "most honours" apart from "most rebukes".
+
+## Navigation
+- **Clearer icons** for Tabelle (a table instead of a second bar chart), Spielplan (a calendar of fixtures), Teambuilding (two squads across a centre line), Teams (a crest instead of a second group of people) and Draft (a card being pulled out of the pool).
+
 ## Result entry, battle log & video (new)
 - **The battle log is written by hand again.** Voice recording is gone — from the result entry and from the Teambuilder, along with the transcription briefing behind it. It never reached the quality the log needs, and a log nobody trusts is worse than no log.
 - **The log lives with the result.** It is written in one place only: the battle-log step of the result entry in the schedule. The Teambuilder keeps the matchup note and still shows both players' logs — including the first leg — but read-only.

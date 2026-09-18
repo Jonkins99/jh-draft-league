@@ -235,3 +235,18 @@
     transition-duration: 1ms;
   }
 }
+
+.team-hero {
+  --team: #e3350d;
+  border-color: color-mix(in srgb, var(--team) 30%, transparent);
+  background-image: linear-gradient(to bottom right, color-mix(in srgb, var(--team) 12%, transparent), transparent 60%);
+  background-color: var(--color-panel);
+}
+
+.team-hero-glow {
+  background: color-mix(in srgb, var(--team) 20%, transparent);
+}
+
+.team-hero-box {
+  border-color: color-mix(in srgb, var(--team) 30%, transparent);
+}

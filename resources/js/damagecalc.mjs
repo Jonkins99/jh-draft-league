@@ -142,7 +142,9 @@ export function speciesKey(nameEn) {
   const name = String(nameEn || '').trim();
   if (!name) return '';
   if (SPECIES_OVERRIDES[name]) return SPECIES_OVERRIDES[name];
-  const mega = name.match(/^Mega (.+?)(?: ([XY]))?$/);
+  // „Mega Garchomp Z" ist keine Schreibvariante, sondern eine eigene Spezies aus
+  // Pokémon Champions — das Z gehört wie X und Y an das Ende des Schlüssels.
+  const mega = name.match(/^Mega (.+?)(?: ([XYZ]))?$/);
   if (mega) return `${toId(mega[1])}mega${mega[2] ? mega[2].toLowerCase() : ''}`;
   const region = name.match(/^(Alolan|Galarian|Hisuian|Paldean) (.+)$/);
   if (region) return `${toId(region[2])}${REGIONS[region[1]]}`;

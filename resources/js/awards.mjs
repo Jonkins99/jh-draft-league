@@ -23,6 +23,14 @@ export function awardableDays(playedDays) {
   return (playedDays || []).filter((d) => Number.isFinite(d) && d >= MATCHDAY_AWARDS_FROM);
 }
 
+// Jede Auszeichnung ist entweder eine Ehrung oder eine Rüge. Die Rekorde trennen
+// beides: „meiste Auszeichnungen" und „meiste Rügen" sind zwei verschiedene
+// Geschichten, und ohne die Trennung stünde ein Dauerflop neben einem MVP.
+export const AWARD_TONES = ['positive', 'negative'];
+export function awardTone(key) {
+  return AWARD_BY_KEY[key]?.tone === 'negative' ? 'negative' : 'positive';
+}
+
 // Awards nach jedem Spieltag. Werden mehrfach vergeben (je Spieltag einmal) und
 // dürfen mehrfach an dasselbe Pokémon gehen.
 export const MATCHDAY_AWARDS = [
@@ -31,7 +39,7 @@ export const MATCHDAY_AWARDS = [
     hint: 'Das stärkste Pokémon dieses Spieltags.',
   },
   {
-    key: 'flop-of-day', label: 'Größte Enttäuschung des Spieltags', short: 'FLOP', entity: 'pokemon',
+    key: 'flop-of-day', label: 'Größte Enttäuschung des Spieltags', short: 'FLOP', entity: 'pokemon', tone: 'negative',
     hint: 'Blieb an diesem Spieltag klar unter den Erwartungen.',
   },
   {
@@ -44,7 +52,7 @@ export const MATCHDAY_AWARDS = [
 export const SEASON_AWARDS = [
   { key: 'best-mon', label: 'Bestes Pokémon', short: 'MVP', entity: 'pokemon', hint: 'Das beste Pokémon der Saison.' },
   { key: 'surprise', label: 'Größte Pokémon-Überraschung', short: 'WOW', entity: 'pokemon', hint: 'Hat die Erwartungen am deutlichsten übertroffen.' },
-  { key: 'disappointment', label: 'Größte Pokémon-Enttäuschung', short: 'FLOP', entity: 'pokemon', hint: 'Hat die Erwartungen am deutlichsten verfehlt.' },
+  { key: 'disappointment', label: 'Größte Pokémon-Enttäuschung', short: 'FLOP', entity: 'pokemon', tone: 'negative', hint: 'Hat die Erwartungen am deutlichsten verfehlt.' },
   { key: 'killking', label: 'Killkönig', short: 'KILL', entity: 'pokemon', hint: 'Der gefährlichste Angreifer der Saison.' },
   { key: 'survivalking', label: 'Überlebenskönig', short: 'SURV', entity: 'pokemon', hint: 'Kam am häufigsten lebend aus den Kämpfen.' },
   { key: 'best-offense', label: 'Beste Offensive', short: 'OFF', entity: 'team', hint: 'Das offensivstärkste Team.' },

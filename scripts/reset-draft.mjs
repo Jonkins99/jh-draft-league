@@ -19,7 +19,10 @@ const db = getFirestore(app);
 const snap = await getDocs(collection(db, 'teams'));
 const batch = writeBatch(db);
 snap.docs.forEach((d) => batch.update(doc(db, 'teams', d.id), { pokemon: [] }));
-batch.set(doc(db, 'drafts', 's1'), { season: 1, status: 'idle', order: [], pickIndex: 0 });
+batch.set(doc(db, 'drafts', 's1'), {
+  season: 1, status: 'idle', order: [], pickIndex: 0,
+  renewals: [], renewalRound: null, renewalDone: [], orderChoice: null,
+});
 await batch.commit();
 
 console.log(`Draft zurückgesetzt. ${snap.size} Roster geleert, drafts/s1 = idle.`);

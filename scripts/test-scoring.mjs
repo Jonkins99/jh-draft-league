@@ -5,7 +5,7 @@ import {
   showdownSpecies, showdownExport,
   speedAt, speedTiers, speedCases, clampSp, applySpeedMod,
   teamBattleTotals, isMega, baseFormOf, normalizeNature,
-  pokezoneSlug, pokezoneUrl, draftPicks,
+  pokezoneSlug, pokezoneUrl, draftPicks, transferAvailability, availableOn,
 } from '../resources/js/scoring.mjs';
 import {
   mergedOptions, voteResults, awardWinner, awardWinners, nextStatus, revealSteps,
@@ -48,7 +48,11 @@ import {
 } from '../resources/js/market.mjs';
 import { normalizeVideoUrl, youtubeId, videoEmbed, videoHostLabel } from '../resources/js/video.mjs';
 import { parseTile, TILE_KINDS } from '../resources/js/press-tiles.mjs';
-import { buildRecords } from '../resources/js/seasons.mjs';
+import { buildRecords, newcomersOfSeason } from '../resources/js/seasons.mjs';
+import {
+  RENEWAL_TIERS, previousRosters, renewalState, hasOpenRenewal, renewalTurn,
+  currentPick as draftCurrentPick, buildDraftOrder, snakeOrder, renewedIn,
+} from '../resources/js/draft.mjs';
 import { standingsBlock } from '../resources/js/press-context.mjs';
 import { historyKey } from '../resources/js/elo.mjs';
 
@@ -1279,6 +1283,187 @@ test('Die Tabelle nennt offene Partien und das Punktemaximum', () => {
   // Beta kann Alpha noch einholen — drei Punkte Rückstand sind hier keine Entscheidung.
   assert.equal(beta.maximalPunkte, 3);
   assert.ok(beta.maximalPunkte >= alpha.punkte);
+});
+
+// --- Wintertransfer: das Kaderfenster ---------------------------------------
+test('Ein im Winter geholtes Pokémon zählt erst ab der Rückrunde im Nenner', () => {
+  const schedule = {
+    matchdays: [
+      { day: 1, leg: 'hin', matches: [{ home: 's1-a', away: 's1-b' }] },
+      { day: 2, leg: 'rueck', matches: [{ home: 's1-b', away: 's1-a' }] },
+    ],
+  };
+  const transfer = {
+    removed: [{ teamId: 's1-a', name: 'Bisaflor' }],
+    added: [{ teamId: 's1-a', name: 'Turtok' }],
+  };
+  const avail = transferAvailability(transfer, schedule);
+  assert.deepEqual(avail['s1-a|Turtok'], { from: 2, until: null });
+  assert.deepEqual(avail['s1-a|Bisaflor'], { from: null, until: 1 });
+  // Ohne Eintrag gilt ein Pokémon durchgehend als verfügbar.
+  assert.equal(availableOn(avail, 's1-a', 'Glurak', 1), true);
+  assert.equal(availableOn(avail, 's1-a', 'Turtok', 1), false);
+  assert.equal(availableOn(avail, 's1-a', 'Turtok', 2), true);
+  assert.equal(availableOn(avail, 's1-a', 'Bisaflor', 2), false);
+
+  const teams = [
+    { id: 's1-a', name: 'Alpha', player: 'Janik', pokemon: [monA, monB] },
+    { id: 's1-b', name: 'Beta', player: 'Henrik', pokemon: [monC] },
+  ];
+  const b = (used) => ({ done: true, used, score: { home: 2, away: 1 }, winner: 'home', kills: [] });
+  const results = [
+    { id: 's1-d1-m0', day: 1, home: 's1-a', away: 's1-b', squads: { home: ['Glurak'], away: ['Bisaflor'] },
+      battles: [b({ home: ['Glurak'], away: ['Bisaflor'] })] },
+    { id: 's1-d2-m0', day: 2, home: 's1-b', away: 's1-a', squads: { home: ['Bisaflor'], away: ['Glurak', 'Turtok'] },
+      battles: [b({ home: ['Bisaflor'], away: ['Turtok'] })] },
+  ];
+  const withWindow = pokemonStats(teams, results, pokedex, { scopeTeamId: 's1-a', availability: avail });
+  const turtok = withWindow.find((s) => s.pokemon.name === 'Turtok');
+  // Nur der Kampf des zweiten Spieltags steht im Nenner — der erste war ohne Turtok.
+  assert.equal(turtok.rosterBattles, 1);
+  assert.equal(turtok.battleShareInRoster, 1);
+
+  const without = pokemonStats(teams, results, pokedex, { scopeTeamId: 's1-a' });
+  assert.equal(without.find((s) => s.pokemon.name === 'Turtok').rosterBattles, 2);
+
+  // Dasselbe im Detailprofil: die Hinrunde ist für Turtok keine Bank-Zeit.
+  const prof = pokemonProfile('Turtok', teams, results, pokedex, { availability: avail });
+  assert.equal(prof.teamMatchesPlayed, 1);
+  assert.equal(prof.matchupPct, 1);
+  assert.equal(pokemonProfile('Turtok', teams, results, pokedex).teamMatchesPlayed, 2);
+});
+
+// --- Draft ab Saison 2 -------------------------------------------------------
+const s2dex = [
+  { name: 'Glurak', tier: 'S', image: 'g.png' },
+  { name: 'Turtok', tier: 'A', image: 't.png' },
+  { name: 'Bisaflor', tier: 'A', image: 'b.png' },
+  { name: 'Pikachu', tier: 'D', image: 'p.png' },
+];
+const s2teams = [
+  // Vorsaison
+  { id: 's1-alpha', season: 1, name: 'Alpha', player: 'Janik', pokemon: [{ name: 'Glurak', tier: 'S' }, { name: 'Turtok', tier: 'A' }, { name: 'Bisaflor', tier: 'A' }] },
+  { id: 's1-beta', season: 2 - 1, name: 'Beta', player: 'Henrik', pokemon: [{ name: 'Pikachu', tier: 'D' }] },
+  // Neue Saison
+  { id: 's2-alpha', season: 2, name: 'Alpha', player: 'Janik', pokemon: [] },
+  { id: 's2-beta', season: 2, name: 'Beta', player: 'Henrik', pokemon: [] },
+];
+
+test('Der Vorsaison-Kader hängt am Franchise, nicht an der Team-ID', () => {
+  const prev = previousRosters(s2teams, 2, s2dex);
+  assert.deepEqual(Object.keys(prev).sort(), ['s2-alpha', 's2-beta']);
+  assert.deepEqual(prev['s2-alpha'].map((p) => p.name).sort(), ['Bisaflor', 'Glurak', 'Turtok']);
+  assert.equal(prev['s2-alpha'].find((p) => p.name === 'Glurak').tier, 'S');
+});
+
+test('Eine Vertragsverlängerung verfällt, sobald ihr Tier leer oder voll ist', () => {
+  const prev = previousRosters(s2teams, 2, s2dex);
+  const draft = { order: ['s2-alpha', 's2-beta'], pickIndex: 0, renewals: [] };
+  const open = renewalState('s2-alpha', prev['s2-alpha'], draft, new Set(), []);
+  const byTier = Object.fromEntries(open.map((r) => [r.tier, r]));
+  assert.equal(byTier.S.status, 'open');
+  assert.deepEqual(byTier.A.options.map((o) => o.name).sort(), ['Bisaflor', 'Turtok']);
+  assert.equal(byTier.B.status, 'expired', 'ohne Pokémon im Tier gibt es nichts zu verlängern');
+  assert.ok(hasOpenRenewal(open));
+
+  // Beide A-Pokémon weg -> die Verlängerung verfällt von selbst.
+  const taken = new Set(['Turtok', 'Bisaflor']);
+  const after = renewalState('s2-alpha', prev['s2-alpha'], draft, taken, []);
+  assert.equal(after.find((r) => r.tier === 'A').status, 'expired');
+
+  // Tier bereits regulär gefüllt -> ebenfalls verfallen.
+  const full = renewalState('s2-alpha', prev['s2-alpha'], draft, new Set(), [{ tier: 'A' }, { tier: 'A' }]);
+  assert.equal(full.find((r) => r.tier === 'A').status, 'expired');
+
+  // Eingelöst bleibt eingelöst.
+  const used = renewalState('s2-alpha', prev['s2-alpha'],
+    { ...draft, renewals: [{ teamId: 's2-alpha', tier: 'S', name: 'Glurak', round: 0 }] }, new Set(['Glurak']), []);
+  assert.equal(used.find((r) => r.tier === 'S').status, 'used');
+  assert.equal(used.find((r) => r.tier === 'S').name, 'Glurak');
+});
+
+test('Das Fenster öffnet je Runde und schließt, wenn alle entschieden haben', () => {
+  const order = ['a', 'b', 'c', 'd'];
+  const always = () => true;
+  assert.deepEqual(snakeOrder(order, 0), ['a', 'b', 'c', 'd']);
+  assert.deepEqual(snakeOrder(order, 1), ['d', 'c', 'b', 'a']);
+  assert.equal(renewalTurn({ order, renewalRound: 0, renewalDone: [] }, always).teamId, 'a');
+  assert.equal(renewalTurn({ order, renewalRound: 0, renewalDone: ['a'] }, always).teamId, 'b');
+  assert.equal(renewalTurn({ order, renewalRound: 1, renewalDone: [] }, always).teamId, 'd');
+  assert.equal(renewalTurn({ order, renewalRound: 0, renewalDone: order }, always), null);
+  assert.equal(renewalTurn({ order, renewalRound: null, renewalDone: [] }, always), null);
+  // Wer nichts mehr einzulösen hat, steht gar nicht erst in der Schlange.
+  assert.equal(renewalTurn({ order, renewalRound: 0, renewalDone: [] }, (id) => id === 'c').teamId, 'c');
+});
+
+test('Ein verlängerter Zug ist vorgezogen — die Runde behält ihre Länge', () => {
+  const order = ['a', 'b', 'c', 'd'];
+  const draft = { order, pickIndex: 0, renewals: [] };
+  assert.equal(draftCurrentPick(draft).teamId, 'a');
+  assert.equal(draftCurrentPick({ ...draft, pickIndex: 3 }).teamId, 'd');
+  // Runde 2 läuft rückwärts.
+  assert.equal(draftCurrentPick({ ...draft, pickIndex: 4 }).teamId, 'd');
+
+  // 'c' hat Runde 1 per Verlängerung eröffnet: sein Zug ist weg, der Rest rückt auf.
+  const withRenewal = { order, pickIndex: 1, renewals: [{ teamId: 'c', tier: 'S', name: 'X', round: 0 }] };
+  assert.equal(renewedIn(withRenewal, 0).has('c'), true);
+  assert.equal(draftCurrentPick(withRenewal).teamId, 'a');
+  assert.equal(draftCurrentPick({ ...withRenewal, pickIndex: 2 }).teamId, 'b');
+  assert.equal(draftCurrentPick({ ...withRenewal, pickIndex: 3 }).teamId, 'd');
+  // Und die Runde ist nach vier Zügen vorbei.
+  assert.equal(draftCurrentPick({ ...withRenewal, pickIndex: 4 }).round, 2);
+});
+
+test('Die Draft-Reihenfolge folgt der Endtabelle, die Aufsteiger schließen an', () => {
+  const row = (id, player) => ({ team: { id, player } });
+  const prevTable = [
+    row('s1-t1', 'Janik'), row('s1-t2', 'Henrik'), row('s1-t3', 'Janik'),
+    row('s1-t4', 'Henrik'), row('s1-t5', 'Janik'), row('s1-t6', 'Henrik'),
+    row('s1-t7', 'Janik'), row('s1-t8', 'Henrik'),
+  ];
+  const keep = ['t1', 't2', 't3', 't4', 't5', 't6'].map((f, i) => ({ id: `s2-${f}`, player: i % 2 === 0 ? 'Janik' : 'Henrik' }));
+
+  // Je Spieler ein Aufsteiger: Der Abstiegsplatz entscheidet (7 vor 8).
+  const mixed = buildDraftOrder({
+    prevTable,
+    teams: [...keep, { id: 's2-neuJ', player: 'Janik' }, { id: 's2-neuH', player: 'Henrik' }],
+  });
+  assert.equal(mixed.choice, null);
+  assert.deepEqual(mixed.order.slice(0, 6), keep.map((t) => t.id));
+  assert.deepEqual(mixed.order.slice(6), ['s2-neuJ', 's2-neuH']);
+
+  // Beide Aufsteiger gehören einem Spieler: Das kann nur er entscheiden.
+  const same = buildDraftOrder({
+    prevTable,
+    teams: [...keep, { id: 's2-neuA', player: 'Janik' }, { id: 's2-neuB', player: 'Janik' }],
+  });
+  assert.equal(same.order.length, 6);
+  assert.equal(same.choice.player, 'Janik');
+  assert.deepEqual(same.choice.options.sort(), ['s2-neuA', 's2-neuB']);
+
+  const chosen = buildDraftOrder({
+    prevTable,
+    teams: [...keep, { id: 's2-neuA', player: 'Janik' }, { id: 's2-neuB', player: 'Janik' }],
+    firstPromoted: 's2-neuB',
+  });
+  assert.equal(chosen.choice, null);
+  assert.deepEqual(chosen.order.slice(6), ['s2-neuB', 's2-neuA']);
+
+  // Ohne Vorsaison bleibt es bei der Auslosung.
+  assert.deepEqual(buildDraftOrder({ prevTable: [], teams: keep }).order, []);
+});
+
+test('Die Neuzugänge einer Saison kommen aus dem Feld „since"', () => {
+  const dex = [
+    { name: 'Alt', tier: 'S', cost: 20 },
+    { name: 'Neu klein', tier: 'D', cost: 3, since: 2 },
+    { name: 'Neu groß', tier: 'S', cost: 18, since: 2 },
+    { name: 'Später', tier: 'A', cost: 15, since: 3 },
+  ];
+  assert.deepEqual(newcomersOfSeason(dex, 2).map((p) => p.name), ['Neu groß', 'Neu klein']);
+  assert.deepEqual(newcomersOfSeason(dex, 3).map((p) => p.name), ['Später']);
+  assert.deepEqual(newcomersOfSeason(dex, 1), []);
+  assert.equal(RENEWAL_TIERS.length, 5);
 });
 
 console.log(`\n${passed} Tests bestanden.`);

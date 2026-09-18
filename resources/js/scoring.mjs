@@ -155,6 +155,52 @@ function withDerivedStats(st) {
   };
 }
 
+/**
+ * Wann ein Pokémon einem Team zur Verfügung stand — gemessen in Spieltagen.
+ *
+ * Das Wintertransferfenster liegt zwischen Hin- und Rückrunde. Ein dort gezogenes
+ * Pokémon konnte an den Spieltagen davor gar nicht auflaufen, ein abgegebenes danach
+ * nicht mehr. Ohne diese Grenze rechnen alle prozentualen Kennzahlen so, als hätte
+ * jedes Pokémon die ganze Saison zur Verfügung gestanden — ein im Winter geholtes
+ * Pokémon steht dann mit einer halbierten Einsatzquote da, die es nie hatte.
+ *
+ * Der Schnitt ist der letzte Spieltag der Hinrunde (`leg === 'hin'`); das
+ * Transfer-Dokument selbst kennt keinen Spieltag.
+ *
+ * @returns {Object<string, {from:(number|null), until:(number|null)}>} Schlüssel `teamId|name`.
+ *          Die Team-ID trägt die Saison in sich, deshalb bleibt die Karte auch
+ *          saisonübergreifend eindeutig.
+ */
+export function transferAvailability(transfer, schedule) {
+  const out = {};
+  const hin = (schedule?.matchdays || [])
+    .filter((md) => md?.leg === 'hin')
+    .map((md) => Number(md.day))
+    .filter(Number.isFinite);
+  if (!hin.length) return out;
+  const cut = Math.max(...hin);
+  (transfer?.removed || []).forEach((r) => {
+    if (r?.teamId && r?.name) out[`${r.teamId}|${r.name}`] = { from: null, until: cut };
+  });
+  // Nach dem Abgeben kommt das Ziehen: wer im selben Fenster abgibt und holt, ist
+  // ab dem Fenster dabei — der spätere Eintrag gewinnt bewusst.
+  (transfer?.added || []).forEach((a) => {
+    if (a?.teamId && a?.name) out[`${a.teamId}|${a.name}`] = { from: cut + 1, until: null };
+  });
+  return out;
+}
+
+/** Stand dieses Pokémon an diesem Spieltag im Kader des Teams? */
+export function availableOn(availability, teamId, name, day) {
+  const w = availability?.[`${teamId}|${name}`];
+  if (!w) return true;
+  const d = Number(day);
+  if (!Number.isFinite(d)) return true;
+  if (w.from != null && d < w.from) return false;
+  if (w.until != null && d > w.until) return false;
+  return true;
+}
+
 // Attribution ist result-getrieben: ein Beitrag zählt für die Seite (home/away), die das
 // Pokémon in DIESEM Ergebnis aufgestellt hat — nicht für den aktuellen Roster-Besitzer.
 // Dadurch bleiben Leistungen nach einem Team-Wechsel korrekt beim damaligen Team.
@@ -162,8 +208,11 @@ function withDerivedStats(st) {
 //             Pokémon, die (nach Abgabe) in keinem Roster mehr stehen.
 //   opts.scopeTeamId — nur Ergebnisse dieses Teams und nur dessen Seite zählen (Team-Detail);
 //                      Universum = aktuelles Roster des Teams.
+//   opts.availability — Kaderfenster aus transferAvailability(); ohne sie gilt jedes
+//                      Pokémon über die gesamte Saison als verfügbar.
 export function pokemonStats(teams, results, pokedex = [], opts = {}) {
   const scopeTeamId = opts.scopeTeamId ?? null;
+  const availability = opts.availability || null;
   const byName = {};
   (pokedex || []).forEach((p) => { if (p?.name) byName[p.name] = p; });
 
@@ -213,7 +262,12 @@ export function pokemonStats(teams, results, pokedex = [], opts = {}) {
       if (scopeTeamId && teamId !== scopeTeamId) return;
       const squad = new Set(r.squads?.[side] || []);
       Object.keys(stats).forEach((name) => {
-        if (squad.has(name) || ownerByName[name]?.id === teamId) stats[name].rosterBattles += doneBattles;
+        // Aufgestellt zählt immer; auf der Bank nur, wenn es an diesem Spieltag
+        // überhaupt schon (oder noch) zum Kader gehörte.
+        if (squad.has(name)
+          || (ownerByName[name]?.id === teamId && availableOn(availability, teamId, name, r.day))) {
+          stats[name].rosterBattles += doneBattles;
+        }
       });
     });
   });
@@ -454,7 +508,8 @@ export function offensiveChart(types) {
 //  - Nur Kämpfe mit b.done === true zählen.
 //  - kills:  k.killer === name && k.killerSide !== k.victimSide (kein Self-Kill).
 //  - deaths: k.victim === name (inkl. Self-Kill und ohne Verursacher).
-export function pokemonProfile(name, teams, results, pokedex = []) {
+export function pokemonProfile(name, teams, results, pokedex = [], opts = {}) {
+  const availability = opts.availability || null;
   // Team des Pokémon und dessen Gegner-Name je result ermitteln.
   const currentTeam = (teams || []).find((t) => (t?.pokemon || []).some((p) => p?.name === name)) || null;
   const teamById = {};
@@ -505,9 +560,13 @@ export function pokemonProfile(name, teams, results, pokedex = []) {
   // erhalten (kills/deaths/history spannen über alle Teams), während team-relative Kennzahlen
   // (matchupPct, Ohne-Bilanz) sich auf das aktuelle Team beziehen.
   const appears = (r) => (r?.squads?.home || []).includes(name) || (r?.squads?.away || []).includes(name);
-  const merged = (results || []).filter(
-    (r) => r && (appears(r) || (currentTeam && (r.home === currentTeam.id || r.away === currentTeam.id))),
-  );
+  // Bank-Matches zählen nur, solange das Pokémon dem Team auch gehörte: ein im
+  // Wintertransfer geholtes Pokémon hat die Hinrunde nicht auf der Bank verbracht,
+  // es war schlicht nicht da.
+  const onBench = (r) => currentTeam
+    && (r.home === currentTeam.id || r.away === currentTeam.id)
+    && availableOn(availability, currentTeam.id, name, r.day);
+  const merged = (results || []).filter((r) => r && (appears(r) || onBench(r)));
   if (!currentTeam && merged.length === 0) return empty;
 
   // Anzeige-Team: aktueller Besitzer, sonst das Team der jüngsten Aufstellung.
@@ -831,7 +890,7 @@ export function playerDuel(teams, results) {
 export function showdownSpecies(nameEn) {
   if (!nameEn) return '';
   const s = String(nameEn).trim();
-  let m = /^Mega (.+) ([XY])$/.exec(s);
+  let m = /^Mega (.+) ([XYZ])$/.exec(s);
   if (m) return `${m[1]}-Mega-${m[2]}`;
   m = /^Mega (.+)$/.exec(s);
   if (m) return `${m[1]}-Mega`;
@@ -932,15 +991,30 @@ export function draftPicks(teams, draft, transfer = {}, pokedex = [], picksPerTe
   const rosters = {};
   order.forEach((id) => { rosters[id] = draftRoster(id); });
 
+  // Wer eine Runde per Vertragsverlängerung eröffnet hat, zieht in dieser Runde
+  // ZUERST — sein regulärer Zug ist damit vorgezogen. Die Reihenfolge einer Runde ist
+  // also: die Verlängerungen in Snake-Reihenfolge, danach der Rest in Snake-Reihenfolge.
+  const renewalsByRound = {};
+  (draft?.renewals || []).forEach((r) => {
+    if (!r?.teamId || !Number.isFinite(r.round)) return;
+    (renewalsByRound[r.round] = renewalsByRound[r.round] || new Set()).add(r.teamId);
+  });
+  const renewedNames = new Set((draft?.renewals || []).map((r) => r?.name).filter(Boolean));
+  const roundOrder = (round) => {
+    const snake = round % 2 === 0 ? order : [...order].reverse();
+    const renewed = renewalsByRound[round];
+    if (!renewed || !renewed.size) return snake;
+    return [...snake.filter((id) => renewed.has(id)), ...snake.filter((id) => !renewed.has(id))];
+  };
+
   const totalPicks = n * picksPerTeam;
   const made = Math.max(0, Math.min(Number.isFinite(draft?.pickIndex) ? draft.pickIndex : totalPicks, totalPicks));
   const counts = {};
   const picks = [];
   for (let k = 0; k < made; k++) {
     const round = Math.floor(k / n);
-    const pos = k % n;
-    const idx = round % 2 === 0 ? pos : n - 1 - pos;
-    const teamId = order[idx];
+    const teamId = roundOrder(round)[k % n];
+    if (!teamId) continue;
     const occ = counts[teamId] || 0;
     counts[teamId] = occ + 1;
     const mon = rosters[teamId]?.[occ] || null;
@@ -952,6 +1026,7 @@ export function draftPicks(teams, draft, transfer = {}, pokedex = [], picksPerTe
       team: teamById[teamId] || null,
       mon,
       gone: !!mon.gone,
+      renewed: renewedNames.has(mon.name),
       approx: (removedByTeam[teamId] || []).length > 0,
     });
   }
@@ -991,6 +1066,14 @@ const POKEZONE_FORMS = {
   'Rotom-Frost': 'rotom-frost-rotom',
   'Rotom-Fan': 'rotom-fan-rotom',
   'Rotom-Mow': 'rotom-mow-rotom',
+  Indeedee: 'indeedee',
+  'Indeedee-F': 'indeedee-female',
+  Toxtricity: 'toxtricity',
+  'Toxtricity-Low-Key': 'toxtricity-low-key-form',
+  Squawkabilly: 'squawkabilly',
+  'Squawkabilly-Yellow': 'squawkabilly-yellow-plumage',
+  'Farfetch\u2019d': 'farfetchd',
+  'Sirfetch\u2019d': 'sirfetchd',
 };
 
 function pokezoneSlugify(value) {
@@ -1007,7 +1090,7 @@ export function pokezoneSlug(nameEn) {
   if (!name) return '';
   if (POKEZONE_FORMS[name]) return POKEZONE_FORMS[name];
   const mega = name.match(/^Mega (.+)$/);
-  if (mega) return `${pokezoneSlugify(mega[1].replace(/ [XY]$/, ''))}-${pokezoneSlugify(name)}`;
+  if (mega) return `${pokezoneSlugify(mega[1].replace(/ [XYZ]$/, ''))}-${pokezoneSlugify(name)}`;
   const region = name.match(/^(Alolan|Galarian|Hisuian|Paldean) (.+)$/);
   if (region) return `${pokezoneSlugify(region[2])}-${POKEZONE_REGIONS[region[1]]}`;
   return pokezoneSlugify(name);

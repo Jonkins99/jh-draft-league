@@ -1,7 +1,7 @@
 import Alpine from 'alpinejs';
 import { db } from './firebase.js';
 import { collection, doc, getDoc, onSnapshot, writeBatch, arrayUnion, setDoc, deleteDoc, runTransaction } from 'firebase/firestore';
-import { battleStats, mergeResult, computeStandings, pokemonStats, placementHistory, speedTiers, speedCases, clampSp, applySpeedMod, typeMultiplier, ALL_TYPES, pokemonProfile, defensiveChart, offensiveChart, playerDuel, showdownExport, teamBattleTotals, isMega, baseFormOf, pokezoneUrl, draftPicks } from './scoring.mjs';
+import { battleStats, mergeResult, computeStandings, pokemonStats, placementHistory, speedTiers, speedCases, clampSp, applySpeedMod, typeMultiplier, ALL_TYPES, pokemonProfile, defensiveChart, offensiveChart, playerDuel, showdownExport, teamBattleTotals, isMega, baseFormOf, pokezoneUrl, draftPicks, transferAvailability } from './scoring.mjs';
 import {
   exportDataset, buildScheduleExport, buildBattleDetailsExport, buildStandingsExport,
   buildRankingExport, buildTeamsExport, buildDraftpoolExport, buildDraftOrderExport,
@@ -22,8 +22,12 @@ import {
 import {
   SEASON_ALL, seasonPrefix, seasonOfId, seasonOfTeam, franchiseSlug, seasonsFrom,
   teamsOfSeason, resultsOfSeason, allTimeTable, seasonSummaries, allTimePlayers,
-  allTimePokemon, buildRecords, awardLeaderboard,
+  allTimePokemon, buildRecords, awardLeaderboard, newcomersOfSeason,
 } from './seasons.mjs';
+import {
+  RENEWAL_TIERS, previousRosters, renewalState, hasOpenRenewal, renewalTurn,
+  currentPick as draftCurrentPick, buildDraftOrder, renewedIn, snakeOrder,
+} from './draft.mjs';
 import { normalizeVideoUrl, videoEmbed, videoHostLabel } from './video.mjs';
 import { renderTiles, TILE_KINDS } from './press-tiles.mjs';
 import { renderMarketChart } from './marketchart.mjs';
@@ -53,7 +57,7 @@ import {
   collectStorylines, sanitizeHtml, paragraphsToHtml, excerpt, readingMinutes,
   formatDate, formatDateTime, sortArticles, articleMatchesFilter, storyId,
 } from './press.mjs';
-import { buildContext } from './press-context.mjs';
+import { buildContext, isReference } from './press-context.mjs';
 import {
   DEFAULT_PROMPTS, PROMPT_DEFS, buildSystem, buildUserPrompt, buildDirection,
   ARTICLE_SCHEMA, ARTICLE_SCHEMA_WITH_CATEGORY, ARTICLE_SCHEMA_FREE_CATEGORY, QUESTIONS_SCHEMA,
@@ -73,12 +77,12 @@ const PICKS_PER_TEAM = 10;
 const TIER_ORDER = ['S', 'A', 'B', 'C', 'D'];
 
 const ICONS = {
-  pokeball: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><circle cx="12" cy="12" r="9"/><path d="M3 12h6"/><path d="M15 12h6"/><circle cx="12" cy="12" r="2.6"/></svg>`,
-  standings: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M5 21V12"/><path d="M12 21V4"/><path d="M19 21v-6"/><path d="M3 21h18"/></svg>`,
-  bolt: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M13 2 4 14h7l-1 8 9-12h-7z"/></svg>`,
-  teams: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="9" cy="8" r="3.2"/><path d="M3.5 20a5.5 5.5 0 0 1 11 0"/><path d="M16 5.4a3.2 3.2 0 0 1 0 5.2"/><path d="M17.6 14.6a5.5 5.5 0 0 1 2.9 5.4"/></svg>`,
+  draft: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="2.5" y="13" width="5.5" height="8" rx="1.5"/><rect x="9.25" y="13" width="5.5" height="8" rx="1.5"/><rect x="16" y="13" width="5.5" height="8" rx="1.5"/><path d="M12 10V3"/><path d="m9 6 3-3 3 3"/></svg>`,
+  standings: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="16" rx="2.5"/><path d="M3 9h18"/><path d="M3 14.5h18"/><path d="M8.5 9v11"/></svg>`,
+  schedule: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="5" width="18" height="16" rx="2.5"/><path d="M3 10h18"/><path d="M8 3v4"/><path d="M16 3v4"/><path d="M7 14h3"/><path d="M14 14h3"/><path d="M7 17.5h3"/><path d="M14 17.5h3"/></svg>`,
+  teams: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3 4.5 5.8v5.4c0 4.3 3.1 8.1 7.5 9.6 4.4-1.5 7.5-5.3 7.5-9.6V5.8z"/><path d="M9 10.5h6"/><path d="M12 10.5v4.5"/></svg>`,
   player: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="7" cy="7" r="3"/><circle cx="17" cy="7" r="3"/><path d="M2 20a5 5 0 0 1 10 0"/><path d="M12 20a5 5 0 0 1 10 0"/></svg>`,
-  build: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M3 7h7"/><path d="M3 12h7"/><path d="M3 17h7"/><path d="M14 7h7"/><path d="M14 12h7"/><path d="M14 17h7"/><circle cx="14" cy="7" r="0.5"/></svg>`,
+  build: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="2.5" y="6" width="7" height="12" rx="2"/><rect x="14.5" y="6" width="7" height="12" rx="2"/><path d="M12 4v3.5"/><path d="M12 10.5v3"/><path d="M12 16.5v3.5"/></svg>`,
   search: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="7"/><path d="m21 21-4.3-4.3"/></svg>`,
   transfer: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M4 8h13"/><path d="m14 5 3 3-3 3"/><path d="M20 16H7"/><path d="m10 13-3 3 3 3"/></svg>`,
   award: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="9" r="6"/><path d="M8.2 14.2 6.5 21l5.5-2.8L17.5 21l-1.7-6.8"/></svg>`,
@@ -259,7 +263,7 @@ const STAT_CATALOG = [
   { key: 'killsPerBattle', label: 'Kills/Kampf', short: 'K/Kpf', fmt: 'num2', info: 'Durchschnittliche Kills pro eingesetztem Kampf.' },
   { key: 'kpfPerMu', label: 'Kämpfe/Matchup', short: 'Kpf/MU', fmt: 'num2', info: 'Durchschnittliche Kampf-Einsätze pro Match-Aufgebot (0–3): Wie oft ein nominiertes Pokémon tatsächlich in einem der bis zu drei Kämpfe steht.' },
   { key: 'battleShareInMu', label: 'Kämpfe % (Aufgebot)', short: 'Kpf % AG', fmt: 'pct', info: 'Einsatzquote im Matchup: Wenn nominiert (6er-Aufgebot), Anteil der bis zu drei Kämpfe, in denen dieses Pokémon tatsächlich stand. Matches ohne Nominierung bleiben außen vor.' },
-  { key: 'battleShareInRoster', label: 'Kämpfe % (Kader)', short: 'Kpf % Kdr', fmt: 'pct', info: 'Einsatzquote im Kader: Anteil aller ausgetragenen Kämpfe des Teams, in denen dieses Pokémon stand — Matches, in denen es nicht nominiert war, zählen hier im Nenner mit. Zeigt also, wie viel vom gesamten Kampfgeschehen des Teams über dieses Pokémon lief.' },
+  { key: 'battleShareInRoster', label: 'Kämpfe % (Kader)', short: 'Kpf %', fmt: 'pct', info: 'Einsatzquote im Kader: Anteil aller ausgetragenen Kämpfe des Teams, in denen dieses Pokémon stand — Matches, in denen es nicht nominiert war, zählen hier im Nenner mit. Zeigt also, wie viel vom gesamten Kampfgeschehen des Teams über dieses Pokémon lief. Ein im Wintertransfer geholtes Pokémon zählt erst ab der Rückrunde mit — die Hinrunde war für es nicht spielbar.' },
   { key: 'matchups', label: 'Matchups', short: 'MU', fmt: 'int', info: 'In wie vielen Match-Aufgeboten (6 von 10) dieses Pokémon stand.' },
   { key: 'battles', label: 'Kämpfe', short: 'Kpf', fmt: 'int', info: 'In wie vielen ausgetragenen Kämpfen (4er-Einsatz) es stand.' },
   { key: 'battleWinPct', label: 'Kampf-Siegquote', short: 'Kpf-SQ', fmt: 'pct', info: 'Anteil gewonnener Kämpfe an allen Kämpfen, in denen es eingesetzt wurde.' },
@@ -538,12 +542,11 @@ function buildSchedule(janikIds, henrikIds) {
   return matchdays;
 }
 
-// Neutrale Linienfarbe — Teams werden im Diagramm über ihr Logo an jedem Datenpunkt
-// identifiziert, nicht über eine hinterlegte Team-Farbe.
+// Rückfallfarbe für Linien ohne eigene Team-Farbe.
 const CHART_LINE = '#4b5563';
 
 // Aus dem Platzierungsverlauf eine SVG-Geometrie bauen (Platz 1 oben, gespielte Spieltage als X).
-// styleFor(teamId, i) -> { logo } liefert das Logo, das an jedem Datenpunkt gezeichnet wird.
+// styleFor(teamId, i) -> { logo, color } liefert Logo und Linienfarbe je Team.
 function buildChart(history, teamsCount, styleFor) {
   const W = 640, H = 240, padL = 34, padR = 26, padT = 18, padB = 26;
   const innerW = W - padL - padR;
@@ -559,7 +562,7 @@ function buildChart(history, teamsCount, styleFor) {
     const dots = pts.map((p) => ({ day: p.day, place: p.place, x: xFor(p.day), y: yFor(p.place) }));
     return {
       teamId,
-      color: CHART_LINE,
+      color: style.color || CHART_LINE,
       logo: style.logo || null,
       dots,
       end: dots.length ? dots[dots.length - 1] : null,
@@ -619,6 +622,44 @@ const SERIES_COLORS = [
 
 function seriesColor(i) {
   return SERIES_COLORS[i % SERIES_COLORS.length];
+}
+
+// Vorschläge im Farbwähler. Bewusst kräftig und auf dunklem Grund lesbar; die
+// eigentliche Wahl ist damit nicht begrenzt (der Wähler kennt auch das Farbfeld).
+const TEAM_COLOR_PRESETS = [
+  { hex: '#e3350d', name: 'Flammenrot' },
+  { hex: '#ff7a18', name: 'Glutorange' },
+  { hex: '#ffcb05', name: 'Blitzgelb' },
+  { hex: '#a3e635', name: 'Giftgrün' },
+  { hex: '#63bc5a', name: 'Blattgrün' },
+  { hex: '#22d3ee', name: 'Eisblau' },
+  { hex: '#38bdf8', name: 'Himmelblau' },
+  { hex: '#4d90d5', name: 'Tiefblau' },
+  { hex: '#8b5cf6', name: 'Psychoviolett' },
+  { hex: '#f472b6', name: 'Feenrosa' },
+  { hex: '#c08552', name: 'Bodenbraun' },
+  { hex: '#98a2b3', name: 'Stahlgrau' },
+];
+
+// Nur waschechte 6-stellige Hex-Farben werden übernommen — alles andere wäre ein
+// Freibrief für beliebige CSS-Werte in einem :style-Ausdruck.
+function normalizeHexColor(value) {
+  const v = String(value || '').trim();
+  return /^#[0-9a-fA-F]{6}$/.test(v) ? v.toLowerCase() : null;
+}
+
+/**
+ * Die Farbe, mit der ein Team seitenweit dargestellt wird: die vom Besitzer gewählte,
+ * sonst eine feste Ableitung aus der Team-ID. Die Ableitung ist stabil — dasselbe Team
+ * bekommt in jedem Diagramm dieselbe Farbe, auch ohne hinterlegte Wahl.
+ */
+function teamColor(team) {
+  const chosen = normalizeHexColor(team?.color);
+  if (chosen) return chosen;
+  const id = String(team?.id || '');
+  let h = 0;
+  for (let i = 0; i < id.length; i++) h = (Math.imul(h, 31) + id.charCodeAt(i)) >>> 0;
+  return SERIES_COLORS[h % SERIES_COLORS.length];
 }
 
 // Eine Pokémon-Linie für das Marktwert-Verlaufsdiagramm. Tier-Wechsel werden am
@@ -945,14 +986,14 @@ function app() {
     get items() {
       const byKey = {
         tabelle: { key: 'tabelle', label: 'Tabelle', file: './pages/tabelle.html', icon: ICONS.standings },
-        spieltag: { key: 'spieltag', label: 'Spielplan', file: './pages/spieltag.html', icon: ICONS.bolt },
+        spieltag: { key: 'spieltag', label: 'Spielplan', file: './pages/spieltag.html', icon: ICONS.schedule },
         teambuilding: { key: 'teambuilding', label: 'Teambuilding', file: './pages/teambuilding.html', icon: ICONS.build },
         teams: { key: 'teams', label: 'Teams', file: './pages/teams.html', icon: ICONS.teams },
         stats: { key: 'stats', label: 'Statistiken', file: './pages/statistiken.html', icon: ICONS.stats },
         presse: { key: 'presse', label: 'Presse', file: './pages/presse.html', icon: ICONS.press },
         awards: { key: 'awards', label: 'Awards', file: './pages/awards.html', icon: ICONS.award },
         spieler: { key: 'spieler', label: 'Spieler', file: './pages/spieler.html', icon: ICONS.player },
-        draft: { key: 'draft', label: 'Draft', file: './pages/draft.html', icon: ICONS.pokeball },
+        draft: { key: 'draft', label: 'Draft', file: './pages/draft.html', icon: ICONS.draft },
         transfer: { key: 'transfer', label: 'Transfer', file: './pages/transfer.html', icon: ICONS.transfer },
         rekorde: { key: 'rekorde', label: 'Rekorde', file: './pages/rekorde.html', icon: ICONS.record },
       };
@@ -1133,6 +1174,10 @@ function draftBoard() {
     q: '',
     candidate: null,
     busy: false,
+    // Vertragsverlängerung: das im Dialog gewählte Pokémon, bis bestätigt wird.
+    renewPick: null,
+    _prevKey: null,
+    _prevCache: null,
 
     get league() {
       return this.$store.league;
@@ -1158,15 +1203,11 @@ function draftBoard() {
       return this.league.teams.find((t) => t.id === id) || null;
     },
 
-    // Aktueller Pick im Snake-System
+    // Aktueller Pick im Snake-System. Wer die Runde per Vertragsverlängerung eröffnet
+    // hat, ist darin durch und fällt aus der Reihe.
     get currentPick() {
-      const d = this.draft;
-      if (!this.running || !d.order || !d.order.length) return null;
-      const n = d.order.length;
-      const round = Math.floor(d.pickIndex / n);
-      const pos = d.pickIndex % n;
-      const idx = round % 2 === 0 ? pos : n - 1 - pos;
-      return { teamId: d.order[idx], round: round + 1, pickNo: d.pickIndex + 1 };
+      if (!this.running) return null;
+      return draftCurrentPick(this.draft, { picksPerTeam: PICKS_PER_TEAM });
     },
     get currentTeam() {
       const cp = this.currentPick;
@@ -1188,6 +1229,104 @@ function draftBoard() {
     // Reihenfolge (Logos) für die Anzeige
     get orderTeams() {
       return (this.draft.order || []).map((id) => this.teamById(id)).filter(Boolean);
+    },
+
+    // === Vertragsverlängerungen =============================================
+    // Intern „renewal"; im Frontend heißt es ausschließlich Vertragsverlängerung.
+    get renewalTiers() { return RENEWAL_TIERS; },
+    // Memoisiert wie das Pokémon-Profil: Die Kader der VORSAISON ändern sich während
+    // dieses Drafts nicht mehr, werden aber in jeder Zeile der Übersicht gebraucht.
+    get prevRosters() {
+      const key = `${this.league.season}|${this.league.teams?.length || 0}|${this.league.pokemon?.length || 0}`;
+      if (this._prevKey !== key) {
+        this._prevKey = key;
+        this._prevCache = this.league.prevRosters;
+      }
+      return this._prevCache || {};
+    },
+    prevRosterOf(teamId) { return this.prevRosters[teamId] || []; },
+    // Alle fünf Verlängerungen eines Teams mit ihrem Stand.
+    renewalsOf(teamId) {
+      return renewalState(
+        teamId,
+        this.prevRosterOf(teamId),
+        this.draft,
+        this.draftedNames,
+        this.teamById(teamId)?.pokemon || [],
+      );
+    },
+    hasRenewals(teamId) { return this.prevRosterOf(teamId).length > 0; },
+    // Alle Teams mit Vertragsverlängerungen, in Draft-Reihenfolge.
+    get renewalTeams() {
+      return (this.draft.order || []).filter((id) => this.hasRenewals(id));
+    },
+    get renewalBoard() {
+      return this.renewalTeams
+        .map((id) => ({ team: this.teamById(id), renewals: this.renewalsOf(id) }))
+        .filter((r) => r.team);
+    },
+    // Gibt es überhaupt eine Vorsaison, aus der sich die Reihenfolge ableiten lässt?
+    get hasPreviousSeason() {
+      return this.league.previousTable().length > 0;
+    },
+    // Wer ist im offenen Fenster als Nächstes dran? null = kein Fenster offen.
+    get renewalTurn() {
+      if (!this.running) return null;
+      return renewalTurn(this.draft, (id) => hasOpenRenewal(this.renewalsOf(id)));
+    },
+    get renewalTeam() {
+      const t = this.renewalTurn;
+      return t ? this.teamById(t.teamId) : null;
+    },
+    get renewalOpen() { return !!this.renewalTurn; },
+    get isMyRenewal() {
+      return this.renewalOpen && this.$store.auth.ownsTeam(this.renewalTeam);
+    },
+    // Die einlösbaren Verlängerungen des Teams, das gerade dran ist.
+    get renewalOptions() {
+      const t = this.renewalTurn;
+      if (!t) return [];
+      return this.renewalsOf(t.teamId).filter((r) => r.status === 'open');
+    },
+    // Wer hat in dieser Runde schon per Verlängerung gezogen?
+    renewedThisRound(teamId) {
+      const d = this.draft;
+      const n = d.order?.length || 1;
+      const round = Math.floor((d.pickIndex || 0) / n);
+      return renewedIn(d, round).has(teamId);
+    },
+    renewalLabel(status) {
+      return status === 'used' ? 'eingelöst' : status === 'expired' ? 'verfallen' : 'offen';
+    },
+    // Alle eingelösten Verlängerungen, jüngste zuerst — für den Verlauf.
+    get renewalLog() {
+      return [...(this.draft.renewals || [])]
+        .sort((a, b) => (b.round ?? 0) - (a.round ?? 0) || String(b.at || '').localeCompare(String(a.at || '')))
+        .map((r) => ({
+          ...r,
+          team: this.teamById(r.teamId),
+          mon: this.league.pokemon.find((p) => p.name === r.name) || { name: r.name },
+        }));
+    },
+
+    // --- Reihenfolge festzurren --------------------------------------------
+    get orderChoice() { return this.draft.orderChoice || null; },
+    get needsOrderChoice() { return this.status === 'order' && !!this.orderChoice; },
+    get isMyOrderChoice() {
+      return this.needsOrderChoice && this.$store.auth.player === this.orderChoice.player;
+    },
+    get orderChoiceTeams() {
+      return (this.orderChoice?.options || []).map((id) => this.teamById(id)).filter(Boolean);
+    },
+    async chooseFirstPromoted(teamId) {
+      if (!this.isMyOrderChoice || this.busy) return;
+      this.busy = true;
+      try {
+        await this.league.chooseFirstPromoted(teamId);
+      } catch (e) {
+        console.error('Reihenfolge konnte nicht gesetzt werden:', e);
+      }
+      this.busy = false;
     },
 
     // Letzte Picks (neueste zuerst) — aus Snake-Reihenfolge + Team-Rostern rekonstruiert.
@@ -1214,9 +1353,12 @@ function draftBoard() {
       return this.allPicks.some((p) => p.approx);
     },
 
+    // Vergriffen ist ein Pokémon nur innerhalb DIESER Saison. Über alle Teams zu
+    // zählen wäre ab Saison 2 fatal: Die Kader der Vorsaison würden den halben Pool
+    // sperren — und jede Vertragsverlängerung sofort verfallen lassen.
     get draftedNames() {
       const set = new Set();
-      this.league.teams.forEach((t) => (t.pokemon || []).forEach((p) => set.add(p.name)));
+      this.league.seasonTeams.forEach((t) => (t.pokemon || []).forEach((p) => set.add(p.name)));
       return set;
     },
 
@@ -1261,7 +1403,8 @@ function draftBoard() {
     },
 
     isPickable(p) {
-      if (!this.running || !this.currentTeam || !this.isMyTurn) return false;
+      // Solange das Fenster für Vertragsverlängerungen offen ist, wird nicht regulär gezogen.
+      if (!this.running || this.renewalOpen || !this.currentTeam || !this.isMyTurn) return false;
       if (this.draftedNames.has(p.name)) return false;
       return (this.currentTierCounts[p.tier] || 0) < 2;
     },
@@ -1292,6 +1435,54 @@ function draftBoard() {
       this.closeConfirm('draft-confirm');
       if (this.hasResults) return;
       await this.league.startDraft();
+    },
+
+    // --- Vertragsverlängerung einlösen -------------------------------------
+    openRenewal() {
+      if (!this.isMyRenewal) return;
+      this.renewPick = null;
+      this.$nextTick(() => document.getElementById('renewal-pick')?.showPopover());
+    },
+    closeRenewal() {
+      const el = document.getElementById('renewal-pick');
+      if (el && el.matches(':popover-open')) el.hidePopover();
+      this.renewPick = null;
+    },
+    chooseRenewal(tier, mon) {
+      this.renewPick = { tier, mon };
+    },
+    async confirmRenewal() {
+      const t = this.renewalTurn;
+      const pick = this.renewPick;
+      if (!t || !pick || this.busy || !this.isMyRenewal) return;
+      this.busy = true;
+      try {
+        const full = this.league.pokemon.find((p) => p.name === pick.mon.name) || {};
+        await this.league.renewContract(t.teamId, pick.tier, {
+          name: pick.mon.name,
+          tier: full.tier || pick.tier,
+          image: full.image || pick.mon.image || '',
+          cost: full.cost ?? null,
+          types: full.types || [],
+          base_speed: full.base_speed ?? null,
+        });
+        this.closeRenewal();
+      } catch (e) {
+        console.error('Vertragsverlängerung fehlgeschlagen:', e);
+        window.dispatchEvent(new CustomEvent('toast', { detail: { msg: 'Die Vertragsverlängerung ist nicht durchgegangen.' } }));
+      }
+      this.busy = false;
+    },
+    async passRenewal() {
+      const t = this.renewalTurn;
+      if (!t || this.busy || !this.isMyRenewal) return;
+      this.busy = true;
+      try {
+        await this.league.skipRenewal(t.teamId);
+      } catch (e) {
+        console.error('Verzicht konnte nicht gespeichert werden:', e);
+      }
+      this.busy = false;
     },
 
     choose(p) {
@@ -1329,7 +1520,7 @@ function draftBoard() {
     },
     // Draftpool exportieren
     runExport(fmt) {
-      exportDataset(buildDraftpoolExport(this.league.pokemon, this.league.teams), fmt);
+      exportDataset(buildDraftpoolExport(this.league.pokemon, this.league.seasonTeams), fmt);
       const el = document.getElementById('exp-draft');
       if (el && el.matches(':popover-open')) el.hidePopover();
     },
@@ -1357,6 +1548,9 @@ function teamsView() {
     // Schwächen/Resistenzen: ausgeschlossene Pokémon (gerätelokal).
     weakExcluded: {},
     allTypes: ALL_TYPES,
+    // Farbwähler im Hero: der Entwurf, bis „Übernehmen" gedrückt ist.
+    colorDraft: null,
+    colorBusy: false,
 
     // Beim Laden: ggf. per Verlinkung übergebenes Team direkt öffnen.
     init() {
@@ -1435,6 +1629,7 @@ function teamsView() {
       const team = this.selectedTeam;
       return buildChart(single, this.teams.length, () => ({
         logo: team ? this.logoUrl(team.logo) : null,
+        color: team ? teamColor(team) : null,
       }));
     },
     get teamCurveSvg() {
@@ -1510,10 +1705,10 @@ function teamsView() {
     },
 
     _teamSeries(highlightId) {
-      return this.teams.map((t, i) => ({
+      return this.teams.map((t) => ({
         key: t.id,
         label: t.name,
-        color: seriesColor(i),
+        color: teamColor(t),
         highlight: highlightId === t.id,
         dimmed: !!highlightId && highlightId !== t.id,
         points: this._squadPoints(t),
@@ -1578,7 +1773,7 @@ function teamsView() {
     get teamRanking() {
       const team = this.selectedTeam;
       if (!team) return [];
-      const rows = this.enrichSpeed(pokemonStats([team], this.league.results, this.league.pokemon, { scopeTeamId: team.id }));
+      const rows = this.enrichSpeed(pokemonStats([team], this.league.results, this.league.pokemon, { scopeTeamId: team.id, availability: this.league.availability }));
       return this.sortRows(withElo(rows, this.$store.elo.rows));
     },
     enrichSpeed(list) {
@@ -1599,7 +1794,7 @@ function teamsView() {
     },
     // Teams exportieren (Übersicht)
     runExport(fmt) {
-      exportDataset(buildTeamsExport(this.league.teams, this.league.pokemon), fmt);
+      exportDataset(buildTeamsExport(this.league.seasonTeams, this.league.pokemon), fmt);
       const el = document.getElementById('exp-teams');
       if (el && el.matches(':popover-open')) el.hidePopover();
     },
@@ -1819,6 +2014,53 @@ function teamsView() {
     // Trainerwechsel sind Sache des Teambesitzers — fremde Teams bleiben nur lesbar.
     get ownsSelected() {
       return this.$store.auth.ownsTeam(this.selectedTeam);
+    },
+
+    // === Teamfarbe ==========================================================
+    // Die Farbe des Teams trägt den Hero und färbt die Team-Linien in jedem
+    // Diagramm der Anwendung. Gewählt wird sie nur vom Besitzer.
+    get colorPresets() { return TEAM_COLOR_PRESETS; },
+    teamColorOf(team) { return teamColor(team); },
+    get selectedColor() { return teamColor(this.selectedTeam); },
+    get hasOwnColor() { return !!normalizeHexColor(this.selectedTeam?.color); },
+    openColorPicker() {
+      if (!this.ownsSelected) return;
+      this.colorDraft = this.selectedColor;
+      this.$nextTick(() => document.getElementById('team-color')?.showPopover());
+    },
+    closeColorPicker() {
+      const el = document.getElementById('team-color');
+      if (el && el.matches(':popover-open')) el.hidePopover();
+      this.colorDraft = null;
+    },
+    pickColor(hex) {
+      const clean = normalizeHexColor(hex);
+      if (clean) this.colorDraft = clean;
+    },
+    async saveColor() {
+      if (!this.ownsSelected || this.colorBusy) return;
+      const hex = normalizeHexColor(this.colorDraft);
+      if (!hex) return;
+      this.colorBusy = true;
+      try {
+        await this.league.setTeamColor(this.selectedId, hex);
+        this.closeColorPicker();
+      } catch (e) {
+        console.error('Teamfarbe konnte nicht gespeichert werden:', e);
+        window.dispatchEvent(new CustomEvent('toast', { detail: { msg: 'Die Farbe konnte nicht gespeichert werden.' } }));
+      }
+      this.colorBusy = false;
+    },
+    async clearColor() {
+      if (!this.ownsSelected || this.colorBusy) return;
+      this.colorBusy = true;
+      try {
+        await this.league.setTeamColor(this.selectedId, null);
+        this.closeColorPicker();
+      } catch (e) {
+        console.error('Teamfarbe konnte nicht zurückgesetzt werden:', e);
+      }
+      this.colorBusy = false;
     },
 
     get trainers() {
@@ -2673,7 +2915,7 @@ function standingsView() {
         this.league.seasonTeams.length,
         (teamId) => {
           const t = this.teamById(teamId);
-          return { logo: t ? this.logoUrl(t.logo) : null };
+          return { logo: t ? this.logoUrl(t.logo) : null, color: t ? teamColor(t) : null };
         },
       );
     },
@@ -2759,7 +3001,7 @@ function statsView() {
       const speed = l.pokemon;
       const raw = this.isAll
         ? allTimePokemon(l.teams, l.allResults, l.pokemon)
-        : pokemonStats(l.seasonTeams, l.results, l.pokemon);
+        : pokemonStats(l.seasonTeams, l.results, l.pokemon, { availability: l.availability });
       const rows = raw.map((s) => ({
         ...s,
         base_speed: (speed.find((p) => p.name === s.pokemon.name)?.base_speed) ?? 0,
@@ -2884,7 +3126,7 @@ function statsView() {
       const monByName = {};
       (this.league.pokemon || []).forEach((p) => { monByName[p.name] = p; });
       const teamByMon = {};
-      (this.league.teams || []).forEach((t) => (t.pokemon || []).forEach((p) => { teamByMon[p.name] = t; }));
+      (this.league.seasonTeams || []).forEach((t) => (t.pokemon || []).forEach((p) => { teamByMon[p.name] = t; }));
       return rows.map((r) => {
         const mon = monByName[r.resolved] || null;
         const currentTier = mon?.tier || null;
@@ -3011,7 +3253,7 @@ function pokemonView() {
       const key = `${this.name}|${this.league.results?.length || 0}|${this.league.teams?.length || 0}`;
       if (this._profileKey !== key) {
         this._profileKey = key;
-        this._profileCache = pokemonProfile(this.name, this.league.seasonTeams, this.league.results, this.league.pokemon);
+        this._profileCache = pokemonProfile(this.name, this.league.seasonTeams, this.league.results, this.league.pokemon, { availability: this.league.availability });
       }
       return this._profileCache;
     },
@@ -3413,7 +3655,7 @@ function spielerView() {
       return this.isAll ? this.league.allResults : this.league.results;
     },
     get monStats() {
-      return pokemonStats(this.scopeTeams, this.scopeResults, this.league.pokemon);
+      return pokemonStats(this.scopeTeams, this.scopeResults, this.league.pokemon, { availability: this.league.availability });
     },
     get teamBattles() {
       return teamBattleTotals(this.scopeResults);
@@ -3920,7 +4162,8 @@ function teambuildingView() {
     mods: {},     // name -> { x15, x2 }
     marks: {},    // name -> Markierungsfarbe (pro Paarung)
     notes: {},    // name -> { note, moveset } (pro Matchup)
-    tileView: 'nur', // 'nur' | 'notes' | 'moves' | 'all'
+    tileView: 'nur', // 'nur' (Kader-Raster) | 'sets' (Notiz + Moveset je Pokémon)
+    wipeConfirm: null, // { scope:'one'|'all', name }
     greenOnly: { tiles: false, speed: false }, // Filter „nur grün markierte"
     recent: [],   // [{a,b}] zuletzt geöffnete Matchups
     spdSort: 'desc',
@@ -3935,7 +4178,10 @@ function teambuildingView() {
 
     init() {
       const tv = loadJson(TB_TILEVIEW_KEY);
-      if (['nur', 'notes', 'moves', 'all'].includes(tv.v)) this.tileView = tv.v;
+      // Aus vier Ansichten sind zwei geworden — alles, was mehr als die Kacheln
+      // zeigte, landet in „Movesets".
+      if (tv.v === 'nur') this.tileView = 'nur';
+      else if (['notes', 'moves', 'all', 'sets'].includes(tv.v)) this.tileView = 'sets';
       const go = loadJson(TB_GREENONLY_KEY);
       this.greenOnly = { tiles: !!go.tiles, speed: !!go.speed };
       this.calcOpen = !!loadJson(TB_CALC_KEY).open;
@@ -4041,17 +4287,66 @@ function teambuildingView() {
       return !!(d.note || ms.item || ms.ability || ms.evs || anySp || (ms.moves || []).some((m) => m));
     },
     setTileView(v) {
-      this.tileView = v;
-      saveJson(TB_TILEVIEW_KEY, { v });
+      this.tileView = v === 'sets' ? 'sets' : 'nur';
+      saveJson(TB_TILEVIEW_KEY, { v: this.tileView });
     },
+    // Die Set-Kacheln richten sich nach der BREITE DES BEREICHS, nicht nach dem
+    // Fenster: bei eingeklappter Seitenleiste stehen auf einem Tablet drei
+    // nebeneinander, bei ausgeklappter zwei.
     get tileGridClass() {
       return this.tileView === 'nur'
         ? 'grid-cols-5 sm:grid-cols-10'
-        : 'grid-cols-1 sm:grid-cols-2 xl:grid-cols-3';
+        : 'grid-cols-1 @min-[34rem]:grid-cols-2 @min-[52rem]:grid-cols-3';
+    },
+
+    // === Sets leeren ========================================================
+    // Nach der Hinrunde stehen die alten Sets noch überall — einzeln oder für
+    // beide Teams auf einmal wegräumen, jeweils erst nach Rückfrage.
+    blankSetFor(name) {
+      return {
+        note: '',
+        moveset: {
+          item: isMega(name) ? 'Mega-Stein' : '',
+          ability: '',
+          moves: ['', '', '', ''],
+          sp: calcBlankSpSet(),
+          evs: '',
+        },
+      };
+    },
+    askWipe(scope, name = null) {
+      this.wipeConfirm = { scope, name };
+      this.$nextTick(() => document.getElementById('tb-wipe')?.showPopover());
+    },
+    closeWipe() {
+      const el = document.getElementById('tb-wipe');
+      if (el && el.matches(':popover-open')) el.hidePopover();
+      this.wipeConfirm = null;
+    },
+    get wipeCount() {
+      if (this.wipeConfirm?.scope === 'one') return this.hasNote(this.wipeConfirm.name) ? 1 : 0;
+      return Object.keys(this.notes).filter((n) => this.hasNote(n)).length;
+    },
+    confirmWipe() {
+      const c = this.wipeConfirm;
+      if (!c) return;
+      if (c.scope === 'one') {
+        if (!c.name) return this.closeWipe();
+        this.notes = { ...this.notes, [c.name]: this.blankSetFor(c.name) };
+      } else {
+        const next = {};
+        Object.keys(this.notes).forEach((n) => { next[n] = this.blankSetFor(n); });
+        this.notes = next;
+      }
+      this.saveNotes();
+      this.closeWipe();
+      window.dispatchEvent(new CustomEvent('toast', {
+        detail: { msg: c.scope === 'one' ? `Set von ${c.name} geleert.` : 'Alle Sets dieser Paarung geleert.' },
+      }));
     },
 
     // === Filter „nur grün markierte" ========================================
-    // Gilt getrennt für die Kader-Kacheln (alle vier Ansichten) und die
+    // Gilt getrennt für die Kader-Kacheln (beide Ansichten) und die
     // Initiative-Tierlist; gerätelokal, unabhängig von der Paarung.
     toggleGreenOnly(which) {
       this.greenOnly = { ...this.greenOnly, [which]: !this.greenOnly[which] };
@@ -4122,15 +4417,13 @@ function teambuildingView() {
       if (this._markHold) clearTimeout(this._markHold);
       this._markHold = null;
     },
-    // Die Farbfolge lässt sich nur in der Ansicht „Nur Pokémon" durchklicken —
-    // in den Notiz-/Moveset-Ansichten würde jeder Tipp auf die Kachel die
-    // Markierung beim Bearbeiten versehentlich verstellen. Gedrückthalten bleibt
-    // überall erlaubt und schaltet die Umrahmung ab.
-    markTappable() { return this.tileView === 'nur'; },
+    // Die Farbfolge lässt sich in beiden Ansichten durchklicken. In der
+    // Set-Ansicht liegt der Auslöser bewusst nur auf der Kopfzeile der Kachel —
+    // die Eingabefelder darunter bleiben davon unberührt.
+    markTappable() { return true; },
     markTap(name) {
       this.markHoldEnd();
       if (this._markSuppress) { this._markSuppress = false; return; }
-      if (!this.markTappable()) return;
       this.markCycle(name);
     },
 
@@ -5069,10 +5362,15 @@ function presseView() {
     q: '',
     openId: null,
     composer: null,
+    commission: null,
     settings: null,
     stage: null,
     pickTeam: null,
     busySlot: null,
+    // Modellwahl für den nächsten Anlauf, je gescheitertem Beitrag bzw. Termin.
+    // Bewusst nur in der Ansicht: sie überlebt keinen Wechsel und ändert die
+    // Voreinstellung im Zahnrad nicht.
+    retryModels: {},
 
     init() {
       const saved = loadJson(PRESS_FILTER_KEY);
@@ -5497,6 +5795,29 @@ function presseView() {
       this.closeStage();
       if (id) this.openArticle(id);
     },
+    // Denselben Termin noch einmal versuchen: liegen die Antworten schon vor, wird
+    // nur der Beitrag neu geschrieben — niemand soll fünf Fragen zweimal beantworten.
+    async retryStageNow() {
+      if (!this.stage) return;
+      const id = this.stage.slot.id;
+      const model = this.retryModelFor(id);
+      const hasAnswers = (this.session?.answers || []).length > 0;
+      this.stage.phase = hasAnswers ? 'writing' : 'wait';
+      const out = await this.press.retrySession(id, model);
+      if (!this.stage) return;
+      const s = this.press.sessionById(id);
+      if (s?.status === 'done') {
+        this.stage.articleId = out || s.articleId;
+        this.stage.phase = 'done';
+      } else if (s?.status === 'open') {
+        this.stage.phase = 'ask';
+        this.stage.index = 0;
+        this.stage.answers = [];
+      } else {
+        this.stage.phase = 'error';
+      }
+    },
+    // Der harte Weg: Termin verwerfen und bei der Rollenwahl neu beginnen.
     async retryStage() {
       if (!this.stage) return;
       await this.press.resetSession(this.stage.slot.id);
@@ -5604,11 +5925,80 @@ function presseView() {
       }
       if (this.settings) this.settings.backfilling = false;
     },
-    async regenerate(articleId) {
-      const a = this.press.byId(articleId);
-      if (a?.source?.type !== 'match') return;
+    // --- Auftragsbeitrag ----------------------------------------------------
+    openCommission() {
       this.closeArticle();
-      await this.press.generateReport(a.source.matchId, { force: true });
+      this.commission = {
+        brief: '',
+        teamIds: this.fTeam ? [this.fTeam] : [],
+        authorId: '',
+        day: this.latestDay ?? null,
+        busy: false,
+        error: '',
+      };
+      this.$nextTick(() => document.getElementById('press-commission')?.showPopover());
+    },
+    closeCommission() {
+      if (this.commission?.busy) return;
+      const el = document.getElementById('press-commission');
+      if (el && el.matches(':popover-open')) el.hidePopover();
+      this.commission = null;
+    },
+    toggleCommissionTeam(id) {
+      if (!this.commission) return;
+      const has = this.commission.teamIds.includes(id);
+      this.commission.teamIds = has
+        ? this.commission.teamIds.filter((t) => t !== id)
+        : [...this.commission.teamIds, id];
+    },
+    async sendCommission() {
+      const c = this.commission;
+      if (!c || c.busy || String(c.brief || '').trim().length < 8) return;
+      c.busy = true;
+      c.error = '';
+      const id = await this.press.commissionArticle({
+        brief: c.brief,
+        teamIds: c.teamIds,
+        authorId: c.authorId || null,
+        day: Number.isFinite(c.day) ? c.day : null,
+      });
+      if (!this.commission) return;
+      this.commission.busy = false;
+      if (!id) {
+        this.commission.error = this.press.lastError || 'Der Beitrag ist nicht zustande gekommen.';
+        return;
+      }
+      this.closeCommission();
+      this.openArticle(id);
+    },
+
+    // --- Dauerhafte Referenz ------------------------------------------------
+    isReference(a) { return this.press.isReferenceArticle(a); },
+    async toggleReference(a) {
+      if (!a?.id) return;
+      // Was ohnehin als Referenz gilt (Redaktion der Spieler, Saison-Rückblick),
+      // lässt sich nicht abwählen — dort ist der Schalter nur eine Anzeige.
+      await this.press.setReference(a.id, !a.reference);
+    },
+
+    // --- Wiederholung nach einem Fehlschlag ---------------------------------
+    modelLabel(id) { return this.press.modelLabel(id); },
+    // Womit wurde es versucht? Beitrag und Termin merken es sich; fehlt die Angabe
+    // (Altbestand), gilt das eingestellte Modell.
+    failedModelFor(id) {
+      return this.press.byId(id)?.errorModel || this.press.sessionById(id)?.errorModel || this.press.model;
+    },
+    retryModelFor(id) {
+      return this.retryModels[id] || this.failedModelFor(id);
+    },
+    setRetryModel(id, model) {
+      this.retryModels = { ...this.retryModels, [id]: model };
+    },
+    canRetry(a) { return this.press.canRetry(a); },
+    async regenerate(articleId) {
+      const model = this.retryModelFor(articleId);
+      this.closeArticle();
+      await this.press.retryArticle(articleId, model);
     },
     isBusy(id) { return !!this.press.busy[id]; },
     get anyBusy() { return Object.keys(this.press.busy).length > 0; },
@@ -5866,7 +6256,8 @@ Alpine.store('league', {
     return seasonsFrom(this.teams);
   },
   get draft() {
-    return this._drafts[this.prefix] || { status: 'idle', order: [], pickIndex: 0 };
+    return this._drafts[this.prefix]
+      || { status: 'idle', order: [], pickIndex: 0, renewals: [], renewalRound: null, renewalDone: [] };
   },
   get transfer() {
     return this.transferOf(this.season);
@@ -5893,6 +6284,19 @@ Alpine.store('league', {
   // Saison von einer laufenden zu unterscheiden.
   get allSchedules() {
     return this._schedules;
+  },
+  // Kaderfenster über ALLE Saisons: ab bzw. bis zu welchem Spieltag ein Pokémon einem
+  // Team gehörte. Die Statistik braucht das, damit ein im Wintertransfer geholtes
+  // Pokémon nicht so gerechnet wird, als hätte es die Hinrunde auf der Bank verbracht.
+  // Die Schlüssel tragen die Team-ID und damit die Saison in sich — eine Karte reicht.
+  get availability() {
+    const out = {};
+    Object.keys(this._schedules).forEach((prefix) => {
+      const season = Number(String(prefix).replace(/^s/, ''));
+      if (!Number.isFinite(season)) return;
+      Object.assign(out, transferAvailability(this.transferOf(season), this._schedules[prefix]));
+    });
+    return out;
   },
 
   init() {
@@ -6011,14 +6415,71 @@ Alpine.store('league', {
     window.dispatchEvent(new CustomEvent('toast', { detail: { msg: `${title} · ${team?.name || ''}`, icon: mon?.image || null } }));
   },
 
-  async startDraft() {
+  // Die Endtabelle der Vorsaison — Grundlage der Draft-Reihenfolge ab Saison 2.
+  previousTable(season = this.season) {
+    const prev = Number(season) - 1;
+    if (!Number.isFinite(prev) || prev < 1) return [];
+    const teams = teamsOfSeason(this.teams, prev);
+    if (!teams.length) return [];
+    return computeStandings(teams, resultsOfSeason(this.allResults, prev));
+  },
+  // Die Kader der Vorsaison je Franchise — Grundlage der Vertragsverlängerungen.
+  get prevRosters() {
+    return previousRosters(this.teams, this.season, this.pokemon);
+  },
+
+  /**
+   * Draft eröffnen.
+   *
+   * Saison 1 wird weiterhin ausgelost. Ab Saison 2 ergibt sich die Reihenfolge aus der
+   * Endtabelle: Platz 1 zieht zuerst, die Aufsteiger schließen hinten an. Gehören beide
+   * Aufsteiger demselben Spieler, bleibt der Draft zunächst im Zustand `order` stehen —
+   * erst seine Wahl macht die Reihenfolge vollständig.
+   */
+  async startDraft({ firstPromoted = null } = {}) {
     const ids = this.seasonTeams.map((t) => t.id);
     if (!ids.length) return;
-    const order = shuffle(ids);
+    const built = buildDraftOrder({
+      prevTable: this.previousTable(),
+      teams: this.seasonTeams,
+      firstPromoted,
+    });
+    const pending = built.choice && built.order.length !== ids.length ? built.choice : null;
+    // Ohne Vorsaison wird ausgelost. Bleibt sonst ein Team übrig, das die Tabelle nicht
+    // kennt (neues Franchise, gelöschte Vorsaison), hängt es hinten an — ein Draft ohne
+    // alle Teams wäre schlimmer als eine unschöne Reihenfolge.
+    let order = built.order;
+    if (!order.length) order = shuffle(ids);
+    else if (!pending && order.length !== ids.length) {
+      const seen = new Set(order);
+      order = [...order, ...ids.filter((id) => !seen.has(id))];
+    }
+
     const batch = writeBatch(db);
     ids.forEach((id) => batch.update(doc(db, 'teams', id), { pokemon: [] }));
-    batch.set(doc(db, 'drafts', this.prefix), { season: this.season, status: 'running', order, pickIndex: 0 });
+    batch.set(doc(db, 'drafts', this.prefix), {
+      season: this.season,
+      status: pending ? 'order' : 'running',
+      order,
+      pickIndex: 0,
+      // Vertragsverlängerungen: das Fenster der ersten Runde steht sofort offen.
+      renewals: [],
+      renewalRound: pending ? null : 0,
+      renewalDone: [],
+      orderChoice: pending,
+    });
     await batch.commit();
+  },
+
+  /** Die offene Frage der Reihenfolge beantworten: Welcher Aufsteiger zieht an Position 7? */
+  async chooseFirstPromoted(teamId) {
+    const d = this.draft;
+    const options = d?.orderChoice?.options || [];
+    if (!options.includes(teamId)) return;
+    const order = [...(d.order || []), teamId, ...options.filter((id) => id !== teamId)];
+    await setDoc(doc(db, 'drafts', this.prefix), {
+      status: 'running', order, pickIndex: 0, renewalRound: 0, renewalDone: [], orderChoice: null,
+    }, { merge: true });
   },
 
   async generateSchedule() {
@@ -6064,6 +6525,14 @@ Alpine.store('league', {
     const clean = normalizeVideoUrl(url);
     await setDoc(doc(db, 'results', docId), { videoUrl: clean || null }, { merge: true });
     return clean;
+  },
+
+  // === Team-Farbe ===========================================================
+  // Die Farbe steht am Team-Dokument und ist damit für alle Geräte dieselbe. `null`
+  // setzt auf die aus der Team-ID abgeleitete Farbe zurück.
+  async setTeamColor(teamId, color) {
+    if (!teamId) return;
+    await setDoc(doc(db, 'teams', teamId), { color: normalizeHexColor(color) }, { merge: true });
   },
 
   // === Trainer ==============================================================
@@ -6115,8 +6584,45 @@ Alpine.store('league', {
     const status = nextIndex >= total ? 'done' : 'running';
     const batch = writeBatch(db);
     batch.update(doc(db, 'teams', teamId), { pokemon: arrayUnion(pokemon) });
-    batch.update(doc(db, 'drafts', this.prefix), { pickIndex: nextIndex, status });
+    batch.update(doc(db, 'drafts', this.prefix), { pickIndex: nextIndex, status, ...this._renewalWindow(nextIndex, n, total) });
     await batch.commit();
+  },
+
+  // === Vertragsverlängerungen ===============================================
+  // Zu Beginn jeder Runde öffnet sich das Fenster erneut — bis zum letzten Pick.
+  _renewalWindow(nextIndex, n, total) {
+    if (nextIndex >= total || nextIndex % n !== 0) return {};
+    return { renewalRound: nextIndex / n, renewalDone: [] };
+  },
+
+  /** Eine Vertragsverlängerung einlösen: das Pokémon kommt sofort ins Team. */
+  async renewContract(teamId, tier, pokemon) {
+    const d = this.draft;
+    const n = d.order?.length || 0;
+    if (!n || !pokemon?.name) return;
+    const total = n * 10;
+    const round = Number(d.renewalRound);
+    if (!Number.isFinite(round)) return;
+    const nextIndex = (d.pickIndex || 0) + 1;
+    const status = nextIndex >= total ? 'done' : 'running';
+    const entry = { teamId, tier, name: pokemon.name, round, at: new Date().toISOString() };
+    const batch = writeBatch(db);
+    batch.update(doc(db, 'teams', teamId), { pokemon: arrayUnion(pokemon) });
+    batch.update(doc(db, 'drafts', this.prefix), {
+      pickIndex: nextIndex,
+      status,
+      renewals: arrayUnion(entry),
+      renewalDone: arrayUnion(teamId),
+      // Der Zug ist verbraucht; ein Rundenwechsel öffnet das Fenster neu.
+      ...this._renewalWindow(nextIndex, n, total),
+    });
+    await batch.commit();
+  },
+
+  /** Auf die Vertragsverlängerung dieser Runde verzichten — sie bleibt erhalten. */
+  async skipRenewal(teamId) {
+    if (!Number.isFinite(Number(this.draft?.renewalRound))) return;
+    await setDoc(doc(db, 'drafts', this.prefix), { renewalDone: arrayUnion(teamId) }, { merge: true });
   },
 
   // === Wintertransfer =======================================================
@@ -6480,6 +6986,10 @@ let pressSeenComplete = null;
 let pressSeenMarket = null;
 // Und für das Saisonende: war die Saison beim letzten Durchlauf schon komplett?
 let pressSeenSeasonEnd = null;
+// Welche Pool-Zugänge wurden in dieser Sitzung schon angestoßen? Der Beitrag zu den
+// Neuzugängen hängt am Bestand, nicht an einer Änderung — ohne diese Sperre würde ein
+// Fehlschlag den Effekt sofort wieder auslösen und sich im Kreis drehen.
+const pressTriedNewcomers = new Set();
 
 // Beschreibt dem Modell, wann der Termin stattfindet — die Auftaktrunde liegt
 // außerhalb des normalen Rhythmus und braucht ihre eigene Einordnung.
@@ -6551,6 +7061,7 @@ Alpine.store('press', {
     Alpine.effect(() => this._watchResults());
     Alpine.effect(() => this._watchMarket());
     Alpine.effect(() => this._watchSeasonEnd());
+    Alpine.effect(() => this._watchNewcomers());
   },
 
   // --- Zugang --------------------------------------------------------------
@@ -6614,6 +7125,8 @@ Alpine.store('press', {
         results: l.results,
         schedule: l.schedule,
         transfer: l.transfer,
+        draft: l.draft,
+        prevRosters: l.prevRosters,
         pokedex: l.pokemon,
         eloRows: Alpine.store('elo')?.rows || [],
         awardDocs: Alpine.store('awards')?.docs || [],
@@ -6690,7 +7203,7 @@ Alpine.store('press', {
    * Freier Beitrag ohne vorausgehenden Termin. Drei Stück je Spieltag, freigeschaltet
    * mit dem ersten, zweiten und dritten abgeschlossenen Spiel des Spieltags.
    */
-  async generateRandomArticle(day, index, { force = false } = {}) {
+  async generateRandomArticle(day, index, { force = false, model = null } = {}) {
     if (!this.hasKey) return null;
     const id = this.randomIdFor(day, index);
     if (this.busy[id]) return null;
@@ -6723,7 +7236,7 @@ Alpine.store('press', {
       const direction = buildDirection(this.recentArchetypes());
       const data = await generateJson({
         apiKey: this.apiKey,
-        model: this.model,
+        model: this._modelOf(model),
         system: buildSystem({ author }),
         prompt: buildUserPrompt({
           task: this.promptFor('random'),
@@ -6751,7 +7264,105 @@ Alpine.store('press', {
       return id;
     } catch (e) {
       console.error('Zufallsbeitrag fehlgeschlagen:', e);
-      await this._fail(ref, e?.message || 'Unbekannter Fehler');
+      await this._fail(ref, e?.message || 'Unbekannter Fehler', this._modelOf(model));
+      return null;
+    } finally {
+      const next = { ...this.busy };
+      delete next[id];
+      this.busy = next;
+    }
+  },
+
+  // --- Neu im Pool ---------------------------------------------------------
+  // Einmalig je Saison: Sobald der Pokémon-Pool Zugänge für eine Saison führt, ordnet
+  // Scott sie ein. Ausgelöst wird das vom Bestand, nicht von einer Änderung — der
+  // Beitrag entsteht also auch dann, wenn die Daten schon vor dem ersten Laden da waren.
+  newcomerIdFor(season) {
+    return `${seasonPrefix(season)}-newcomers`;
+  },
+  // Für welche Saisons gibt es Zugänge, zu denen noch kein Beitrag existiert?
+  get missingNewcomers() {
+    const l = Alpine.store('league');
+    if (!l.pokemonLoaded || !this.articlesLoaded) return [];
+    const seasons = [...new Set((l.pokemon || []).map((p) => Number(p?.since)).filter(Number.isFinite))];
+    return seasons
+      .sort((a, b) => a - b)
+      .map((season) => ({ season, id: this.newcomerIdFor(season) }))
+      .filter(({ id }) => {
+        const a = this.byId(id);
+        return !a || a.status === 'error';
+      });
+  },
+  _watchNewcomers() {
+    const l = Alpine.store('league');
+    if (!l.pokemonLoaded || !l.teamsLoaded || !this.articlesLoaded || !this.hasKey) return;
+    const next = this.missingNewcomers.find((row) => !pressTriedNewcomers.has(row.id));
+    if (!next) return;
+    pressTriedNewcomers.add(next.id);
+    // Aus dem Effekt heraus verzögert: der Erzeuger schreibt reaktive Felder.
+    setTimeout(() => this.generateNewcomers(next.season).catch(() => {}), 4000);
+  },
+  async generateNewcomers(season, { force = false, model = null } = {}) {
+    if (!this.hasKey) return null;
+    const l = Alpine.store('league');
+    const list = newcomersOfSeason(l.pokemon || [], season);
+    if (!list.length) return null;
+    const id = this.newcomerIdFor(season);
+    if (this.busy[id]) return null;
+    const existing = this.byId(id);
+    if (!force && existing && existing.status !== 'error') return null;
+
+    const ref = doc(db, 'press', id);
+    // Scouting und Transfers sind Scotts Ressort — hier schreibt kein anderer.
+    const author = authorById('scott');
+    const createdAt = new Date().toISOString();
+    this.busy = { ...this.busy, [id]: true };
+
+    try {
+      const claimed = await runTransaction(db, async (tx) => {
+        const snap = await tx.get(ref);
+        if (snap.exists() && !force && snap.data()?.status !== 'error') return false;
+        tx.set(ref, {
+          season: l.season, category: 'informationen', categories: ['informationen', AI_CATEGORY],
+          status: 'pending', authorId: author.id, teamIds: [], day: null, title: '', subtitle: '', body: '',
+          source: { type: 'newcomers', season }, storylines: [], createdAt, publishedAt: createdAt, error: null,
+        });
+        return true;
+      });
+      if (!claimed) return null;
+
+      const direction = buildDirection(this.recentArchetypes());
+      const data = await generateJson({
+        apiKey: this.apiKey,
+        model: this._modelOf(model),
+        system: buildSystem({ author }),
+        prompt: buildUserPrompt({
+          task: this.promptFor('newcomers'),
+          direction: direction.text,
+          context: this.contextFor({ newcomerSeason: season }),
+          addendum: `ANLASS: Für Saison ${season} sind ${list.length} Pokémon neu im Draft-Pool. `
+            + 'Der Block "neuImPool" in den Metadaten führt sie mit Tier, Punktwert, Typen und Initiative. '
+            + 'Elo-Werte und Marktwerte gibt es für sie noch nicht, und auch die Tiers der bisherigen '
+            + 'Pokémon stehen für die neue Saison noch nicht fest.',
+        }),
+        schema: ARTICLE_SCHEMA,
+        maxOutputTokens: 12288,
+      });
+
+      const docData = this._articleDoc(data, {
+        category: 'informationen',
+        authorId: author.id,
+        teamIds: [],
+        day: null,
+        source: { type: 'newcomers', season },
+        createdAt,
+      });
+      await setDoc(ref, docData);
+      window.dispatchEvent(new CustomEvent('toast', { detail: { msg: `Neu im Pool: ${docData.title}` } }));
+      return id;
+    } catch (e) {
+      console.error('Beitrag zu den Neuzugängen fehlgeschlagen:', e);
+      await this._fail(ref, e?.message || 'Unbekannter Fehler', this._modelOf(model));
       return null;
     } finally {
       const next = { ...this.busy };
@@ -6816,7 +7427,7 @@ Alpine.store('press', {
    * „Marktwert-Update nach Spieltag X" — ein Beitrag je Spieltag, sobald der
    * Spieltag komplett ist und das Sheet die neuen Werte führt.
    */
-  async generateMarketUpdate(day, { force = false } = {}) {
+  async generateMarketUpdate(day, { force = false, model = null } = {}) {
     if (!this.hasKey) return null;
     const id = this.marketIdFor(day);
     if (this.busy[id]) return null;
@@ -6848,7 +7459,7 @@ Alpine.store('press', {
       const direction = buildDirection(this.recentArchetypes());
       const data = await generateJson({
         apiKey: this.apiKey,
-        model: this.model,
+        model: this._modelOf(model),
         system: buildSystem({ author }),
         prompt: buildUserPrompt({
           task: this.promptFor('marketUpdate'),
@@ -6876,7 +7487,7 @@ Alpine.store('press', {
       return id;
     } catch (e) {
       console.error('Marktwert-Update fehlgeschlagen:', e);
-      await this._fail(ref, e?.message || 'Unbekannter Fehler');
+      await this._fail(ref, e?.message || 'Unbekannter Fehler', this._modelOf(model));
       return null;
     } finally {
       const next = { ...this.busy };
@@ -6960,7 +7571,7 @@ Alpine.store('press', {
 
   // Gemeinsamer Ablauf für alle drei Sorten: Platz per Transaktion belegen,
   // schreiben lassen, Dokument ersetzen.
-  async _generateSeasonPiece({ id, category, teamIds, sourceType, promptKey, addendum, maxOutputTokens = 8192, force = false, toast }) {
+  async _generateSeasonPiece({ id, category, teamIds, sourceType, sourceExtra = {}, promptKey, addendum, maxOutputTokens = 8192, force = false, model = null, toast }) {
     if (!this.hasKey) return null;
     if (this.busy[id]) return null;
     const existing = this.byId(id);
@@ -6979,7 +7590,7 @@ Alpine.store('press', {
         tx.set(ref, {
           season: l.season, category, categories: [category, AI_CATEGORY], status: 'pending',
           authorId: author.id, teamIds, day: null, title: '', subtitle: '', body: '',
-          source: { type: sourceType, season: l.season }, storylines: [], createdAt, publishedAt: createdAt, error: null,
+          source: { type: sourceType, season: l.season, ...sourceExtra }, storylines: [], createdAt, publishedAt: createdAt, error: null,
         });
         return true;
       });
@@ -6988,7 +7599,7 @@ Alpine.store('press', {
       const direction = buildDirection(this.recentArchetypes());
       const data = await generateJson({
         apiKey: this.apiKey,
-        model: this.model,
+        model: this._modelOf(model),
         system: buildSystem({ author }),
         prompt: buildUserPrompt({
           task: this.promptFor(promptKey),
@@ -7008,7 +7619,7 @@ Alpine.store('press', {
         authorId: author.id,
         teamIds: teamIds.filter((t) => known.has(t)),
         day: null,
-        source: { type: sourceType, season: l.season },
+        source: { type: sourceType, season: l.season, ...sourceExtra },
         createdAt,
       });
       await setDoc(ref, docData);
@@ -7016,7 +7627,7 @@ Alpine.store('press', {
       return id;
     } catch (e) {
       console.error('Saisonbeitrag fehlgeschlagen:', e);
-      await this._fail(ref, e?.message || 'Unbekannter Fehler');
+      await this._fail(ref, e?.message || 'Unbekannter Fehler', this._modelOf(model));
       return null;
     } finally {
       const next = { ...this.busy };
@@ -7026,7 +7637,7 @@ Alpine.store('press', {
   },
 
   /** Der große Rückblick — ein Text, der die ganze Saison in Kapiteln erzählt. */
-  async generateSeasonReview({ force = false } = {}) {
+  async generateSeasonReview({ force = false, model = null } = {}) {
     const l = Alpine.store('league');
     if (!this.seasonDone) return null;
     return this._generateSeasonPiece({
@@ -7041,12 +7652,13 @@ Alpine.store('press', {
         + 'der Block "saisonabschluss" in den Metadaten enthält die Endtabelle und jede Geschichte, '
         + 'die im Lauf der Saison eröffnet wurde. Keine davon darf unerwähnt bleiben.',
       force,
+      model,
       toast: () => `Saison-Rückblick veröffentlicht.`,
     });
   },
 
   /** Ein Saisonzeugnis je Team. */
-  async generateTeamReview(teamId, { force = false } = {}) {
+  async generateTeamReview(teamId, { force = false, model = null } = {}) {
     const l = Alpine.store('league');
     if (!this.seasonDone) return null;
     const team = (l.teams || []).find((t) => t.id === teamId);
@@ -7056,16 +7668,20 @@ Alpine.store('press', {
       category: 'news',
       teamIds: [teamId],
       sourceType: 'teamReview',
+      // Die Team-ID gehört in die Quelle: ohne sie wüsste ein späterer Anlauf nicht,
+      // für welches Team das Zeugnis war.
+      sourceExtra: { teamId },
       promptKey: 'seasonTeamReview',
       addendum: `ANLASS: Saisonzeugnis für ${team.name}. Die Saison ist abgeschlossen; `
         + 'der Beitrag bewertet ausschließlich dieses Team und blickt auf Transferfenster und Draft voraus.',
       force,
+      model,
       toast: (d) => `Saisonzeugnis: ${d.title}`,
     });
   },
 
   /** Ein freier Beitrag aus der Pause. */
-  async generateOffseasonArticle(index, { force = false } = {}) {
+  async generateOffseasonArticle(index, { force = false, model = null } = {}) {
     const l = Alpine.store('league');
     if (!this.seasonDone) return null;
     return this._generateSeasonPiece({
@@ -7073,11 +7689,13 @@ Alpine.store('press', {
       category: 'news',
       teamIds: (l.seasonTeams || []).map((t) => t.id),
       sourceType: 'offseason',
+      sourceExtra: { index },
       promptKey: 'offseason',
       addendum: `ANLASS: Die Liga ist in der Pause. ${this.outlookDone.done} von ${this.outlookDone.total} Teams `
         + `waren bereits zur Ausblicks-Pressekonferenz. Dies ist der ${index + 1}. von ${OFFSEASON_ARTICLES} `
         + 'Beiträgen der Pause — such dir ein Thema, das die anderen noch nicht hatten.',
       force,
+      model,
       toast: (d) => `Neuer Beitrag: ${d.title}`,
     });
   },
@@ -7143,11 +7761,74 @@ Alpine.store('press', {
     };
   },
 
-  async _fail(ref, message) {
+  // Ein gescheiterter Beitrag merkt sich, mit WELCHEM Modell er gescheitert ist —
+  // nur so kann der Wiederholungs-Knopf ein anderes anbieten.
+  async _fail(ref, message, model = null) {
     this.lastError = message;
     try {
-      await setDoc(ref, { status: 'error', error: message, publishedAt: new Date().toISOString() }, { merge: true });
+      await setDoc(ref, {
+        status: 'error', error: message, errorModel: model || this.model,
+        publishedAt: new Date().toISOString(),
+      }, { merge: true });
     } catch (e) { /* wenn selbst das scheitert, bleibt nur die Meldung in der Ansicht */ }
+  },
+
+  // --- Wiederholung nach einem Fehlschlag ----------------------------------
+  // Ein Modell-Kürzel, das es nicht (mehr) gibt, fällt auf das eingestellte zurück.
+  _modelOf(model) {
+    return GEMINI_MODELS.some((m) => m.id === model) ? model : this.model;
+  },
+  modelLabel(id) {
+    return GEMINI_MODELS.find((m) => m.id === id)?.label || id || '—';
+  },
+  /**
+   * Einen gescheiterten Beitrag neu schreiben lassen — egal, woher er stammt.
+   * Die Quelle im Dokument sagt, welcher Erzeuger zuständig ist; `model` erlaubt
+   * dabei ein anderes Modell als das eingestellte.
+   */
+  async retryArticle(id, model = null) {
+    const a = this.byId(id);
+    if (!a) return null;
+    const src = a.source || {};
+    const opts = { force: true, model };
+    switch (src.type) {
+      case 'match': return this.generateReport(src.matchId, opts);
+      case 'random': return this.generateRandomArticle(src.day, src.index, opts);
+      case 'market': return this.generateMarketUpdate(src.day, opts);
+      case 'review': return this.generateSeasonReview(opts);
+      case 'teamReview': return this.generateTeamReview(src.teamId || a.teamIds?.[0], opts);
+      case 'offseason': return this.generateOffseasonArticle(src.index, opts);
+      case 'commission': return this.generateCommissioned(id, opts);
+      case 'newcomers': return this.generateNewcomers(src.season, opts);
+      case 'pk':
+      case 'interview': return this.retrySession(src.sessionId, model);
+      default: return null;
+    }
+  },
+  // Kann dieser Beitrag überhaupt neu geschrieben werden? Redaktionelle Beiträge
+  // von Hand (`manual`) nicht — dort gibt es nichts zu wiederholen.
+  canRetry(a) {
+    const type = a?.source?.type;
+    if (!type || type === 'manual') return false;
+    if ((type === 'pk' || type === 'interview')) return !!this.sessionById(a.source.sessionId);
+    return true;
+  },
+  /**
+   * Einen Termin neu aufsetzen. Liegen schon Antworten vor, wird nur der Beitrag
+   * neu geschrieben — die Fragen und die gegebenen Antworten bleiben erhalten.
+   */
+  async retrySession(sessionId, model = null) {
+    const s = this.sessionById(sessionId);
+    if (!s) return null;
+    if ((s.answers || []).length && (s.questions || []).length) {
+      return this.submitAnswers(sessionId, s.answers, { model });
+    }
+    if (!s.role) return null;
+    return this.startSession(
+      { id: sessionId, day: s.day, teamId: s.teamId, opponentId: s.opponentId, matchId: s.matchId, type: s.type, slot: s.slot },
+      s.role,
+      { model },
+    );
   },
 
   /**
@@ -7155,7 +7836,7 @@ Alpine.store('press', {
    * Der Platz im Regal wird per Transaktion belegt, damit nicht beide Geräte
    * gleichzeitig losschreiben, wenn beide gerade offen sind.
    */
-  async generateReport(matchId, { force = false } = {}) {
+  async generateReport(matchId, { force = false, model = null } = {}) {
     const l = Alpine.store('league');
     const result = (l.results || []).find((r) => r.id === matchId);
     if (!result || !isMatchComplete(result)) return null;
@@ -7186,7 +7867,7 @@ Alpine.store('press', {
       const direction = buildDirection(this.recentArchetypes());
       const data = await generateJson({
         apiKey: this.apiKey,
-        model: this.model,
+        model: this._modelOf(model),
         system: buildSystem({ author }),
         prompt: buildUserPrompt({
           task: this.promptFor('report'),
@@ -7210,7 +7891,7 @@ Alpine.store('press', {
       return id;
     } catch (e) {
       console.error('Spielbericht fehlgeschlagen:', e);
-      await this._fail(ref, e?.message || 'Unbekannter Fehler');
+      await this._fail(ref, e?.message || 'Unbekannter Fehler', this._modelOf(model));
       return null;
     } finally {
       const next = { ...this.busy };
@@ -7225,7 +7906,7 @@ Alpine.store('press', {
    * @param {object} slot  Eintrag aus pressSlots()
    * @param {object} role  { kind:'trainer'|'pokemon', name, image, traits[] }
    */
-  async startSession(slot, role) {
+  async startSession(slot, role, { model = null } = {}) {
     if (!this.hasKey || !slot || !role) return null;
     const id = slot.id;
     if (this.busy[id]) return null;
@@ -7275,7 +7956,7 @@ Alpine.store('press', {
 
       const data = await generateJson({
         apiKey: this.apiKey,
-        model: this.model,
+        model: this._modelOf(model),
         system: buildSystem({ author: isPk ? null : cast[0], extra: isPk ? 'Du moderierst die Pressekonferenz und formulierst die Fragen der anwesenden Pressevertreter in deren jeweiliger Handschrift.' : '' }),
         prompt: buildUserPrompt({
           task: this.promptFor(slot.slot === 'outlook' ? 'outlookQuestions' : isPk ? 'pkQuestions' : 'interviewQuestions'),
@@ -7305,7 +7986,7 @@ Alpine.store('press', {
     } catch (e) {
       console.error('Fragen konnten nicht erzeugt werden:', e);
       this.lastError = e?.message || 'Unbekannter Fehler';
-      await setDoc(ref, { status: 'error', error: this.lastError, updatedAt: new Date().toISOString() }, { merge: true });
+      await setDoc(ref, { status: 'error', error: this.lastError, errorModel: this._modelOf(model), updatedAt: new Date().toISOString() }, { merge: true });
       return null;
     } finally {
       const next = { ...this.busy };
@@ -7315,7 +7996,7 @@ Alpine.store('press', {
   },
 
   /** Antworten abgeben und daraus den Beitrag schreiben lassen. */
-  async submitAnswers(sessionId, answers) {
+  async submitAnswers(sessionId, answers, { model = null } = {}) {
     const session = this.sessionById(sessionId);
     if (!session || !this.hasKey) return null;
     if (this.busy[sessionId]) return null;
@@ -7369,7 +8050,7 @@ Alpine.store('press', {
 
       const data = await generateJson({
         apiKey: this.apiKey,
-        model: this.model,
+        model: this._modelOf(model),
         system: buildSystem({ author: lead }),
         prompt: buildUserPrompt({
           task: this.promptFor(isPk ? 'pkArticle' : 'interviewArticle'),
@@ -7399,8 +8080,8 @@ Alpine.store('press', {
     } catch (e) {
       console.error('Beitrag konnte nicht erzeugt werden:', e);
       this.lastError = e?.message || 'Unbekannter Fehler';
-      await setDoc(ref, { status: 'error', error: this.lastError, updatedAt: new Date().toISOString() }, { merge: true });
-      await this._fail(articleRef, this.lastError);
+      await setDoc(ref, { status: 'error', error: this.lastError, errorModel: this._modelOf(model), updatedAt: new Date().toISOString() }, { merge: true });
+      await this._fail(articleRef, this.lastError, this._modelOf(model));
       return null;
     } finally {
       const next = { ...this.busy };
@@ -7450,6 +8131,97 @@ Alpine.store('press', {
 
   async deleteArticle(id) {
     await deleteDoc(doc(db, 'press', id));
+  },
+
+  // --- Dauerhafte Referenz --------------------------------------------------
+  // Ein so markierter Beitrag geht in JEDEN weiteren Kontext ein, egal wie alt er
+  // ist und wie viel seither geschrieben wurde. Gedacht für Erklärstücke („Wie
+  // funktioniert die Liga?"), die sonst nach ein paar Spieltagen aus dem Kontext
+  // fallen und damit für immer weg sind.
+  async setReference(id, on) {
+    if (!id) return;
+    await setDoc(doc(db, 'press', id), { reference: !!on }, { merge: true });
+  },
+  isReferenceArticle(a) {
+    return isReference(a);
+  },
+
+  // --- Auftragsbeitrag ------------------------------------------------------
+  /**
+   * Einen Beitrag mit frei formuliertem Auftrag schreiben lassen.
+   * Der Auftragstext bleibt an der Quelle des Dokuments stehen — nur so kann ein
+   * späterer Anlauf dieselbe Vorgabe noch einmal verwenden.
+   */
+  async commissionArticle({ brief, teamIds = [], day = null, authorId = null, model = null } = {}) {
+    const text = String(brief || '').trim();
+    if (!text || !this.hasKey) return null;
+    const id = `${this.prefix}-cmd-${Date.now().toString(36)}-${Math.floor(Math.random() * 1296).toString(36)}`;
+    const l = Alpine.store('league');
+    const known = new Set((l.teams || []).map((t) => t.id));
+    const author = (authorId && PRESS_AUTHORS.find((a) => a.id === authorId)) || randomAuthor();
+    await setDoc(doc(db, 'press', id), {
+      season: l.season, category: 'news', categories: ['news', AI_CATEGORY], status: 'pending',
+      authorId: author.id, teamIds: teamIds.filter((t) => known.has(t)), day, title: '', subtitle: '', body: '',
+      source: { type: 'commission', brief: text, authorId: author.id, teamIds, day },
+      storylines: [], createdAt: new Date().toISOString(), publishedAt: new Date().toISOString(), error: null,
+    });
+    return this.generateCommissioned(id, { force: true, model });
+  },
+
+  async generateCommissioned(id, { force = false, model = null } = {}) {
+    if (!this.hasKey || !id) return null;
+    if (this.busy[id]) return null;
+    const existing = this.byId(id);
+    const src = existing?.source || {};
+    const brief = String(src.brief || '').trim();
+    if (!brief) return null;
+    if (!force && existing && existing.status === 'ready') return null;
+
+    const l = Alpine.store('league');
+    const ref = doc(db, 'press', id);
+    const author = authorById(src.authorId) || randomAuthor();
+    const createdAt = existing?.createdAt || new Date().toISOString();
+    const teamIds = (src.teamIds || []).filter(Boolean);
+    const day = src.day ?? null;
+    this.busy = { ...this.busy, [id]: true };
+
+    try {
+      const direction = buildDirection(this.recentArchetypes());
+      const data = await generateJson({
+        apiKey: this.apiKey,
+        model: this._modelOf(model),
+        system: buildSystem({ author }),
+        prompt: buildUserPrompt({
+          task: this.promptFor('commission'),
+          direction: direction.text,
+          context: this.contextFor({ teamIds, day }),
+          addendum: `AUFTRAG DER REDAKTIONSLEITUNG (wörtlich):\n${brief}`,
+        }),
+        schema: ARTICLE_SCHEMA_FREE_CATEGORY,
+        maxOutputTokens: 8192,
+      });
+
+      const known = new Set((l.teams || []).map((t) => t.id));
+      const docData = this._articleDoc(data, {
+        category: ['news', 'klatsch', 'geruechte', 'informationen'].includes(data.kategorie) ? data.kategorie : 'news',
+        authorId: author.id,
+        teamIds: teamIds.filter((t) => known.has(t)),
+        day,
+        source: { type: 'commission', brief, authorId: author.id, teamIds, day },
+        createdAt,
+      });
+      await setDoc(ref, docData);
+      window.dispatchEvent(new CustomEvent('toast', { detail: { msg: `Auftragsbeitrag: ${docData.title}` } }));
+      return id;
+    } catch (e) {
+      console.error('Auftragsbeitrag fehlgeschlagen:', e);
+      await this._fail(ref, e?.message || 'Unbekannter Fehler', this._modelOf(model));
+      return null;
+    } finally {
+      const next = { ...this.busy };
+      delete next[id];
+      this.busy = next;
+    }
   },
 });
 

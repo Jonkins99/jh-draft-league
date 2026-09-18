@@ -14,7 +14,7 @@
 
 import { battleStats, computeStandings, pokemonStats } from './scoring.mjs';
 import { marketValue, historyPoints } from './market.mjs';
-import { awardWinner, AWARD_BY_KEY } from './awards.mjs';
+import { awardWinner, awardTone, AWARD_BY_KEY } from './awards.mjs';
 
 /** Der Bereichsschlüssel der saisonübergreifenden Ansicht. */
 export const SEASON_ALL = 'all';
@@ -45,6 +45,21 @@ export function seasonsFrom(teams) {
   const set = new Set((teams || []).map(seasonOfTeam).filter((n) => Number.isFinite(n)));
   if (!set.size) set.add(1);
   return [...set].sort((a, b) => a - b);
+}
+
+/**
+ * Die Pokémon, die mit dieser Saison NEU in den Pool gekommen sind.
+ *
+ * Das Feld `since` in `pokemon.json` trägt die Saison des Zugangs; fehlt es, war das
+ * Pokémon von Anfang an dabei. Sortiert wird nach Punktwert absteigend — das ist die
+ * Reihenfolge, in der über Neuzugänge geredet wird.
+ */
+export function newcomersOfSeason(pokedex, season) {
+  const n = Number(season);
+  if (!Number.isFinite(n)) return [];
+  return (pokedex || [])
+    .filter((p) => Number(p?.since) === n)
+    .sort((a, b) => (b.cost ?? 0) - (a.cost ?? 0) || String(a.name).localeCompare(String(b.name)));
 }
 
 export function teamsOfSeason(teams, season) {
@@ -613,6 +628,26 @@ export function buildRecords({ teams = [], results = [], pokedex = [], eloRows =
       holders: topTeam.items.map((r) => ({ name: r.label, teamId: r.id, when: null })),
     });
   }
+  // Ehrungen und Rügen getrennt: ein Pokémon, das dreimal die Enttäuschung des
+  // Spieltags war, hat keinen Ehrenrekord aufgestellt, sondern einen anderen.
+  const topPositive = bestAll(board.pokemon.filter((r) => r.positive > 0), (r) => r.positive);
+  if (topPositive.value > 1) {
+    push({
+      key: 'awardsPositive', label: 'Meiste Ehrungen (Pokémon)', group: 'liga',
+      info: 'Nur Auszeichnungen mit positiver Bedeutung — MVP, Überraschung, Tier-Bester und Ähnliches.',
+      value: topPositive.value, display: `${topPositive.value} Ehrungen`,
+      holders: topPositive.items.map((r) => ({ name: r.label, image: r.image || null, when: null })),
+    });
+  }
+  const topNegative = bestAll(board.pokemon.filter((r) => r.negative > 0), (r) => r.negative);
+  if (topNegative.value > 1) {
+    push({
+      key: 'awardsNegative', label: 'Meiste Rügen (Pokémon)', group: 'liga',
+      info: 'Nur Auszeichnungen mit negativer Bedeutung — die Enttäuschungen des Spieltags und der Saison.',
+      value: topNegative.value, display: `${topNegative.value} Rügen`,
+      holders: topNegative.items.map((r) => ({ name: r.label, image: r.image || null, when: null })),
+    });
+  }
 
   return out;
 }
@@ -641,12 +676,17 @@ export function awardLeaderboard(awardDocs, pokedex = [], teams = []) {
         : winner.image || null,
       teamId: entity === 'team' ? id : null,
       n: 0,
+      positive: 0,
+      negative: 0,
       awards: [],
     });
+    const tone = awardTone(docData.key);
     row.n++;
+    row[tone] += 1;
     row.awards.push({
       key: docData.key,
       label: def?.label || docData.key,
+      tone,
       season: seasonOfId(docData.id),
       day: docData.day ?? null,
     });
