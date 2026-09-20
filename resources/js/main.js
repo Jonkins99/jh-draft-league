@@ -11,6 +11,7 @@ import {
   PLAYERS, MAX_NOMINATIONS, MATCHDAY_AWARDS, SEASON_AWARDS, AWARD_BY_KEY,
   awardDocId, optionId, mergedOptions, remainingNominations, hasVoted, nextStatus,
   voteResults, awardWinner, awardWinners, spoilerNote, awardableDays, MATCHDAY_AWARDS_FROM,
+  seasonTiers, tierInSeason,
 } from './awards.mjs';
 import { awardSvg, awardColor } from './award-visuals.mjs';
 import {
@@ -5172,6 +5173,12 @@ function awardsView() {
     },
 
     // --- Optionen, die nominiert werden können ---
+    // Tier-Stand der Saison, in der ausgezeichnet wird. Muss aus den Kadern kommen:
+    // pokemon.json trägt nach der Neueinstufung das Tier der kommenden Saison, ein
+    // Aufsteiger stünde sonst in der falschen Tier-Abstimmung.
+    get seasonTierMap() {
+      return seasonTiers(this.league.seasonTeams);
+    },
     monUniverse(inst) {
       const league = this.league;
       let names = [];
@@ -5185,19 +5192,20 @@ function awardsView() {
         names = (this.teamById(inst.teamId)?.pokemon || []).map((p) => p.name);
       } else {
         const set = new Set();
-        (league.teams || []).forEach((t) => (t.pokemon || []).forEach((p) => set.add(p.name)));
+        (league.seasonTeams || []).forEach((t) => (t.pokemon || []).forEach((p) => set.add(p.name)));
         (league.results || []).forEach((r) => ['home', 'away'].forEach((side) => (r.squads?.[side] || []).forEach((n) => set.add(n))));
         names = [...set];
       }
       const def = inst.def || {};
+      const tiers = this.seasonTierMap;
       let mons = names.map((n) => league.pokemon.find((p) => p.name === n) || { name: n });
-      if (def.tier) mons = mons.filter((m) => m.tier === def.tier);
+      if (def.tier) mons = mons.filter((m) => tierInSeason(tiers, m) === def.tier);
       if (def.filter === 'mega') mons = mons.filter((m) => isMega(m.name));
       if (def.filter === 'nomega') mons = mons.filter((m) => !isMega(m.name));
       return mons.sort((a, b) => a.name.localeCompare(b.name));
     },
     monTeamName(name) {
-      const t = this.league.teams.find((x) => (x.pokemon || []).some((p) => p.name === name));
+      const t = this.league.seasonTeams.find((x) => (x.pokemon || []).some((p) => p.name === name));
       return t?.name || 'Frei';
     },
     optionsFor(inst) {

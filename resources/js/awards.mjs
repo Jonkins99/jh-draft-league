@@ -223,3 +223,21 @@ export function spoilerNote(award, me) {
     ? `${other} hat die Siegerehrung schon gesehen – ihr könnt offen darüber reden.`
     : `${other} hat die Siegerehrung noch nicht gesehen – bitte nicht spoilern!`;
 }
+
+// --- Tier-Stand einer Saison -------------------------------------------------
+// Die Stammdaten (pokemon.json) tragen IMMER die Einstufung der KOMMENDEN Saison —
+// für „Bestes C-Tier" der Saison 1 wäre das die falsche Klasse, sobald der Pool für
+// Saison 2 neu eingestuft wurde. Die Kader halten dagegen das Tier, mit dem ein
+// Pokémon gezogen bzw. im Wintertransfer geholt wurde: den Stand dieser Saison.
+export function seasonTiers(teams) {
+  const map = Object.create(null);
+  (teams || []).forEach((t) => (t?.pokemon || []).forEach((p) => {
+    if (p?.name && p.tier && !map[p.name]) map[p.name] = p.tier;
+  }));
+  return map;
+}
+
+/** Tier eines Pokémon in der Saison des Awards — Kaderstand vor Stammdaten. */
+export function tierInSeason(tiers, mon) {
+  return (tiers || {})[mon?.name] || mon?.tier || null;
+}

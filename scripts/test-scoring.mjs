@@ -9,7 +9,7 @@ import {
 } from '../resources/js/scoring.mjs';
 import {
   mergedOptions, voteResults, awardWinner, awardWinners, nextStatus, revealSteps,
-  optionId, spoilerNote, awardableDays, MATCHDAY_AWARDS_FROM,
+  optionId, spoilerNote, awardableDays, MATCHDAY_AWARDS_FROM, seasonTiers, tierInSeason,
 } from '../resources/js/awards.mjs';
 import {
   parsePeriod, parseTraits, normalizeGender, normalizeTrainer, currentTrainer,
@@ -370,6 +370,21 @@ test('revealSteps: Gleichstand enthuellt die ganze Siegergruppe gemeinsam', () =
   assert.deepEqual(revealSteps(three).map((s) => s.map((r) => r.id)), [['P4'], ['P3', 'P2', 'P1']]);
   const two = [1, 1, 3, 4].map((rank, i) => ({ id: `P${i + 1}`, rank }));
   assert.deepEqual(revealSteps(two).map((s) => s.map((r) => r.id)), [['P4'], ['P3'], ['P2', 'P1']]);
+});
+
+test('seasonTiers: Kaderstand schlaegt die neu eingestuften Stammdaten', () => {
+  const teams = [
+    { id: 's1-a', pokemon: [{ name: 'Hisui-Tornupto', tier: 'C' }, { name: 'Endynalos', tier: 'S' }] },
+    { id: 's1-b', pokemon: [{ name: 'Knakrack', tier: 'A' }] },
+  ];
+  const tiers = seasonTiers(teams);
+  // pokemon.json fuehrt laengst das Tier der kommenden Saison — der Kader die der Award-Saison.
+  assert.equal(tierInSeason(tiers, { name: 'Hisui-Tornupto', tier: 'A' }), 'C');
+  assert.equal(tierInSeason(tiers, { name: 'Endynalos', tier: 'S' }), 'S');
+  // Ohne Kadereintrag bleiben die Stammdaten die Quelle.
+  assert.equal(tierInSeason(tiers, { name: 'Zacian', tier: 'S' }), 'S');
+  assert.equal(tierInSeason(tiers, { name: 'Unbekannt' }), null);
+  assert.deepEqual(Object.keys(seasonTiers(null)), []);
 });
 
 test('awardWinners: bei Gleichstand auf Platz 1 gewinnen alle', () => {
