@@ -15,7 +15,7 @@ import {
 import { awardSvg, awardColor } from './award-visuals.mjs';
 import {
   marketValue, formatMarket, formatMarketDelta, formatPercent, eloIndex,
-  squadMarketValue, tierBoundaries, historyPoints, historyStops, squadHistory,
+  squadMarketValue, tierBoundaries, historyPoints, historyStops, squadHistory, limitHistory,
   snapshotOf, diffSnapshots, historyDiff, stopKeyForDay, parseHistoryLabel, tierForElo,
   transferCutIndex, rosterAtIndex, rosterSpans,
 } from './market.mjs';
@@ -29,7 +29,7 @@ import {
   currentPick as draftCurrentPick, buildDraftOrder, renewedIn, snakeOrder,
 } from './draft.mjs';
 import { normalizeVideoUrl, videoEmbed, videoHostLabel } from './video.mjs';
-import { renderTiles, TILE_KINDS } from './press-tiles.mjs';
+import { renderTiles, TILE_KINDS, imageUrlsIn, withImageTiles } from './press-tiles.mjs';
 import { renderMarketChart } from './marketchart.mjs';
 import { runMarketShow } from './marketshow.mjs';
 import { runCeremony } from './ceremony.mjs';
@@ -72,6 +72,7 @@ import {
   NOTE_SCOPE, blankNotes, normalizeNotes, teamNote, matchNote, withNote, countNotes,
   blankLog, logText, logUpdatedAt, hasLog, logAuthors, logToText,
 } from './notes.mjs';
+import { draftPlanView } from './draftplan-view.mjs';
 
 const PICKS_PER_TEAM = 10;
 const TIER_ORDER = ['S', 'A', 'B', 'C', 'D'];
@@ -193,7 +194,7 @@ function saveJson(key, value) {
 // Alles, was unter diesen Präfixen im localStorage liegt, gehört inhaltlich zum
 // Teambuilder: Sets und Notizen, Speed-Tier-Einstellungen, Markierungen der Paarungen
 // und die Eingaben des Schadensrechners. Der Store unten spiegelt genau diese Schlüssel.
-const SYNC_PREFIXES = ['jhdl-tb-', 'jhdl-speedtiers-', 'jhdl-weakness-', 'jhdl-matchup-marks-'];
+const SYNC_PREFIXES = ['jhdl-tb-', 'jhdl-speedtiers-', 'jhdl-weakness-', 'jhdl-matchup-marks-', 'jhdl-draftplan-'];
 const SYNC_SCOPE = 'teambuilder';
 const SYNC_AUTO_KEY = 'jhdl-tb-sync-v1'; // { auto: bool }
 
@@ -546,7 +547,7 @@ function buildSchedule(janikIds, henrikIds) {
 const CHART_LINE = '#4b5563';
 
 // Aus dem Platzierungsverlauf eine SVG-Geometrie bauen (Platz 1 oben, gespielte Spieltage als X).
-// styleFor(teamId, i) -> { logo, color } liefert Logo und Linienfarbe je Team.
+// styleFor(teamId, i) -> { color } liefert die Linienfarbe je Team.
 function buildChart(history, teamsCount, styleFor) {
   const W = 640, H = 240, padL = 34, padR = 26, padT = 18, padB = 26;
   const innerW = W - padL - padR;
@@ -563,7 +564,6 @@ function buildChart(history, teamsCount, styleFor) {
     return {
       teamId,
       color: style.color || CHART_LINE,
-      logo: style.logo || null,
       dots,
       end: dots.length ? dots[dots.length - 1] : null,
       path: pts.map((p, j) => `${j === 0 ? 'M' : 'L'}${xFor(p.day).toFixed(1)} ${yFor(p.place).toFixed(1)}`).join(' '),
@@ -591,23 +591,17 @@ function chartSvgString(chart) {
   const xlabels = chart.xTicks
     .map((t) => `<text x="${t.x.toFixed(1)}" y="${chart.H - 8}" text-anchor="middle" fill="#98a2b3" font-size="10">${t.day}</text>`)
     .join('');
-  // Logo-Marker an jedem Datenpunkt; der letzte (aktuellster Spieltag) etwas größer.
-  const logoDot = (ln, d, i, j, last) => {
-    const r = last ? 11 : 8.5;
-    const id = `vt-clip-${i}-${j}`;
-    if (!ln.logo) return `<circle cx="${d.x.toFixed(1)}" cy="${d.y.toFixed(1)}" r="3.5" fill="${ln.color}"/>`;
-    return (
-      `<clipPath id="${id}"><circle cx="${d.x.toFixed(1)}" cy="${d.y.toFixed(1)}" r="${(r - 1.5).toFixed(1)}"/></clipPath>` +
-      `<circle cx="${d.x.toFixed(1)}" cy="${d.y.toFixed(1)}" r="${r}" fill="#0f1219" stroke="#2a313d" stroke-width="1.5"/>` +
-      `<image href="${ln.logo}" x="${(d.x - (r - 1.5)).toFixed(1)}" y="${(d.y - (r - 1.5)).toFixed(1)}" width="${((r - 1.5) * 2).toFixed(1)}" height="${((r - 1.5) * 2).toFixed(1)}" clip-path="url(#${id})" preserveAspectRatio="xMidYMid slice"/>`
-    );
-  };
+  // Punkt-Marker in der Teamfarbe. Seit jedes Team eine eigene Farbe trägt, braucht das
+  // Diagramm keine Logos mehr — sie haben die Linien nur zugedeckt. Der letzte Punkt
+  // (aktuellster Spieltag) ist größer und hat einen Ring.
+  const dot = (ln, d, last) => (last
+    ? `<circle cx="${d.x.toFixed(1)}" cy="${d.y.toFixed(1)}" r="5.5" fill="${ln.color}" stroke="#0f1219" stroke-width="2"/>`
+    : `<circle cx="${d.x.toFixed(1)}" cy="${d.y.toFixed(1)}" r="3.5" fill="${ln.color}"/>`);
   const lines = chart.lines
-    .map((ln, i) => {
+    .map((ln) => {
       const lastIdx = ln.dots.length - 1;
       const path = `<path d="${ln.path}" fill="none" stroke="${ln.color}" stroke-width="2" stroke-linejoin="round" stroke-linecap="round"/>`;
-      const markers = ln.dots.map((d, j) => logoDot(ln, d, i, j, j === lastIdx)).join('');
-      return path + markers;
+      return path + ln.dots.map((d, j) => dot(ln, d, j === lastIdx)).join('');
     })
     .join('');
   return `<svg viewBox="0 0 ${chart.W} ${chart.H}" class="w-full" style="min-width:34rem" preserveAspectRatio="xMidYMid meet">${grid}${xlabels}${lines}</svg>`;
@@ -702,6 +696,9 @@ function bindMarketChart(ctx, el, key, build) {
   const refresh = () => ctx._charts[key]?.update(build());
   ctx.$watch('$store.elo.rows', refresh);
   ctx.$watch('$store.league.teams', refresh);
+  // Der Verlauf hängt an der gewählten Saison — ein Bereichswechsel muss das
+  // Diagramm neu zeichnen, sonst bliebe die Kurve der alten Saison stehen.
+  ctx.$watch('$store.season.scope', refresh);
 }
 
 // Stabiler, eindeutiger view-transition-name je Pokémon (dex trennt Geschlechts-/Formen).
@@ -1171,6 +1168,9 @@ function app() {
 
 function draftBoard() {
   return {
+    // Der Draft hat zwei Bereiche: das Board des laufenden Drafts und die eigene
+    // Vorbereitung. Der Draftplan hängt als eigene Komponente darunter.
+    tab: 'board',
     q: '',
     candidate: null,
     busy: false,
@@ -1627,10 +1627,7 @@ function teamsView() {
       const hist = placementHistory(this.teams, this.league.results);
       const single = { days: hist.days, series: { [this.selectedId]: hist.series[this.selectedId] || [] } };
       const team = this.selectedTeam;
-      return buildChart(single, this.teams.length, () => ({
-        logo: team ? this.logoUrl(team.logo) : null,
-        color: team ? teamColor(team) : null,
-      }));
+      return buildChart(single, this.teams.length, () => ({ color: team ? teamColor(team) : null }));
     },
     get teamCurveSvg() {
       return chartSvgString(this.teamCurve);
@@ -1686,7 +1683,7 @@ function teamsView() {
       const { transfer, cutIndex } = this._rosterCut(team);
       return squadHistory(
         (stop, i) => rosterAtIndex(team, transfer, i, cutIndex),
-        this.$store.elo.index(),
+        this.$store.elo.histIndex(),
         this.$store.elo.stops(),
       );
     },
@@ -1740,7 +1737,7 @@ function teamsView() {
     mountRosterChart(el) {
       bindMarketChart(this, el, 'roster', () => {
         const store = this.$store.elo;
-        const index = store.index();
+        const index = store.histIndex();
         const bounds = tierBoundaries(store.rows);
         const team = this.selectedTeam;
         const { transfer, cutIndex } = this._rosterCut(team);
@@ -2194,9 +2191,27 @@ function seasonFinaleMixin() {
       return computeStandings(l.seasonTeams, l.results)[0]?.team || null;
     },
 
+    // Die Ruhmeshalle zeigt die Auszeichnungen der Saison — sie kann also erst laufen,
+    // wenn keine Abstimmung mehr offen ist. Sonst spielt sie eine Ehrung ab, die noch
+    // gar nicht entschieden ist.
+    openAwardVotes() {
+      const l = this.$store.league;
+      const days = [...new Set((l.results || [])
+        .filter((r) => (r.battles || []).filter((b) => b && b.done).length >= 3)
+        .map((r) => r.day))].sort((a, b) => a - b);
+      return this.$store.awards?.openVotes({
+        playedDays: days,
+        teamIds: (l.seasonTeams || []).map((t) => t.id),
+        seasonComplete: true,
+      }) ?? 0;
+    },
+    finaleReady() {
+      return this.seasonComplete() && this.openAwardVotes() === 0;
+    },
+
     openFinale() {
       const l = this.$store.league;
-      if (!this.seasonComplete()) return;
+      if (!this.finaleReady()) return;
       const pop = document.getElementById('season-finale');
       if (!pop) return;
       const script = buildFinaleScript({
@@ -2915,7 +2930,7 @@ function standingsView() {
         this.league.seasonTeams.length,
         (teamId) => {
           const t = this.teamById(teamId);
-          return { logo: t ? this.logoUrl(t.logo) : null, color: t ? teamColor(t) : null };
+          return { color: t ? teamColor(t) : null };
         },
       );
     },
@@ -3289,11 +3304,11 @@ function pokemonView() {
       return this.$store.elo.index()[this.name] || null;
     },
     get hasMarketHistory() {
-      return (this.marketRow?.history || []).length > 1;
+      return ((this.$store.elo.histIndex()[this.name] || {}).history || []).length > 1;
     },
     // Bilanz über den gesamten bekannten Verlauf: Start, Höchststand, Veränderung.
     get marketSpan() {
-      const pts = historyPoints(this.marketRow);
+      const pts = historyPoints(this.$store.elo.histIndex()[this.name] || null);
       if (pts.length < 2) return null;
       const first = pts[0];
       const last = pts[pts.length - 1];
@@ -3308,11 +3323,11 @@ function pokemonView() {
     mountMarketChart(el) {
       bindMarketChart(this, el, 'mon', () => {
         const store = this.$store.elo;
-        const row = store.index()[this.name];
+        const row = store.histIndex()[this.name];
         const bounds = tierBoundaries(store.rows);
         return {
           series: row ? [monSeries(row, bounds, { color: '#ff5a36', highlight: true })] : [],
-          stops: historyStops(store.rows),
+          stops: store.stops(),
           bands: marketBands(store.rows),
           scale: 'log',
           format: (v) => formatMarket(v, { unit: false }),
@@ -3839,9 +3854,25 @@ function damageCalcMixin() {
     calcSetMon(side, name) {
       if (name && !this.calcMons().some((m) => m.name === name)) return;
       const target = this.calcSide(side);
+      const changed = (target.name || null) !== (name || null);
       target.name = name || null;
+      // Ein hinterlegtes Set ist die beste Annahme über dieses Pokémon — wer es
+      // auswählt, will damit rechnen und nicht erst einen Knopf suchen. Geladen wird
+      // nur beim WECHSEL, damit eigene Eingaben nicht bei jedem Neuzeichnen zurückfallen.
+      if (changed && name && this.movesetFilled(name)) {
+        this.calcLoadFromMoveset(side, { silent: true });
+        return;
+      }
       this.calcPersist();
       this.recalc();
+    },
+    // Steht in diesem Moveset überhaupt etwas?
+    movesetFilled(name) {
+      const ms = this.notes?.[name]?.moveset;
+      if (!ms) return false;
+      if (ms.ability || ms.item) return true;
+      if ((ms.moves || []).some((m) => String(m || '').trim())) return true;
+      return Object.values(ms.sp || {}).some((v) => Number(v) > 0);
     },
     calcSwap() {
       const a = this.calcAtk;
@@ -3966,7 +3997,7 @@ function damageCalcMixin() {
 
     // --- Verknüpfung mit dem Matchup-Moveset --------------------------------
     // Aus dem hinterlegten Moveset heraus den Rechner füllen …
-    calcLoadFromMoveset(side) {
+    calcLoadFromMoveset(side, { silent = false } = {}) {
       const mon = this.calcMon(side);
       if (!mon) return;
       const ms = this.notes[mon.name]?.moveset;
@@ -3980,7 +4011,7 @@ function damageCalcMixin() {
       if (side === 'atk') cfg.moves = [0, 1, 2, 3].map((i) => (ms.moves && ms.moves[i]) || '');
       this.calcPersist();
       this.recalc();
-      window.dispatchEvent(new CustomEvent('toast', { detail: { msg: `Set von ${mon.name} geladen.` } }));
+      if (!silent) window.dispatchEvent(new CustomEvent('toast', { detail: { msg: `Set von ${mon.name} geladen.` } }));
     },
     // … und umgekehrt die Eingaben ins Moveset schreiben.
     calcApplyToMoveset(side) {
@@ -4150,9 +4181,13 @@ function logDraftClear(matchId, player) {
 function teambuildingView() {
   return {
     ...damageCalcMixin(),
-    // Notiz-/Verlaufsbereich neben dem Rechner (gerätelokal gemerkt). Geschrieben
-    // wird hier nur die private Matchup-Notiz — der geteilte Kampfverlauf gehört
-    // zum Ergebnis und entsteht ausschließlich in der Ergebniseingabe.
+    // Notiz- und Verlaufsbereich neben dem Rechner (gerätelokal gemerkt). Geschrieben
+    // werden hier die private Matchup-Notiz UND der geteilte Kampfverlauf — letzterer
+    // über denselben Mixin wie in der Ergebniseingabe. Zwei Editoren desselben Textes
+    // vertragen sich, weil jeder Spieler nur seinen eigenen Abschnitt schreibt
+    // (`entries.<Spieler>`, feldweise gemergt) und der Entwurf gerätelokal unter
+    // derselben Schlüssel-Kombination liegt.
+    ...battleLogMixin(),
     notePanelOpen: false,
     pairMatchId: null,
     priorOpen: false,
@@ -4737,11 +4772,12 @@ function teambuildingView() {
     // Standardwahl: die erste noch nicht abgeschlossene Partie, sonst die letzte.
     selectPairMatch(matchId = null) {
       const list = this.pairMatches();
-      if (!list.length) { this.pairMatchId = null; return; }
+      if (!list.length) { this.pairMatchId = null; this.logSelect(null); return; }
       const target = (matchId && list.find((m) => m.id === matchId))
         || list.find((m) => !m.complete)
         || list[list.length - 1];
       this.pairMatchId = target.id;
+      this.logSelect(target.id, { day: target.day, home: target.home, away: target.away });
     },
 
     currentPairMatch() {
@@ -5116,7 +5152,11 @@ function awardsView() {
     stateHint(inst) {
       const mine = (inst.nominations?.[this.me] || []).length;
       const theirs = (inst.nominations?.[this.store.other] || []).length;
-      if (inst.status === 'nominating') return `${mine} von dir nominiert · ${theirs} von ${this.store.other}`;
+      if (inst.status === 'nominating') {
+        const done = inst.confirmed?.[this.me] ? 'du bist fertig' : `${mine} von dir nominiert`;
+        const them = inst.confirmed?.[this.store.other] ? `${this.store.other} ist fertig` : `${theirs} von ${this.store.other}`;
+        return `${done} · ${them}`;
+      }
       if (inst.status === 'voting') {
         const n = mergedOptions(inst).length;
         return `Abstimmung läuft · ${n} ${n === 1 ? 'Option' : 'Optionen'}`;
@@ -5233,22 +5273,29 @@ function awardsView() {
     },
     removeDraft(id) { this.draft = this.draft.filter((d) => d.id !== id); },
 
+    // „Ich bin fertig": die eigene Seite ist abgeschlossen. Sind beide fertig, beginnt
+    // die Abstimmung von selbst — niemand startet sie mehr aktiv für den anderen.
     async confirmNoms() {
       if (this.busy || !this.dialog) return;
       this.busy = true;
       try {
         await this.store.confirmNominations(this.dialog.inst, this.draft);
-        window.dispatchEvent(new CustomEvent('toast', { detail: { msg: `Nominierungen bestätigt — jetzt fehlt ${this.store.other}.` } }));
+        const both = this.store.byId(this.dialog.inst.id)?.status === 'voting';
+        window.dispatchEvent(new CustomEvent('toast', {
+          detail: { msg: both ? 'Beide fertig — die Abstimmung läuft.' : `Fertig — jetzt fehlt ${this.store.other}.` },
+        }));
         this.closeDialog();
       } catch (e) { console.error(e); }
       this.busy = false;
     },
-    async startVote() {
+    // Zwischenstand sichern, ohne sich festzulegen: Der Dialog schließt, die
+    // Nominierungen stehen, und sie lassen sich jederzeit weiter ändern.
+    async parkNoms() {
       if (this.busy || !this.dialog) return;
       this.busy = true;
       try {
-        await this.store.startVoting(this.dialog.inst, this.draft);
-        window.dispatchEvent(new CustomEvent('toast', { detail: { msg: 'Abstimmung gestartet.' } }));
+        await this.store.saveNominations(this.dialog.inst, this.draft);
+        window.dispatchEvent(new CustomEvent('toast', { detail: { msg: 'Zwischengespeichert.' } }));
         this.closeDialog();
       } catch (e) { console.error(e); }
       this.busy = false;
@@ -5464,9 +5511,11 @@ function presseView() {
       const l = this.league;
       return renderTiles(a.body || '', {
         pokedex: l.pokemon,
-        eloIndex: this.$store.elo.index(),
+        eloIndex: this.$store.elo.histIndex(),
         teams: l.teams,
+        seasonTeams: l.seasonTeams,
         results: l.allResults,
+        availability: l.availability,
         logoBase: './img/teams/',
         squadValue: (team) => squadMarketValue(team.pokemon || [], this.$store.elo.index()),
       });
@@ -5501,7 +5550,7 @@ function presseView() {
         id: existing?.id || null,
         title: existing?.title || '',
         subtitle: existing?.subtitle || '',
-        categories: cats.length ? cats : ['redaktion'],
+        categories: cats.length ? cats : ['news'],
         authorId: existing?.authorId || PRESS_AUTHORS[0].id,
         teamIds: [...(existing?.teamIds || [])],
         day: existing?.day ?? this.latestDay,
@@ -5688,9 +5737,10 @@ function presseView() {
       if (row.open) return '';
       if (row.blockedBy === 'season') return 'Frei, sobald jede Partie der Saison ein vollständiges Ergebnis hat.';
       if (row.blockedBy === 'bonus') return `Frei, sobald alle Teams die Auftaktrunde hinter sich haben – erst dann beginnt Spieltag ${BONUS_ROUND_DAY}.`;
+      if (row.needsRelease) return 'Frei, sobald der Spielbericht im Spielplan freigegeben ist.';
       return row.slot === 'pre'
         ? 'Frei, sobald die Partie davor im Spielplan ein Ergebnis hat.'
-        : 'Frei, sobald das eigene Match komplett eingetragen ist.';
+        : 'Frei, sobald das eigene Match komplett eingetragen und für die Presse freigegeben ist.';
     },
 
     get currentTrainerOf() {
@@ -6738,6 +6788,27 @@ Alpine.store('awards', {
     return this.docs.find((d) => d.id === id) || null;
   },
 
+  /**
+   * Wie viele Abstimmungen dieser Saison sind noch offen?
+   *
+   * Gezählt werden die Spieltag-Awards jedes gespielten Spieltags und — sobald die
+   * Saison durch ist — die Saison-Awards samt Team-MVP je Team. Die Ruhmeshalle hängt
+   * daran: Sie zeigt die Auszeichnungen, also darf sie erst laufen, wenn sie alle
+   * vergeben sind.
+   */
+  openVotes({ playedDays = [], teamIds = [], seasonComplete = false } = {}) {
+    let open = 0;
+    const check = (meta) => { if (this.instance(meta).status !== 'done') open += 1; };
+    awardableDays(playedDays).forEach((day) => MATCHDAY_AWARDS.forEach((a) => check({ key: a.key, day })));
+    if (seasonComplete) {
+      SEASON_AWARDS.forEach((a) => {
+        if (a.perTeam) teamIds.forEach((teamId) => check({ key: a.key, teamId }));
+        else check({ key: a.key });
+      });
+    }
+    return open;
+  },
+
   // Instanz einer Abstimmung — auch wenn in Firestore noch nichts steht.
   get season() {
     return Alpine.store('league')?.season || 1;
@@ -6786,7 +6857,9 @@ Alpine.store('awards', {
   async saveNominations(inst, options) {
     await this._write(inst, { nominations: { [this.me]: options.slice(0, MAX_NOMINATIONS) } });
   },
-  // Bestätigen und auf den anderen warten. Sind beide fertig, startet die Abstimmung.
+  // „Ich bin fertig". Sobald beide Spieler das gesagt haben, springt der Status von
+  // selbst auf `voting` — ein Knopf, der die Abstimmung für beide startet, wäre eine
+  // Entscheidung über den Kopf des anderen hinweg.
   async confirmNominations(inst, options) {
     const confirmed = { ...inst.confirmed, [this.me]: true };
     const status = nextStatus({ ...inst, confirmed, status: 'nominating' });
@@ -6796,14 +6869,7 @@ Alpine.store('awards', {
       status,
     });
   },
-  // Abstimmung sofort starten (überspringt das Warten).
-  async startVoting(inst, options) {
-    await this._write(inst, {
-      nominations: { [this.me]: options.slice(0, MAX_NOMINATIONS) },
-      confirmed: { [this.me]: true },
-      status: 'voting',
-    });
-  },
+
   async submitVotes(inst, votes) {
     const voted = { ...inst.voted, [this.me]: true };
     const status = nextStatus({ ...inst, voted, status: 'voting' });
@@ -7587,8 +7653,9 @@ Alpine.store('press', {
       const claimed = await runTransaction(db, async (tx) => {
         const snap = await tx.get(ref);
         if (snap.exists() && !force && snap.data()?.status !== 'error') return false;
+        const placeholder = normalizeCategories(category, [AI_CATEGORY]);
         tx.set(ref, {
-          season: l.season, category, categories: [category, AI_CATEGORY], status: 'pending',
+          season: l.season, category: placeholder.category, categories: placeholder.categories, status: 'pending',
           authorId: author.id, teamIds, day: null, title: '', subtitle: '', body: '',
           source: { type: sourceType, season: l.season, ...sourceExtra }, storylines: [], createdAt, publishedAt: createdAt, error: null,
         });
@@ -7739,6 +7806,12 @@ Alpine.store('press', {
     // Alles, was hier entsteht, ist KI-geschrieben — und steht damit zusätzlich in
     // der Rubrik „Erste Liga".
     const cats = normalizeCategories(meta.category, [...(meta.categories || []), AI_CATEGORY]);
+    // Bilder aus dem Auftrag gehören in eine Kachel, nicht als nackte Adresse in den
+    // Fließtext. Der Auftrag sagt das; hier wird es notfalls durchgesetzt.
+    const body = withImageTiles(
+      sanitizeHtml(paragraphsToHtml(data.absaetze)),
+      imageUrlsIn(meta.source?.brief || ''),
+    );
     return {
       season: l.season,
       category: cats.category,
@@ -7746,7 +7819,7 @@ Alpine.store('press', {
       editorial: !!meta.editorial,
       title: String(data.titel || '').trim() || 'Ohne Titel',
       subtitle: String(data.dachzeile || '').trim(),
-      body: sanitizeHtml(paragraphsToHtml(data.absaetze)),
+      body,
       authorId: meta.authorId,
       teamIds,
       pokemonNames: (data.erwaehntePokemon || []).filter((n) => knownMons.has(n)).slice(0, 12),
@@ -8104,7 +8177,7 @@ Alpine.store('press', {
     const id = input.id || `${this.prefix}-ed-${Date.now().toString(36)}-${Math.floor(Math.random() * 1296).toString(36)}`;
     const existing = input.id ? this.byId(input.id) : null;
     const body = sanitizeHtml(input.body || '');
-    const cats = normalizeCategories(input.category || 'redaktion', input.categories || []);
+    const cats = normalizeCategories(input.category || 'news', input.categories || []);
     await setDoc(doc(db, 'press', id), {
       season: Alpine.store('league')?.season || 1,
       category: cats.category,
@@ -8524,8 +8597,23 @@ Alpine.store('elo', {
   index() {
     return eloIndex(this.rows);
   },
+
+  // --- Verlauf: immer nur die gewählte Saison ------------------------------
+  // Der aktuelle Elo-Wert (index/marketOf) gilt saisonunabhängig — er ist der Stand
+  // von heute. Der VERLAUF dagegen gehört zu genau einer Saison: Die Spalten der
+  // neuen Saison dürfen die abgeschlossene Kurve der alten nicht verlängern.
+  histRows() {
+    const scope = Alpine.store('season')?.scope;
+    return limitHistory(this.rows, scope);
+  },
+  histIndex() {
+    return eloIndex(this.histRows());
+  },
   stops() {
-    return historyStops(this.rows);
+    return historyStops(this.histRows());
+  },
+  stopKeys() {
+    return new Set(this.stops().map((x) => x.key));
   },
   bands() {
     return marketBands(this.rows);
@@ -8547,6 +8635,7 @@ Alpine.store('elo', {
 Alpine.data('authGate', authGate);
 Alpine.data('app', app);
 Alpine.data('draftBoard', draftBoard);
+Alpine.data('draftPlan', () => draftPlanView({ loadJson, saveJson, tierColor: (t) => TIER_COLORS[t] || '#6b7280', typeColor: (t) => TYPE_COLORS[t] || '#6b7280' }));
 Alpine.data('teamsView', teamsView);
 Alpine.data('scheduleView', scheduleView);
 Alpine.data('standingsView', standingsView);

@@ -17,7 +17,10 @@ export const PRESS_CATEGORIES = [
   { key: 'spielbericht', label: 'Spielbericht', short: 'Bericht', color: '#4d90d5', manual: true },
   { key: 'news', label: 'News', short: 'News', color: '#63bc5a', manual: true },
   { key: 'klatsch', label: 'Klatsch und Tratsch', short: 'Klatsch', color: '#e3350d', manual: true },
-  { key: 'redaktion', label: 'Redaktion', short: 'Redaktion', color: '#ffcb05', manual: true },
+  // „Redaktion" ist keine Rubrik, sondern die HERKUNFT: Der Stempel hängt am Feld
+  // `editorial`, nicht an einer Kategorie. Der Schlüssel bleibt nur stehen, damit
+  // Alt-Beiträge, die ihn noch tragen, weiterhin Beschriftung und Farbe finden.
+  { key: 'redaktion', label: 'Redaktion', short: 'Redaktion', color: '#ffcb05' },
   { key: 'erste-liga', label: 'Erste Liga', short: '1. Liga', color: '#c9a227', auto: true },
   { key: 'zweite-liga', label: 'Zweite Liga', short: '2. Liga', color: '#8e9aaf', manual: true },
   { key: 'geruechte', label: 'Gerüchte', short: 'Gerüchte', color: '#a855f7', manual: true },
@@ -48,12 +51,19 @@ export function categoriesOf(article) {
   const push = (k) => { if (k && CATEGORY_BY_KEY[k] && !out.includes(k)) out.push(k); };
   push(article?.category);
   (article?.categories || []).forEach(push);
+  // Ein selbst geschriebener Beitrag trägt den Redaktions-Stempel bereits über
+  // `editorial`. Stünde „Redaktion" zusätzlich als Rubrik da, stünde es doppelt.
+  if (article?.editorial) return out.filter((k) => k !== 'redaktion');
   return out;
 }
 
 // Eingabe aus Editor bzw. Modell auf gültige Schlüssel normalisieren.
 export function normalizeCategories(primary, extra = []) {
-  const list = categoriesOf({ category: primary, categories: extra });
+  let list = categoriesOf({ category: primary, categories: extra });
+  // „Erste Liga" hängt sich an jeden KI-Beitrag von selbst an. Steht ein Beitrag
+  // ausdrücklich in der Zweiten Liga, ist das schlicht falsch — die beiden schließen
+  // einander aus, und ohne diese Regel trägt ein Zweitliga-Stück beide Stempel.
+  if (list.includes('zweite-liga')) list = list.filter((k) => k !== AI_CATEGORY);
   return { category: list[0] || 'news', categories: list };
 }
 
@@ -357,7 +367,9 @@ export function outlookProgress(teamIds, schedule, results, sessions) {
 
 // Alle Presse-Termine eines Teams: je Spieltag ein Interview und eine Pressekonferenz.
 //   „vor dem Spiel“  — frei, sobald das im Spielplan davorliegende Match fertig ist
-//   „nach dem Spiel“ — frei, sobald das eigene Match fertig ist (3. Kampf eingetragen)
+//   „nach dem Spiel“ — frei, sobald der SPIELBERICHT freigegeben ist. Nicht schon mit
+//     dem dritten Kampf: Erst reden, wenn die Redaktion das Spiel gesehen hat — sonst
+//     bezieht sich ein Trainer auf ein Spiel, über das noch nichts geschrieben steht.
 // Davor liegt einmalig die Auftaktrunde; solange sie läuft, bleibt der Vor-dem-Spiel-
 // Termin des Auftakt-Spieltags gesperrt.
 export function pressSlots(teamId, schedule, results, sessions = [], bonusComplete = false) {
@@ -378,7 +390,7 @@ export function pressSlots(teamId, schedule, results, sessions = [], bonusComple
     const prev = m.seq > 0 ? seq[m.seq - 1] : null;
     const waitsForBonus = m.day === BONUS_ROUND_DAY && !bonusComplete;
     const preOpen = (!prev || isMatchComplete(byId[prev.id])) && !waitsForBonus;
-    const postOpen = isMatchComplete(byId[m.id]);
+    const postOpen = isPressReleased(byId[m.id]);
     const opponent = m.home === teamId ? m.away : m.home;
     [['pre', preOpen], ['post', postOpen]].forEach(([slot, open]) => {
       out.push({
@@ -393,6 +405,9 @@ export function pressSlots(teamId, schedule, results, sessions = [], bonusComple
         open,
         // Beschreibt, worauf noch gewartet wird — die Ansicht zeigt das als Hinweis.
         blockedBy: open ? null : slot === 'pre' ? (waitsForBonus ? 'bonus' : prev?.id || null) : m.id,
+        // „nach dem Spiel“ kann aus zwei Gründen zu sein: Das Match ist noch nicht
+        // fertig, oder es ist fertig und wartet nur noch auf die Pressefreigabe.
+        needsRelease: slot === 'post' && !open && isMatchComplete(byId[m.id]),
       });
     });
   });

@@ -417,11 +417,17 @@ export const NATURE_SETS = {
 const NATURE_SUFFIX = { up: '+', neutral: '', down: '-' };
 
 export function speedCases(base, opts = {}) {
-  const sps = opts.sp == null ? [0, 32] : [clampSp(opts.sp)];
+  // `sp == null` ist die Standardannahme, kein eingetragener Wert: 0 UND 32 SP.
+  const auto = opts.sp == null;
+  const sps = auto ? [0, 32] : [clampSp(opts.sp)];
   const natures = NATURE_SETS[opts.nat] || NATURE_SETS.both;
   const out = [];
   for (const sp of sps) {
     for (const nature of natures) {
+      // Solange nichts eingetragen ist, steht 0 SP für „gar nicht investiert" — ein
+      // Init+-Wesen dazu plant niemand. Es erscheint nur, wenn es ausdrücklich für
+      // dieses Pokémon eingetragen wurde oder die Auswahl nichts anderes hergibt.
+      if (auto && sp === 0 && nature === 'up' && natures.includes('neutral')) continue;
       out.push({
         key: `sp${sp}${nature === 'up' ? 'n' : nature === 'down' ? 'd' : ''}`,
         label: `${sp}${NATURE_SUFFIX[nature]}`,

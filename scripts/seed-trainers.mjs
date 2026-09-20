@@ -26,8 +26,17 @@ const firebaseConfig = {
   appId: '1:472324120495:web:173d23535c2456fbe7d95a',
 };
 
+// Ab Saison 2 gibt es Teams mit gleichem Namen in mehreren Saisons. Ohne die
+// Einschraenkung auf eine Saison traefe der Namensabgleich das falsche Dokument.
+//   node scripts/seed-trainers.mjs              # Saison 1 aus trainers.csv
+//   node scripts/seed-trainers.mjs --season 2   # Saison 2 aus trainers-s2.csv
+const argSeason = Number((process.argv.find((a) => a.startsWith('--season=')) || '').split('=')[1]
+  || process.argv[process.argv.indexOf('--season') + 1]);
+const season = Number.isFinite(argSeason) && argSeason > 0 ? argSeason : 1;
+
 const here = dirname(fileURLToPath(import.meta.url));
-const csv = readFileSync(join(here, 'data', 'trainers.csv'), 'utf8');
+const csvFile = season === 1 ? 'trainers.csv' : `trainers-s${season}.csv`;
+const csv = readFileSync(join(here, 'data', csvFile), 'utf8');
 
 // Teamnamen robust vergleichen (Akzente, Gross-/Kleinschreibung, Tippfehler-Aliase).
 function key(name) {
@@ -55,7 +64,9 @@ const app = initializeApp(firebaseConfig);
 const db = getFirestore(app);
 
 const snap = await getDocs(collection(db, 'teams'));
-const teams = snap.docs.map((d) => ({ id: d.id, ...d.data() }));
+const teams = snap.docs
+  .map((d) => ({ id: d.id, ...d.data() }))
+  .filter((t) => (t.season || Number(String(t.id).match(/^s(\d+)-/)?.[1]) || 1) === season);
 const byKey = Object.fromEntries(teams.map((t) => [teamKey(t.name), t]));
 
 const grouped = new Map();
@@ -78,5 +89,5 @@ for (const [teamId, trainers] of grouped) {
   written += trainers.length;
 }
 
-console.log(`\n${written} Trainer in ${grouped.size} Teams geschrieben.`);
+console.log(`\n${written} Trainer in ${grouped.size} Teams der Saison ${season} geschrieben.`);
 process.exit(unknown.length ? 1 : 0);

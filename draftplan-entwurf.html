@@ -1,0 +1,112 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Draftplan – Probelauf · JH Draft League</title>
+  <link rel="stylesheet" href="./resources/css/style.css">
+  <meta name="robots" content="noindex,nofollow" />
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Roboto:ital,wght@0,100..900;1,100..900&display=swap" rel="stylesheet">
+</head>
+<body class="min-h-screen bg-void font-sans text-ink antialiased selection:bg-flame-500/30">
+  <div class="pointer-events-none fixed inset-0 -z-10 bg-[radial-gradient(75%_45%_at_88%_-8%,rgba(227,53,13,0.12),transparent_60%)]"></div>
+
+  <main class="mx-auto max-w-6xl px-4 py-10 md:px-8">
+    <header class="mb-8 max-w-3xl">
+      <p class="font-display text-xs font-semibold uppercase tracking-[0.3em] text-flame-400">Probelauf</p>
+      <h1 class="mt-1 font-display text-4xl font-bold tracking-wide text-ink md:text-5xl">Draftplan</h1>
+      <p class="mt-4 leading-relaxed text-mist">
+        Der echte Draftplan aus dem Draft-View — dieselbe Komponente, dasselbe Markup, nur mit erfundener
+        Liga und eigenem Speicher. Der Pokémon-Pool ist der echte.
+      </p>
+    </header>
+
+    <div data-mount class="rounded-2xl border border-line bg-panel/40 p-4 sm:p-6"></div>
+  </main>
+
+  <script type="module">
+    import Alpine from 'alpinejs';
+    import { draftPlanView } from './resources/js/draftplan-view.mjs';
+
+    const TIER_COLORS = { S: '#e3350d', A: '#ffcb05', B: '#4d90d5', C: '#63bc5a', D: '#9099a1' };
+    const TYPE_COLORS = {
+      Normal: '#9099a1', Feuer: '#ff9d55', Wasser: '#4d90d5', Elektro: '#f4d23c', Pflanze: '#63bc5a',
+      Eis: '#73cec0', Kampf: '#ce4069', Gift: '#ab6ac8', Boden: '#d97746', Flug: '#8fa9de',
+      Psycho: '#f97176', 'Käfer': '#90c12c', Gestein: '#c7b78b', Geist: '#5269ac', Drache: '#0b6dc3',
+      Unlicht: '#5a5366', Stahl: '#5a8ea2', Fee: '#ec8fe6',
+    };
+
+    const PLANS_KEY = 'jhdl-draftplan-demo-v1';
+    const UI_KEY = 'jhdl-draftplan-demo-ui-v1';
+    const LEAGUE_KEY = 'jhdl-draftplan-demo-league-v1';
+
+    const loadJson = (key) => { try { return JSON.parse(localStorage.getItem(key) || '{}') || {}; } catch { return {}; } };
+    const saveJson = (key, value) => { try { localStorage.setItem(key, JSON.stringify(value)); } catch {} };
+
+    const TEAMS = [
+      { id: 's2-heerashai-sv', name: 'Heerashai SV', player: 'Janik', logo: 'heerashai-sv.png' },
+      { id: 's2-fc-chelze', name: 'FC Chelze', player: 'Janik', logo: 'fc-chelze.png' },
+      { id: 's2-ac-arboliva', name: 'AC Arboliva', player: 'Janik', logo: 'ac-arboliva.png' },
+      { id: 's2-toxicroak-rangers', name: 'Toxicroak Rangers', player: 'Janik', logo: 'toxicroak-rangers.png' },
+      { id: 's2-beast-force-pc', name: 'Beast Force PC', player: 'Henrik', logo: 'beast-force-pc.png' },
+      { id: 's2-einkraft-frankfurt', name: 'Einkraft Frankfurt', player: 'Henrik', logo: 'einkraft-frankfurt.png' },
+      { id: 's2-fc-bayern-myriador', name: 'FC Bayern Myriador', player: 'Henrik', logo: 'fc-bayern-myriador.png' },
+      { id: 's2-royal-union-pingoleon', name: 'Royal Union Pingoleon', player: 'Henrik', logo: 'royal-union-pingoleon.png' },
+    ];
+
+    const blankLeague = () => ({
+      teams: TEAMS.map((t) => ({ ...t, pokemon: [] })),
+      draft: { status: 'idle', order: TEAMS.map((t) => t.id), pickIndex: 0, renewals: [], renewalRound: null, renewalDone: [] },
+    });
+
+    const stored = loadJson(LEAGUE_KEY);
+    const state = stored.teams ? stored : blankLeague();
+    const persist = () => saveJson(LEAGUE_KEY, JSON.parse(JSON.stringify({ teams: Alpine.store('league').teams })));
+
+    const pokemon = await fetch('./data/pokemon.json').then((r) => r.json());
+
+    Alpine.store('league', {
+      pokemon,
+      pokemonLoaded: true,
+      teamsLoaded: true,
+      draftLoaded: true,
+      teams: state.teams,
+      get seasonTeams() { return this.teams; },
+      draft: state.draft,
+      async pick(teamId, mon) {
+        const team = this.teams.find((t) => t.id === teamId);
+        if (!team) return;
+        team.pokemon.push(mon);
+        this.draft.pickIndex += 1;
+        persist();
+      },
+    });
+
+    Alpine.store('auth', {
+      player: 'Janik',
+      get myTeams() { return Alpine.store('league').teams.filter((t) => t.player === 'Janik'); },
+      ownsTeam(team) { return team?.player === 'Janik'; },
+    });
+
+    Alpine.data('draftPlan', () => draftPlanView({
+      loadJson, saveJson,
+      plansKey: PLANS_KEY,
+      uiKey: UI_KEY,
+      tierColor: (t) => TIER_COLORS[t] || '#6b7280',
+      typeColor: (t) => TYPE_COLORS[t] || '#6b7280',
+    }));
+
+    // Das Markup kommt aus dem echten Partial, damit hier nie eine zweite Wahrheit entsteht.
+    const partial = await fetch('./pages/draft.html').then((r) => r.text());
+    const doc = new DOMParser().parseFromString(partial, 'text/html');
+    const section = doc.querySelector('[data-draftplan]');
+    section.removeAttribute('x-show');
+    section.removeAttribute('x-cloak');
+    document.querySelector('[data-mount]').appendChild(section);
+
+    Alpine.start();
+  </script>
+</body>
+</html>

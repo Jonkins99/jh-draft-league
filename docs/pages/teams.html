@@ -54,7 +54,7 @@
 
           <div x-show="(t.pokemon || []).length" class="mt-3 grid grid-cols-5 gap-1.5">
             <template x-for="p in (t.pokemon || [])" :key="p.name">
-              <div class="relative grid aspect-square place-items-center rounded-lg bg-elevated" :title="`${p.name} · Tier ${p.tier}`">
+              <div class="relative flex aspect-square items-center justify-center rounded-lg bg-elevated" :title="`${p.name} · Tier ${p.tier}`">
                 <img :src="p.image" :alt="p.name" loading="lazy" class="size-11 object-contain" />
                 <span x-html="$store.awards.pinHtml('pokemon', p.name, 'sm')"></span>
               </div>
@@ -133,7 +133,7 @@
           <template x-for="p in rosterByTier(selectedTeam)" :key="p.name">
             <div @click.stop="goMon(p.name)"
                  class="cursor-pointer rounded-2xl border border-line bg-panel p-4 transition-colors hover:border-flame-500/40">
-              <div class="relative grid aspect-square place-items-center rounded-xl bg-elevated/60">
+              <div class="relative flex aspect-square items-center justify-center rounded-xl bg-elevated/60">
                 <span class="absolute left-2 top-2 grid size-6 place-items-center rounded font-display text-xs font-bold"
                       :style="`color:${tierColor(p.tier)}; background:${tierColor(p.tier)}26`" x-text="p.tier"></span>
                 <img :src="p.image" :alt="p.name" loading="lazy" class="h-4/5 w-4/5 object-contain" />

@@ -72,8 +72,8 @@
       "Stahl",
       "Drache"
     ],
-    "tier": "S",
-    "cost": 19,
+    "tier": "A",
+    "cost": 15,
     "image": "https://www.serebii.net/pokemonhome/pokemon/1018.png",
     "base_speed": 85
   },
@@ -229,8 +229,8 @@
       "Gestein",
       "Flug"
     ],
-    "tier": "S",
-    "cost": 17,
+    "tier": "A",
+    "cost": 13,
     "image": "https://www.serebii.net/pokemonhome/pokemon/142.png",
     "base_speed": 130
   },
@@ -242,8 +242,8 @@
       "Unlicht",
       "Stahl"
     ],
-    "tier": "S",
-    "cost": 17,
+    "tier": "A",
+    "cost": 13,
     "image": "https://www.serebii.net/pokemonhome/pokemon/983.png",
     "base_speed": 50
   },
@@ -255,8 +255,8 @@
       "Gestein",
       "Flug"
     ],
-    "tier": "S",
-    "cost": 17,
+    "tier": "A",
+    "cost": 13,
     "image": "https://www.serebii.net/pokemonhome/pokemon/142-m.png",
     "base_speed": 150
   },
@@ -267,8 +267,8 @@
     "types": [
       "Wasser"
     ],
-    "tier": "S",
-    "cost": 17,
+    "tier": "A",
+    "cost": 13,
     "image": "https://www.serebii.net/pokemonhome/pokemon/009-m.png",
     "base_speed": 78
   },
@@ -280,8 +280,8 @@
       "Feuer",
       "Psycho"
     ],
-    "tier": "S",
-    "cost": 17,
+    "tier": "A",
+    "cost": 13,
     "image": "https://www.serebii.net/pokemonhome/pokemon/655-m.png",
     "base_speed": 134
   },
@@ -293,8 +293,8 @@
       "Gestein",
       "Unlicht"
     ],
-    "tier": "S",
-    "cost": 17,
+    "tier": "A",
+    "cost": 13,
     "image": "https://www.serebii.net/pokemonhome/pokemon/248-m.png",
     "base_speed": 71
   },
@@ -332,8 +332,8 @@
       "Normal",
       "Psycho"
     ],
-    "tier": "A",
-    "cost": 16,
+    "tier": "S",
+    "cost": 20,
     "image": "https://www.serebii.net/pokemonhome/pokemon/981.png",
     "base_speed": 60
   },
@@ -383,8 +383,8 @@
       "Wasser",
       "Flug"
     ],
-    "tier": "A",
-    "cost": 16,
+    "tier": "S",
+    "cost": 20,
     "image": "https://www.serebii.net/pokemonhome/pokemon/279.png",
     "base_speed": 65
   },
@@ -475,8 +475,8 @@
       "Feuer",
       "Gestein"
     ],
-    "tier": "A",
-    "cost": 15,
+    "tier": "B",
+    "cost": 11,
     "image": "https://www.serebii.net/pokemonhome/pokemon/059-h.png",
     "base_speed": 90
   },
@@ -501,8 +501,8 @@
       "Drache",
       "Flug"
     ],
-    "tier": "A",
-    "cost": 15,
+    "tier": "B",
+    "cost": 11,
     "image": "https://www.serebii.net/pokemonhome/pokemon/149-m.png",
     "base_speed": 100
   },
@@ -630,8 +630,8 @@
       "Eis",
       "Fee"
     ],
-    "tier": "A",
-    "cost": 14,
+    "tier": "B",
+    "cost": 10,
     "image": "https://www.serebii.net/pokemonhome/pokemon/038-a.png",
     "base_speed": 109
   },
@@ -642,8 +642,8 @@
     "types": [
       "Feuer"
     ],
-    "tier": "A",
-    "cost": 14,
+    "tier": "B",
+    "cost": 10,
     "image": "https://www.serebii.net/pokemonhome/pokemon/059.png",
     "base_speed": 95
   },
@@ -655,8 +655,8 @@
       "Unlicht",
       "Drache"
     ],
-    "tier": "A",
-    "cost": 14,
+    "tier": "B",
+    "cost": 10,
     "image": "https://www.serebii.net/pokemonhome/pokemon/635.png",
     "base_speed": 98
   },
@@ -681,8 +681,8 @@
       "Fee",
       "Flug"
     ],
-    "tier": "A",
-    "cost": 14,
+    "tier": "B",
+    "cost": 10,
     "image": "https://www.serebii.net/pokemonhome/pokemon/036-m.png",
     "base_speed": 70
   },
@@ -694,8 +694,8 @@
       "Drache",
       "Boden"
     ],
-    "tier": "A",
-    "cost": 14,
+    "tier": "B",
+    "cost": 10,
     "image": "https://www.serebii.net/pokemonhome/pokemon/445-m.png",
     "base_speed": 92
   },
@@ -707,8 +707,8 @@
       "Wasser",
       "Unlicht"
     ],
-    "tier": "A",
-    "cost": 14,
+    "tier": "B",
+    "cost": 10,
     "image": "https://www.serebii.net/pokemonhome/pokemon/130-m.png",
     "base_speed": 81
   },
@@ -720,8 +720,8 @@
       "Pflanze",
       "Fee"
     ],
-    "tier": "A",
-    "cost": 14,
+    "tier": "B",
+    "cost": 10,
     "image": "https://www.serebii.net/pokemonhome/pokemon/154-m.png",
     "base_speed": 80
   },
@@ -733,8 +733,8 @@
       "Pflanze",
       "Feuer"
     ],
-    "tier": "A",
-    "cost": 14,
+    "tier": "B",
+    "cost": 10,
     "image": "https://www.serebii.net/pokemonhome/pokemon/952-m.png",
     "base_speed": 75
   },
@@ -746,8 +746,8 @@
       "Pflanze",
       "Gift"
     ],
-    "tier": "A",
-    "cost": 14,
+    "tier": "B",
+    "cost": 10,
     "image": "https://www.serebii.net/pokemonhome/pokemon/003-m.png",
     "base_speed": 80
   },
@@ -758,8 +758,8 @@
     "types": [
       "Wasser"
     ],
-    "tier": "A",
-    "cost": 14,
+    "tier": "B",
+    "cost": 10,
     "image": "https://www.serebii.net/pokemonhome/pokemon/350.png",
     "base_speed": 81
   },
@@ -771,8 +771,8 @@
       "Elektro",
       "Wasser"
     ],
-    "tier": "A",
-    "cost": 14,
+    "tier": "B",
+    "cost": 10,
     "image": "https://www.serebii.net/pokemonhome/pokemon/479-w.png",
     "base_speed": 86
   },
@@ -798,8 +798,8 @@
       "Drache",
       "Flug"
     ],
-    "tier": "A",
-    "cost": 14,
+    "tier": "B",
+    "cost": 10,
     "image": "https://www.serebii.net/pokemonhome/pokemon/373.png",
     "base_speed": 100,
     "since": 2
@@ -825,8 +825,8 @@
       "Boden",
       "Stahl"
     ],
-    "tier": "A",
-    "cost": 13,
+    "tier": "B",
+    "cost": 9,
     "image": "https://www.serebii.net/pokemonhome/pokemon/530.png",
     "base_speed": 88
   },
@@ -838,8 +838,8 @@
       "Gestein",
       "Gift"
     ],
-    "tier": "A",
-    "cost": 13,
+    "tier": "B",
+    "cost": 9,
     "image": "https://www.serebii.net/pokemonhome/pokemon/970.png",
     "base_speed": 86
   },
@@ -851,8 +851,8 @@
       "Wasser",
       "Flug"
     ],
-    "tier": "A",
-    "cost": 13,
+    "tier": "B",
+    "cost": 9,
     "image": "https://www.serebii.net/pokemonhome/pokemon/130.png",
     "base_speed": 81
   },
@@ -864,8 +864,8 @@
       "Boden",
       "Stahl"
     ],
-    "tier": "A",
-    "cost": 13,
+    "tier": "B",
+    "cost": 9,
     "image": "https://www.serebii.net/pokemonhome/pokemon/530-m.png",
     "base_speed": 103
   },
@@ -876,8 +876,8 @@
     "types": [
       "Wasser"
     ],
-    "tier": "A",
-    "cost": 13,
+    "tier": "B",
+    "cost": 9,
     "image": "https://www.serebii.net/pokemonhome/pokemon/186.png",
     "base_speed": 70
   },
@@ -889,8 +889,8 @@
       "Pflanze",
       "Gift"
     ],
-    "tier": "A",
-    "cost": 13,
+    "tier": "B",
+    "cost": 9,
     "image": "https://www.serebii.net/pokemonhome/pokemon/003.png",
     "base_speed": 80
   },
@@ -902,8 +902,8 @@
       "Elektro",
       "Kampf"
     ],
-    "tier": "A",
-    "cost": 13,
+    "tier": "B",
+    "cost": 9,
     "image": "https://www.serebii.net/pokemonhome/pokemon/923.png",
     "base_speed": 105,
     "since": 2
@@ -1006,8 +1006,8 @@
       "Pflanze",
       "Unlicht"
     ],
-    "tier": "B",
-    "cost": 12,
+    "tier": "A",
+    "cost": 16,
     "image": "https://www.serebii.net/pokemonhome/pokemon/908.png",
     "base_speed": 123
   },
@@ -1031,8 +1031,8 @@
       "Elektro",
       "Feuer"
     ],
-    "tier": "B",
-    "cost": 12,
+    "tier": "A",
+    "cost": 16,
     "image": "https://www.serebii.net/pokemonhome/pokemon/479-h.png",
     "base_speed": 86
   },
@@ -1158,8 +1158,8 @@
       "Unlicht",
       "Geist"
     ],
-    "tier": "B",
-    "cost": 11,
+    "tier": "A",
+    "cost": 15,
     "image": "https://www.serebii.net/pokemonhome/pokemon/302.png",
     "base_speed": 50
   },
@@ -1210,8 +1210,8 @@
       "Psycho",
       "Fee"
     ],
-    "tier": "B",
-    "cost": 10,
+    "tier": "C",
+    "cost": 6,
     "image": "https://www.serebii.net/pokemonhome/pokemon/282.png",
     "base_speed": 80
   },
@@ -1222,8 +1222,8 @@
     "types": [
       "Unlicht"
     ],
-    "tier": "B",
-    "cost": 10,
+    "tier": "C",
+    "cost": 6,
     "image": "https://www.serebii.net/pokemonhome/pokemon/510.png",
     "base_speed": 106
   },
@@ -1235,8 +1235,8 @@
       "Feuer",
       "Boden"
     ],
-    "tier": "B",
-    "cost": 10,
+    "tier": "C",
+    "cost": 6,
     "image": "https://www.serebii.net/pokemonhome/pokemon/323-m.png",
     "base_speed": 20
   },
@@ -1248,8 +1248,8 @@
       "Boden",
       "Geist"
     ],
-    "tier": "B",
-    "cost": 10,
+    "tier": "C",
+    "cost": 6,
     "image": "https://www.serebii.net/pokemonhome/pokemon/623-m.png",
     "base_speed": 55
   },
@@ -1261,8 +1261,8 @@
       "Kampf",
       "Flug"
     ],
-    "tier": "B",
-    "cost": 10,
+    "tier": "C",
+    "cost": 6,
     "image": "https://www.serebii.net/pokemonhome/pokemon/701-m.png",
     "base_speed": 118
   },
@@ -1273,8 +1273,8 @@
     "types": [
       "Elektro"
     ],
-    "tier": "B",
-    "cost": 10,
+    "tier": "C",
+    "cost": 6,
     "image": "https://www.serebii.net/pokemonhome/pokemon/310-m.png",
     "base_speed": 135
   },
@@ -1298,8 +1298,8 @@
     "types": [
       "Elektro"
     ],
-    "tier": "B",
-    "cost": 10,
+    "tier": "C",
+    "cost": 6,
     "image": "https://www.serebii.net/pokemonhome/pokemon/026.png",
     "base_speed": 110
   },
@@ -1311,8 +1311,8 @@
       "Gift",
       "Feuer"
     ],
-    "tier": "B",
-    "cost": 10,
+    "tier": "C",
+    "cost": 6,
     "image": "https://www.serebii.net/pokemonhome/pokemon/758.png",
     "base_speed": 117
   },
@@ -1376,8 +1376,8 @@
     "types": [
       "Wasser"
     ],
-    "tier": "B",
-    "cost": 9,
+    "tier": "C",
+    "cost": 5,
     "image": "https://www.serebii.net/pokemonhome/pokemon/009.png",
     "base_speed": 78
   },
@@ -1389,8 +1389,8 @@
       "Psycho",
       "Fee"
     ],
-    "tier": "B",
-    "cost": 9,
+    "tier": "C",
+    "cost": 5,
     "image": "https://www.serebii.net/pokemonhome/pokemon/858.png",
     "base_speed": 29
   },
@@ -1402,8 +1402,8 @@
       "Normal",
       "Geist"
     ],
-    "tier": "B",
-    "cost": 9,
+    "tier": "C",
+    "cost": 5,
     "image": "https://www.serebii.net/pokemonhome/pokemon/571-h.png",
     "base_speed": 110
   },
@@ -1428,8 +1428,8 @@
       "Drache",
       "Fee"
     ],
-    "tier": "B",
-    "cost": 9,
+    "tier": "C",
+    "cost": 5,
     "image": "https://www.serebii.net/pokemonhome/pokemon/334-m.png",
     "base_speed": 80
   },
@@ -1441,8 +1441,8 @@
       "Geist",
       "Feuer"
     ],
-    "tier": "B",
-    "cost": 9,
+    "tier": "C",
+    "cost": 5,
     "image": "https://www.serebii.net/pokemonhome/pokemon/609-m.png",
     "base_speed": 90
   },
@@ -1454,8 +1454,8 @@
       "Psycho",
       "Stahl"
     ],
-    "tier": "B",
-    "cost": 9,
+    "tier": "C",
+    "cost": 5,
     "image": "https://www.serebii.net/pokemonhome/pokemon/358-m.png",
     "base_speed": 65
   },
@@ -1479,8 +1479,8 @@
     "types": [
       "Psycho"
     ],
-    "tier": "B",
-    "cost": 9,
+    "tier": "C",
+    "cost": 5,
     "image": "https://www.serebii.net/pokemonhome/pokemon/678-m.png",
     "base_speed": 124
   },
@@ -1505,8 +1505,8 @@
       "Flug",
       "Drache"
     ],
-    "tier": "B",
-    "cost": 9,
+    "tier": "C",
+    "cost": 5,
     "image": "https://www.serebii.net/pokemonhome/pokemon/715.png",
     "base_speed": 123
   },
@@ -1518,8 +1518,8 @@
       "Kampf",
       "Feuer"
     ],
-    "tier": "B",
-    "cost": 9,
+    "tier": "C",
+    "cost": 5,
     "image": "https://www.serebii.net/pokemonhome/pokemon/128-b.png",
     "base_speed": 100
   },
@@ -1531,8 +1531,8 @@
       "Boden",
       "Gestein"
     ],
-    "tier": "B",
-    "cost": 9,
+    "tier": "C",
+    "cost": 5,
     "image": "https://www.serebii.net/pokemonhome/pokemon/464.png",
     "base_speed": 40
   },
@@ -1544,8 +1544,8 @@
       "Unlicht",
       "Eis"
     ],
-    "tier": "B",
-    "cost": 9,
+    "tier": "C",
+    "cost": 5,
     "image": "https://www.serebii.net/pokemonhome/pokemon/461.png",
     "base_speed": 125
   },
@@ -1557,8 +1557,8 @@
       "Feuer",
       "Psycho"
     ],
-    "tier": "C",
-    "cost": 8,
+    "tier": "B",
+    "cost": 12,
     "image": "https://www.serebii.net/pokemonhome/pokemon/936.png",
     "base_speed": 75
   },
@@ -1609,8 +1609,8 @@
       "Feuer",
       "Geist"
     ],
-    "tier": "C",
-    "cost": 8,
+    "tier": "A",
+    "cost": 16,
     "image": "https://www.serebii.net/pokemonhome/pokemon/157-h.png",
     "base_speed": 95
   },
@@ -1660,8 +1660,8 @@
       "Normal",
       "Drache"
     ],
-    "tier": "C",
-    "cost": 8,
+    "tier": "B",
+    "cost": 12,
     "image": "https://www.serebii.net/pokemonhome/pokemon/780-m.png",
     "base_speed": 36
   },
@@ -2275,8 +2275,8 @@
     "types": [
       "Psycho"
     ],
-    "tier": "C",
-    "cost": 5,
+    "tier": "D",
+    "cost": 1,
     "image": "https://www.serebii.net/pokemonhome/pokemon/065.png",
     "base_speed": 120
   },
@@ -2288,8 +2288,8 @@
       "Elektro",
       "Psycho"
     ],
-    "tier": "C",
-    "cost": 5,
+    "tier": "D",
+    "cost": 1,
     "image": "https://www.serebii.net/pokemonhome/pokemon/026-a.png",
     "base_speed": 110
   },
@@ -2301,8 +2301,8 @@
       "Feuer",
       "Flug"
     ],
-    "tier": "C",
-    "cost": 5,
+    "tier": "D",
+    "cost": 1,
     "image": "https://www.serebii.net/pokemonhome/pokemon/006.png",
     "base_speed": 100
   },
@@ -2313,8 +2313,8 @@
     "types": [
       "Geist"
     ],
-    "tier": "C",
-    "cost": 5,
+    "tier": "D",
+    "cost": 1,
     "image": "https://www.serebii.net/pokemonhome/pokemon/563.png",
     "base_speed": 30
   },
@@ -2326,8 +2326,8 @@
       "Feuer",
       "Psycho"
     ],
-    "tier": "C",
-    "cost": 5,
+    "tier": "D",
+    "cost": 1,
     "image": "https://www.serebii.net/pokemonhome/pokemon/655.png",
     "base_speed": 104
   },
@@ -2362,8 +2362,8 @@
     "types": [
       "Eis"
     ],
-    "tier": "C",
-    "cost": 5,
+    "tier": "D",
+    "cost": 1,
     "image": "https://www.serebii.net/pokemonhome/pokemon/471.png",
     "base_speed": 65
   },
@@ -2375,8 +2375,8 @@
       "Geist",
       "Pflanze"
     ],
-    "tier": "C",
-    "cost": 5,
+    "tier": "D",
+    "cost": 1,
     "image": "https://www.serebii.net/pokemonhome/pokemon/711.png",
     "base_speed": 84
   },
@@ -2387,8 +2387,8 @@
     "types": [
       "Boden"
     ],
-    "tier": "C",
-    "cost": 5,
+    "tier": "D",
+    "cost": 1,
     "image": "https://www.serebii.net/pokemonhome/pokemon/450.png",
     "base_speed": 47
   },
@@ -2423,8 +2423,8 @@
     "types": [
       "Geist"
     ],
-    "tier": "C",
-    "cost": 5,
+    "tier": "D",
+    "cost": 1,
     "image": "https://www.serebii.net/pokemonhome/pokemon/354-m.png",
     "base_speed": 75
   },
@@ -2436,8 +2436,8 @@
       "Käfer",
       "Gift"
     ],
-    "tier": "C",
-    "cost": 5,
+    "tier": "D",
+    "cost": 1,
     "image": "https://www.serebii.net/pokemonhome/pokemon/015-m.png",
     "base_speed": 145
   },
@@ -2460,8 +2460,8 @@
     "types": [
       "Geist"
     ],
-    "tier": "C",
-    "cost": 5,
+    "tier": "D",
+    "cost": 1,
     "image": "https://www.serebii.net/pokemonhome/pokemon/855.png",
     "base_speed": 70
   },
@@ -2473,8 +2473,8 @@
       "Wasser",
       "Kampf"
     ],
-    "tier": "C",
-    "cost": 5,
+    "tier": "D",
+    "cost": 1,
     "image": "https://www.serebii.net/pokemonhome/pokemon/914.png",
     "base_speed": 85
   },
@@ -2486,8 +2486,8 @@
       "Boden",
       "Geist"
     ],
-    "tier": "C",
-    "cost": 5,
+    "tier": "D",
+    "cost": 1,
     "image": "https://www.serebii.net/pokemonhome/pokemon/867.png",
     "base_speed": 30
   },
@@ -2498,8 +2498,8 @@
     "types": [
       "Pflanze"
     ],
-    "tier": "C",
-    "cost": 5,
+    "tier": "D",
+    "cost": 1,
     "image": "https://www.serebii.net/pokemonhome/pokemon/497.png",
     "base_speed": 113
   },
@@ -2511,8 +2511,8 @@
       "Feuer",
       "Geist"
     ],
-    "tier": "C",
-    "cost": 5,
+    "tier": "D",
+    "cost": 1,
     "image": "https://www.serebii.net/pokemonhome/pokemon/911.png",
     "base_speed": 66
   },
@@ -2523,8 +2523,8 @@
     "types": [
       "Feuer"
     ],
-    "tier": "C",
-    "cost": 5,
+    "tier": "D",
+    "cost": 1,
     "image": "https://www.serebii.net/pokemonhome/pokemon/157.png",
     "base_speed": 100
   },
@@ -2535,8 +2535,8 @@
     "types": [
       "Unlicht"
     ],
-    "tier": "C",
-    "cost": 5,
+    "tier": "D",
+    "cost": 1,
     "image": "https://www.serebii.net/pokemonhome/pokemon/197.png",
     "base_speed": 65
   },
@@ -2587,8 +2587,8 @@
     "types": [
       "Unlicht"
     ],
-    "tier": "C",
-    "cost": 5,
+    "tier": "D",
+    "cost": 1,
     "image": "https://www.serebii.net/pokemonhome/pokemon/943.png",
     "base_speed": 85,
     "since": 2
@@ -2837,8 +2837,8 @@
       "Elektro",
       "Eis"
     ],
-    "tier": "D",
-    "cost": 4,
+    "tier": "C",
+    "cost": 8,
     "image": "https://www.serebii.net/pokemonhome/pokemon/479-f.png",
     "base_speed": 86
   },
@@ -2994,8 +2994,8 @@
     "types": [
       "Eis"
     ],
-    "tier": "D",
-    "cost": 3,
+    "tier": "C",
+    "cost": 7,
     "image": "https://www.serebii.net/pokemonhome/pokemon/614.png",
     "base_speed": 50
   },
@@ -3096,8 +3096,8 @@
       "Boden",
       "Flug"
     ],
-    "tier": "D",
-    "cost": 3,
+    "tier": "C",
+    "cost": 7,
     "image": "https://www.serebii.net/pokemonhome/pokemon/472.png",
     "base_speed": 95
   },
@@ -3121,8 +3121,8 @@
     "types": [
       "Gestein"
     ],
-    "tier": "D",
-    "cost": 3,
+    "tier": "C",
+    "cost": 7,
     "image": "https://www.serebii.net/pokemonhome/pokemon/745.png",
     "base_speed": 112
   },
@@ -3184,8 +3184,8 @@
       "Pflanze",
       "Feuer"
     ],
-    "tier": "D",
-    "cost": 3,
+    "tier": "C",
+    "cost": 7,
     "image": "https://www.serebii.net/pokemonhome/pokemon/952.png",
     "base_speed": 75
   },
@@ -3402,8 +3402,8 @@
       "Stahl",
       "Boden"
     ],
-    "tier": "D",
-    "cost": 2,
+    "tier": "C",
+    "cost": 6,
     "image": "https://www.serebii.net/pokemonhome/pokemon/208.png",
     "base_speed": 30
   },
@@ -3540,8 +3540,8 @@
       "Feuer",
       "Boden"
     ],
-    "tier": "D",
-    "cost": 1,
+    "tier": "C",
+    "cost": 5,
     "image": "https://www.serebii.net/pokemonhome/pokemon/323.png",
     "base_speed": 40
   },
@@ -3873,7 +3873,7 @@
     "types": [
       "Elektro"
     ],
-    "tier": "S",
+    "tier": "A",
     "cost": null,
     "image": "https://www.serebii.net/pokemonhome/pokemon/026-my.png",
     "base_speed": 130
@@ -3924,7 +3924,7 @@
       "Pflanze",
       "Drache"
     ],
-    "tier": "A",
+    "tier": "B",
     "cost": null,
     "image": "https://www.serebii.net/pokemonhome/pokemon/254-m.png",
     "base_speed": 145
@@ -3937,7 +3937,7 @@
       "Feuer",
       "Kampf"
     ],
-    "tier": "A",
+    "tier": "B",
     "cost": null,
     "image": "https://www.serebii.net/pokemonhome/pokemon/257.png",
     "base_speed": 80
@@ -3950,7 +3950,7 @@
       "Feuer",
       "Kampf"
     ],
-    "tier": "A",
+    "tier": "B",
     "cost": null,
     "image": "https://www.serebii.net/pokemonhome/pokemon/257-m.png",
     "base_speed": 100
@@ -4002,7 +4002,7 @@
       "Stahl",
       "Fee"
     ],
-    "tier": "A",
+    "tier": "S",
     "cost": null,
     "image": "https://www.serebii.net/pokemonhome/pokemon/303-m.png",
     "base_speed": 50
@@ -4015,7 +4015,7 @@
       "Stahl",
       "Psycho"
     ],
-    "tier": "A",
+    "tier": "B",
     "cost": null,
     "image": "https://www.serebii.net/pokemonhome/pokemon/376.png",
     "base_speed": 70
@@ -4118,7 +4118,7 @@
       "Unlicht",
       "Kampf"
     ],
-    "tier": "A",
+    "tier": "B",
     "cost": null,
     "image": "https://www.serebii.net/pokemonhome/pokemon/560-m.png",
     "base_speed": 68
@@ -4142,7 +4142,7 @@
     "types": [
       "Elektro"
     ],
-    "tier": "A",
+    "tier": "B",
     "cost": null,
     "image": "https://www.serebii.net/pokemonhome/pokemon/604-m.png",
     "base_speed": 80
@@ -4220,7 +4220,7 @@
       "Gestein",
       "Kampf"
     ],
-    "tier": "A",
+    "tier": "B",
     "cost": null,
     "image": "https://www.serebii.net/pokemonhome/pokemon/689-m.png",
     "base_speed": 88
@@ -4246,7 +4246,7 @@
       "Gift",
       "Drache"
     ],
-    "tier": "A",
+    "tier": "B",
     "cost": null,
     "image": "https://www.serebii.net/pokemonhome/pokemon/691-m.png",
     "base_speed": 44
@@ -4259,7 +4259,7 @@
       "Unlicht",
       "Fee"
     ],
-    "tier": "A",
+    "tier": "S",
     "cost": null,
     "image": "https://www.serebii.net/pokemonhome/pokemon/861.png",
     "base_speed": 60
@@ -4283,7 +4283,7 @@
     "types": [
       "Kampf"
     ],
-    "tier": "B",
+    "tier": "C",
     "cost": null,
     "image": "https://www.serebii.net/pokemonhome/pokemon/870-m.png",
     "base_speed": 100
@@ -4321,7 +4321,7 @@
       "Kampf",
       "Geist"
     ],
-    "tier": "S",
+    "tier": "A",
     "cost": null,
     "image": "https://www.serebii.net/pokemonhome/pokemon/979.png",
     "base_speed": 90

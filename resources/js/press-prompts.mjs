@@ -88,6 +88,13 @@ export const CANON_RULES = `UNVERRÜCKBARE REGELN (Kanon):
    Beträge drehen. Solange ein Verfolger nach Punkten UND Kill-Differenz vorbeiziehen kann, heißt es
    "so gut wie", "vor der Entscheidung", "braucht noch", niemals "ist Meister". Steht die Zahl der
    offenen Partien nicht in den Metadaten, behauptest du gar nichts.
+   DU MUSST NICHT SELBST RECHNEN: Jede Tabellenzeile trägt "besterMoeglicherPlatz",
+   "schlechtesterMoeglicherPlatz" und dazu "titelSicher", "klassenerhaltSicher" und "abstiegSicher".
+   Diese Felder sind bindend. Nur bei "klassenerhaltSicher": true darf von gesichertem Klassenerhalt,
+   geschaffter Rettung oder "nichts mehr anbrennen" die Rede sein; nur bei "abstiegSicher": true von
+   feststehendem Abstieg; nur bei "titelSicher": true von der Meisterschaft. Steht dort false, ist die
+   Sache offen — auch dann, wenn der Vorsprung riesig aussieht. Ein Team, das rechnerisch noch auf
+   einen Abstiegsplatz fallen kann, hat den Klassenerhalt NICHT geschafft, Punkt.
 10. HALTUNG: Der Grundton dieser Redaktion ist kritisch, fordernd und unbestechlich — das bleibt so.
    Aber eine Redaktion, die NIE anerkennt, verliert ihre Glaubwürdigkeit und damit ihre Schärfe.
    Wo eine Leistung die Erwartung schlägt — ein billiges Pokémon trägt ein Team, ein Kader dreht
@@ -130,12 +137,43 @@ export const OPENINGS = [
   'Beginne mitten in einer Szene, nicht mit dem Ergebnis.',
   'Beginne mit einem Zitat, das erst im zweiten Absatz eingeordnet wird.',
   'Beginne mit einer einzelnen Zahl aus den Daten und arbeite dich von ihr weg.',
-  'Beginne mit einem Bild aus der Arena — Geräusch, Licht, Gesicht.',
+  'Beginne mit einem Geräusch oder einem Satzfetzen, den jemand aufgeschnappt hat.',
   'Beginne mit einer Behauptung, die der Text danach prüft.',
   'Beginne mit dem Moment, in dem die Partie gekippt ist.',
   'Beginne beim Verlierer, nicht beim Sieger.',
   'Beginne mit einer Nebenfigur: jemand, der gar nicht im Einsatz war.',
   'Beginne mit einem Rückblick auf das, was vor dem Spieltag erwartet wurde.',
+  'Beginne mit einer Frage, die du im letzten Absatz beantwortest.',
+  'Beginne mit einem Vergleich zu einem früheren Spieltag.',
+  'Beginne nüchtern und sachlich — erster Satz ohne ein einziges Adjektiv.',
+  'Beginne mit einer Aufzählung von drei Dingen, die nicht zusammenpassen.',
+  'Beginne mit dem, was NICHT passiert ist.',
+  'Beginne bei einer Zahl, die klein aussieht und groß ist.',
+  'Beginne mit einem Widerspruch zwischen dem, was gesagt, und dem, was getan wurde.',
+  'Beginne mit einer Beobachtung aus der zweiten Reihe: Bank, Kabinengang, Tribüne.',
+  'Beginne mit dem Ende und erzähl rückwärts.',
+  'Beginne mit einem Satz von höchstens fünf Wörtern.',
+  'Beginne bei einem Detail der Aufstellung, das niemand erwartet hat.',
+];
+
+// Eine harte, zufällige Formauflage je Anfrage. Sie steht NICHT im Dienst des Inhalts,
+// sondern gegen die Wiederholung: Zwei Texte mit derselben Auflage gibt es selten, und
+// jede Auflage verbietet genau das Muster, in das ein Modell sonst zurückfällt.
+export const STYLE_CONSTRAINTS = [
+  'Keine einzige Metapher aus Licht, Bühne, Scheinwerfern oder Rampenlicht.',
+  'Höchstens ein Bild oder Vergleich im ganzen Text — dafür ein gutes.',
+  'Keine Metapher aus Krieg, Schlacht oder Waffen.',
+  'Der erste Absatz kommt ohne Adjektive aus.',
+  'Kein Satz beginnt mit „Es" oder „Das".',
+  'Keine Metapher aus Edelmetall, Gold, Silber oder Schmuck.',
+  'Schreibe kürzer als sonst: kein Satz über 20 Wörter.',
+  'Mindestens ein Absatz besteht aus einem einzigen Satz.',
+  'Keine rhetorische Frage im gesamten Text.',
+  'Kein Superlativ — kein „bester", „stärkster", „schlechtester".',
+  'Keine Metapher aus Wetter, Sturm, Gewitter oder Sonnenschein.',
+  'Zwei Absätze beginnen mit einem Namen, nicht mit einem Artikel.',
+  'Keine Wendung, die du in einem deiner letzten Texte schon benutzt hast.',
+  'Kein Doppelpunkt als Stilmittel, keine Auslassungspunkte.',
 ];
 
 // Die Vorlage aus dem Fußball, auf diese Liga gedreht. Sorgt dafür, dass sich die
@@ -198,10 +236,12 @@ export function buildDirection(recentArchetypes = []) {
   const pool = fresh.length >= 4 ? fresh : STORY_ARCHETYPES;
   const tone = weightedPick(TONES);
   const opening = pick(OPENINGS);
+  const constraints = sample(STYLE_CONSTRAINTS, 2);
   const suggestions = sample(pool, 4);
   return {
     tone,
     opening,
+    constraints,
     suggestions,
     text: [
       `TONLAGE FÜR DIESEN TEXT: ${tone.text}`,
@@ -209,6 +249,8 @@ export function buildDirection(recentArchetypes = []) {
         ? 'Diese Tonlage ist verbindlich: such dir die stärkste Leistung in den Daten und räum ihr den Hauptplatz ein.'
         : '',
       `ERZÄHLIMPULS: ${opening}`,
+      `FORMAUFLAGEN FÜR DIESEN TEXT (verbindlich, beide):`,
+      ...constraints.map((c) => `  - ${c}`),
       `MÖGLICHE ERZÄHLSTRÄNGE (wähle einen, der wirklich zu den Daten passt, oder erfinde einen besseren):`,
       ...suggestions.map((a) => `  - ${a.key}: ${a.label} — ${a.hint}`),
       recent.size
@@ -495,6 +537,11 @@ AUFTRAG
 - Sagt der Auftrag nichts zu Form oder Ton, entscheidest du beides selbst, passend zum Thema.
 - Der Kanon gilt unverändert. Ein Auftrag hebt keine seiner Regeln auf.
 - Entscheide selbst über die Rubrik: "news", "klatsch", "geruechte" oder "informationen".
+  Geht es um die zweite Liga, ist "zweite-liga" die richtige Rubrik.
+- STEHT IM AUFTRAG EINE BILD-ADRESSE (http:// oder https://, auf .jpg, .jpeg, .png, .webp, .gif
+  oder .avif endend), dann gehört dieses Bild in den Beitrag — als eigener Absatz in der Form
+  [bild: <die Adresse exakt wie im Auftrag>], an der Stelle, an der es den Text stützt. Die nackte
+  Adresse darf NIEMALS im Fließtext stehen. Nenne die Adresse auch sonst nirgends im Text.
 
 FORM
 - Drei bis acht Absätze, je nach Auftrag. Zwischenüberschriften mit "## " und Zitatblöcke mit "> "
@@ -532,15 +579,24 @@ export const TILE_RULES = `BAUSTEINE (Bilder und Kacheln im Text):
 Du darfst einzelne Absätze durch einen Baustein ersetzen. Ein Baustein steht IMMER allein in
 seinem Absatz, ohne weiteren Text davor oder dahinter, und in genau dieser Schreibweise:
 - [marktwert: <Pokémon-Name>]  -> Bild, Marktwert und Tier des Pokémon
+- [verlauf: <Pokémon-Name>]    -> Marktwert-Kurve über die Saison, mit Anfangs- und Endwert
+- [statistik: <Pokémon-Name>]  -> Kills, Deaths, K/D, Einsätze, Sieg- und Überlebensquote
 - [team: <Team-Id>]            -> Vereinslogo, Name und Kaderwert
 - [trainer: <Team-Id>]         -> Foto und Name des amtierenden Trainers
 - [ergebnis: <Match-Id>]       -> Ergebniskachel mit Logos, Kampf- und Kill-Stand
+- [tabelle: <Team-Id>]         -> Tabellenausschnitt um dieses Team; [tabelle: top] zeigt die Spitze
 - [video: <Match-Id>]          -> das Video zum Spiel, sofern eines hinterlegt ist
 Team-Ids, Pokémon-Namen und Match-Ids stehen in den Metadaten und werden EXAKT übernommen.
-Höchstens drei Bausteine je Beitrag, und nur dort, wo sie den Text tragen — ein Marktwert neben
-der Behauptung, jemand sei zu teuer; die Ergebniskachel nach der Schilderung der Partie. Ein
-Baustein ersetzt nie das, was du zu sagen hast: Was in der Kachel steht, muss im Text nicht noch
-einmal buchstabiert werden, aber die Kachel allein ist kein Absatz.
+SETZE BAUSTEINE REGELMÄSSIG — zwei bis drei je Beitrag sind der Normalfall, nicht die Ausnahme,
+und das gilt für JEDE Textsorte: Spielbericht, freier Beitrag, Nachbericht zu Interview oder
+Pressekonferenz, Rückblick, Zeugnis. Ein Beitrag ganz ohne Kachel ist die Ausnahme. Höchstens
+vier je Beitrag, und immer dort, wo der Text sie trägt: der Marktwert neben der Behauptung,
+jemand sei zu teuer; die Verlaufskurve, wenn es um Auf- oder Abstieg eines Wertes geht; die
+Statistik-Kachel als Beleg für „trägt das Team" oder „bleibt blass"; der Tabellenausschnitt,
+wenn es um Platz, Abstand oder Abstiegskampf geht; die Ergebniskachel nach der Schilderung der
+Partie. Verschiedene Beiträge sollen verschiedene Kacheln wählen — nicht jedes Mal dieselbe.
+Ein Baustein ersetzt nie das, was du zu sagen hast: Was in der Kachel steht, muss im Text nicht
+noch einmal buchstabiert werden, aber die Kachel allein ist kein Absatz.
 Ist zum Match ein Video hinterlegt (Metadatenfeld "video"), setze [video: <Match-Id>] in den
 Spielbericht. Ist keines hinterlegt, setzt du den Baustein NICHT.`;
 
@@ -556,6 +612,15 @@ export function buildSystem({ author, extra = '' } = {}) {
     'HANDWERK: Schreibe wie ein guter Sportjournalist — konkret statt allgemein, Verben statt Adjektive, '
       + 'keine Floskeln ("wichtige drei Punkte", "am Ende des Tages"), keine Aufzählung von Zahlen ohne Deutung. '
       + 'Jeder Absatz bringt etwas Neues. Klischees sind erlaubt, wenn sie gebrochen werden.',
+    'KEINE HAUSMARKEN. Diese Redaktion hat sich Wendungen angewöhnt, die jetzt in jedem zweiten Text stehen. '
+      + 'Verboten sind ab sofort: Scheinwerfer, Rampenlicht, Flutlicht und alles, was „noch nachglüht" oder '
+      + '„noch strahlt"; stehende Beinamen nach dem Muster „das S-Tier-Edelmetall", „der A-Tier-Luxus", '
+      + '„die D-Tier-Perle" — ein Tier ist eine Einstufung, kein Adelstitel; „Prunkstück", „Edelmetall", '
+      + '„Kronjuwel", „Goldstück"; „die Zahlen sprechen eine andere Sprache"; „am Ende des Tages"; '
+      + '„auf dem Papier"; „Achterbahnfahrt"; „Ausrufezeichen setzen"; „die Wahrheit liegt auf dem Feld". '
+      + 'Ebenso verboten: denselben Einstiegssatzbau wie üblich zu wählen. Wenn dir eine Formulierung leicht '
+      + 'von der Hand geht, ist sie vermutlich genau die, die schon dreimal dastand — nimm die zweite Idee. '
+      + 'Ein Pokémon, ein Team, ein Trainer bekommt in jedem Text einen ANDEREN Beinamen oder gar keinen.',
     'INTERPRETIERE. Die Metadaten sind Rohmaterial, kein Text. Rechne Tabellensituationen aus, erkenne Serien, '
       + 'vergleiche Erwartung (Tier, Marktwert, Draft-Kosten) mit Wirkung (Kills, Einsatzquote, Siege), erkenne, wenn '
       + 'jemand auffällig selten aufgestellt wird, und zieh daraus Schlüsse, die in den Daten nicht ausgeschrieben stehen.',

@@ -307,14 +307,21 @@
               <p x-show="!dialogOptions.length" class="py-6 text-center text-sm text-mist">Keine Kandidaten für diese Auszeichnung.</p>
             </div>
 
-            <div class="flex flex-col gap-2 border-t border-line px-5 py-4 sm:flex-row">
-              <button type="button" @click="startVote()" :disabled="busy"
-                      class="flex-1 rounded-xl bg-flame-500 px-4 py-3 font-display text-sm font-bold uppercase tracking-wide text-white transition-colors hover:bg-flame-600 disabled:opacity-60">
-                Abstimmung starten
-              </button>
-              <button type="button" @click="confirmNoms()" :disabled="busy"
-                      class="flex-1 rounded-xl border border-line px-4 py-3 font-display text-sm font-bold uppercase tracking-wide text-mist transition-colors hover:border-flame-500/40 hover:text-flame-400 disabled:opacity-60"
-                      x-text="`Auf ${$store.awards.other} warten`"></button>
+            <div class="border-t border-line px-5 py-4">
+              <div class="flex flex-col gap-2 sm:flex-row">
+                <button type="button" @click="confirmNoms()" :disabled="busy"
+                        class="flex-1 rounded-xl bg-flame-500 px-4 py-3 font-display text-sm font-bold uppercase tracking-wide text-white transition-colors hover:bg-flame-600 disabled:opacity-60">
+                  Ich bin fertig
+                </button>
+                <button type="button" @click="parkNoms()" :disabled="busy"
+                        class="flex-1 rounded-xl border border-line px-4 py-3 font-display text-sm font-bold uppercase tracking-wide text-mist transition-colors hover:border-flame-500/40 hover:text-flame-400 disabled:opacity-60">
+                  Zwischenspeichern
+                </button>
+              </div>
+              <p class="mt-2 text-[11px] leading-relaxed text-mist">
+                Zwischengespeichertes lässt sich später weiter ändern. Die Abstimmung beginnt, sobald
+                <span class="text-ink" x-text="$store.awards.other"></span> ebenfalls fertig ist.
+              </p>
             </div>
           </div>
         </template>

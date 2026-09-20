@@ -1,0 +1,10 @@
+[
+  { "slug": "heerashai-sv", "name": "Heerashai SV", "player": "Henrik" },
+  { "slug": "royal-union-pingoleon", "name": "Royal Union Pingoléon", "player": "Henrik" },
+  { "slug": "arceax", "name": "Arceax", "player": "Henrik" },
+  { "slug": "terestal-palace", "name": "Terestal Palace", "player": "Henrik" },
+  { "slug": "fc-bayern-myrador", "name": "FC Bayern Myriador", "logo": "fc-bayern-myriador.png", "player": "Janik" },
+  { "slug": "einkraft-frankfurt", "name": "Einkraft Frankfurt", "player": "Janik" },
+  { "slug": "beast-force-pc", "name": "Beast Force PC", "player": "Janik" },
+  { "slug": "fc-chelze", "name": "FC ChelZE", "player": "Janik" }
+]

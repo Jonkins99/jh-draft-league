@@ -47,7 +47,7 @@ import {
   transferCutIndex, rosterBeforeTransfer, rosterAtIndex, rosterSpans,
 } from '../resources/js/market.mjs';
 import { normalizeVideoUrl, youtubeId, videoEmbed, videoHostLabel } from '../resources/js/video.mjs';
-import { parseTile, TILE_KINDS } from '../resources/js/press-tiles.mjs';
+import { parseTile, TILE_KINDS, imageUrlsIn, withImageTiles, tileHtml } from '../resources/js/press-tiles.mjs';
 import { buildRecords, newcomersOfSeason } from '../resources/js/seasons.mjs';
 import {
   RENEWAL_TIERS, previousRosters, renewalState, hasOpenRenewal, renewalTurn,
@@ -55,6 +55,12 @@ import {
 } from '../resources/js/draft.mjs';
 import { standingsBlock } from '../resources/js/press-context.mjs';
 import { historyKey } from '../resources/js/elo.mjs';
+import {
+  SLOT_KEYS, MAX_PATHS, blankPlan, normalizePlan, effectivePicks, effectiveOrder,
+  orderedPaths, divergence, usageMap, pathMons, liveState, monState, pathViability,
+  nextTarget, planRisks, coverageOf, riskScore, weakSpots, suggestCoverage, speedProfile,
+  pathSummary,
+} from '../resources/js/draftplan.mjs';
 
 let passed = 0;
 function test(name, fn) { fn(); passed++; console.log('  ok -', name); }
@@ -171,13 +177,19 @@ test('clampSp begrenzt auf 0..32 und rundet', () => {
   assert.equal(clampSp('abc'), 0);
 });
 
-test('speedCases: Default sind 0 UND 32 SP, je beide Wesen', () => {
+test('speedCases: Default sind 0 UND 32 SP — aber kein Init+ auf 0 SP', () => {
   const cases = speedCases(100);
-  assert.deepEqual(cases.map((c) => c.label), ['0', '0+', '32', '32+']);
+  // 0 SP ist die „gar nicht investiert"-Annahme; ein Init+-Wesen dazu plant niemand
+  // und soll deshalb nur erscheinen, wenn es eingetragen wurde.
+  assert.deepEqual(cases.map((c) => c.label), ['0', '32', '32+']);
   const t = speedTiers(100);
   assert.equal(cases[0].speed, t.s0, 'Default-Fall 0 SP neutral wie speedTiers');
-  assert.equal(cases[2].speed, t.s32);
-  assert.equal(cases[3].speed, t.s32n);
+  assert.equal(cases[1].speed, t.s32);
+  assert.equal(cases[2].speed, t.s32n);
+  // Eingetragene 0 SP bringen das Init+-Wesen zurueck.
+  assert.deepEqual(speedCases(100, { sp: 0 }).map((c) => c.label), ['0', '0+']);
+  // „Nur Init+" laesst sich die Auswahl nicht wegfiltern.
+  assert.deepEqual(speedCases(100, { nat: 'up' }).map((c) => c.label), ['0+', '32+']);
 });
 
 test('speedCases: eigener SP-Wert ersetzt 0/32, Wesen-Auswahl filtert', () => {
@@ -200,8 +212,10 @@ test('speedCases: SP ausserhalb 0..32 wird begrenzt, Boosts bleiben anwendbar', 
 
 test('speedCases: Schluessel je Fall eindeutig', () => {
   const keys = speedCases(100).map((c) => c.key);
-  assert.deepEqual(keys, ['sp0', 'sp0n', 'sp32', 'sp32n']);
+  assert.deepEqual(keys, ['sp0', 'sp32', 'sp32n']);
   assert.equal(new Set(keys).size, keys.length);
+  const all = speedCases(100, { sp: 0, nat: 'all' }).map((c) => c.key);
+  assert.deepEqual(all, ['sp0d', 'sp0', 'sp0n']);
 });
 
 // === Negatives Wesen ========================================================
@@ -225,9 +239,10 @@ test('speedTiers liefert auch die negativen Faelle', () => {
 });
 
 test("speedCases: nat 'all' zeigt drei Wesen, 'down' nur das negative", () => {
+  // Ohne eingetragene SP faellt auch hier das Init+-Wesen zu 0 SP weg.
   const all = speedCases(100, { nat: 'all' });
-  assert.deepEqual(all.map((c) => c.key), ['sp0d', 'sp0', 'sp0n', 'sp32d', 'sp32', 'sp32n']);
-  assert.deepEqual(all.map((c) => c.label), ['0-', '0', '0+', '32-', '32', '32+']);
+  assert.deepEqual(all.map((c) => c.key), ['sp0d', 'sp0', 'sp32d', 'sp32', 'sp32n']);
+  assert.deepEqual(all.map((c) => c.label), ['0-', '0', '32-', '32', '32+']);
   const down = speedCases(100, { nat: 'down', sp: 32 });
   assert.equal(down.length, 1);
   assert.equal(down[0].nature, 'down');
@@ -658,6 +673,27 @@ test('Je Spieltag gibt es genau ein Interview und eine Pressekonferenz', () => {
   assert.deepEqual(slotPlan('s1-a', 9), slotPlan('s1-a', 9));
   const plans = pressTeamIds.flatMap((id) => [8, 9, 10, 11, 12, 13, 14].map((d) => slotPlan(id, d).pre));
   assert.ok(plans.includes('pk') && plans.includes('interview'));
+});
+
+test('Der Termin nach dem Spiel wartet auf die Pressefreigabe', () => {
+  // Der erste Spieltag ab Pressestart, komplett eingetragen — aber nicht freigegeben.
+  const day = PRESS_FROM_DAY;
+  const src = pressResults.find((r) => r.id === 's1-d1-m0');
+  const played = [...pressResults, { ...src, id: `s1-d${day}-m0`, day }];
+  const slotOf = (list, slot) => pressSlots('s1-a', pressSchedule, list, [], true)
+    .find((x) => x.day === day && x.slot === slot);
+
+  const before = slotOf(played, 'post');
+  assert.equal(before.open, false);
+  assert.equal(before.needsRelease, true);
+
+  const released = played.map((r) => (r.id === `s1-d${day}-m0` ? { ...r, pressReady: true } : r));
+  const after = slotOf(released, 'post');
+  assert.equal(after.open, true);
+  assert.equal(after.needsRelease, false);
+
+  // „vor dem Spiel" haengt weiterhin nur am Ergebnis davor, nicht an der Freigabe.
+  assert.equal(slotOf(played, 'pre').open, true);
 });
 
 test('Vor dem Pressestart gibt es keine Termine', () => {
@@ -1169,7 +1205,28 @@ test('Ein Baustein steht allein im Absatz und nennt seine Art', () => {
   assert.deepEqual(parseTile('  [ergebnis:s1-d3-m0] '), { kind: 'ergebnis', key: 's1-d3-m0' });
   assert.equal(parseTile('Davor noch Text [video: s1-d3-m0]'), null);
   assert.equal(parseTile('[unbekannt: x]'), null);
-  assert.deepEqual(TILE_KINDS, ['marktwert', 'team', 'trainer', 'ergebnis', 'video']);
+  assert.deepEqual(TILE_KINDS, ['marktwert', 'verlauf', 'statistik', 'team', 'trainer', 'ergebnis', 'tabelle', 'video', 'bild']);
+  assert.deepEqual(parseTile('[tabelle: top]'), { kind: 'tabelle', key: 'top' });
+});
+
+test('Ein Bild aus dem Auftrag landet in einer Kachel, nie im Fliesstext', () => {
+  const url = 'https://beispiel.test/foto.png';
+  assert.deepEqual(imageUrlsIn(`Nimm ${url} und sonst nichts`), [url]);
+  assert.deepEqual(imageUrlsIn('ohne Bild'), []);
+
+  // Nackte Adresse im Text: raus damit, dafuer eine Kachel.
+  const fixed = withImageTiles(`<p>Dazu ${url} ansehen.</p>`, [url]);
+  assert.ok(!fixed.includes(`>Dazu ${url}`));
+  assert.ok(fixed.includes(`[bild: ${url}]`));
+
+  // Steht die Kachel schon da, bleibt sie, wo sie ist — und kommt nicht doppelt.
+  const kept = withImageTiles(`<p>[bild: ${url}]</p><p>Text</p>`, [url]);
+  assert.equal(kept.split('[bild:').length - 1, 1);
+  assert.ok(kept.startsWith(`<p>[bild: ${url}]</p>`));
+
+  // Nur http(s) auf ein Bild — alles andere baut keine Kachel.
+  assert.equal(tileHtml(parseTile('[bild: javascript:alert(1)]')), null);
+  assert.ok(tileHtml(parseTile(`[bild: ${url}]`)).includes(url));
 });
 
 // === Kaderstand vor und nach dem Wintertransfer ============================
@@ -1464,6 +1521,186 @@ test('Die Neuzugänge einer Saison kommen aus dem Feld „since"', () => {
   assert.deepEqual(newcomersOfSeason(dex, 3).map((p) => p.name), ['Später']);
   assert.deepEqual(newcomersOfSeason(dex, 1), []);
   assert.equal(RENEWAL_TIERS.length, 5);
+});
+
+
+// === Draftplan ==============================================================
+
+const dpDex = [
+  { name: 'Feuervogel', tier: 'S', types: ['Feuer', 'Flug'], base_speed: 120, cost: 20, image: 'a.png' },
+  { name: 'Wasserwand', tier: 'S', types: ['Wasser'], base_speed: 60, cost: 20, image: 'b.png' },
+  { name: 'Steinbrocken', tier: 'S', types: ['Gestein'], base_speed: 30, cost: 19, image: 'c.png' },
+  { name: 'Blattwerk', tier: 'A', types: ['Pflanze'], base_speed: 80, cost: 15, image: 'd.png' },
+  { name: 'Stahlkern', tier: 'A', types: ['Stahl'], base_speed: 45, cost: 15, image: 'e.png' },
+  { name: 'Erdling', tier: 'B', types: ['Boden'], base_speed: 20, cost: 10, image: 'f.png' },
+  { name: 'Flatterer', tier: 'B', types: ['Flug'], base_speed: 140, cost: 10, image: 'g.png' },
+];
+
+function dpPlan() {
+  const plan = blankPlan('s2-team');
+  plan.slots.S1 = ['Feuervogel', 'Wasserwand'];
+  plan.slots.S2 = ['Steinbrocken'];
+  plan.slots.A1 = ['Blattwerk', 'Stahlkern'];
+  plan.paths = [
+    { id: 'root', name: 'Plan A', color: '#e3350d', parentId: null, own: { S1: 'Feuervogel', S2: 'Steinbrocken', A1: 'Blattwerk' }, order: null, note: '' },
+    { id: 'fork', name: 'Ohne Feuervogel', color: '#3aa9ff', parentId: 'root', own: { S1: 'Wasserwand', A1: 'Stahlkern' }, order: null, note: '' },
+    { id: 'deep', name: 'Tief', color: '#ffcb05', parentId: 'fork', own: { A1: 'Blattwerk' }, order: null, note: '' },
+  ];
+  plan.activePathId = 'root';
+  return plan;
+}
+
+test('Ein Pfad erbt lebendig: nur die Abweichungen liegen bei ihm', () => {
+  const plan = dpPlan();
+  assert.deepEqual(effectivePicks(plan, 'root'), { S1: 'Feuervogel', S2: 'Steinbrocken', A1: 'Blattwerk' });
+  assert.deepEqual(effectivePicks(plan, 'fork'), { S1: 'Wasserwand', S2: 'Steinbrocken', A1: 'Stahlkern' });
+  // Das Enkelkind zieht A1 zurueck, erbt S1 aber weiterhin vom Elternpfad.
+  assert.deepEqual(effectivePicks(plan, 'deep'), { S1: 'Wasserwand', S2: 'Steinbrocken', A1: 'Blattwerk' });
+
+  // Eine Korrektur im Hauptplan wandert in jede Abzweigung, die dort nichts Eigenes hat.
+  plan.paths[0].own.S2 = null;
+  assert.equal(effectivePicks(plan, 'fork').S2, null);
+});
+
+test('Die Trennstelle ist der erste Slot, an dem Eltern und Kind auseinandergehen', () => {
+  const plan = dpPlan();
+  assert.deepEqual(divergence(plan, 'fork'), { slot: 'S1', own: 'Wasserwand', parent: 'Feuervogel' });
+  assert.equal(divergence(plan, 'root'), null);
+  assert.deepEqual(orderedPaths(plan).map((r) => [r.path.id, r.depth]), [['root', 0], ['fork', 1], ['deep', 2]]);
+});
+
+test('Ein gespeicherter Plan wird beim Oeffnen geradegezogen', () => {
+  const broken = {
+    slots: { S1: ['Feuervogel', 'Feuervogel'], XX: ['Quatsch'] },
+    paths: [
+      { id: 'a', name: 'A', parentId: 'gibtsnicht', own: { S1: 'Feuervogel', S2: 'Nicht im Slot', A1: null } },
+      { id: 'b', name: 'B', parentId: 'c', own: {} },
+      { id: 'c', name: 'C', parentId: 'b', own: {} },
+    ],
+    activePathId: 'weg',
+  };
+  const plan = normalizePlan(broken, 's2-team');
+  assert.deepEqual(plan.slots.S1, ['Feuervogel']);          // doppelt raus
+  assert.equal(plan.slots.XX, undefined);                   // unbekannter Slot raus
+  assert.equal(plan.paths[0].parentId, null);               // verwaist -> Wurzel
+  assert.equal(plan.paths[0].own.S2, undefined);            // Wahl ohne Kandidat zaehlt nicht
+  assert.equal(plan.paths[0].own.A1, null);                 // bewusst leer bleibt erhalten
+  assert.equal(plan.activePathId, 'a');                     // unbekannter aktiver Pfad
+  assert.deepEqual(plan.order, SLOT_KEYS);
+  assert.ok(effectivePicks(plan, 'b'));                     // Zyklus haengt nicht
+  assert.equal(MAX_PATHS >= 8, true);
+});
+
+test('Im laufenden Draft entscheidet die Lage, welcher Pfad noch traegt', () => {
+  const plan = dpPlan();
+  const teams = [
+    { id: 's2-team', pokemon: [{ name: 'Steinbrocken', tier: 'S' }] },
+    { id: 's2-gegner', pokemon: [{ name: 'Feuervogel', tier: 'S' }] },
+  ];
+  const live = liveState(teams, 's2-team');
+  assert.equal(monState('Steinbrocken', 'S', live), 'secured');
+  assert.equal(monState('Feuervogel', 'S', live), 'lost');
+  assert.equal(monState('Wasserwand', 'S', live), 'open');
+
+  // Plan A wollte Feuervogel — der ist weg.
+  const a = pathViability(effectivePicks(plan, 'root'), live);
+  assert.equal(a.ok, false);
+  assert.equal(a.reason, 'weg');
+  assert.deepEqual(a.blocked.map((b) => b.name), ['Feuervogel']);
+  // Die Abzweigung traegt noch, Steinbrocken ist bereits gesichert.
+  const b = pathViability(effectivePicks(plan, 'fork'), live);
+  assert.equal(b.ok, true);
+  assert.deepEqual(b.secured, ['Steinbrocken']);
+  assert.deepEqual(nextTarget(plan, 'fork', live), { slot: 'S1', name: 'Wasserwand', state: 'open' });
+
+  // Ein eigener Pick ausserhalb des Pfades schliesst ihn ebenso aus: Tier S ist damit voll.
+  const own = liveState([{ id: 's2-team', pokemon: [{ name: 'Steinbrocken', tier: 'S' }, { name: 'Wasserwand', tier: 'S' }] }], 's2-team');
+  const c = pathViability(effectivePicks(plan, 'root'), own);
+  assert.equal(c.ok, false);
+  assert.equal(c.reason, 'eigener-pick');
+  // Und ein volles Tier raeumt die uebrigen Kandidaten dieses Tiers ab.
+  assert.equal(monState('Feuervogel', 'S', own), 'lost');
+});
+
+test('Ohne laufenden Draft ist jeder Pfad erreichbar', () => {
+  const live = liveState([], 's2-team');
+  assert.equal(live.active, false);
+  assert.equal(pathViability({ S1: 'Feuervogel' }, live).ok, true);
+  assert.equal(monState('Feuervogel', 'S', live), 'open');
+});
+
+test('Die Wunschreihenfolge liegt am Plan und laesst sich je Pfad ueberschreiben', () => {
+  const plan = dpPlan();
+  plan.order = ['C1', ...SLOT_KEYS.filter((k) => k !== 'C1')];
+  assert.equal(effectiveOrder(plan, 'root')[0], 'C1');
+  assert.equal(effectiveOrder(plan, 'deep')[0], 'C1');
+  plan.paths[1].order = ['D2', ...SLOT_KEYS.filter((k) => k !== 'D2')];
+  assert.equal(effectiveOrder(plan, 'fork')[0], 'D2');
+  assert.equal(effectiveOrder(plan, 'deep')[0], 'D2');   // erbt vom Elternpfad
+  assert.equal(effectiveOrder(plan, 'root')[0], 'C1');
+});
+
+test('Duenne Stellen sind die Slots ohne Ersatz', () => {
+  const plan = dpPlan();
+  const live = liveState([], 's2-team');
+  const risks = planRisks(plan, 'root', live);
+  const byslot = Object.fromEntries(risks.map((r) => [r.slot, r.alternatives]));
+  assert.equal(byslot.S1, 1);   // Wasserwand bleibt als Ersatz
+  assert.equal(byslot.S2, 0);   // Steinbrocken ist allein im Slot
+});
+
+test('Das Typenprofil zaehlt je Angriffstyp und gewichtet den Druck', () => {
+  const rows = coverageOf([dpDex[0], dpDex[6]]);   // beide Flug -> Elektro trifft doppelt
+  const elektro = rows.find((r) => r.type === 'Elektro');
+  assert.equal(elektro.weak, 2);
+  assert.equal(elektro.net, 2);
+  assert.ok(elektro.pressure > 0);
+  const boden = rows.find((r) => r.type === 'Boden');
+  assert.equal(boden.immune, 2);
+  assert.ok(riskScore([dpDex[0], dpDex[6]]) > riskScore([dpDex[0]]));
+  // Gestein trifft den Feuer/Flug-Vogel vierfach und wiegt damit schwerer als Elektro.
+  assert.equal(weakSpots([dpDex[0], dpDex[6]], 1)[0].type, 'Gestein');
+});
+
+test('Ein Vorschlag muss den Bedrohungswert tatsaechlich senken', () => {
+  const mons = [dpDex[0], dpDex[6]];              // zweimal Flug, schwach gegen Elektro
+  const out = suggestCoverage(mons, dpDex, { exclude: new Set(mons.map((m) => m.name)) });
+  assert.ok(out.length);
+  out.forEach((r) => assert.ok(r.gain > 0));
+  // Der beste Vorschlag haelt dem groessten Druck stand.
+  assert.ok(out[0].covers.some((c) => c.type === 'Gestein' || c.type === 'Elektro'));
+  // Ein bereits gedraftetes Pokemon taucht nicht auf.
+  const live = liveState([{ id: 'x', pokemon: [{ name: 'Erdling', tier: 'B' }] }], 's2-team');
+  assert.equal(suggestCoverage(mons, dpDex, { exclude: new Set(mons.map((m) => m.name)), live })
+    .some((r) => r.mon.name === 'Erdling'), false);
+});
+
+test('Die Initiative-Leiste kennt nur Luecken ZWISCHEN eigenen Pokemon', () => {
+  const prof = speedProfile([dpDex[2], dpDex[6]], dpDex, { gapPool: 1 });
+  assert.equal(prof.min, 20);
+  assert.equal(prof.max, 140);
+  assert.equal(prof.pins.length, 2);
+  assert.equal(prof.pins[0].pct, (30 - 20) / 120 * 100);
+  assert.equal(prof.gaps.length, 1);
+  assert.deepEqual([prof.gaps[0].from, prof.gaps[0].to], [30, 140]);
+  // Unterhalb des langsamsten und oberhalb des schnellsten wird nichts markiert.
+  const single = speedProfile([dpDex[1]], dpDex, { gapPool: 1 });
+  assert.equal(single.gaps.length, 0);
+  // Jede Marke bekommt eine Zeile zugewiesen, damit sie sich nicht verdecken.
+  prof.pins.forEach((p) => assert.ok(Number.isInteger(p.row)));
+});
+
+test('Die Kurzfassung eines Pfades zaehlt Slots, Punkte und Gesichertes', () => {
+  const plan = dpPlan();
+  const live = liveState([{ id: 's2-team', pokemon: [{ name: 'Steinbrocken', tier: 'S' }] }], 's2-team');
+  const sum = pathSummary(plan, 'fork', dpDex, live);
+  assert.equal(sum.filled, 3);
+  assert.equal(sum.total, 10);
+  assert.equal(sum.cost, 20 + 19 + 15);
+  assert.equal(sum.secured, 1);
+  assert.equal(sum.ok, true);
+  assert.deepEqual(pathMons(plan, 'fork', dpDex).map((m) => m.slot), ['S1', 'S2', 'A1']);
+  assert.deepEqual(usageMap(plan).S1.Wasserwand.sort(), ['deep', 'fork']);
 });
 
 console.log(`\n${passed} Tests bestanden.`);

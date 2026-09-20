@@ -2,9 +2,10 @@
 //
 // Ablauf einer Abstimmung (status):
 //   nominating -> voting -> done
-// Jeder Spieler nominiert 0–3 Optionen. Danach entweder „Abstimmung starten"
-// (sofort voting) oder „auf den anderen warten" (confirmed[player] = true; sind
-// beide bestätigt, springt der Status automatisch auf voting). In der Abstimmung
+// Jeder Spieler nominiert 0–3 Optionen. Er kann sie zwischenspeichern und später
+// weiter ändern, oder „Ich bin fertig" sagen (confirmed[player] = true). Sind BEIDE
+// fertig, springt der Status von selbst auf voting — niemand startet die Abstimmung
+// für den anderen mit. In der Abstimmung
 // bewertet jeder Spieler jede Option mit 0–10. Liegen beide Stimmzettel vor,
 // ist die Abstimmung done und die Siegerehrung freigeschaltet.
 

@@ -9,7 +9,7 @@
 
 import { battleStats, computeStandings, pokemonStats, transferAvailability } from './scoring.mjs';
 import { newcomersOfSeason } from './seasons.mjs';
-import { RENEWAL_TIERS, renewalState } from './draft.mjs';
+import { RENEWAL_TIERS, RELEGATION_FROM_PLACE, renewalState } from './draft.mjs';
 import { AWARD_BY_KEY, awardWinners } from './awards.mjs';
 import { currentTrainer, trainerHistory, periodLabel, genderLabel } from './trainers.mjs';
 import {
@@ -132,7 +132,7 @@ export function standingsBlock(seasonTeams, results, schedule = null) {
     if (open[m.away] != null) open[m.away] += 1;
   });
 
-  return computeStandings(seasonTeams, results).map((r, i) => {
+  const rows = computeStandings(seasonTeams, results).map((r, i) => {
     const offen = open[r.team.id] ?? 0;
     return {
       platz: i + 1,
@@ -150,6 +150,46 @@ export function standingsBlock(seasonTeams, results, schedule = null) {
       kills: r.kills,
       deaths: r.deaths,
       killDifferenz: r.diff,
+    };
+  });
+  return withReachablePlaces(rows);
+}
+
+/**
+ * Was ist rechnerisch noch möglich — und was nicht mehr?
+ *
+ * Die Presse hat mehrfach einen Klassenerhalt oder einen Titel verkündet, den die
+ * Tabelle noch gar nicht hergab. Das Modell soll das nicht mehr selbst ausrechnen
+ * müssen: Hier stehen bester und schlechtester noch erreichbarer Platz als Zahl und
+ * die drei Aussagen, um die es geht, als klares Ja/Nein.
+ *
+ * Gerechnet wird bewusst KONSERVATIV: Für „kann mich überholen" genügt, dass das
+ * andere Team meine HEUTIGEN Punkte erreichen kann — bei Gleichstand entscheidet die
+ * Kill-Differenz, und die dreht sich in einem einzigen Match zweistellig. Nur was
+ * danach noch feststeht, steht wirklich fest.
+ */
+function withReachablePlaces(rows) {
+  const canPass = (other, me) => {
+    if (other.teamId === me.teamId) return false;
+    if (other.maximalPunkte > me.punkte) return true;
+    if (other.maximalPunkte < me.punkte) return false;
+    // Punktgleich: die Kill-Differenz kann es drehen, solange irgendwo noch gespielt wird.
+    if (other.offeneMatches > 0 || me.offeneMatches > 0) return true;
+    return other.platz < me.platz;
+  };
+
+  return rows.map((me) => {
+    const ueber = rows.filter((o) => canPass(o, me)).length;
+    const unter = rows.filter((o) => o.teamId !== me.teamId && !canPass(me, o)).length;
+    const schlechtester = ueber + 1;
+    const bester = unter + 1;
+    return {
+      ...me,
+      besterMoeglicherPlatz: bester,
+      schlechtesterMoeglicherPlatz: schlechtester,
+      titelSicher: schlechtester === 1,
+      klassenerhaltSicher: schlechtester < RELEGATION_FROM_PLACE,
+      abstiegSicher: bester >= RELEGATION_FROM_PLACE,
     };
   });
 }

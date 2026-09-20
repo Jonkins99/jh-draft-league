@@ -43,6 +43,8 @@ const ALIAS = {
   'Paldea-Tauros (Fluten)': 'Paldea-Tauros (Wasser)',
   'Paldea-Tauros (Gefecht)': 'Paldea-Tauros (Kampf)',
   'Floette (Ewigblütler)': 'Floette (Ewige Blume)',
+  'Servol ♀': 'Servol (weiblich)',
+  'Servol ♂': 'Servol (männlich)',
 };
 
 // Whitespace normalisieren (u.a. geschütztes Leerzeichen aus dem Sheet).
@@ -127,7 +129,11 @@ export function readEloCache() {
     if (!raw) return null;
     const data = JSON.parse(raw);
     if (!data || !Array.isArray(data.rows)) return null;
-    return data;
+    // Die Alias-Tabelle kann sich ändern, nachdem ein Stand im Cache liegt — dann
+    // zeigt der gespeicherte `resolved`-Wert weiter ins Leere und das Pokémon bleibt
+    // ohne Bild und ohne Marktwert, bis jemand von Hand aktualisiert. Deshalb wird
+    // der Name beim Lesen neu aufgelöst und nicht dem Cache geglaubt.
+    return { ...data, rows: data.rows.map((r) => ({ ...r, resolved: resolveEloName(r?.name) })) };
   } catch (e) {
     return null;
   }

@@ -30,7 +30,7 @@
             <div class="min-w-0">
               <p class="font-display text-xs font-semibold uppercase tracking-wider text-mist">Private Sicherung</p>
               <p class="mt-0.5 text-xs text-mist">
-                Sets, Notizen, Speed-Tiers, Markierungen und Rechner-Eingaben — verschlüsselt mit deinem Passwort.
+                Sets, Notizen, Speed-Tiers, Markierungen, Rechner-Eingaben und Draftpläne — verschlüsselt mit deinem Passwort.
                 <span class="text-ink" x-text="`Zuletzt gesichert: ${$store.tbsync.fmt($store.tbsync.remoteAt)}`"></span>
               </p>
             </div>
@@ -202,10 +202,10 @@
                           <div class="flex flex-wrap items-center gap-1.5">
                             <button type="button" @click="spdToMoveset(mon.name)"
                                     class="rounded-lg border border-line px-2 py-1 text-[10px] font-semibold text-mist transition-colors hover:border-flame-500/40 hover:text-flame-400"
-                                    title="Initiative aus der Tierlist in das Moveset übernehmen">Init ← Tierlist</button>
+                                    title="Initiative aus dem Speed Tier in das Moveset übernehmen">Init ← Speed Tier</button>
                             <button type="button" @click="movesetToSpd(mon.name)" :disabled="!movesetHasSpeed(mon.name)"
                                     class="rounded-lg border border-line px-2 py-1 text-[10px] font-semibold text-mist transition-colors hover:border-flame-500/40 hover:text-flame-400 disabled:opacity-40"
-                                    title="Initiative aus dem Moveset in die Tierlist übernehmen">Init → Tierlist</button>
+                                    title="Initiative aus dem Moveset in das Speed Tier übernehmen">Init → Speed Tier</button>
                           </div>
                           <textarea x-model="notes[mon.name].note" @input="saveNotes()" rows="2" placeholder="Notiz zu diesem Pokémon…"
                                     class="w-full resize-y rounded-lg border border-line bg-panel px-2 py-1.5 text-xs leading-relaxed text-ink placeholder:text-mist/60 focus:border-flame-500 focus:outline-none"></textarea>
@@ -438,20 +438,38 @@
 
                   <!-- Rechts: Kampfverlauf zum Nachlesen -->
                   <div class="space-y-3">
-                    <div class="rounded-xl border border-dashed border-line p-3">
-                      <p class="font-display text-[11px] font-semibold uppercase tracking-wider text-mist">Kampfverlauf</p>
-                      <template x-if="pairLogAuthors().length">
-                        <div class="mt-2 space-y-2">
-                          <template x-for="p in pairLogAuthors()" :key="'tblog-'+p">
-                            <div class="rounded-lg border border-line bg-elevated/40 p-2.5">
-                              <p class="mb-0.5 text-[10px] font-semibold uppercase tracking-wider text-mist" x-text="`Notiert von ${p}`"></p>
-                              <p class="max-h-56 overflow-y-auto whitespace-pre-line text-xs leading-relaxed text-ink" x-text="pairLogText(p)"></p>
-                            </div>
-                          </template>
+                    <div class="rounded-xl border border-dashed border-line p-3" x-effect="logRehydrate()">
+                      <div class="flex flex-wrap items-center gap-2">
+                        <p class="font-display text-[11px] font-semibold uppercase tracking-wider text-mist">Kampfverlauf</p>
+                        <span class="rounded-full border border-line px-1.5 py-0.5 text-[9px] font-semibold uppercase tracking-wider text-mist">beide sehen ihn</span>
+                        <span x-show="logUpdatedLabel()" class="ml-auto text-[10px] text-mist" x-text="logUpdatedLabel()"></span>
+                      </div>
+
+                      <template x-if="$store.auth.me">
+                        <div class="mt-2">
+                          <textarea :value="logDraft" @input="logTouch($event.target.value)" rows="7"
+                                    placeholder="Was ist passiert? Aufstellungen, Wendepunkte, Pech und Glück…"
+                                    class="w-full resize-y rounded-lg border border-line bg-elevated px-3 py-2.5 text-xs leading-relaxed text-ink placeholder:text-mist focus:border-flame-500 focus:outline-none"></textarea>
+                          <div class="mt-1.5 flex flex-wrap items-center gap-2">
+                            <button type="button" @click="logSave()" :disabled="logSaving || !logDirty()"
+                                    class="rounded-lg border border-line px-2.5 py-1.5 text-[11px] font-semibold text-mist transition-colors hover:border-flame-500/40 hover:text-flame-400 disabled:opacity-40"
+                                    x-text="logSaving ? 'Speichert…' : 'Speichern'"></button>
+                            <span x-show="logDirty()" class="text-[10px] text-mist">Entwurf liegt auf diesem Gerät.</span>
+                            <span x-show="logError" x-cloak class="text-[10px] text-flame-400" x-text="logError"></span>
+                          </div>
                         </div>
                       </template>
-                      <p x-show="!pairLogAuthors().length" class="mt-1.5 text-xs text-mist">
-                        Noch nichts notiert. Der Kampfverlauf wird beim Eintragen des Ergebnisses im Spielplan geschrieben.
+                      <p x-show="!$store.auth.me" x-cloak class="mt-1.5 text-xs text-mist">
+                        Ohne Anmeldung lässt sich der Verlauf nur lesen.
+                      </p>
+
+                      <div x-show="logOtherText()" x-cloak class="mt-2 rounded-lg border border-line bg-elevated/40 p-2.5">
+                        <p class="mb-0.5 text-[10px] font-semibold uppercase tracking-wider text-mist" x-text="`Notiert von ${logOtherPlayer()}`"></p>
+                        <p class="max-h-56 overflow-y-auto whitespace-pre-line text-xs leading-relaxed text-ink" x-text="logOtherText()"></p>
+                      </div>
+
+                      <p x-show="!pairLogAuthors().length && !logDraft" class="mt-1.5 text-xs text-mist">
+                        Noch nichts notiert — hier oder in der Ergebniseingabe.
                       </p>
                     </div>
 

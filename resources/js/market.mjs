@@ -193,6 +193,26 @@ export function historyPoints(row) {
     });
 }
 
+/**
+ * Den Verlauf auf EINE Saison beschneiden.
+ *
+ * Das Sheet führt alle Saisons in einer Zeile weiter; die Spalten einer neuen Saison
+ * stehen einfach rechts daneben. Ohne diesen Schnitt würde die abgeschlossene Kurve
+ * der Saison 1 mit dem Startwert der Saison 2 weiterlaufen — und ein Team plötzlich
+ * einen Kaderwert bekommen, den es in dieser Saison nie hatte.
+ *
+ * `season` ist eine Saisonnummer; alles andere (insbesondere der saisonübergreifende
+ * Bereich) lässt den Verlauf unangetastet.
+ */
+export function limitHistory(rows, season) {
+  const n = Number(season);
+  if (!Number.isFinite(n)) return rows || [];
+  return (rows || []).map((r) => ({
+    ...r,
+    history: (r?.history || []).filter((h) => parseHistoryLabel(h.label).season === n),
+  }));
+}
+
 /** Alle Zeitpunkte, die im Datensatz überhaupt belegt sind — in Spaltenreihenfolge. */
 export function historyStops(rows) {
   const seen = new Map();

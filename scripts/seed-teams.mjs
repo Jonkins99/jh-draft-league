@@ -56,6 +56,17 @@ if (season !== 1) {
   list = JSON.parse(readFileSync(file, 'utf8'));
 }
 
+// Ein Platzhalter darf nie in die Datenbank. Ein Team, das unter falschem Slug
+// angelegt wird, waere spaeter nicht mehr zu korrigieren: Am Slug haengen ewige
+// Tabelle, Vertragsverlaengerungen und Marktwert-Verlauf.
+const pending = list.filter((t) => t.tbd || !t.slug || t.slug === 'TBD' || !t.name || t.name === 'TBD');
+if (pending.length) {
+  console.error(`Die Teamliste fuer Saison ${season} ist noch nicht vollstaendig:`);
+  pending.forEach((t) => console.error(`  - ${t.tbd || 'Name und Slug fehlen'}`));
+  console.error(`Traeg die fehlenden Teams in scripts/data/teams-s${season}.json nach und starte erneut.`);
+  process.exit(1);
+}
+
 const players = [...new Set(list.map((t) => t.player))];
 if (list.length !== 8 || players.length !== 2 || players.some((p) => list.filter((t) => t.player === p).length !== 4)) {
   console.error(`Die Liga braucht acht Teams, vier je Spieler — gefunden: ${list.length} (${players.join(', ')}).`);
