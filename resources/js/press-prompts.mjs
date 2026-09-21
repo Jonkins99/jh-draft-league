@@ -598,7 +598,9 @@ Partie. Verschiedene Beiträge sollen verschiedene Kacheln wählen — nicht jed
 Ein Baustein ersetzt nie das, was du zu sagen hast: Was in der Kachel steht, muss im Text nicht
 noch einmal buchstabiert werden, aber die Kachel allein ist kein Absatz.
 Ist zum Match ein Video hinterlegt (Metadatenfeld "video"), setze [video: <Match-Id>] in den
-Spielbericht. Ist keines hinterlegt, setzt du den Baustein NICHT.`;
+Spielbericht. Ist keines hinterlegt, setzt du den Baustein NICHT.
+Die Klammer steht als reiner Text im Absatz: kein <strong>, kein <em>, kein Link darin, keine
+zweite Klammer im selben Absatz und kein Doppelpunkt hinter dem schliessenden Klammerende.`;
 
 export function buildSystem({ author, extra = '' } = {}) {
   const voice = author

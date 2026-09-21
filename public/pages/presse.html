@@ -228,7 +228,7 @@ match /settings/{doc} { allow read, write: if true; }</code></pre>
               <svg viewBox="0 0 24 24" class="size-5" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3v10"/><path d="M9 6a3 3 0 0 1 6 0v4a3 3 0 0 1-6 0z"/><path d="M5 11a7 7 0 0 0 14 0"/><path d="M8 21h8"/></svg>
             </span>
             <div class="min-w-0 flex-1">
-              <p class="font-display text-base font-bold text-ink" x-text="`Große Presserunde vor Spieltag ${bonusDay}`"></p>
+              <p class="font-display text-base font-bold text-ink" x-text="bonusDay > 1 ? `Große Presserunde vor Spieltag ${bonusDay}` : 'Große Presserunde zum Saisonauftakt'"></p>
               <p class="mt-0.5 text-sm text-mist">Jedes Team tritt einmal zur Pressekonferenz und einmal zum Interview an. Erst danach wird wieder gespielt.</p>
             </div>
             <p class="shrink-0 font-display text-2xl font-bold tabular-nums text-flame-400" x-text="`${bonusProgress.done}/${bonusProgress.total}`"></p>
@@ -271,7 +271,8 @@ match /settings/{doc} { allow read, write: if true; }</code></pre>
           Termine dieses Teams nimmt <b class="text-ink" x-text="pickTeamPlayer"></b> wahr. Du kannst hier nur mitlesen.
         </p>
 
-        <p class="mb-4 rounded-xl border border-line bg-elevated/40 px-4 py-3 text-sm leading-relaxed text-mist">
+        <!-- Nur die Saison 1 hatte einen späten Pressestart; ab Saison 2 beginnt der Betrieb mit Spieltag 1. -->
+        <p x-show="pressFromDay > 1" class="mb-4 rounded-xl border border-line bg-elevated/40 px-4 py-3 text-sm leading-relaxed text-mist">
           Der Pressebetrieb nimmt mit <b class="text-ink" x-text="`Spieltag ${pressFromDay}`"></b> seine Arbeit auf – die Spieltage davor werden nicht nachträglich aufgearbeitet.
         </p>
 
@@ -598,8 +599,43 @@ match /settings/{doc} { allow read, write: if true; }</code></pre>
                         class="rounded-lg border border-line px-2 py-1.5 text-xs font-semibold text-mist transition-colors hover:text-flame-400">Link</button>
                 <button type="button" @click="rteImage()" title="Bild einfügen"
                         class="rounded-lg border border-line px-2 py-1.5 text-xs font-semibold text-mist transition-colors hover:text-flame-400">Bild</button>
+                <button type="button" @click="rteTable()" title="Tabelle einfügen – Zeilen in der Form | Zelle | Zelle |"
+                        class="rounded-lg border border-line px-2 py-1.5 text-xs font-semibold text-mist transition-colors hover:text-flame-400">Tabelle</button>
                 <button type="button" @click="rte('removeFormat')" title="Formatierung entfernen"
                         class="ml-auto rounded-lg border border-line px-2 py-1.5 text-xs font-semibold text-mist transition-colors hover:text-flame-400">Format ×</button>
+              </div>
+
+              <!-- Bausteine: dieselben Kacheln, die die Redaktion setzt -->
+              <div class="border-b border-line p-2">
+                <div class="flex flex-wrap items-center gap-1">
+                  <span class="mr-1 font-display text-[10px] font-bold uppercase tracking-wider text-mist">Baustein</span>
+                  <template x-for="k in tileKinds" :key="'tk-'+k.kind">
+                    <button type="button" @click="toggleTilePicker(k.kind)" :title="k.hint"
+                            class="rounded-lg border px-2 py-1.5 text-xs font-semibold transition-colors"
+                            :class="tileKind === k.kind ? 'border-flame-500/60 bg-flame-500/10 text-flame-400' : 'border-line text-mist hover:text-flame-400'"
+                            x-text="k.label"></button>
+                  </template>
+                </div>
+
+                <div x-show="tileKind" x-cloak class="mt-2 rounded-xl border border-line bg-void/40 p-2">
+                  <div class="flex items-center gap-2">
+                    <input type="text" x-model="tileQuery" :placeholder="`${tileKindLabel(tileKind)} suchen…`"
+                           class="min-w-0 flex-1 rounded-lg border border-line bg-panel px-2.5 py-1.5 text-sm text-ink placeholder:text-mist focus:border-flame-500 focus:outline-none" />
+                    <button type="button" @click="tileKind = ''"
+                            class="rounded-lg border border-line px-2 py-1.5 text-xs font-semibold text-mist transition-colors hover:text-flame-400">Schließen</button>
+                  </div>
+                  <div class="mt-2 max-h-44 overflow-y-auto">
+                    <template x-for="o in tileOptions" :key="'to-'+o.value">
+                      <button type="button" @click="insertTile(o.value)"
+                              class="flex w-full items-center gap-2 rounded-lg px-2 py-1.5 text-left transition-colors hover:bg-elevated">
+                        <img x-show="o.image" :src="o.image" alt="" class="size-6 shrink-0 object-contain" />
+                        <span class="min-w-0 flex-1 truncate text-sm text-ink" x-text="o.label"></span>
+                        <span class="shrink-0 text-[11px] text-mist" x-text="o.sub"></span>
+                      </button>
+                    </template>
+                    <p x-show="!tileOptions.length" class="px-2 py-1.5 text-sm text-mist">Kein Treffer.</p>
+                  </div>
+                </div>
               </div>
 
               <!-- Bildleiste: erscheint, sobald ein Bild im Text angetippt wurde -->
@@ -623,7 +659,9 @@ match /settings/{doc} { allow read, write: if true; }</code></pre>
                    data-placeholder="Schreib los – Absätze, Zwischenüberschriften, Zitate und Bilder sind möglich."
                    class="rte press-body max-h-[40vh] overflow-y-auto px-4 py-3"></div>
             </div>
-            <p class="mt-1.5 text-[11px] text-mist">Enter beginnt einen neuen Absatz, Umschalt+Enter einen Zeilenumbruch. Ein Tipp auf ein Bild öffnet die Breiteneinstellung.</p>
+            <p class="mt-1.5 text-[11px] leading-relaxed text-mist">Enter beginnt einen neuen Absatz, Umschalt+Enter einen Zeilenumbruch. Ein Tipp auf ein Bild öffnet die Breiteneinstellung.
+              Bausteine und Tabellenzeilen bleiben hier als Text stehen – gesetzt werden sie erst im veröffentlichten Beitrag. Eine Tabellenzeile sieht so aus:
+              <span class="whitespace-nowrap font-semibold text-ink">| Zelle | Zelle |</span>, <span class="whitespace-nowrap font-semibold text-ink">| --- | ---: |</span> richtet die Spalte rechts aus, <span class="whitespace-nowrap font-semibold text-ink">**Text**</span> hebt eine Zelle hervor.</p>
           </div>
         </div>
 

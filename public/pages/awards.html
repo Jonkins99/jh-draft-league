@@ -23,15 +23,20 @@
 
     <div x-show="!isAll" class="flex flex-wrap gap-2">
       <template x-for="t in [
-        {v:'open', l:'Jetzt dran', n: openInstances.length},
-        {v:'done', l:'Vergeben', n: doneInstances.length},
-        {v:'next', l:'Als nächstes', n: upcoming.length}
+        {v:'open', l:'Jetzt dran', n: openInstances.length, dot: 0},
+        {v:'done', l:'Vergeben', n: doneInstances.length, dot: unseenCount},
+        {v:'next', l:'Als nächstes', n: upcoming.length, dot: 0}
       ]" :key="'atab-'+t.v">
         <button type="button" @click="setTab(t.v)"
                 class="inline-flex items-center gap-2 rounded-xl border px-4 py-2 font-display text-sm font-semibold uppercase tracking-wider transition-colors"
                 :class="tab === t.v ? 'border-flame-500 bg-flame-500/10 text-flame-300' : 'border-line text-mist hover:text-ink'">
           <span x-text="t.l"></span>
           <span class="font-display text-xs tabular-nums opacity-70" x-text="`(${t.n})`"></span>
+          <!-- Noch nicht angesehene Siegerehrungen -->
+          <span x-show="t.dot" class="relative grid size-2 place-items-center" :title="`${t.dot} Siegerehrung(en) noch nicht angesehen`">
+            <span class="absolute inline-flex size-full animate-ping rounded-full opacity-70" style="background:#63bc5a"></span>
+            <span class="relative inline-flex size-2 rounded-full" style="background:#63bc5a"></span>
+          </span>
         </button>
       </template>
     </div>

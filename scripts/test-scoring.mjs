@@ -25,7 +25,7 @@ import {
   outlookSlotFor, outlookSessionId, outlookProgress, seasonComplete, OUTLOOK_QUESTIONS,
   collectStorylines, paragraphsToHtml, articleMatchesFilter, randomAuthors,
   categoriesOf, normalizeCategories, manualCategories, AI_CATEGORY,
-  BONUS_ROUND_DAY, PRESS_FROM_DAY,
+  bonusRoundDay, pressFromDay,
 } from '../resources/js/press.mjs';
 import {
   blankNotes, normalizeNotes, teamNote, matchNote, withNote, countNotes,
@@ -47,7 +47,11 @@ import {
   transferCutIndex, rosterBeforeTransfer, rosterAtIndex, rosterSpans,
 } from '../resources/js/market.mjs';
 import { normalizeVideoUrl, youtubeId, videoEmbed, videoHostLabel } from '../resources/js/video.mjs';
-import { parseTile, TILE_KINDS, imageUrlsIn, withImageTiles, tileHtml } from '../resources/js/press-tiles.mjs';
+import {
+  parseTile, TILE_KINDS, TILE_MENU, imageUrlsIn, withImageTiles, tileHtml,
+  findTiles, stripTiles, normKey, findMon, findTeam, findResult,
+  parsePipeRow, parsePipeTable, pipeTableHtml,
+} from '../resources/js/press-tiles.mjs';
 import { buildRecords, newcomersOfSeason } from '../resources/js/seasons.mjs';
 import {
   RENEWAL_TIERS, previousRosters, renewalState, hasOpenRenewal, renewalTurn,
@@ -692,7 +696,7 @@ test('Je Spieltag gibt es genau ein Interview und eine Pressekonferenz', () => {
 
 test('Der Termin nach dem Spiel wartet auf die Pressefreigabe', () => {
   // Der erste Spieltag ab Pressestart, komplett eingetragen — aber nicht freigegeben.
-  const day = PRESS_FROM_DAY;
+  const day = pressFromDay(1);
   const src = pressResults.find((r) => r.id === 's1-d1-m0');
   const played = [...pressResults, { ...src, id: `s1-d${day}-m0`, day }];
   const slotOf = (list, slot) => pressSlots('s1-a', pressSchedule, list, [], true)
@@ -714,7 +718,7 @@ test('Der Termin nach dem Spiel wartet auf die Pressefreigabe', () => {
 test('Vor dem Pressestart gibt es keine Termine', () => {
   const slots = pressSlots('s1-a', pressSchedule, pressResults, [], true);
   // Die Ausblicksrunde trägt bewusst keinen Spieltag und bleibt hier außen vor.
-  assert.equal(slots.filter((s) => s.day != null && s.day < PRESS_FROM_DAY).length, 0);
+  assert.equal(slots.filter((s) => s.day != null && s.day < pressFromDay(1)).length, 0);
   // Ein bereits stattgefundener Termin bleibt sichtbar, auch wenn er davor liegt.
   const alt = slotPlan('s1-a', 3).pre;
   const mit = pressSlots('s1-a', pressSchedule, pressResults, [{ id: `s1-d3-s1-a-${alt}`, status: 'done' }], true);
@@ -766,7 +770,7 @@ test('Die Auftaktrunde umfasst 16 Termine und geht Spieltag 8 voraus', () => {
   assert.equal(bonus.length, 2);
   assert.deepEqual(bonus.map((s) => s.type).sort(), ['interview', 'pk']);
   assert.ok(bonus.every((s) => s.open));
-  const d8 = offen.find((s) => s.day === BONUS_ROUND_DAY && s.slot === 'pre');
+  const d8 = offen.find((s) => s.day === bonusRoundDay(1) && s.slot === 'pre');
   assert.equal(d8.open, false);
   assert.equal(d8.blockedBy, 'bonus');
 
@@ -775,6 +779,42 @@ test('Die Auftaktrunde umfasst 16 Termine und geht Spieltag 8 voraus', () => {
   assert.equal(bonusRoundComplete(pressTeamIds, pressSchedule, alle.slice(0, 15)), false);
   assert.equal(bonusRoundComplete(pressTeamIds, pressSchedule, alle), true);
   assert.equal(pressSlots('s1-a', pressSchedule, pressResults, alle, true).find((s) => s.day === 8 && s.slot === 'pre').open, true);
+});
+
+test('Ab Saison 2 beginnt der Pressebetrieb mit dem ersten Spieltag', () => {
+  // Der spaete Start war eine Ausnahme der Saison 1; die Auftaktrunde rueckt damit
+  // vor Spieltag 1 und jedes Team — auch ein Aufsteiger — hat sofort Termine.
+  assert.equal(pressFromDay(1), 8);
+  assert.equal(bonusRoundDay(1), 8);
+  assert.equal(pressFromDay(2), 1);
+  assert.equal(bonusRoundDay(2), 1);
+  assert.equal(pressFromDay(7), 1);
+
+  const s2Schedule = {
+    season: 2,
+    matchdays: pressSchedule.matchdays.map((md) => ({
+      ...md,
+      matches: md.matches.map((m) => ({ home: m.home.replace('s1-', 's2-'), away: m.away.replace('s1-', 's2-') })),
+    })),
+  };
+  const slots = pressSlots('s2-a', s2Schedule, [], [], false);
+  const bonus = slots.filter((s) => s.slot === 'bonus');
+  assert.equal(bonus.length, 2);
+  assert.ok(bonus.every((s) => s.day === 1 && s.open));
+  assert.ok(bonus.every((s) => s.id.startsWith('s2-bonus-s2-a-')));
+  // Spieltag 1 ist dabei, wartet aber auf die Auftaktrunde.
+  const d1 = slots.find((s) => s.day === 1 && s.slot === 'pre');
+  assert.equal(d1.open, false);
+  assert.equal(d1.blockedBy, 'bonus');
+  // Kein Spieltag faellt mehr weg.
+  assert.deepEqual([...new Set(slots.filter((s) => s.day != null).map((s) => s.day))].sort((a, b) => a - b),
+    Array.from({ length: 14 }, (_, i) => i + 1));
+
+  const alle = ['a', 'b', 'c', 'd', 'e', 'f', 'g', 'h']
+    .flatMap((k) => bonusSlotsFor(`s2-${k}`, s2Schedule, []).map((r) => ({ id: r.id, status: 'done' })));
+  assert.deepEqual(bonusRoundProgress(pressTeamIds.map((id) => id.replace('s1-', 's2-')), s2Schedule, alle),
+    { done: 16, total: 16 });
+  assert.equal(pressSlots('s2-a', s2Schedule, [], alle, true).find((s) => s.day === 1 && s.slot === 'pre').open, true);
 });
 
 test('Der Metadatensatz traegt Ergebnis, Tabelle, Kader und Trainer', () => {
@@ -1242,6 +1282,96 @@ test('Ein Bild aus dem Auftrag landet in einer Kachel, nie im Fliesstext', () =>
   // Nur http(s) auf ein Bild — alles andere baut keine Kachel.
   assert.equal(tileHtml(parseTile('[bild: javascript:alert(1)]')), null);
   assert.ok(tileHtml(parseTile(`[bild: ${url}]`)).includes(url));
+});
+
+test('Ein Baustein wird auch mitten im Satz gefunden', () => {
+  const found = findTiles('Ein Satz [statistik: Mega-Floette] und noch [marktwert:Hisui-Tornupto].');
+  assert.equal(found.length, 2);
+  assert.deepEqual(found.map((f) => f.kind), ['statistik', 'marktwert']);
+  assert.deepEqual(found.map((f) => f.key), ['Mega-Floette', 'Hisui-Tornupto']);
+  // Die Positionen muessen den Text genau treffen — daran haengt die Auftrennung.
+  const text = 'abc [tabelle: top] def';
+  const [t] = findTiles(text);
+  assert.equal(text.slice(t.start, t.end), '[tabelle: top]');
+  assert.deepEqual(findTiles('kein Baustein [unbekannt: x]'), []);
+
+  // Fuer Vorschautext und Suche verschwinden die Klammern.
+  assert.equal(stripTiles('Ein Satz [statistik: Glurak] weiter.'), 'Ein Satz  weiter.');
+
+  // Die Auswahlleiste im Editor kennt genau die Bausteine, die es gibt.
+  assert.deepEqual(TILE_MENU.map((m) => m.kind), TILE_KINDS);
+});
+
+test('Ein Schluessel darf ungefaehr geschrieben sein', () => {
+  assert.equal(normKey('Méga-Floette'), 'megafloette');
+  assert.equal(normKey('Mega Floette'), 'megafloette');
+
+  const dex = [
+    { name: 'Mega-Floette', name_en: 'Mega Florges' },
+    { name: 'Floette (Ewige Blume)' },
+    { name: 'Mega-Glurak X' },
+    { name: 'Mega-Glurak Y' },
+  ];
+  assert.equal(findMon(dex, 'mega floette').name, 'Mega-Floette');
+  assert.equal(findMon(dex, 'Mega-Floette.').name, 'Mega-Floette');
+  assert.equal(findMon(dex, 'Mega Florges').name, 'Mega-Floette');
+  // Klammerzusatz weg — aber nur, wenn der volle Name nicht selbst passt.
+  assert.equal(findMon(dex, 'Floette (Ewige Blume)').name, 'Floette (Ewige Blume)');
+  assert.equal(findMon(dex, 'Mega-Floette (S-Tier)').name, 'Mega-Floette');
+  // Zwei Treffer sind kein Treffer: geraten wird nicht.
+  assert.equal(findMon(dex, 'Mega-Glurak'), null);
+  assert.equal(findMon(dex, ''), null);
+
+  const teams = [
+    { id: 's1-heerashai-sv', name: 'Heerashai SV' },
+    { id: 's2-heerashai-sv', name: 'Heerashai SV' },
+    { id: 's2-arceax', name: 'Arceax' },
+  ];
+  const season = [teams[1], teams[2]];
+  assert.equal(findTeam('s1-heerashai-sv', { teams, seasonTeams: season }).id, 's1-heerashai-sv');
+  // Ohne Saisonpraefix ist die laufende Saison gemeint.
+  assert.equal(findTeam('heerashai-sv', { teams, seasonTeams: season }).id, 's2-heerashai-sv');
+  assert.equal(findTeam('Heerashai SV', { teams, seasonTeams: season }).id, 's2-heerashai-sv');
+  assert.equal(findTeam('gibtsnicht', { teams, seasonTeams: season }), null);
+
+  const results = [{ id: 's2-d3-m0' }, { id: 's1-d3-m0' }];
+  assert.equal(findResult(results, 's1-d3-m0').id, 's1-d3-m0');
+  assert.equal(findResult(results, 'd3-m0').id, 's2-d3-m0');
+  assert.equal(findResult(results, 'd9-m9'), null);
+});
+
+test('Eine Tabelle entsteht aus Zeilen in Pipe-Schreibweise', () => {
+  assert.deepEqual(parsePipeRow('| Team | Punkte |'), ['Team', 'Punkte']);
+  assert.deepEqual(parsePipeRow('|a|b|c|'), ['a', 'b', 'c']);
+  assert.equal(parsePipeRow('| nur eine Spalte |'), null);
+  assert.equal(parsePipeRow('kein Rand | drin |'), null);
+
+  const t = parsePipeTable(['| Team | Punkte |', '| --- | ---: |', '| A | 9 |', '| B | 6 |']);
+  assert.deepEqual(t.head, ['Team', 'Punkte']);
+  assert.deepEqual(t.align, ['', 'right']);
+  assert.equal(t.rows.length, 2);
+  assert.equal(t.width, 2);
+
+  // Ohne Trennerzeile ist die erste Zeile der Kopf.
+  const plain = parsePipeTable(['| Team | Punkte |', '| A | 9 |']);
+  assert.deepEqual(plain.align, []);
+  assert.equal(plain.rows.length, 1);
+
+  // Zu wenig, kaputt oder kopflos: keine Tabelle.
+  assert.equal(parsePipeTable(['| Team | Punkte |']), null);
+  assert.equal(parsePipeTable(['| Team | Punkte |', '| --- | --- |']), null);
+  assert.equal(parsePipeTable(['| --- | --- |', '| A | 9 |']), null);
+  assert.equal(parsePipeTable(['| Team | Punkte |', 'dazwischen Text', '| A | 9 |']), null);
+
+  const html = pipeTableHtml(parsePipeTable(['| Team | **Punkte** |', '| --- | ---: |', '| A | 9 |']));
+  assert.ok(html.includes('<th>Team</th>'));
+  assert.ok(html.includes('style="text-align:right"'));
+  assert.ok(html.includes('<strong>Punkte</strong>'));
+  assert.ok(html.includes('<td>A</td>'));
+  // Fehlende Zellen werden aufgefuellt, die Tabelle bleibt rechteckig.
+  const ragged = pipeTableHtml(parsePipeTable(['| a | b | c |', '| 1 | 2 |']));
+  assert.equal((ragged.match(/<td/g) || []).length, 3);
+  assert.equal(pipeTableHtml(null), null);
 });
 
 // === Kaderstand vor und nach dem Wintertransfer ============================

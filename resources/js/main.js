@@ -30,7 +30,7 @@ import {
   currentPick as draftCurrentPick, buildDraftOrder, renewedIn, snakeOrder,
 } from './draft.mjs';
 import { normalizeVideoUrl, videoEmbed, videoHostLabel } from './video.mjs';
-import { renderTiles, TILE_KINDS, imageUrlsIn, withImageTiles } from './press-tiles.mjs';
+import { renderTiles, TILE_MENU, normKey, imageUrlsIn, withImageTiles } from './press-tiles.mjs';
 import { renderMarketChart } from './marketchart.mjs';
 import { runMarketShow } from './marketshow.mjs';
 import { runCeremony } from './ceremony.mjs';
@@ -53,7 +53,7 @@ import {
   PRESS_CATEGORIES, PRESS_AUTHORS, AI_CATEGORY, authorById, categoryLabel, categoryColor,
   manualCategories, categoriesOf, normalizeCategories,
   randomAuthor, randomAuthors, pressSlots, slotLabel, typeLabel, isMatchComplete, isPressReleased, matchDocId,
-  bonusRoundComplete, bonusRoundProgress, bonusSlotsFor, BONUS_ROUND_DAY, PRESS_FROM_DAY,
+  bonusRoundComplete, bonusRoundProgress, bonusSlotsFor, bonusRoundDay, pressFromDay,
   outlookSlotFor, outlookSessionId, outlookProgress, seasonComplete, OUTLOOK_QUESTIONS,
   collectStorylines, sanitizeHtml, paragraphsToHtml, excerpt, readingMinutes,
   formatDate, formatDateTime, sortArticles, articleMatchesFilter, storyId,
@@ -5081,10 +5081,19 @@ function awardsView() {
       return out;
     },
     get openInstances() { return this.allInstances.filter((i) => i.status !== 'done'); },
+    // Ungesehene Siegerehrungen zuerst: sie sind das Einzige, was hier noch etwas
+    // von einem zu sehen verlangt — alles darunter ist Archiv.
     get doneInstances() {
-      return this.allInstances
+      const rows = this.allInstances
         .filter((i) => i.status === 'done')
         .map((i) => ({ inst: i, winners: this.winnerCards(i), rows: voteResults(i) }));
+      return [...rows].sort((a, b) => Number(this.isSeen(a.inst)) - Number(this.isSeen(b.inst)));
+    },
+    isSeen(inst) { return !!inst?.seen?.[this.me]; },
+    // Zahl der abgeschlossenen Abstimmungen, deren Siegerehrung noch aussteht —
+    // Grundlage des Punkt-Markers am Tab.
+    get unseenCount() {
+      return this.allInstances.filter((i) => i.status === 'done' && !this.isSeen(i)).length;
     },
     // Sieger einer Abstimmung fürs Anzeigen aufbereiten (mit beiden Duo-Sprites).
     winnerCards(inst) {
@@ -5409,6 +5418,13 @@ window.Alpine = Alpine;
 // === Presse-Ansicht =========================================================
 // Zwei Reiter: „Newsroom" (filterbares Listing) und „Termine" (Interviews und
 // Pressekonferenzen). Das Zahnrad oben rechts öffnet die Redaktionseinstellungen.
+// Text, der in ein HTML-Fragment eingesetzt wird — nur für die Bausteine und
+// Tabellenzeilen, die der Editor über insertHTML einfügt.
+function escapeText(value) {
+  return String(value ?? '')
+    .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+}
+
 function presseView() {
   return {
     tab: 'newsroom',
@@ -5422,6 +5438,9 @@ function presseView() {
     stage: null,
     pickTeam: null,
     busySlot: null,
+    // Offene Bausteinauswahl im Editor: der gewählte Baustein und die Suche darin.
+    tileKind: '',
+    tileQuery: '',
     // Modellwahl für den nächsten Anlauf, je gescheitertem Beitrag bzw. Termin.
     // Bewusst nur in der Ansicht: sie überlebt keinen Wechsel und ändert die
     // Voreinstellung im Zahnrad nicht.
@@ -5567,6 +5586,8 @@ function presseView() {
         saving: false,
       };
       this._rteImage = null;
+      this.tileKind = '';
+      this.tileQuery = '';
       this.$nextTick(() => document.getElementById('press-composer')?.showPopover());
     },
     // Wird vom Editor-Element selbst aufgerufen, sobald es im DOM steht.
@@ -5587,6 +5608,8 @@ function presseView() {
       if (el && el.matches(':popover-open')) el.hidePopover();
       this.composer = null;
       this._rteImage = null;
+      this.tileKind = '';
+      this.tileQuery = '';
     },
     toggleComposerTeam(id) {
       const arr = this.composer.teamIds;
@@ -5658,6 +5681,67 @@ function presseView() {
       if (this.composer) this.composer.imageSelected = false;
       this.syncEditor(this.$refs.editor);
     },
+
+    // --- Bausteine und Tabellen von Hand ------------------------------------
+    // Ein Baustein ist nichts als Text (`[marktwert: Glurak]`); aufgelöst wird er
+    // beim Anzeigen. Die Leiste nimmt nur das Tippen ab — und liefert den Schlüssel
+    // aus einer Liste, denn ein Tippfehler darin bleibt sonst unbemerkt.
+    get tileKinds() { return TILE_MENU; },
+    tileKindLabel(kind) { return TILE_MENU.find((k) => k.kind === kind)?.label || kind; },
+    toggleTilePicker(kind) {
+      if (kind === 'bild') return this.insertImageTile();
+      this.tileKind = this.tileKind === kind ? '' : kind;
+      this.tileQuery = '';
+    },
+    // Die Auswahl zum gewählten Baustein: Pokémon, Team oder Partie.
+    get tileOptions() {
+      const kind = this.tileKind;
+      const source = TILE_MENU.find((k) => k.kind === kind)?.source;
+      if (!source) return [];
+      const q = normKey(this.tileQuery);
+      const hit = (row) => !q || normKey(`${row.value} ${row.label} ${row.sub || ''}`).includes(q);
+      let rows = [];
+      if (source === 'mon') {
+        rows = this.league.pokemon.map((m) => ({ value: m.name, label: m.name, sub: m.tier ? `Tier ${m.tier}` : '', image: m.image }));
+      } else if (source === 'team') {
+        rows = this.league.seasonTeams.map((t) => ({ value: t.id, label: t.name, sub: t.player, image: this.logoUrl(t.logo) }));
+        if (kind === 'tabelle') rows.unshift({ value: 'top', label: 'Tabellenspitze', sub: 'die ersten drei Plätze' });
+      } else if (source === 'match') {
+        rows = (this.league.results || [])
+          .filter((r) => isMatchComplete(r) && (kind === 'ergebnis' || r.videoUrl))
+          .sort((a, b) => (b.day || 0) - (a.day || 0))
+          .map((r) => ({
+            value: r.id,
+            label: `${this.teamById(r.home)?.name || r.home} – ${this.teamById(r.away)?.name || r.away}`,
+            sub: `Spieltag ${r.day}`,
+          }));
+      }
+      return rows.filter(hit).slice(0, 40);
+    },
+    insertTile(key) {
+      if (!this.tileKind || !key) return;
+      this.rteInsertLines([`[${this.tileKind}: ${key}]`]);
+      this.tileKind = '';
+      this.tileQuery = '';
+    },
+    insertImageTile() {
+      const url = window.prompt('Bild-Adresse (URL) für eine Bildkachel:', 'https://');
+      if (url && /^https?:\/\//i.test(url.trim())) this.rteInsertLines([`[bild: ${url.trim()}]`]);
+    },
+    // Eine Tabelle wird zeilenweise getippt: `| Zelle | Zelle |`. Gesetzt wird sie
+    // erst beim Anzeigen — so übersteht sie den Sanitizer und bleibt bearbeitbar.
+    rteTable() {
+      this.rteInsertLines([
+        '| Team | Punkte | Kill-Diff |',
+        '| --- | ---: | ---: |',
+        '| Name | 0 | 0 |',
+        '| Name | 0 | 0 |',
+      ]);
+    },
+    rteInsertLines(lines) {
+      const html = lines.map((line) => `<p>${escapeText(line)}</p>`).join('');
+      this.rte('insertHTML', html);
+    },
     async saveComposer() {
       if (!this.composerValid || this.composer.saving) return;
       this.composer.saving = true;
@@ -5682,8 +5766,8 @@ function presseView() {
       return days.length ? Math.max(...days) : null;
     },
     get teamsForPicker() { return this.league.seasonTeams; },
-    get bonusDay() { return BONUS_ROUND_DAY; },
-    get pressFromDay() { return PRESS_FROM_DAY; },
+    get bonusDay() { return bonusRoundDay(this.league.season); },
+    get pressFromDay() { return pressFromDay(this.league.season); },
     get bonusProgress() {
       return bonusRoundProgress(this.league.seasonTeams.map((t) => t.id), this.league.schedule, this.press.sessions);
     },
@@ -5726,7 +5810,7 @@ function presseView() {
       });
       return [
         { key: 'outlook', label: 'Nach der Saison · vor Transfer und Draft', rows: outlook },
-        { key: 'bonus', label: `Auftaktrunde vor Spieltag ${BONUS_ROUND_DAY}`, rows: bonus },
+        { key: 'bonus', label: this.bonusDay > 1 ? `Auftaktrunde vor Spieltag ${this.bonusDay}` : 'Auftaktrunde zum Saisonstart', rows: bonus },
         { key: 'open', label: 'Jetzt dran', rows: open.reverse() },
         { key: 'later', label: 'Noch gesperrt', rows: later },
         { key: 'done', label: 'Erledigt', rows: done.reverse() },
@@ -5737,14 +5821,14 @@ function presseView() {
     slotSubtitle(row) {
       if (!row) return '';
       if (row.slot === 'outlook') return `Ausblick · ${OUTLOOK_QUESTIONS} Fragen zu Bilanz, Transfer und Draft`;
-      if (row.slot === 'bonus') return `Auftaktrunde · Bilanz und Ausblick vor Spieltag ${row.day}`;
+      if (row.slot === 'bonus') return `Auftaktrunde · Bilanz und Ausblick ${row.day > 1 ? `vor Spieltag ${row.day}` : 'zum Saisonstart'}`;
       const opp = this.teamById(row.opponentId)?.name || '?';
       return `Spieltag ${row.day} · ${slotLabel(row.slot)} · ${row.home ? 'gegen' : 'bei'} ${opp}`;
     },
     blockedHint(row) {
       if (row.open) return '';
       if (row.blockedBy === 'season') return 'Frei, sobald jede Partie der Saison ein vollständiges Ergebnis hat.';
-      if (row.blockedBy === 'bonus') return `Frei, sobald alle Teams die Auftaktrunde hinter sich haben – erst dann beginnt Spieltag ${BONUS_ROUND_DAY}.`;
+      if (row.blockedBy === 'bonus') return `Frei, sobald alle Teams die Auftaktrunde hinter sich haben – erst dann beginnt Spieltag ${this.bonusDay}.`;
       if (row.needsRelease) return 'Frei, sobald der Spielbericht im Spielplan freigegeben ist.';
       return row.slot === 'pre'
         ? 'Frei, sobald die Partie davor im Spielplan ein Ergebnis hat.'
@@ -7217,8 +7301,9 @@ Alpine.store('press', {
     if (!l.resultsLoaded || !l.scheduleLoaded || !l.teamsLoaded) return;
     // Nicht die Vollständigkeit löst aus, sondern die Freigabe: erst sie sagt, dass
     // Ergebnis und Kampfverlauf endgültig sind.
+    const from = pressFromDay(l.season);
     const done = new Set((l.results || [])
-      .filter((r) => (r.day ?? 0) >= PRESS_FROM_DAY && isPressReleased(r))
+      .filter((r) => (r.day ?? 0) >= from && isPressReleased(r))
       .map((r) => r.id));
     const known = pressSeenComplete;
     pressSeenComplete = done;
@@ -7262,7 +7347,7 @@ Alpine.store('press', {
   get missingRandom() {
     const l = Alpine.store('league');
     const days = [...new Set((l.schedule?.matchdays || []).map((md) => md.day))]
-      .filter((d) => d >= PRESS_FROM_DAY);
+      .filter((d) => d >= pressFromDay(l.season));
     return days.flatMap((d) => this.missingRandomFor(d, { released: false }));
   },
 
@@ -7461,7 +7546,7 @@ Alpine.store('press', {
     if (!rows.length) return [];
     const ok = released ? isPressReleased : isMatchComplete;
     return (l.schedule?.matchdays || [])
-      .filter((md) => (md.day ?? 0) >= PRESS_FROM_DAY)
+      .filter((md) => (md.day ?? 0) >= pressFromDay(l.season))
       .filter((md) => {
         const matches = md.matches || [];
         if (!matches.length) return false;
@@ -7780,7 +7865,7 @@ Alpine.store('press', {
   get missingReports() {
     const l = Alpine.store('league');
     return (l.results || [])
-      .filter((r) => (r.day ?? 0) >= PRESS_FROM_DAY && isMatchComplete(r) && !this.byId(this.reportIdFor(r.id)))
+      .filter((r) => (r.day ?? 0) >= pressFromDay(l.season) && isMatchComplete(r) && !this.byId(this.reportIdFor(r.id)))
       .sort((a, b) => (a.day || 0) - (b.day || 0) || String(a.id).localeCompare(String(b.id)));
   },
   // Vollständig eingetragen, aber noch nicht freigegeben. Solange ein Match hier
@@ -7788,7 +7873,7 @@ Alpine.store('press', {
   get awaitingRelease() {
     const l = Alpine.store('league');
     return (l.results || [])
-      .filter((r) => (r.day ?? 0) >= PRESS_FROM_DAY && isMatchComplete(r) && !r.pressReady)
+      .filter((r) => (r.day ?? 0) >= pressFromDay(l.season) && isMatchComplete(r) && !r.pressReady)
       .sort((a, b) => (a.day || 0) - (b.day || 0) || String(a.id).localeCompare(String(b.id)));
   },
 

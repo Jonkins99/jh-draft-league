@@ -1,5 +1,7 @@
 // Presse-Kern: Kategorien, Redaktion, Slot-Planung, Storylines.
 // Framework-frei (kein Alpine, kein Firebase) — damit unter Node testbar.
+
+import { stripTiles } from './press-tiles.mjs';
 //
 // Ein Presse-Beitrag ist ein Dokument der Collection `press`:
 //   { season, category, title, subtitle, body(HTML), authorId, teamIds[],
@@ -275,12 +277,25 @@ export function sessionDocId(day, teamId, type, season = 1) {
 // Einmalige Auftaktrunde: vor diesem Spieltag tritt JEDES Team einmal zur
 // Pressekonferenz UND zum Interview an — 16 Termine, die den Rest der Saison
 // vorbereiten. Erst wenn sie durch sind, startet der Spieltag regulär.
-export const BONUS_ROUND_DAY = 8;
+//
+// DER SPÄTE START WAR EINE EINMALIGE AUSNAHME DER SAISON 1. Die Presse ist dort
+// mitten in der Saison dazugekommen, deshalb liegt die Auftaktrunde vor Spieltag 8
+// und die Spieltage davor bleiben leer. Ab Saison 2 nimmt die Redaktion mit dem
+// ersten Spieltag ihre Arbeit auf — die Auftaktrunde ist dann der Start in die
+// Saison, inklusive der Aufsteiger.
+const BONUS_ROUND_DAY_BY_SEASON = { 1: 8 };
+const BONUS_ROUND_DAY_DEFAULT = 1;
 
-// Erster Spieltag mit Pressebetrieb. Die Presse ist mitten in der Saison dazu-
-// gekommen; die Spieltage davor werden nicht nachträglich mit Terminen gefüllt.
+export function bonusRoundDay(season = 1) {
+  return BONUS_ROUND_DAY_BY_SEASON[Number(season)] ?? BONUS_ROUND_DAY_DEFAULT;
+}
+
+// Erster Spieltag mit Pressebetrieb — die Spieltage davor werden nicht
+// nachträglich mit Terminen gefüllt.
 // (Gleiches Muster wie MATCHDAY_AWARDS_FROM in awards.mjs.)
-export const PRESS_FROM_DAY = BONUS_ROUND_DAY;
+export function pressFromDay(season = 1) {
+  return bonusRoundDay(season);
+}
 
 export function bonusSessionId(teamId, type, season = 1) {
   return `s${season}-bonus-${teamId}-${type}`;
@@ -288,13 +303,14 @@ export function bonusSessionId(teamId, type, season = 1) {
 
 export function bonusSlotsFor(teamId, schedule, sessions = []) {
   const season = seasonOfSchedule(schedule);
-  const match = matchSequence(schedule).find((m) => m.day === BONUS_ROUND_DAY && (m.home === teamId || m.away === teamId));
+  const day = bonusRoundDay(season);
+  const match = matchSequence(schedule).find((m) => m.day === day && (m.home === teamId || m.away === teamId));
   if (!match) return [];
   return ['pk', 'interview'].map((type) => {
     const id = bonusSessionId(teamId, type, season);
     return {
       id,
-      day: BONUS_ROUND_DAY,
+      day,
       teamId,
       opponentId: match.home === teamId ? match.away : match.home,
       home: match.home === teamId,
@@ -374,6 +390,8 @@ export function outlookProgress(teamIds, schedule, results, sessions) {
 // Termin des Auftakt-Spieltags gesperrt.
 export function pressSlots(teamId, schedule, results, sessions = [], bonusComplete = false) {
   const season = seasonOfSchedule(schedule);
+  const from = pressFromDay(season);
+  const bonusDay = bonusRoundDay(season);
   const seq = matchSequence(schedule);
   const byId = {};
   (results || []).forEach((r) => { if (r?.id) byId[r.id] = r; });
@@ -386,9 +404,9 @@ export function pressSlots(teamId, schedule, results, sessions = [], bonusComple
     const plan = slotPlan(teamId, m.day);
     // Spieltage vor dem Pressestart bleiben leer — es sei denn, dort hat schon
     // einmal ein Termin stattgefunden.
-    if (m.day < PRESS_FROM_DAY && !['pre', 'post'].some((s) => hasSession(sessionDocId(m.day, teamId, plan[s], season)))) return;
+    if (m.day < from && !['pre', 'post'].some((s) => hasSession(sessionDocId(m.day, teamId, plan[s], season)))) return;
     const prev = m.seq > 0 ? seq[m.seq - 1] : null;
-    const waitsForBonus = m.day === BONUS_ROUND_DAY && !bonusComplete;
+    const waitsForBonus = m.day === bonusDay && !bonusComplete;
     const preOpen = (!prev || isMatchComplete(byId[prev.id])) && !waitsForBonus;
     const postOpen = isPressReleased(byId[m.id]);
     const opponent = m.home === teamId ? m.away : m.home;
@@ -503,15 +521,21 @@ export function sortArticles(list) {
 }
 
 export function plainText(html) {
-  return String(html || '')
-    .replace(/<br\s*\/?>/gi, ' ')
-    .replace(/<\/(p|h\d|li|blockquote)>/gi, ' ')
+  const text = String(html || '')
+    .replace(/<br\s*\/?>/gi, '\n')
+    .replace(/<\/(p|h\d|li|blockquote|div|tr)>/gi, '\n')
     .replace(/<[^>]*>/g, '')
     .replace(/&nbsp;/g, ' ')
     .replace(/&amp;/g, '&')
     .replace(/&lt;/g, '<')
     .replace(/&gt;/g, '>')
-    .replace(/&quot;/g, '"')
+    .replace(/&quot;/g, '"');
+  // Bausteine und Tabellenzeilen gehören nicht in Vorschautext, Lesedauer und Suche:
+  // aufgelöst werden sie erst beim Anzeigen, hier stehen sie nur als Klammerwerk da.
+  return stripTiles(text)
+    .split('\n')
+    .filter((line) => !/^\s*\|.*\|\s*$/.test(line))
+    .join(' ')
     .replace(/\s+/g, ' ')
     .trim();
 }

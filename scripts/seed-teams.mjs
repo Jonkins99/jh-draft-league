@@ -3,6 +3,9 @@
 //   node scripts/seed-teams.mjs              # Saison 1 aus der Liste unten
 //   node scripts/seed-teams.mjs --season 2   # Saison 2 aus scripts/data/teams-s2.json
 //
+// Ab Saison 2 zieht das Skript Teamfarbe und amtierenden Trainer des Franchise aus
+// der Vorsaison nach — siehe unten.
+//
 // Idempotent — feste Doc-IDs (s<N>-<slug>), erneutes Ausfuehren ueberschreibt Name,
 // Spieler, Logo und Reihenfolge. Das Roster wird dabei NICHT angefasst: `pokemon`
 // bleibt stehen, wenn das Dokument schon existiert (sonst waere ein zweiter Lauf
@@ -11,12 +14,22 @@
 // DER SLUG IST DIE IDENTITAET DES FRANCHISE. Ein Team, das die Saison ueberdauert,
 // MUSS seinen Slug behalten — daran haengen ewige Tabelle, Vertragsverlaengerungen
 // im Draft und der Marktwert-Verlauf. Nur Auf- und Absteiger bekommen neue Slugs.
+//
+// AM FRANCHISE HAENGEN AUCH FARBE UND TRAINER. Beide gehoeren zum Team, nicht zur
+// Saison: ein Verein wechselt nicht zum Jahreswechsel Vereinsfarbe und Trainerbank.
+// Deshalb zieht dieses Skript beides aus der Vorsaison nach — aber nur, solange das
+// Feld in der neuen Saison noch leer ist, sonst wuerde ein zweiter Lauf spaetere
+// Aenderungen aus der Oberflaeche ueberschreiben. Von der Trainerhistorie wandert
+// ausschliesslich der AMTIERENDE Trainer mit, und zwar als „vor der Saison" im Amt:
+// Amtszeiten werden in Spieltagen der jeweiligen Saison gefuehrt, eine kopierte
+// Historie stuende dort auf den falschen Spieltagen.
 
 import { readFileSync, existsSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import { dirname, join } from 'node:path';
 import { initializeApp } from 'firebase/app';
 import { getFirestore, doc, getDoc, setDoc, collection, getDocs } from 'firebase/firestore';
+import { currentTrainer, normalizeTrainer } from '../resources/js/trainers.mjs';
 
 const firebaseConfig = {
   apiKey: 'AIzaSyC7tfkjU9iXb-cjwVQEOxYl2anNMRHMgqo',
@@ -77,10 +90,22 @@ if (list.length !== 8 || players.length !== 2 || players.some((p) => list.filter
 const app = initializeApp(firebaseConfig);
 const db = getFirestore(app);
 
+// Der Bestand der Vorsaison, nach Franchise-Slug. Fuer Saison 1 bleibt er leer.
+const previous = {};
+if (season > 1) {
+  const prev = await getDocs(collection(db, 'teams'));
+  prev.docs.forEach((d) => {
+    const m = String(d.id).match(/^s(\d+)-(.+)$/);
+    if (m && Number(m[1]) === season - 1) previous[m[2]] = d.data();
+  });
+}
+
 let written = 0;
+const carried = [];
 for (const [i, t] of list.entries()) {
   const id = `s${season}-${t.slug}`;
   const existing = await getDoc(doc(db, 'teams', id));
+  const current = existing.exists() ? existing.data() : null;
   const data = {
     season,
     name: t.name,
@@ -90,9 +115,31 @@ for (const [i, t] of list.entries()) {
   };
   // Nur ein neues Team bekommt ein leeres Roster; ein bestehendes behaelt seines.
   if (!existing.exists()) data.pokemon = [];
+
+  const before = previous[t.slug];
+  if (before) {
+    if (!current?.color && before.color) {
+      data.color = before.color;
+      carried.push(`${id}: Farbe ${before.color}`);
+    }
+    if (!(current?.trainers || []).length) {
+      const boss = currentTrainer(before.trainers || []);
+      if (boss) {
+        // Neue ID: sonst traegt dieselbe Kennung in zwei Saisons zwei Amtszeiten.
+        data.trainers = [normalizeTrainer({ ...boss, id: null, fromDay: null, untilDay: null }, id)];
+        carried.push(`${id}: Trainer ${boss.name}`);
+      }
+    }
+  }
+
   await setDoc(doc(db, 'teams', id), data, { merge: true });
   console.log(`✓ ${existing.exists() ? 'aktualisiert' : 'angelegt'}: ${id}`);
   written++;
+}
+
+if (carried.length) {
+  console.log(`\nAus Saison ${season - 1} uebernommen:`);
+  carried.forEach((line) => console.log(`  · ${line}`));
 }
 
 const snap = await getDocs(collection(db, 'teams'));
