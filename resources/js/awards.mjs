@@ -241,3 +241,26 @@ export function seasonTiers(teams) {
 export function tierInSeason(tiers, mon) {
   return (tiers || {})[mon?.name] || mon?.tier || null;
 }
+
+// Spieltage, an denen JEDE angesetzte Partie ein vollständiges Ergebnis hat. Erst
+// dann ist ein Spieltag-Award fällig — ein angebrochener Spieltag ist noch nicht
+// zu bewerten. `isComplete` kommt von außen (press.mjs), damit dieses Modul keine
+// Ergebnislogik doppelt führt.
+export function completedMatchdays(schedule, results, isComplete) {
+  const done = new Set();
+  (results || []).forEach((r) => {
+    if (r && isComplete(r)) done.add(`${r.day}|${r.home}|${r.away}`);
+  });
+  return (schedule?.matchdays || [])
+    .filter((md) => (md.matches || []).length
+      && md.matches.every((m) => done.has(`${md.day}|${m.home}|${m.away}`)))
+    .map((md) => md.day);
+}
+
+// Wie viele Abstimmungen warten auf DIESEN Spieler? Nominieren zählt, bis er
+// „fertig" gemeldet hat, abstimmen, bis sein Stimmzettel vorliegt.
+export function awaitingPlayer(instances, player) {
+  if (!player) return 0;
+  return (instances || []).filter((i) => (i.status === 'nominating' && !i.confirmed?.[player])
+    || (i.status === 'voting' && !hasVoted(i, player))).length;
+}

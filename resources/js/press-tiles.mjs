@@ -13,6 +13,7 @@
 //     [tabelle: s1-heerashai-sv]
 //     [video: s1-d3-m0]
 //     [bild: https://…/foto.jpg]
+//     [rivalität: heerashai-sv | beast-force]
 //
 // Aufgelöst wird er ERST BEIM ANZEIGEN, nicht beim Speichern. Das hat drei Gründe:
 // der gespeicherte Beitrag bleibt reiner Text und braucht keine weitere Whitelist;
@@ -34,11 +35,13 @@ import { formatMarket, formatMarketDelta, marketValue, historyPoints } from './m
 import { currentTrainer } from './trainers.mjs';
 import { videoEmbed } from './video.mjs';
 import { battleStats, computeStandings, pokemonStats } from './scoring.mjs';
+import { rivalry, splitPair } from './career.mjs';
 
 /** Die Bausteine, die es gibt — auch die Liste für den Prompt. */
-export const TILE_KINDS = ['marktwert', 'verlauf', 'statistik', 'team', 'trainer', 'ergebnis', 'tabelle', 'video', 'bild'];
+// „rivalitaet" ist dieselbe Kachel wie „rivalität" — ohne Umlaut getippt.
+export const TILE_KINDS = ['marktwert', 'verlauf', 'statistik', 'team', 'trainer', 'ergebnis', 'tabelle', 'video', 'bild', 'rivalität', 'rivalitaet'];
 
-const TILE_RE = /^\s*\[\s*(marktwert|verlauf|statistik|team|trainer|ergebnis|tabelle|video|bild)\s*:\s*([^\]]+?)\s*\]\s*$/i;
+const TILE_RE = /^\s*\[\s*(marktwert|verlauf|statistik|team|trainer|ergebnis|tabelle|video|bild|rivalität|rivalitaet)\s*:\s*([^\]]+?)\s*\]\s*$/i;
 
 /**
  * Dieselben Bausteine, beschriftet — die Auswahlleiste im Editor. `source` sagt, woher
@@ -55,6 +58,7 @@ export const TILE_MENU = [
   { kind: 'tabelle', label: 'Tabelle', hint: 'Ausschnitt um ein Team — oder die Spitze', source: 'team' },
   { kind: 'video', label: 'Video', hint: 'das Video zum Spiel', source: 'match' },
   { kind: 'bild', label: 'Bild', hint: 'ein Bild über seine Adresse', source: 'url' },
+  { kind: 'rivalität', label: 'Rivalität', hint: 'Bilanz zweier Vereine über alle Saisons', source: 'pair' },
 ];
 
 /** `[marktwert: Glurak]` -> { kind: 'marktwert', key: 'Glurak' }, sonst null. */
@@ -370,6 +374,37 @@ function imageTile(key) {
   </figure>`;
 }
 
+// Zwei Vereine über alle Saisons: Bilanz, die heißesten Duelle und die Geschichten
+// zwischen ihnen. `storylines` kommt aus collectStorylines (press.mjs).
+function rivalryTile(key, { teams, seasonTeams, results, logoBase, storylines }) {
+  const pair = splitPair(key);
+  if (!pair) return null;
+  const ta = findTeam(pair[0], { teams, seasonTeams });
+  const tb = findTeam(pair[1], { teams, seasonTeams });
+  if (!ta || !tb || ta.id === tb.id) return null;
+  const r = rivalry(ta.id, tb.id, results, storylines);
+  const side = (team, wins, win) => `<span class="press-score-side${win ? ' is-win' : ''}">
+      ${team.logo ? `<img src="${esc(logoBase)}${esc(team.logo)}" alt="${esc(team.name)}" loading="lazy" />` : ''}
+      <span class="press-score-team">${esc(team.name)}</span>
+      <span class="press-score-num">${wins}</span>
+    </span>`;
+  const duels = r.hottest.map((g) => `<li>Saison ${esc(g.season)} · Spieltag ${esc(g.day ?? '?')} · ${g.battlesA}:${g.battlesB} <span>(Kills ${g.killsA}:${g.killsB})</span></li>`).join('');
+  const stories = r.storylines.slice(0, 3).map((st) => `<li>${esc(st.title)} <span>· ${esc(st.status)}</span></li>`).join('');
+  return `<figure class="press-tile press-tile-score press-tile-rival">
+    <span class="press-tile-label">Rivalität · ${r.matches === 1 ? '1 Duell' : `${r.matches} Duelle`}</span>
+    <span class="press-score-row">
+      ${side(ta, r.winsA, r.winsA > r.winsB)}
+      <span class="press-score-sep">:</span>
+      ${side(tb, r.winsB, r.winsB > r.winsA)}
+    </span>
+    <figcaption class="press-tile-sub">${r.matches
+      ? `Siege · ${r.draws ? `${r.draws} Remis · ` : ''}Kämpfe ${r.battlesA}:${r.battlesB} · Kills ${r.killsA}:${r.killsB}`
+      : 'Noch kein direktes Duell'}</figcaption>
+    ${duels ? `<ul class="press-rival-list"><li class="press-rival-head">Die heißesten Duelle</li>${duels}</ul>` : ''}
+    ${stories ? `<ul class="press-rival-list"><li class="press-rival-head">Geschichten zwischen beiden</li>${stories}</ul>` : ''}
+  </figure>`;
+}
+
 const BUILDERS = {
   marktwert: monTile,
   verlauf: historyTile,
@@ -380,6 +415,8 @@ const BUILDERS = {
   tabelle: tableTile,
   video: videoTile,
   bild: imageTile,
+  'rivalität': rivalryTile,
+  rivalitaet: rivalryTile,
 };
 
 /**

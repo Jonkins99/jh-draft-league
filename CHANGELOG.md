@@ -1,5 +1,50 @@
 # Changelog
 
+## Press shows (new)
+- **"Cava LANZ", the talk show.** Once per matchday — after the second or third released game, drawn per matchday and the same on every device — Cavalanzas hosts a round of three: a press member plus, with equal odds, a second press member or a random club's trainer. With two press members the show is written in one go. With a trainer it runs live in the appointments tab: the show is generated up to the question to the trainer, the owner answers freely, host and guest pick the answer up and argue on, until the trainer has spoken three or four times; then Cavalanzas signs off and the episode is published. While it runs, the piece stays out of the newsroom. Topics: scandals first, then the matchday's results and the games still to come.
+- **"50 plus Zweiblatt", the podcast.** Venicro and Chelast review a matchday once all three matchday awards are decided and both players have watched the ceremonies. Analytical first, scandals and awards on the side. Starts with season 2; season 1 is not filled in retroactively.
+- **Pure transcripts.** Both formats are nothing but speaker, colon and statement (bold), with the show's image at the top. No author and no portrait — the byline is the show and its hosts. Each show has its own rubric and filter. The hosts are not part of the regular press pool; their voices are written into `press-shows.mjs`. What trainers and guests say may move storylines on or open new ones.
+
+## Pokémon & teams
+- **Form curve.** The last three matches as a small sparkline — kills green, deaths red, a grey dot when not in the squad — in the team ranking (table and cards) and in the Pokémon detail header.
+- **Career stations.** The Pokémon detail view lists every club and season a Pokémon played for, including the club it left in the winter window, with matches, battles, kills and deaths.
+
+## Press
+- **Rivalry tile.** `[rivalität: team | team]` shows the head-to-head of two clubs across all seasons (compared by franchise), the three hottest duels and the storylines between them. Available to the desk and in the editor's tile bar.
+
+## Notifications (new)
+- **System notifications for what is waiting for you:** a new press appointment, an award vote, new articles — and a reminder when it has been your pick in the draft for five minutes and the app is not on the draft or in the background. Switched on per device with the bell next to the account. There is no push server behind this static site: notifications come through a service worker while the app runs (also in a background tab or as an installed app in the background), not when it is closed completely.
+
+## Pokémon: base stats and character (new)
+- **All six base stats, not just speed.** HP, Attack, Defense, Sp. Atk, Sp. Def and Speed come from the Champions dex on Smogon (`scripts/apply-basestats.mjs`, which reads the JSON Smogon embeds in the page) and live in `pokemon.json` as `stats`. They show up in exactly one place: as animated bars above the weakness chart in the Pokémon detail view, with the stat total and a rough role.
+- **The press measures a wall differently from a gun.** Every roster entry in the press metadata carries the stats plus a role (`offensiv`, `defensiv`, `ausgewogen`) and the attacking side. A new canon rule makes it binding: a defensive Pokémon is not judged by its kills, an offensive one that stops scoring gets pressed hard.
+- **Character traits for Pokémon.** At the bottom of the team view each Pokémon in the squad can carry any number of free entries — a keyword or a whole sentence. They sit on the team document (`monTraits`), only the owner edits them, and they go to the press: interview answers use them, articles may refer to them.
+
+## Press
+- **Market values are seasoning, not the meal.** Each request now decides whether market values may appear at all — in roughly one text out of four, and then only in passing. The market update keeps them as its subject; the newcomer piece keeps them banned.
+- **More kinds of stories.** Thirteen new story archetypes (rivalry, mentor, the quiet hero, the wall, the misfiring striker, type and speed questions, rituals, the captain's armband…) and an explicit rule against defaulting to the expensive-versus-cheap squad angle.
+- **Small scandals, rarely.** Nights out, a skipped training session, a liked post, a leaked chat, criticism of the own trainer through the media, a doping suspicion with Stardust or Revives, a betting rumour, holiday photos from Alola during a crisis, a rival's shirt… The direction offers one in about one text out of seven and never more than two among the latest twelve pieces. A dressing-room brawl can happen once per season at most. The incident may be told as an observation or leak; its consequences stay rumour, as the canon demands.
+- **Interviews go to the people everyone is talking about.** Instead of the whole squad, the desk requests one to three guests per interview — weighted by running storylines, recent coverage, awards and the last match, and fixed per appointment so reopening it does not reroll. With a single guest the appointment is mandatory. Each card says why that guest was asked.
+- **Ten answer stances instead of three, and no labels.** Calm, evasive, counter-attack, self-critical, humorous, needling, emotional, cryptic, protective and the bold promise. Each question gets three of them in random order, and the UI no longer names them — you have to read the answer to judge whether it will calm things down or escalate. The desk writing the article still sees the stance and its typical effect.
+- **Every article can be corrected.** AI-written pieces get an edit button too: title, kicker, body, rubrics (including the automatic "Erste Liga" stamp), author, clubs and matchday. Origin, storylines and archetype stay untouched.
+- **Fixed: commissioned second-division pieces still said "Erste Liga".** The commission form has a league choice now, a brief that mentions the second division is recognised, and the model can actually pick the second division as a rubric.
+- **How to get an API key.** The access tab explains, with links, where the key comes from (Google AI Studio), what it looks like (`AQ.`), and that the old `AIza` standard keys have been rejected since September 2026.
+- **One-line rubric bar and paging.** The category filters scroll in a single line like the storyline ticker. The newsroom shows the twelve newest pieces; "Mehr laden" adds ten at a time.
+- **The season opening round is press conferences only** from season 2 on — eight appointments instead of sixteen. Season 1 keeps its history.
+
+## Teambuilder
+- **Fixed: the damage calculator rejected almost every move.** The culprit was not the move: an item or ability the calculator did not know made `calculate()` fail for every attack, and each failure was reported as "unknown move". Names are now resolved against the calculator's own registry — German or English, regardless of case, spaces and hyphens — an unknown item or ability is dropped with a note under its field, and a genuine calculation error says so instead of blaming the move. Items without a German name (new Mega Stones) appear in the suggestions under their English name.
+- **Swap icon redone** — arrows up/down on a phone, left/right on a wide screen.
+- **Matchup, tidied up.** The explanation paragraph is gone, the Showdown export is an icon button, your own team is always on top, the opponent's set tiles hide the stat-point fields, and the colour marking can only be changed in the "Nur Pokémon" view.
+- **The speed configuration folds away** in a native, animated `details` block (state remembered per device). The explanation text above the speed tier list is gone.
+
+## Navigation
+- **Dots where something is waiting for you.** Press shows a dot while one of your clubs has an open interview or press conference, Awards while a vote still needs your nomination or ballot. Matchday awards only count once all four results of the matchday are in. On a phone the menu button carries the dot.
+- **A reload stays where you were.** The browser keeps the current history entry across a reload; the app now reopens that view (with its team, match or Pokémon) instead of the start view, and the back bar keeps its labels.
+
+## Draft plan
+- **Stored at the account, encrypted — no longer in localStorage.** The plan lives in `private/<user>-draftplan`, encrypted with the password like notes and teambuilder data, and is read fresh when the view opens, so it is the same on every device. A plan still sitting in localStorage is moved over once (the newer plan per team wins) and then deleted there. Without login nothing is saved, and the view says so.
+
 ## Season 2 (new)
 - **The pool is re-graded before the draft.** Column D of the Elo sheet holds the tier a Pokémon goes into the new season with; `scripts/apply-tiers.mjs` pulls that into `pokemon.json`, the app's only tier source. 93 of 340 Pokémon change class. Their point value moves with them but keeps its rank inside the tier (bands S 20–17, A 16–13, B 12–9, C 8–5, D 4–1), so nothing reads "Tier S · 9 points".
 - **A season's market history stays that season's.** The sheet carries every season in one row, with the new season's columns simply to the right. The history is now cut to the selected season — without it the finished curve of season 1 would run on into the starting value of season 2, and a squad would suddenly show a value it never had. Today's Elo and market value are unaffected; they belong to no season.

@@ -1,5 +1,6 @@
 // Reine Logik-Tests der framework-freien Module — Ausfuehren: node scripts/test-scoring.mjs
 import assert from 'node:assert/strict';
+import { readFileSync } from 'node:fs';
 import {
   pokemonStats, pokemonProfile, mergeResult,
   showdownSpecies, showdownExport,
@@ -18,7 +19,7 @@ import {
 import {
   spToEv, evToSp, speciesKey as calcSpeciesKey, natureByDe, natureLabel, natureFor,
   parseSpField, formatSpField, spSetToConfig, configToSpSet, parseLegacyEvs,
-  damagePercent, percentLabel, hitsToKo, typeDe, MAX_SP,
+  damagePercent, percentLabel, hitsToKo, typeDe, MAX_SP, nameKey, buildNameIndex, resolveName,
 } from '../resources/js/damagecalc.mjs';
 import {
   pressSlots, slotPlan, bonusSlotsFor, bonusRoundComplete, bonusRoundProgress,
@@ -65,6 +66,20 @@ import {
   nextTarget, planRisks, coverageOf, riskScore, weakSpots, suggestCoverage, speedProfile,
   pathSummary,
 } from '../resources/js/draftplan.mjs';
+import {
+  SHOWS, showOf, showByline, lanzTriggerGame, lanzAnswerTarget, lanzLineup, podcastReadyDays,
+  turnParagraph, showParagraphs, cleanTurns, SHOW_SCHEMA,
+} from '../resources/js/press-shows.mjs';
+import { teamForm, formFromTimeline, formSparkSvg, careerStations, rivalry, splitPair } from '../resources/js/career.mjs';
+import { statsOf, statTotal, statPercent, statRole, statBlock, roleLabel } from '../resources/js/basestats.mjs';
+import { completedMatchdays, awaitingPlayer } from '../resources/js/awards.mjs';
+import { normalizeMonTraits, monTraitsOf, MAX_MON_TRAITS } from '../resources/js/trainers.mjs';
+import {
+  commissionLeague, interviewCandidates, pickInterviewGuests, matchLines, isMatchComplete as pressMatchComplete,
+} from '../resources/js/press.mjs';
+import {
+  ANSWER_STANCES, STANCE_KEYS, pickStances, scandalPick, marketRule, SCANDALS, isScandal, QUESTIONS_SCHEMA,
+} from '../resources/js/press-prompts.mjs';
 
 let passed = 0;
 function test(name, fn) { fn(); passed++; console.log('  ok -', name); }
@@ -593,6 +608,24 @@ test('speciesKey trifft die Schluessel von @smogon/calc', () => {
   assert.equal(calcSpeciesKey(''), '');
 });
 
+test('Attacken- und Itemnamen werden unabhaengig von der Schreibweise aufgeloest', () => {
+  assert.equal(nameKey('  Close  Combat '), 'closecombat');
+  assert.equal(nameKey('Überreste'), 'uberreste');
+  const idx = buildNameIndex(
+    { Nahkampf: 'Close Combat', Erdbeben: 'Earthquake', Kaputt: 'Gibt es nicht' },
+    ['Close Combat', 'Earthquake', 'U-turn'],
+  );
+  assert.equal(resolveName(idx, 'Nahkampf'), 'Close Combat');
+  assert.equal(resolveName(idx, 'nahkampf'), 'Close Combat');
+  assert.equal(resolveName(idx, 'close combat'), 'Close Combat');
+  assert.equal(resolveName(idx, 'U-Turn'), 'U-turn');
+  assert.equal(resolveName(idx, 'uturn'), 'U-turn');
+  // Eine Uebersetzung auf einen Namen, den der Rechner nicht kennt, loest nicht auf.
+  assert.equal(resolveName(idx, 'Kaputt'), null);
+  assert.equal(resolveName(idx, 'Quatsch'), null);
+  assert.equal(resolveName(idx, '   '), '');
+});
+
 test('Wesen tragen deutsche Namen mit Statusangabe', () => {
   assert.equal(natureByDe('Frech').en, 'Adamant');
   assert.equal(natureLabel('Frech'), 'Frech (Ang+, SpA−)');
@@ -799,7 +832,10 @@ test('Ab Saison 2 beginnt der Pressebetrieb mit dem ersten Spieltag', () => {
   };
   const slots = pressSlots('s2-a', s2Schedule, [], [], false);
   const bonus = slots.filter((s) => s.slot === 'bonus');
-  assert.equal(bonus.length, 2);
+  // Ab Saison 2 nur noch Pressekonferenzen: acht statt sechzehn Termine.
+  assert.equal(bonus.length, 1);
+  assert.equal(bonus[0].type, 'pk');
+  assert.deepEqual(bonusRoundProgress(pressTeamIds.map((id) => id.replace('s1-', 's2-')), s2Schedule, []), { done: 0, total: 8 });
   assert.ok(bonus.every((s) => s.day === 1 && s.open));
   assert.ok(bonus.every((s) => s.id.startsWith('s2-bonus-s2-a-')));
   // Spieltag 1 ist dabei, wartet aber auf die Auftaktrunde.
@@ -813,7 +849,7 @@ test('Ab Saison 2 beginnt der Pressebetrieb mit dem ersten Spieltag', () => {
   const alle = ['a', 'b', 'c', 'd', 'e', 'f', 'g', 'h']
     .flatMap((k) => bonusSlotsFor(`s2-${k}`, s2Schedule, []).map((r) => ({ id: r.id, status: 'done' })));
   assert.deepEqual(bonusRoundProgress(pressTeamIds.map((id) => id.replace('s1-', 's2-')), s2Schedule, alle),
-    { done: 16, total: 16 });
+    { done: 8, total: 8 });
   assert.equal(pressSlots('s2-a', s2Schedule, [], alle, true).find((s) => s.day === 1 && s.slot === 'pre').open, true);
 });
 
@@ -1260,7 +1296,7 @@ test('Ein Baustein steht allein im Absatz und nennt seine Art', () => {
   assert.deepEqual(parseTile('  [ergebnis:s1-d3-m0] '), { kind: 'ergebnis', key: 's1-d3-m0' });
   assert.equal(parseTile('Davor noch Text [video: s1-d3-m0]'), null);
   assert.equal(parseTile('[unbekannt: x]'), null);
-  assert.deepEqual(TILE_KINDS, ['marktwert', 'verlauf', 'statistik', 'team', 'trainer', 'ergebnis', 'tabelle', 'video', 'bild']);
+  assert.deepEqual(TILE_KINDS, ['marktwert', 'verlauf', 'statistik', 'team', 'trainer', 'ergebnis', 'tabelle', 'video', 'bild', 'rivalität', 'rivalitaet']);
   assert.deepEqual(parseTile('[tabelle: top]'), { kind: 'tabelle', key: 'top' });
 });
 
@@ -1299,7 +1335,7 @@ test('Ein Baustein wird auch mitten im Satz gefunden', () => {
   assert.equal(stripTiles('Ein Satz [statistik: Glurak] weiter.'), 'Ein Satz  weiter.');
 
   // Die Auswahlleiste im Editor kennt genau die Bausteine, die es gibt.
-  assert.deepEqual(TILE_MENU.map((m) => m.kind), TILE_KINDS);
+  assert.deepEqual(TILE_MENU.map((m) => m.kind), TILE_KINDS.filter((k) => k !== 'rivalitaet'));
 });
 
 test('Ein Schluessel darf ungefaehr geschrieben sein', () => {
@@ -1846,6 +1882,235 @@ test('Die Kurzfassung eines Pfades zaehlt Slots, Punkte und Gesichertes', () => 
   assert.equal(sum.ok, true);
   assert.deepEqual(pathMons(plan, 'fork', dpDex).map((m) => m.slot), ['S1', 'S2', 'A1']);
   assert.deepEqual(usageMap(plan).S1.Wasserwand.sort(), ['deep', 'fork']);
+});
+
+test('Statuswerte: Summe, Balken und Rolle', () => {
+  const dex = JSON.parse(readFileSync(new URL('../public/data/pokemon.json', import.meta.url), 'utf8'));
+  // Jeder Eintrag der Stammdaten trägt alle sechs Werte, die Initiative deckt sich mit base_speed.
+  dex.forEach((p) => {
+    const st = statsOf(p);
+    assert.ok(st, `${p.name} ohne Statuswerte`);
+    if (p.base_speed != null) assert.equal(st.spe, p.base_speed, p.name);
+  });
+  assert.equal(statsOf({ base_speed: 90 }), null);
+  const wall = { hp: 95, atk: 65, def: 110, spa: 60, spd: 130, spe: 65 };
+  const gun = { hp: 78, atk: 104, def: 78, spa: 159, spd: 115, spe: 100 };
+  const mid = { hp: 80, atk: 80, def: 80, spa: 80, spd: 80, spe: 80 };
+  assert.equal(statTotal(wall), 525);
+  assert.equal(statPercent(100), 50);
+  assert.equal(statPercent(250), 100);
+  assert.deepEqual(statRole(wall), { role: 'defensiv', side: 'gemischt' });
+  assert.deepEqual(statRole(gun), { role: 'offensiv', side: 'speziell' });
+  assert.equal(statRole(mid).role, 'ausgewogen');
+  assert.equal(roleLabel(statRole(gun)), 'Offensiv · speziell');
+  assert.equal(roleLabel(statRole(wall)), 'Defensiv');
+  const block = statBlock({ stats: wall });
+  assert.equal(block.rolle, 'defensiv');
+  assert.equal(block.statuswerte.spezialVerteidigung, 130);
+  assert.equal(block.statuswerte.summe, 525);
+});
+
+test('Die Presse bekommt Statuswerte, Rolle und Charakter im Kader', () => {
+  const pokedex = [{ name: 'Mauer', tier: 'B', types: ['Stahl'], stats: { hp: 95, atk: 65, def: 110, spa: 60, spd: 130, spe: 65 }, base_speed: 65 }];
+  const teams = [{ id: 's1-a', name: 'A', player: 'Janik', pokemon: [{ name: 'Mauer', tier: 'B' }], monTraits: { Mauer: ['stoisch', 'isst nur Beeren'] } }];
+  const ctx = buildContext({ season: 1, teams, results: [], schedule: { matchdays: [] }, pokedex, articles: [], eloRows: [] }, { teamIds: ['s1-a'] });
+  const text = JSON.stringify(ctx);
+  assert.ok(text.includes('"rolle":"defensiv"'));
+  assert.ok(text.includes('"spezialVerteidigung":130'));
+  assert.ok(text.includes('isst nur Beeren'));
+});
+
+test('Spieltag-Awards werden erst fällig, wenn der ganze Spieltag gespielt ist', () => {
+  const schedule = { matchdays: [
+    { day: 1, matches: [{ home: 'a', away: 'b' }, { home: 'c', away: 'd' }] },
+    { day: 2, matches: [{ home: 'a', away: 'c' }, { home: 'b', away: 'd' }] },
+  ] };
+  const full = (day, home, away) => ({ day, home, away, battles: [1, 2, 3].map(() => ({ done: true })) });
+  const results = [full(1, 'a', 'b'), full(1, 'c', 'd'), full(2, 'a', 'c')];
+  const done = (r) => (r.battles || []).filter((b) => b.done).length >= 3;
+  assert.deepEqual(completedMatchdays(schedule, results, done), [1]);
+  assert.deepEqual(completedMatchdays(schedule, [...results, full(2, 'b', 'd')], done), [1, 2]);
+  const inst = [
+    { status: 'nominating', confirmed: { Janik: true } },
+    { status: 'nominating', confirmed: {} },
+    { status: 'voting', voted: { Henrik: true } },
+    { status: 'done' },
+  ];
+  assert.equal(awaitingPlayer(inst, 'Janik'), 2);
+  assert.equal(awaitingPlayer(inst, 'Henrik'), 2);
+  assert.equal(awaitingPlayer(inst, null), 0);
+});
+
+test('Charakter-Eigenschaften der Pokémon werden bereinigt', () => {
+  assert.deepEqual(normalizeMonTraits(['  ruhig ', '', 'Ruhig', 'trägt, trotz allem, immer dieselbe Beere']),
+    ['ruhig', 'trägt, trotz allem, immer dieselbe Beere']);
+  assert.equal(normalizeMonTraits(Array.from({ length: 20 }, (_, i) => `x${i}`)).length, MAX_MON_TRAITS);
+  assert.deepEqual(monTraitsOf({ monTraits: { A: ['laut'] } }, 'A'), ['laut']);
+  assert.deepEqual(monTraitsOf({}, 'A'), []);
+});
+
+test('Auftragsbeiträge finden ihre Liga', () => {
+  assert.equal(commissionLeague('zweite', ''), 'zweite');
+  assert.equal(commissionLeague('erste', 'Die Zweite Liga brennt'), 'erste');
+  assert.equal(commissionLeague('auto', 'Ein Blick in die Zweite Liga'), 'zweite');
+  assert.equal(commissionLeague('auto', 'Was macht die 2. Liga?'), 'zweite');
+  assert.equal(commissionLeague('auto', 'Das Titelrennen'), 'auto');
+  // Ein Zweitliga-Beitrag trägt nie zusätzlich „Erste Liga".
+  assert.deepEqual(normalizeCategories('news', ['zweite-liga', AI_CATEGORY]).categories, ['news', 'zweite-liga']);
+});
+
+test('Interviewgäste: eins bis drei, relevant und reproduzierbar', () => {
+  const roster = ['Alpha', 'Beta', 'Gamma', 'Delta', 'Epsilon'].map((name) => ({ name }));
+  const result = { home: 's1-a', away: 's1-b', battles: [{ done: true, used: { home: ['Alpha', 'Beta'], away: [] },
+    kills: [
+      { victimSide: 'away', victim: 'x', killerSide: 'home', killer: 'Alpha' },
+      { victimSide: 'away', victim: 'y', killerSide: 'home', killer: 'Alpha' },
+      { victimSide: 'home', victim: 'Beta', killerSide: 'away', killer: 'x' },
+      { victimSide: 'home', victim: 'Beta', killerSide: 'home', killer: 'Alpha' },
+    ] }] };
+  const lines = matchLines(result, 'home');
+  assert.equal(lines.Alpha.kills, 2);
+  assert.equal(lines.Beta.deaths, 2);
+  const cands = interviewCandidates({
+    roster, trainer: { name: 'Coach' },
+    storylines: [{ title: 'Gamma gegen alle', summary: '', status: 'eskaliert' }],
+    awardWins: { Delta: 1 },
+    lastMatch: lines,
+  });
+  const byName = Object.fromEntries(cands.map((c) => [c.name, c]));
+  assert.ok(byName.Gamma.score > byName.Epsilon.score);
+  assert.equal(byName.Gamma.reason, 'Im Gespräch: Gamma gegen alle');
+  assert.equal(byName.Alpha.reason, '2 Kills im letzten Match');
+  const counts = new Set();
+  for (let i = 0; i < 60; i++) {
+    const picked = pickInterviewGuests(`s2-d${i}-s2-a-interview`, cands);
+    assert.ok(picked.length >= 1 && picked.length <= 3);
+    assert.equal(new Set(picked.map((p) => p.name)).size, picked.length);
+    counts.add(picked.length);
+    assert.deepEqual(pickInterviewGuests(`s2-d${i}-s2-a-interview`, cands).map((p) => p.name), picked.map((p) => p.name));
+  }
+  assert.deepEqual([...counts].sort(), [1, 2, 3]);
+  assert.equal(pickInterviewGuests('x', [{ name: 'Solo', score: 0 }]).length, 1);
+});
+
+test('Antworten: zehn Haltungen, je Frage drei verschiedene', () => {
+  assert.equal(ANSWER_STANCES.length, 10);
+  const sets = pickStances(5);
+  assert.equal(sets.length, 5);
+  sets.forEach((set) => {
+    assert.equal(set.length, 3);
+    assert.equal(new Set(set).size, 3);
+    set.forEach((k) => assert.ok(STANCE_KEYS.includes(k)));
+  });
+  // Über drei Fragen hinweg wird gestreut: neun verschiedene Haltungen.
+  assert.equal(new Set(pickStances(3).flat()).size, 9);
+  assert.ok(JSON.stringify(QUESTIONS_SCHEMA).includes('kampfansage'));
+});
+
+test('Regie: Marktwerte selten, Skandale selten und die Prügelei einmal je Saison', () => {
+  const seq = (values) => { let i = 0; return () => values[i++ % values.length]; };
+  assert.equal(marketRule('free').allowed, true);
+  assert.equal(marketRule('none').text, '');
+  assert.equal(marketRule('auto', () => 0.1).allowed, true);
+  assert.equal(marketRule('auto', () => 0.9).allowed, false);
+  assert.equal(scandalPick({ allowed: false, rand: () => 0 }), null);
+  assert.equal(scandalPick({ allowed: true, rand: () => 0.99 }), null);
+  const hit = scandalPick({ allowed: true, rand: seq([0, 0]) });
+  assert.ok(isScandal(hit.key));
+  // Zwei Skandale unter den jüngsten Beiträgen: Pause.
+  assert.equal(scandalPick({ allowed: true, recent: ['skandal-like', 'formkrise', 'skandal-urlaub'], rand: () => 0 }), null);
+  // Die Prügelei steht nur zur Wahl, solange es sie diese Saison noch nicht gab.
+  const last = SCANDALS[SCANDALS.length - 1];
+  assert.equal(last.key, 'skandal-pruegelei');
+  assert.equal(scandalPick({ allowed: true, rand: seq([0, 0.99999]) }).key, 'skandal-pruegelei');
+  assert.notEqual(scandalPick({ allowed: true, seasonArchetypes: ['skandal-pruegelei'], rand: seq([0, 0.99999]) }).key, 'skandal-pruegelei');
+  const dir = buildDirection([], { market: 'auto', scandal: false, rand: () => 0.9 });
+  assert.equal(dir.market, false);
+  assert.equal(dir.scandal, null);
+  assert.ok(dir.text.includes('KEINE — kein Betrag'));
+});
+
+test('Sendungen: Termine, Besetzung und Protokoll', () => {
+  for (let d = 1; d <= 20; d++) assert.ok([2, 3].includes(lanzTriggerGame(2, d)));
+  assert.equal(lanzTriggerGame(2, 5), lanzTriggerGame(2, 5));
+  assert.ok([3, 4].includes(lanzAnswerTarget()));
+  const authors = [{ id: 'a', name: 'A' }, { id: 'b', name: 'B' }, { id: 'c', name: 'C' }];
+  const trainers = [{ teamId: 's2-x', name: 'Coach X' }];
+  const seq = (values) => { let i = 0; return () => values[i++ % values.length]; };
+  const withTrainer = lanzLineup(authors, trainers, seq([0, 0.1, 0]));
+  assert.equal(withTrainer.interactive, true);
+  assert.deepEqual(withTrainer.guests.map((g) => g.kind), ['press', 'trainer']);
+  const pressOnly = lanzLineup(authors, trainers, seq([0, 0.9, 0]));
+  assert.equal(pressOnly.interactive, false);
+  assert.equal(pressOnly.guests.length, 2);
+  assert.notEqual(pressOnly.guests[0].id, pressOnly.guests[1].id);
+  assert.equal(lanzLineup(authors, [], seq([0, 0])).interactive, false);
+  // Das Protokoll: Sprecher fett mit Doppelpunkt, das Sendungsbild vorneweg.
+  assert.equal(turnParagraph({ speaker: 'Cavalanzas', text: 'Punkt.' }), '**Cavalanzas:** Punkt.');
+  const paras = showParagraphs(SHOWS.lanz, [{ speaker: 'Cavalanzas', text: 'Guten Abend.' }]);
+  assert.equal(paras[0], `[bild: ${SHOWS.lanz.image}]`);
+  assert.equal(paras.length, 2);
+  // Unbekannte Sprecher und erfundene Trainerzitate fallen heraus.
+  const turns = cleanTurns([
+    { sprecher: 'cavalanzas', text: 'Hand aufs Herz?' },
+    { sprecher: 'Coach X', text: 'Erfunden.' },
+    { sprecher: 'Niemand', text: 'Weg.' },
+    { sprecher: 'Alba', text: 'Nein.' },
+  ], ['Cavalanzas', 'Alba', 'Coach X'], { forbid: ['Coach X'] });
+  assert.deepEqual(turns.map((x) => x.speaker), ['Cavalanzas', 'Alba']);
+  assert.equal(showOf({ source: { type: 'zweiblatt' } }), SHOWS.zweiblatt);
+  assert.equal(showOf({ source: { type: 'random' } }), null);
+  assert.equal(showByline(SHOWS.zweiblatt).outlet, 'Venicro & Chelast');
+  assert.equal(showByline(SHOWS.zweiblatt).image, null);
+  assert.ok(JSON.stringify(SHOW_SCHEMA).includes('beitraege'));
+  // Der Podcast wartet auf alle Awards UND beide Siegerehrungen.
+  const inst = {
+    '1': { status: 'done', seen: { Janik: true, Henrik: true } },
+    '2': { status: 'done', seen: { Janik: true } },
+    '3': { status: 'voting', seen: {} },
+  };
+  assert.deepEqual(podcastReadyDays([1, 2, 3], ['k1', 'k2'], (k, d) => inst[d], ['Janik', 'Henrik']), [1]);
+  // Beide Sendungen haben eine eigene Rubrik.
+  assert.ok(categoriesOf({ category: 'cava-lanz' }).includes('cava-lanz'));
+  assert.ok(categoriesOf({ category: 'zweiblatt' }).includes('zweiblatt'));
+});
+
+test('Formkurve, Stationen und Rivalitäten', () => {
+  const battle = (usedHome, usedAway, kills, winner = 'home') => ({ done: true, winner, used: { home: usedHome, away: usedAway }, kills });
+  const r = (id, day, home, away, sqH, sqA, battles) => ({ id, day, home, away, squads: { home: sqH, away: sqA }, battles });
+  const b3 = (k) => [battle(['X'], ['Y'], k), battle(['X'], ['Y'], []), battle(['X'], ['Y'], [], 'away')];
+  const results = [
+    r('s1-d1-m0', 1, 's1-a', 's1-b', ['X'], ['Y'], b3([{ victimSide: 'away', victim: 'Y', killerSide: 'home', killer: 'X' }])),
+    r('s1-d2-m0', 2, 's1-b', 's1-a', ['Y'], ['W'], [1, 2, 3].map(() => battle(['Y'], ['W'], []))),
+    r('s2-d1-m0', 1, 's2-a', 's2-b', ['Z'], ['X'], [battle(['Z'], ['X'], [{ victimSide: 'home', victim: 'Z', killerSide: 'away', killer: 'X' }], 'away'), battle(['Z'], ['X'], [], 'away'), battle(['Z'], ['X'], [], 'home')]),
+  ];
+  const form = teamForm('s1-a', ['X'], results);
+  assert.equal(form.X.length, 2);
+  assert.deepEqual(form.X.map((p) => [p.inSquad, p.kills]), [[true, 1], [false, 0]]);
+  assert.ok(formSparkSvg(form.X).startsWith('<svg'));
+  assert.equal(formSparkSvg([]), '');
+  assert.deepEqual(formFromTimeline([{ day: 1, kills: 1 }, { day: 2 }, { day: 3 }, { day: 4, kills: 2, inSquad: true }]).map((p) => p.day), [2, 3, 4]);
+  const teams = [
+    { id: 's1-a', season: 1, name: 'A', pokemon: [] },
+    { id: 's1-b', season: 1, name: 'B', pokemon: [] },
+    { id: 's2-b', season: 2, name: 'B', pokemon: [{ name: 'X' }] },
+  ];
+  // X spielte in Saison 1 für A (ohne dort noch im Kader zu stehen) und steht jetzt bei B.
+  const st = careerStations('X', teams, results);
+  assert.deepEqual(st.map((x) => [x.teamId, x.inRoster, x.kills]), [['s1-a', false, 1], ['s2-b', true, 1]]);
+  assert.equal(st[0].battles, 3);
+  // Die Rivalität rechnet über den Franchise-Slug quer über die Saisons.
+  const riv = rivalry('s2-a', 'b', results, [{ title: 'Fehde', teams: ['s1-a', 's2-b'], status: 'laufend' }]);
+  assert.equal(riv.matches, 3);
+  assert.deepEqual([riv.winsA, riv.winsB, riv.draws], [1, 2, 0]);
+  assert.equal(riv.hottest.length, 3);
+  assert.equal(riv.storylines.length, 1);
+  assert.deepEqual(splitPair('heerashai-sv | beast-force'), ['heerashai-sv', 'beast-force']);
+  assert.deepEqual(splitPair('A gegen B'), ['A', 'B']);
+  assert.equal(splitPair('nur eins'), null);
+  const html = tileHtml({ kind: 'rivalität', key: 's2-a | s2-b' }, { teams: [...teams, { id: 's2-a', season: 2, name: 'A2' }], seasonTeams: [], results, storylines: [] });
+  assert.ok(html && html.includes('Rivalität · 3 Duelle'));
+  assert.equal(parseTile('[rivalitaet: a | b]').kind, 'rivalitaet');
 });
 
 console.log(`\n${passed} Tests bestanden.`);

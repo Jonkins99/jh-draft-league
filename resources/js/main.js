@@ -11,7 +11,7 @@ import {
   PLAYERS, MAX_NOMINATIONS, MATCHDAY_AWARDS, SEASON_AWARDS, AWARD_BY_KEY,
   awardDocId, optionId, mergedOptions, remainingNominations, hasVoted, nextStatus,
   voteResults, awardWinner, awardWinners, spoilerNote, awardableDays, MATCHDAY_AWARDS_FROM,
-  seasonTiers, tierInSeason,
+  seasonTiers, tierInSeason, completedMatchdays, awaitingPlayer,
 } from './awards.mjs';
 import { awardSvg, awardColor } from './award-visuals.mjs';
 import {
@@ -37,7 +37,7 @@ import { runCeremony } from './ceremony.mjs';
 import { buildFinaleScript, runFinale } from './finale.mjs';
 import {
   GENDERS, genderLabel, normalizeTrainer, currentTrainer, trainerHistory,
-  nextFromDay, withDismissed,
+  nextFromDay, withDismissed, normalizeMonTraits, monTraitsOf, MAX_MON_TRAITS,
 } from './trainers.mjs';
 import {
   CALC_GEN, CALC_GAME_TYPE, STATS as CALC_STATS, STAT_KEYS as CALC_STAT_KEYS,
@@ -48,6 +48,7 @@ import {
   percentTone as calcPercentTone, hitsToKo as calcHitsToKo, boostLabel as calcBoostLabel,
   spSetToConfig as calcSpSetToConfig, configToSpSet as calcConfigToSpSet,
   blankSpSet as calcBlankSpSet, parseLegacyEvs as calcParseLegacyEvs, typeDe as calcTypeDe,
+  buildNameIndex as calcBuildNameIndex, resolveName as calcResolveName,
 } from './damagecalc.mjs';
 import {
   PRESS_CATEGORIES, PRESS_AUTHORS, AI_CATEGORY, authorById, categoryLabel, categoryColor,
@@ -56,12 +57,19 @@ import {
   bonusRoundComplete, bonusRoundProgress, bonusSlotsFor, bonusRoundDay, pressFromDay,
   outlookSlotFor, outlookSessionId, outlookProgress, seasonComplete, OUTLOOK_QUESTIONS,
   collectStorylines, sanitizeHtml, paragraphsToHtml, excerpt, readingMinutes,
-  formatDate, formatDateTime, sortArticles, articleMatchesFilter, storyId,
+  formatDate, formatDateTime, sortArticles, articleMatchesFilter, storyId, commissionLeague,
+  interviewCandidates, pickInterviewGuests, matchLines,
 } from './press.mjs';
 import { buildContext, isReference } from './press-context.mjs';
 import {
+  SHOWS, CAVALANZAS, showOf, showByline, lanzTriggerGame, lanzAnswerTarget, lanzLineup,
+  podcastReadyDays, showParagraphs, transcriptText, cleanTurns,
+  LANZ_BRIEF, ZWEIBLATT_BRIEF, SHOW_SCHEMA, SHOW_PART_SCHEMA,
+} from './press-shows.mjs';
+import {
   DEFAULT_PROMPTS, PROMPT_DEFS, buildSystem, buildUserPrompt, buildDirection,
-  ARTICLE_SCHEMA, ARTICLE_SCHEMA_WITH_CATEGORY, ARTICLE_SCHEMA_FREE_CATEGORY, QUESTIONS_SCHEMA,
+  ARTICLE_SCHEMA, ARTICLE_SCHEMA_WITH_CATEGORY, ARTICLE_SCHEMA_FREE_CATEGORY, ARTICLE_SCHEMA_COMMISSION, QUESTIONS_SCHEMA,
+  pickStances, stanceBrief, STANCE_KEYS, STANCE_BY_KEY, marketRule, scandalPick,
 } from './press-prompts.mjs';
 import { generateJson, testKey, GEMINI_MODELS, DEFAULT_MODEL } from './gemini.mjs';
 import {
@@ -74,6 +82,8 @@ import {
   blankLog, logText, logUpdatedAt, hasLog, logAuthors, logToText,
 } from './notes.mjs';
 import { draftPlanView } from './draftplan-view.mjs';
+import { teamForm, formFromTimeline, formLabel, formSparkSvg, careerStations } from './career.mjs';
+import { BASE_STATS, statsOf, statTotal, statPercent, statTone, statRole, roleLabel } from './basestats.mjs';
 
 const PICKS_PER_TEAM = 10;
 const TIER_ORDER = ['S', 'A', 'B', 'C', 'D'];
@@ -149,6 +159,7 @@ const TB_TILEVIEW_KEY = 'jhdl-tb-tileview-v1'; // { v: 'nur'|'notes'|'moves'|'al
 const TB_GREENONLY_KEY = 'jhdl-tb-greenonly-v1'; // { tiles: bool, speed: bool }
 const TB_CALC_KEY = 'jhdl-tb-calc-v1';           // { open: bool }  (Eingaben je Paarung separat)
 const TB_LOG_KEY = 'jhdl-tb-log-v1';             // { open: bool }  (Notiz-/Verlaufsbereich)
+const TB_SPEEDCFG_KEY = 'jhdl-tb-speedcfg-v1';   // { open: bool }  (Kader-/Speed-Konfiguration)
 
 // Presse: Zugangsdaten der Redaktion liegen bewusst NUR auf dem Gerät. Firestore ist
 // offen lesbar — ein API-Key hätte dort nichts verloren.
@@ -195,7 +206,19 @@ function saveJson(key, value) {
 // Alles, was unter diesen Präfixen im localStorage liegt, gehört inhaltlich zum
 // Teambuilder: Sets und Notizen, Speed-Tier-Einstellungen, Markierungen der Paarungen
 // und die Eingaben des Schadensrechners. Der Store unten spiegelt genau diese Schlüssel.
-const SYNC_PREFIXES = ['jhdl-tb-', 'jhdl-speedtiers-', 'jhdl-weakness-', 'jhdl-matchup-marks-', 'jhdl-draftplan-'];
+// Newsroom: erst zwölf Beiträge, „Mehr laden" holt je zehn weitere.
+const PRESS_PAGE_FIRST = 12;
+const PRESS_PAGE_STEP = 10;
+
+// Verlauf der Zurück-Leiste je Tab (sessionStorage), damit ein Reload ihn behält.
+const NAV_STACK_KEY = 'jhdl-nav-stack-v1';
+
+const SYNC_PREFIXES = ['jhdl-tb-', 'jhdl-speedtiers-', 'jhdl-weakness-', 'jhdl-matchup-marks-'];
+// Der Draftplan liegt NICHT mehr im localStorage, sondern ausschließlich verschlüsselt
+// am Konto (private/<user>-draftplan). Der alte Schlüssel wird beim ersten Öffnen
+// umgezogen und danach gelöscht.
+const DRAFTPLAN_SCOPE = 'draftplan';
+const DRAFTPLAN_LEGACY_KEY = 'jhdl-draftplan-v1';
 const SYNC_SCOPE = 'teambuilder';
 const SYNC_AUTO_KEY = 'jhdl-tb-sync-v1'; // { auto: bool }
 
@@ -840,6 +863,7 @@ function app() {
         if (!entry) return;
         this._navIdx = Number.isFinite(entry.idx) ? entry.idx : 0;
         this._fromHistory = true;
+        this._saveStack();
         this.applyNavParams(entry.params || {});
         this._syncBackFlag();
         this.load(entry.key, { animate: true });
@@ -865,6 +889,25 @@ function app() {
         history.pushState({ jhdl: { ...entry, idx: this._navIdx } }, '');
       } catch (e) { /* private mode o.ä. — Verlauf bleibt dann nur in-memory */ }
       this._syncBackFlag();
+      this._saveStack();
+    },
+    // Der Stack überlebt ein Neuladen im selben Tab: Die Browser-Einträge bleiben
+    // ohnehin bestehen, nur die Beschriftungen der Zurück-Leiste gingen sonst verloren.
+    _saveStack() {
+      try {
+        sessionStorage.setItem(NAV_STACK_KEY, JSON.stringify({ stack: this._stack, idx: this._navIdx }));
+      } catch (e) { /* ohne sessionStorage startet ein Reload mit leerem Stack */ }
+    },
+    _restoreStack(idx) {
+      try {
+        const saved = JSON.parse(sessionStorage.getItem(NAV_STACK_KEY) || 'null');
+        if (!saved || !Array.isArray(saved.stack) || !saved.stack[idx]) return false;
+        this._stack = saved.stack.slice(0, idx + 1);
+        this._navIdx = idx;
+        return true;
+      } catch (e) {
+        return false;
+      }
     },
     _replaceHistory(key, params) {
       const entry = { key, params: params || {}, label: this.labelFor(key) };
@@ -874,6 +917,7 @@ function app() {
         history.replaceState({ jhdl: { ...entry, idx: 0 } }, '');
       } catch (e) { /* s.o. */ }
       this._syncBackFlag();
+      this._saveStack();
     },
     _syncBackFlag() {
       if (this.$store.nav) this.$store.nav.canBack = this.canGoBack;
@@ -930,9 +974,26 @@ function app() {
       this.$watch('bootReady', () => { if (this.bootReady) this.boot(); });
       setTimeout(() => this.boot(), 4000);
     },
+    // Nach einem Neuladen steht der Browser noch auf dem Eintrag der zuletzt offenen
+    // Ansicht (history.state überlebt den Reload) — dorthin zurück statt auf die
+    // Startansicht. Gibt es die Ansicht im aktuellen Bereich nicht mehr, gilt startKey().
     boot() {
       if (this._booted) return;
       this._booted = true;
+      const entry = history.state?.jhdl;
+      if (entry?.key && this.routes.some((r) => r.key === entry.key)) {
+        const idx = Number.isFinite(entry.idx) ? entry.idx : 0;
+        const params = entry.params || {};
+        this.applyNavParams(params);
+        if (this._restoreStack(idx)) {
+          this._fromHistory = true;
+          this._syncBackFlag();
+          this.load(entry.key, { animate: false, params });
+        } else {
+          this.load(entry.key, { animate: false, replace: true, params });
+        }
+        return;
+      }
       this.load(this.startKey(), { animate: false, replace: true });
     },
     get bootReady() {
@@ -1021,6 +1082,16 @@ function app() {
       return this.current === key;
     },
 
+    // === Hinweispunkte an der Navigation ==================================
+    // Ein Punkt heißt „hier wartet etwas auf DICH": ein Pressetermin eines eigenen
+    // Teams bzw. eine Award-Abstimmung, bei der die eigene Stimme fehlt.
+    navDot(key) {
+      if (!this.$store.auth?.player) return false;
+      if (key === 'presse') return this.$store.notify.pressAwaiting() > 0;
+      if (key === 'awards') return this.$store.notify.awardsAwaiting() > 0;
+      return false;
+    },
+
     // Saisonwechsel: die aktuelle Ansicht bleibt, wenn es sie im neuen Bereich gibt —
     // sonst zurück auf die Tabelle. Neu laden muss sie in jedem Fall, damit die
     // Komponente ihre Daten für den neuen Bereich holt.
@@ -1082,6 +1153,7 @@ function app() {
         view.innerHTML = html;
         Alpine.initTree(view);
         this.current = key;
+        if (this.$store.nav) this.$store.nav.view = key;
         // Scroll immer zurücksetzen; nur der Spieltag scrollt danach selbst zum
         // nächsten offenen Spiel. So bleibt die Tiefscroll-Logik auf den Spieltag begrenzt.
         window.scrollTo({ top: 0 });
@@ -1552,6 +1624,9 @@ function teamsView() {
     // Farbwähler im Hero: der Entwurf, bis „Übernehmen" gedrückt ist.
     colorDraft: null,
     colorBusy: false,
+    traitEdit: null,
+    _formKey: null,
+    _formMap: null,
 
     // Beim Laden: ggf. per Verlinkung übergebenes Team direkt öffnen.
     init() {
@@ -2012,6 +2087,57 @@ function teamsView() {
     // Trainerwechsel sind Sache des Teambesitzers — fremde Teams bleiben nur lesbar.
     get ownsSelected() {
       return this.$store.auth.ownsTeam(this.selectedTeam);
+    },
+
+    // === Formkurve ============================================================
+    // Die letzten drei Matches des Teams je Pokémon — einmal je Team und Ergebnisstand.
+    teamFormMap() {
+      const team = this.selectedTeam;
+      if (!team) return {};
+      const key = `${team.id}|${(this.league.results || []).length}|${(this.league.results || []).filter((r) => (r.battles || []).some((b) => b?.done)).length}`;
+      if (this._formKey !== key) {
+        this._formKey = key;
+        this._formMap = teamForm(team.id, (team.pokemon || []).map((p) => p.name), this.league.results);
+      }
+      return this._formMap || {};
+    },
+    formSpark(name) { return formSparkSvg(this.teamFormMap()[name]); },
+    formTitle(name) { return formLabel(this.teamFormMap()[name]); },
+
+    // === Charakter der Pokémon ==============================================
+    // Freie Einträge je Pokémon; bearbeitet wird immer nur eines auf einmal.
+    monTraitsOf(name) { return monTraitsOf(this.selectedTeam, name); },
+    get maxMonTraits() { return MAX_MON_TRAITS; },
+    openTraitEdit(name) {
+      if (!this.ownsSelected) return;
+      const items = [...this.monTraitsOf(name)];
+      this.traitEdit = { name, items: items.length ? items : [''], busy: false };
+    },
+    addTraitRow() {
+      if (!this.traitEdit || this.traitEdit.items.length >= MAX_MON_TRAITS) return;
+      this.traitEdit.items = [...this.traitEdit.items, ''];
+      this.$nextTick(() => {
+        const inputs = document.querySelectorAll('[data-trait-input]');
+        inputs[inputs.length - 1]?.focus();
+      });
+    },
+    removeTraitRow(i) {
+      if (!this.traitEdit) return;
+      this.traitEdit.items = this.traitEdit.items.filter((_, j) => j !== i);
+    },
+    cancelTraitEdit() { this.traitEdit = null; },
+    async saveTraitEdit() {
+      const edit = this.traitEdit;
+      if (!edit || edit.busy || !this.ownsSelected) return;
+      edit.busy = true;
+      try {
+        await this.league.setMonTraits(this.selectedId, edit.name, edit.items);
+        this.traitEdit = null;
+      } catch (e) {
+        console.error('Charakter-Eigenschaften konnten nicht gespeichert werden:', e);
+        edit.busy = false;
+        window.dispatchEvent(new CustomEvent('toast', { detail: { msg: 'Die Eigenschaften konnten nicht gespeichert werden.' } }));
+      }
     },
 
     // === Teamfarbe ==========================================================
@@ -3263,6 +3389,30 @@ function pokemonView() {
       return this.league.pokemon.find((p) => p.name === this.name) || null;
     },
 
+    // Formkurve: die letzten drei Matches des jeweiligen Teams.
+    get formCurve() {
+      return formFromTimeline(this.profile?.timeline || []);
+    },
+    get formSvg() { return formSparkSvg(this.formCurve, { width: 120, height: 36 }); },
+    formLabel(curve) { return formLabel(curve); },
+    // Karriere über alle Saisons und Vereine — result-getrieben, also auch mit dem
+    // Verein, an den es im Winter abgegeben wurde.
+    get stations() {
+      if (!this.name || !this.loaded) return [];
+      return careerStations(this.name, this.league.teams, this.league.allResults || []);
+    },
+
+    // Die sechs Statuswerte als Balken — nur hier, sonst nirgends in der Oberfläche.
+    get baseStats() {
+      const stats = statsOf(this.mon);
+      if (!stats) return null;
+      return {
+        rows: BASE_STATS.map((d) => ({ ...d, value: stats[d.key], pct: statPercent(stats[d.key]), tone: statTone(stats[d.key]) })),
+        total: statTotal(stats),
+        role: roleLabel(statRole(stats)),
+      };
+    },
+
     // Statistik-Profil (scoring.mjs). Memoisiert über Name + Ergebnis-/Team-Stand.
     get profile() {
       if (!this.name || !this.loaded) return null;
@@ -3795,7 +3945,7 @@ function damageCalcMixin() {
     calcNatures: CALC_NATURES,
     calcBoostSteps: CALC_BOOST_STEPS,
     _calc: null,   // { gen, Pokemon, Move, Field, calculate }
-    _calcI18n: null, // { moves, abilities, items } de -> en (plus Rückrichtung)
+    _calcI18n: null, // { index: {moves, abilities, items}, moveNames, abilityNames, itemNames }
 
     // --- Laden ---------------------------------------------------------------
     async ensureCalc() {
@@ -3811,17 +3961,23 @@ function damageCalcMixin() {
         const gen = pkg.Generations.get(CALC_GEN);
         this._calc = { pkg, gen };
         const raw = res.ok ? await res.json() : { moves: {}, abilities: {}, items: {} };
-        const invert = (o) => Object.fromEntries(Object.entries(o).map(([de, en]) => [en, de]));
+        // Das Register kommt aus dem Rechner selbst, nicht aus der Übersetzung:
+        // So bleiben auch Einträge ohne deutschen Namen (neue Mega-Steine) auflösbar
+        // und stehen mit ihrem englischen Namen in der Vorschlagsliste.
+        const registry = (list, deToEn = {}) => {
+          const en = [...list].map((e) => e.name);
+          const translated = new Set(Object.values(deToEn));
+          const suggest = [...Object.keys(deToEn), ...en.filter((n) => !translated.has(n))];
+          return { index: calcBuildNameIndex(deToEn, en), names: suggest.sort((a, b) => a.localeCompare(b, 'de')) };
+        };
+        const moves = registry(gen.moves, raw.moves);
+        const abilities = registry(gen.abilities, raw.abilities);
+        const items = registry(gen.items, raw.items);
         this._calcI18n = {
-          moves: raw.moves || {},
-          abilities: raw.abilities || {},
-          items: raw.items || {},
-          movesEn: invert(raw.moves || {}),
-          abilitiesEn: invert(raw.abilities || {}),
-          itemsEn: invert(raw.items || {}),
-          moveNames: Object.keys(raw.moves || {}).sort((a, b) => a.localeCompare(b, 'de')),
-          abilityNames: Object.keys(raw.abilities || {}).sort((a, b) => a.localeCompare(b, 'de')),
-          itemNames: Object.keys(raw.items || {}).sort((a, b) => a.localeCompare(b, 'de')),
+          index: { moves: moves.index, abilities: abilities.index, items: items.index },
+          moveNames: moves.names,
+          abilityNames: abilities.names,
+          itemNames: items.names,
         };
         this.calcReady = true;
         this.recalc();
@@ -3920,12 +4076,16 @@ function damageCalcMixin() {
     calcMoveNames() { return this._calcI18n?.moveNames || []; },
     calcAbilityNames() { return this._calcI18n?.abilityNames || []; },
     calcItemNames() { return this._calcI18n?.itemNames || []; },
-    // Deutsche Eingabe auf den englischen Namen abbilden; unbekannte Eingaben
-    // gehen unverändert durch (englische Namen bleiben so nutzbar).
+    // Deutsche oder englische Eingabe auf den Rechner-Namen abbilden — ohne Rücksicht
+    // auf Schreibweise. '' = leer, null = unbekannt.
     calcToEn(kind, value) {
-      const v = String(value || '').trim();
-      if (!v) return '';
-      return this._calcI18n?.[kind]?.[v] || v;
+      return calcResolveName(this._calcI18n?.index?.[kind], value);
+    },
+    // Hinweis unter Fähigkeit bzw. Item, wenn der Name nicht aufzulösen ist. Gerechnet
+    // wird dann ohne — sonst bräche die Rechnung für jede Attacke ab.
+    calcFieldUnknown(side, field) {
+      if (!this.calcReady) return false;
+      return this.calcToEn(field === 'ability' ? 'abilities' : 'items', this.calcSide(side)[field]) === null;
     },
 
     // --- Rechnung ------------------------------------------------------------
@@ -3961,11 +4121,14 @@ function damageCalcMixin() {
       this.calcAtk.moves.forEach((m, i) => {
         const name = String(m || '').trim();
         if (!name) return;
+        // Unbekannte Namen erzeugt @smogon/calc stillschweigend als 0-BP-Attacke —
+        // deshalb vorher im Register nachsehen.
         const en = this.calcToEn('moves', name);
+        if (!en) {
+          rows.push({ i, name, error: 'unknown', label: 'Attacke unbekannt', tone: '#98a2b3' });
+          return;
+        }
         try {
-          // Unbekannte Namen erzeugt @smogon/calc stillschweigend als 0-BP-Attacke —
-          // deshalb vorher im Attacken-Register nachsehen.
-          if (!this._calc.gen.moves.get(this._calc.pkg.toID(en))) throw new Error('unbekannte Attacke');
           const move = new this._calc.pkg.Move(this._calc.gen, en);
           const result = this._calc.pkg.calculate(this._calc.gen, attacker, defender, move, field);
           const dmg = Array.isArray(result.damage) ? result.damage.flat() : [result.damage];
@@ -3984,7 +4147,8 @@ function damageCalcMixin() {
             ko: result.kochance ? (() => { try { return result.kochance().text || ''; } catch (e) { return ''; } })() : '',
           });
         } catch (e) {
-          rows.push({ i, name, error: true, label: 'Attacke unbekannt', tone: '#98a2b3' });
+          console.warn(`Schadensrechner: ${en} ließ sich nicht rechnen.`, e);
+          rows.push({ i, name: en === name ? name : `${name} (${en})`, error: 'calc', label: 'Keine Rechnung', tone: '#98a2b3' });
         }
       });
       this.calcRows = rows;
@@ -4190,6 +4354,7 @@ function teambuildingView() {
     // derselben Schlüssel-Kombination liegt.
     ...battleLogMixin(),
     notePanelOpen: false,
+    speedCfgOpen: false,
     pairMatchId: null,
     priorOpen: false,
     teamAId: null,
@@ -4223,6 +4388,7 @@ function teambuildingView() {
       this.calcOpen = !!loadJson(TB_CALC_KEY).open;
       if (this.calcOpen) this.ensureCalc();
       this.notePanelOpen = !!loadJson(TB_LOG_KEY).open;
+      this.speedCfgOpen = !!loadJson(TB_SPEEDCFG_KEY).open;
       this.$store.notes.ensureLoaded();
       const store = loadJson(TB_RECENT_KEY);
       this.recent = Array.isArray(store.recent) ? store.recent : [];
@@ -4258,6 +4424,18 @@ function teambuildingView() {
     get teamA() { return this.teamById(this.teamAId); },
     get teamB() { return this.teamById(this.teamBId); },
     get ready() { return !!(this.teamA && this.teamB); },
+    // Im Matchup steht das eigene Team immer oben, egal wie die Paarung angesetzt ist.
+    // „Gegner" gibt es nur, wenn genau eine der beiden Seiten dem Angemeldeten gehört.
+    matchupSides() {
+      const me = this.$store.auth?.player || null;
+      const a = { side: 'a', team: this.teamA };
+      const b = { side: 'b', team: this.teamB };
+      const mineA = !!me && a.team?.player === me;
+      const mineB = !!me && b.team?.player === me;
+      a.opponent = mineB && !mineA;
+      b.opponent = mineA && !mineB;
+      return mineB && !mineA ? [b, a] : [a, b];
+    },
     setTeam(side, id) {
       if (side === 'a') this.teamAId = id; else this.teamBId = id;
       this.loadPair();
@@ -4742,6 +4920,11 @@ function teambuildingView() {
     toggleNotePanel() {
       this.notePanelOpen = !this.notePanelOpen;
       saveJson(TB_LOG_KEY, { open: this.notePanelOpen });
+    },
+    setSpeedCfgOpen(open) {
+      if (this.speedCfgOpen === !!open) return;
+      this.speedCfgOpen = !!open;
+      saveJson(TB_SPEEDCFG_KEY, { open: this.speedCfgOpen });
     },
 
     // Alle Partien dieser beiden Teams aus dem Spielplan, in Spieltagsreihenfolge.
@@ -5431,6 +5614,8 @@ function presseView() {
     fCat: '',
     fTeam: '',
     q: '',
+    // Wie viele Beiträge der Newsroom zeigt: zu Beginn zwölf, danach in Zehnerschritten.
+    shown: PRESS_PAGE_FIRST,
     openId: null,
     composer: null,
     commission: null,
@@ -5455,6 +5640,8 @@ function presseView() {
       this.pickTeam = this.defaultTeamId();
       const nav = this.$store.nav;
       if (nav?.teamId) { this.fTeam = nav.teamId; this.pickTeam = nav.teamId; nav.teamId = null; }
+      // Eine neue Auswahl beginnt wieder oben.
+      ['fCat', 'fTeam', 'q'].forEach((key) => this.$watch(key, () => { this.shown = PRESS_PAGE_FIRST; }));
     },
 
     get press() { return this.$store.press; },
@@ -5474,6 +5661,11 @@ function presseView() {
     playerColor(player) { return player === 'Henrik' ? '#4d90d5' : '#e3350d'; },
     monImage(name) { return this.league.pokemon.find((p) => p.name === name)?.image || ''; },
     author(id) { return authorById(id); },
+    // Wer über einem Beitrag steht: der Autor — oder bei einer Sendung die Sendung selbst.
+    byline(a) {
+      const show = showOf(a);
+      return show ? showByline(show) : authorById(a?.authorId);
+    },
     catLabel(key) { return categoryLabel(key); },
     catColor(key) { return categoryColor(key); },
     catsOf(article) { return categoriesOf(article); },
@@ -5503,12 +5695,14 @@ function presseView() {
       this.persistFilters();
     },
     get hasFilters() { return !!(this.fCat || this.fTeam || this.q.trim()); },
+    // Eine Talkshow, die noch auf die Antworten eines Trainers wartet, steht nicht im Newsroom.
     get feed() {
       return sortArticles(this.press.articles)
+        .filter((a) => a.status !== 'waiting')
         .filter((a) => articleMatchesFilter(a, { category: this.fCat, teamId: this.fTeam, q: this.q }));
     },
     countFor(key) {
-      return this.press.articles.filter((a) => articleMatchesFilter(a, { category: key, teamId: this.fTeam })).length;
+      return this.press.articles.filter((a) => a.status !== 'waiting' && articleMatchesFilter(a, { category: key, teamId: this.fTeam })).length;
     },
     excerptOf(a) { return excerpt(a, 200); },
     minutesOf(a) { return readingMinutes(a); },
@@ -5517,8 +5711,11 @@ function presseView() {
       return !this.hasFilters && this.feed.length ? this.feed[0] : null;
     },
     get rest() {
-      return this.lead ? this.feed.slice(1) : this.feed;
+      const page = this.feed.slice(0, this.shown);
+      return this.lead ? page.slice(1) : page;
     },
+    get moreCount() { return Math.max(0, this.feed.length - this.shown); },
+    showMore() { this.shown += PRESS_PAGE_STEP; },
 
     openArticle(id) {
       this.openId = id;
@@ -5543,6 +5740,7 @@ function presseView() {
         seasonTeams: l.seasonTeams,
         results: l.allResults,
         availability: l.availability,
+        storylines: this.press.storylines,
         logoBase: './img/teams/',
         squadValue: (team) => squadMarketValue(team.pokemon || [], this.$store.elo.index()),
       });
@@ -5575,6 +5773,9 @@ function presseView() {
       const cats = categoriesOf(existing || {});
       this.composer = {
         id: existing?.id || null,
+        // Ein KI-Beitrag bleibt beim Bearbeiten, was er ist: Herkunft, Storylines und
+        // Archetyp stehen weiter, korrigiert werden nur Titel, Text und Einordnung.
+        aiEdit: !!existing && !existing.editorial,
         title: existing?.title || '',
         subtitle: existing?.subtitle || '',
         categories: cats.length ? cats : ['news'],
@@ -5618,7 +5819,12 @@ function presseView() {
       else arr.push(id);
     },
     // --- Rubriken (mehrere je Beitrag) ---
-    get composerCategories() { return manualCategories(); },
+    // Bei einem KI-Beitrag lässt sich auch der automatische Stempel „Erste Liga"
+    // korrigieren — sonst bliebe ein falsch eingeordneter Beitrag falsch.
+    get composerCategories() {
+      if (!this.composer?.aiEdit) return manualCategories();
+      return PRESS_CATEGORIES.filter((c) => c.manual || c.key === AI_CATEGORY);
+    },
     hasComposerCat(key) { return (this.composer?.categories || []).includes(key); },
     toggleComposerCat(key) {
       if (!this.composer) return;
@@ -5706,6 +5912,14 @@ function presseView() {
       } else if (source === 'team') {
         rows = this.league.seasonTeams.map((t) => ({ value: t.id, label: t.name, sub: t.player, image: this.logoUrl(t.logo) }));
         if (kind === 'tabelle') rows.unshift({ value: 'top', label: 'Tabellenspitze', sub: 'die ersten drei Plätze' });
+      } else if (source === 'pair') {
+        // Alle Paarungen der Saison, als Franchise-Slugs — die Kachel rechnet über alle Saisons.
+        const list = this.league.seasonTeams;
+        list.forEach((a, i) => list.slice(i + 1).forEach((b) => rows.push({
+          value: `${franchiseSlug(a.id)} | ${franchiseSlug(b.id)}`,
+          label: `${a.name} – ${b.name}`,
+          sub: `${a.player} · ${b.player}`,
+        })));
       } else if (source === 'match') {
         rows = (this.league.results || [])
           .filter((r) => isMatchComplete(r) && (kind === 'ergebnis' || r.videoUrl))
@@ -5746,11 +5960,14 @@ function presseView() {
       if (!this.composerValid || this.composer.saving) return;
       this.composer.saving = true;
       try {
-        const id = await this.press.publishEditorial({
+        const input = {
           ...this.composer,
           category: this.composer.categories[0],
           body: this.$refs.editor?.innerHTML || this.composer.body,
-        });
+        };
+        const id = this.composer.aiEdit
+          ? await this.press.updateArticle(input)
+          : await this.press.publishEditorial(input);
         this.closeComposer();
         this.openArticle(id);
       } catch (e) {
@@ -5782,7 +5999,16 @@ function presseView() {
     pendingFor(teamId) {
       return pressSlots(teamId, this.league.schedule, this.league.results, this.press.sessions, this.bonusComplete)
         .filter((row) => row.open && this.press.sessionById(row.id)?.status !== 'done')
-        .length;
+        .length + this.talkRows(teamId).filter((row) => ['open', 'error'].includes(row.session?.status)).length;
+    },
+    // Talkshow-Auftritte eines Teams (Cava LANZ mit Trainer) — sie stehen neben den
+    // regulären Terminen, hängen aber an keinem Spieltagsplan.
+    talkRows(teamId) {
+      const season = this.league.season;
+      return (this.press.sessions || [])
+        .filter((x) => x.type === 'talk' && x.teamId === teamId && seasonOfId(x.id) === season)
+        .map((x) => ({ id: x.id, day: x.day, teamId, slot: 'talk', type: 'talk', open: true, session: x }))
+        .sort((a, b) => (b.day || 0) - (a.day || 0));
     },
     // Auftreten darf nur, wem das Team gehört.
     ownsTeamId(teamId) { return this.$store.auth.ownsTeamId(teamId); },
@@ -5790,7 +6016,10 @@ function presseView() {
     get pickTeamPlayer() { return this.teamById(this.pickTeam)?.player || ''; },
     get slots() {
       if (!this.pickTeam) return [];
-      return pressSlots(this.pickTeam, this.league.schedule, this.league.results, this.press.sessions, this.bonusComplete);
+      return [
+        ...pressSlots(this.pickTeam, this.league.schedule, this.league.results, this.press.sessions, this.bonusComplete),
+        ...this.talkRows(this.pickTeam).map(({ session, ...row }) => row),
+      ];
     },
     // Anstehend zuerst: offene Termine ohne Sitzung, danach laufende, dann erledigte.
     get slotGroups() {
@@ -5799,16 +6028,19 @@ function presseView() {
       const done = [];
       const later = [];
       const outlook = [];
+      const talk = [];
       this.slots.forEach((s) => {
         const session = this.press.sessionById(s.id);
         const row = { ...s, session };
-        if (s.slot === 'outlook' && session?.status !== 'done') outlook.push(row);
+        if (s.slot === 'talk' && session?.status !== 'done') talk.push(row);
+        else if (s.slot === 'outlook' && session?.status !== 'done') outlook.push(row);
         else if (s.slot === 'bonus' && session?.status !== 'done') bonus.push(row);
         else if (!s.open) later.push(row);
         else if (session?.status === 'done') done.push(row);
         else open.push(row);
       });
       return [
+        { key: 'talk', label: 'Live im Studio · Cava LANZ', rows: talk },
         { key: 'outlook', label: 'Nach der Saison · vor Transfer und Draft', rows: outlook },
         { key: 'bonus', label: this.bonusDay > 1 ? `Auftaktrunde vor Spieltag ${this.bonusDay}` : 'Auftaktrunde zum Saisonstart', rows: bonus },
         { key: 'open', label: 'Jetzt dran', rows: open.reverse() },
@@ -5820,6 +6052,7 @@ function presseView() {
     typeLabel(type) { return typeLabel(type); },
     slotSubtitle(row) {
       if (!row) return '';
+      if (row.slot === 'talk') return `Spieltag ${row.day} · zu Gast bei Cavalanzas`;
       if (row.slot === 'outlook') return `Ausblick · ${OUTLOOK_QUESTIONS} Fragen zu Bilanz, Transfer und Draft`;
       if (row.slot === 'bonus') return `Auftaktrunde · Bilanz und Ausblick ${row.day > 1 ? `vor Spieltag ${row.day}` : 'zum Saisonstart'}`;
       const opp = this.teamById(row.opponentId)?.name || '?';
@@ -5849,6 +6082,14 @@ function presseView() {
       const session = this.press.sessionById(row.id);
       if (session?.status === 'done' && session.articleId) return this.openArticle(session.articleId);
       if (!this.ownsTeamId(row.teamId)) return;
+      if (row.slot === 'talk') {
+        this.stage = { slot: row, phase: 'talk', custom: '', articleId: session?.articleId || null, sending: false };
+        this.$nextTick(() => {
+          document.getElementById('press-stage')?.showPopover();
+          this.scrollTalk();
+        });
+        return;
+      }
       this.stage = {
         slot: row,
         phase: session?.status === 'open' ? 'ask' : session?.status === 'error' ? 'error' : 'role',
@@ -5857,6 +6098,8 @@ function presseView() {
         custom: '',
         writing: false,
         articleId: null,
+        // Beim Öffnen einmal festgelegt, damit neue Daten die Auswahl nicht unter den Fingern tauschen.
+        guests: row.type === 'pk' ? null : this.interviewGuests(row),
       };
       if (session?.status === 'generating' || session?.status === 'writing') this.stage.phase = 'wait';
       this.$nextTick(() => document.getElementById('press-stage')?.showPopover());
@@ -5878,22 +6121,56 @@ function presseView() {
     get stageAsker() {
       return this.stageQuestion ? authorById(this.stageQuestion.authorId) : authorById(this.session?.authorIds?.[0]);
     },
-    // Rollen zur Auswahl: Trainer zuerst, danach der Kader. Die Pressekonferenz
-    // richtet sich grundsätzlich an den Trainer.
+    // Rollen zur Auswahl. Die Pressekonferenz richtet sich grundsätzlich an den
+    // Trainer; zum Interview bittet die Redaktion eins bis drei Gesichter, über die
+    // gerade geredet wird (press.mjs: interviewCandidates / pickInterviewGuests).
     get roleOptions() {
-      const team = this.teamById(this.stage?.slot?.teamId);
-      const out = [];
+      const slot = this.stage?.slot;
+      if (!slot) return [];
+      if (slot.type !== 'pk') return this.stage.guests || [];
+      const team = this.teamById(slot.teamId);
       const tr = currentTrainer(team?.trainers || []);
-      if (tr) out.push({ kind: 'trainer', name: tr.name, image: tr.image || '', traits: tr.traits || [] });
-      if (this.stage?.slot?.type !== 'pk') {
-        (team?.pokemon || []).forEach((p) => out.push({ kind: 'pokemon', name: p.name, image: p.image || '', traits: [] }));
-      }
-      return out;
+      return tr ? [{ kind: 'trainer', name: tr.name, image: tr.image || '', traits: tr.traits || [] }] : [];
+    },
+    interviewGuests(slot) {
+      const team = this.teamById(slot.teamId);
+      if (!team) return [];
+      const tr = currentTrainer(team.trainers || []);
+      const season = this.league.season;
+      const storylines = (this.press.storylines || []).filter((st) => (st.teams || []).includes(team.id));
+      const articles = sortArticles(this.press.articles || [])
+        .filter((a) => seasonOfId(a.id) === season && (a.teamIds || []).includes(team.id))
+        .slice(0, 8);
+      // Auszeichnungen dieser Saison, je Pokémon gezählt (Duos zählen für beide).
+      const awardWins = {};
+      (this.$store.awards?.docs || [])
+        .filter((d) => seasonOfId(d.id) === season && d.status === 'done')
+        .forEach((d) => awardWinners(d).forEach((w) => String(w.id || '').split(' + ').forEach((n) => {
+          if (n) awardWins[n] = (awardWins[n] || 0) + 1;
+        })));
+      // Das Match, um das es geht: nach dem Spiel genau dieses, sonst das zuletzt gespielte.
+      const done = (this.league.results || []).filter((r) => isMatchComplete(r) && (r.home === team.id || r.away === team.id));
+      const match = (slot.slot === 'post' && done.find((r) => r.id === slot.matchId))
+        || done.filter((r) => slot.day == null || (r.day ?? 0) < slot.day).sort((a, b) => (b.day || 0) - (a.day || 0))[0]
+        || null;
+      const lastMatch = match ? matchLines(match, match.home === team.id ? 'home' : 'away') : {};
+      const traits = team.monTraits || {};
+      const candidates = interviewCandidates({
+        trainer: tr ? { name: tr.name, image: tr.image || '', traits: tr.traits || [] } : null,
+        roster: (team.pokemon || []).map((p) => ({ name: p.name, image: p.image || '', traits: traits[p.name] || [] })),
+        storylines,
+        articles,
+        awardWins,
+        lastMatch,
+      });
+      return pickInterviewGuests(slot.id, candidates)
+        .map(({ kind, name, image, traits: t, reason }) => ({ kind, name, image, traits: t || [], reason }));
     },
     async chooseRole(role) {
       if (!this.stage) return;
       this.stage.phase = 'wait';
-      const id = await this.press.startSession(this.stage.slot, role);
+      const { kind, name, image, traits } = role;
+      const id = await this.press.startSession(this.stage.slot, { kind, name, image: image || '', traits: traits || [] });
       if (!this.stage) return;
       this.stage.phase = id ? 'ask' : 'error';
       this.stage.index = 0;
@@ -5939,6 +6216,41 @@ function presseView() {
     },
     // Denselben Termin noch einmal versuchen: liegen die Antworten schon vor, wird
     // nur der Beitrag neu geschrieben — niemand soll fünf Fragen zweimal beantworten.
+    // --- Talkshow ---
+    get talkGuests() {
+      return (this.session?.guests || []).map((g) => g.kind === 'press'
+        ? { ...g, image: authorById(g.id).image, label: authorById(g.id).outlet }
+        : { ...g, label: 'Trainer' });
+    },
+    talkIsTrainer(turn) {
+      const tr = (this.session?.guests || []).find((g) => g.kind === 'trainer');
+      return !!tr && turn?.speaker === tr.name;
+    },
+    scrollTalk() {
+      this.$nextTick(() => {
+        const el = document.getElementById('talk-end');
+        el?.scrollIntoView({ behavior: 'smooth', block: 'end' });
+      });
+    },
+    async answerTalk() {
+      const text = String(this.stage?.custom || '').trim();
+      if (!this.stage || this.stage.sending || text.length < 2) return;
+      this.stage.sending = true;
+      const id = this.stage.slot.id;
+      this.stage.custom = '';
+      this.scrollTalk();
+      const out = await this.press.lanzAnswer(id, text);
+      if (!this.stage) return;
+      this.stage.sending = false;
+      if (!out && this.press.sessionById(id)?.status !== 'error') this.stage.custom = text;
+      this.scrollTalk();
+    },
+    async retryTalk() {
+      if (!this.stage) return;
+      const id = this.stage.slot.id;
+      await this.press.retryLanzSession(id, this.retryModelFor(id));
+      this.scrollTalk();
+    },
     async retryStageNow() {
       if (!this.stage) return;
       const id = this.stage.slot.id;
@@ -6075,6 +6387,7 @@ function presseView() {
         teamIds: this.fTeam ? [this.fTeam] : [],
         authorId: '',
         day: this.latestDay ?? null,
+        league: 'auto',
         busy: false,
         error: '',
       };
@@ -6103,6 +6416,7 @@ function presseView() {
         teamIds: c.teamIds,
         authorId: c.authorId || null,
         day: Number.isFinite(c.day) ? c.day : null,
+        league: c.league,
       });
       if (!this.commission) return;
       this.commission.busy = false;
@@ -6280,10 +6594,12 @@ Alpine.store('auth', {
     return this._private[scope];
   },
 
-  async loadPrivate(scope, fallback = null) {
+  // fresh: am Cache vorbei lesen — für Daten, die ein anderes Gerät inzwischen
+  // geändert haben kann.
+  async loadPrivate(scope, fallback = null, { fresh = false } = {}) {
     if (!this.isLoggedIn || !this.dataKey) return fallback;
     const cached = this._private[scope];
-    if (cached?.loaded) return cached.value ?? fallback;
+    if (cached?.loaded && !fresh) return cached.value ?? fallback;
     try {
       const snap = await getDoc(doc(db, 'private', this._docId(scope)));
       const value = snap.exists() ? await decryptJson(this.dataKey, snap.data()?.payload) : null;
@@ -6675,6 +6991,13 @@ Alpine.store('league', {
   async setTeamColor(teamId, color) {
     if (!teamId) return;
     await setDoc(doc(db, 'teams', teamId), { color: normalizeHexColor(color) }, { merge: true });
+  },
+
+  // Charakter-Eigenschaften eines Pokémon im Kader. Gemergt wird je Pokémon, damit
+  // zwei Einträge für verschiedene Pokémon einander nicht überschreiben.
+  async setMonTraits(teamId, name, traits) {
+    if (!teamId || !name) return;
+    await setDoc(doc(db, 'teams', teamId), { monTraits: { [name]: normalizeMonTraits(traits) } }, { merge: true });
   },
 
   // === Trainer ==============================================================
@@ -7148,9 +7471,20 @@ let pressSeenSeasonEnd = null;
 // Neuzugängen hängt am Bestand, nicht an einer Änderung — ohne diese Sperre würde ein
 // Fehlschlag den Effekt sofort wieder auslösen und sich im Kreis drehen.
 const pressTriedNewcomers = new Set();
+// Dasselbe für den Podcast: er hängt am Bestand (Awards vergeben und angesehen).
+const pressTriedPodcast = new Set();
+// Der Podcast beginnt mit Saison 2 — die abgeschlossene Saison 1 wird nicht nachgeholt.
+const PODCAST_FROM_SEASON = 2;
 
 // Beschreibt dem Modell, wann der Termin stattfindet — die Auftaktrunde liegt
 // außerhalb des normalen Rhythmus und braucht ihre eigene Einordnung.
+// Haltung einer gewählten Antwort samt typischer Wirkung — für die Redaktion, die
+// daraus den Beitrag schreibt. In der Oberfläche steht die Haltung bewusst nicht.
+function stanceNote(key) {
+  const st = STANCE_BY_KEY[key];
+  return st ? `${st.label} (${st.write}; Wirkung: ${st.effect})` : 'unbekannt';
+}
+
 function situationLine(s) {
   if (s.slot === 'outlook') {
     return 'Die Saison ist gespielt. Vor dem Wintertransfer und dem Draft der nächsten Saison tritt '
@@ -7220,6 +7554,7 @@ Alpine.store('press', {
     Alpine.effect(() => this._watchMarket());
     Alpine.effect(() => this._watchSeasonEnd());
     Alpine.effect(() => this._watchNewcomers());
+    Alpine.effect(() => this._watchPodcast());
   },
 
   // --- Zugang --------------------------------------------------------------
@@ -7274,6 +7609,18 @@ Alpine.store('press', {
       .filter(Boolean);
   },
 
+  // Vorgaben der Regie, die vom Bestand abhängen: welche Archetypen diese Saison
+  // schon hatte (die Kabinen-Prügelei gibt es nur einmal) — plus Marktwert- und
+  // Skandal-Vorgabe der jeweiligen Textsorte.
+  directionOpts({ market = 'auto', scandal = true } = {}) {
+    const season = Alpine.store('league').season;
+    const seasonArchetypes = (this.articles || [])
+      .filter((a) => seasonOfId(a.id) === season)
+      .map((a) => a.archetype)
+      .filter(Boolean);
+    return { market, scandal, seasonArchetypes };
+  },
+
   contextFor(focus) {
     const l = Alpine.store('league');
     return buildContext(
@@ -7315,8 +7662,12 @@ Alpine.store('press', {
     fresh.forEach((id) => { setTimeout(() => this.generateReport(id).catch(() => {}), 0); });
     // Je Spieltag drei freie Beiträge: einer nach dem ersten, zweiten und dritten
     // abgeschlossenen Spiel dieses Spieltags.
-    [...new Set(fresh.map((id) => (l.results || []).find((r) => r.id === id)?.day).filter((d) => d != null))]
-      .forEach((day) => { setTimeout(() => this.fillRandomArticles(day).catch(() => {}), 1500); });
+    const freshDays = [...new Set(fresh.map((id) => (l.results || []).find((r) => r.id === id)?.day).filter((d) => d != null))];
+    freshDays.forEach((day) => { setTimeout(() => this.fillRandomArticles(day).catch(() => {}), 1500); });
+    // Cava LANZ: einmal je Spieltag, nach dem zweiten oder dritten freigegebenen Spiel.
+    freshDays
+      .filter((day) => this.completedOnDay(day) >= lanzTriggerGame(l.season, day))
+      .forEach((day) => { setTimeout(() => this.generateLanz(day).catch(() => {}), 9000); });
   },
 
   // Wie viele Matches eines Spieltags sind fertig? Für die Automatik zählt nur, was
@@ -7392,7 +7743,7 @@ Alpine.store('press', {
       const dayTeams = (l.schedule?.matchdays || [])
         .filter((md) => md.day === day)
         .flatMap((md) => (md.matches || []).flatMap((m) => [m.home, m.away]));
-      const direction = buildDirection(this.recentArchetypes());
+      const direction = buildDirection(this.recentArchetypes(), this.directionOpts());
       const data = await generateJson({
         apiKey: this.apiKey,
         model: this._modelOf(model),
@@ -7423,6 +7774,391 @@ Alpine.store('press', {
       return id;
     } catch (e) {
       console.error('Zufallsbeitrag fehlgeschlagen:', e);
+      await this._fail(ref, e?.message || 'Unbekannter Fehler', this._modelOf(model));
+      return null;
+    } finally {
+      const next = { ...this.busy };
+      delete next[id];
+      this.busy = next;
+    }
+  },
+
+  // === Sendungen: Cava LANZ und 50 plus Zweiblatt ===========================
+  // Reine Gesprächsprotokolle ohne Autor (press-shows.mjs). Cava LANZ läuft je Spieltag
+  // einmal; sitzt ein Trainer in der Runde, entsteht die Sendung Abschnitt für Abschnitt
+  // im Termin-Bereich, und der Besitzer des Teams antwortet selbst.
+  lanzIdFor(day) { return `${this.prefix}-lanz-d${day}`; },
+  podcastIdFor(day) { return `${this.prefix}-zweiblatt-d${day}`; },
+
+  _showSystem(show, guests = []) {
+    const voices = [
+      ...show.hosts.map((h) => `${h.name} (Gastgeber):\n${h.voice}`),
+      ...guests.filter((g) => g.kind === 'press').map((g) => {
+        const a = authorById(g.id);
+        return `${a.name} (Gast, ${a.role} bei ${a.outlet}): ${a.voice} Ressort: ${a.beat}`;
+      }),
+      ...guests.filter((g) => g.kind === 'trainer').map((g) => {
+        const team = Alpine.store('league').teams.find((t) => t.id === g.teamId);
+        return `${g.name} (Gast, Trainer von ${team?.name || g.teamId})${g.traits?.length ? ` — Persönlichkeit: ${g.traits.join(', ')}` : ''}`;
+      }),
+    ];
+    return buildSystem({
+      extra: [
+        `DIESES FORMAT: ${show.kind} "${show.title}". Es gibt keinen Autor und keinen Erzähler — nur die Stimmen der Runde.`,
+        'Die Regeln zu Bausteinen gelten in diesem Format NICHT: keine [marktwert: …], [tabelle: …] oder andere Klammern.',
+        `DIE STIMMEN:\n${voices.join('\n\n')}`,
+      ].join('\n\n'),
+    });
+  },
+  // Nur die Teile der Regie, die zu einem Gespräch passen: Marktwert-Vorgabe und —
+  // bei der Talkshow — das seltene Skandal-Angebot.
+  _showDirection({ scandal = false } = {}) {
+    const opts = this.directionOpts({ scandal });
+    const recent = this.recentArchetypes();
+    const market = marketRule('auto');
+    const offer = scandalPick({ allowed: opts.scandal, recent, seasonArchetypes: opts.seasonArchetypes });
+    return [
+      market.text,
+      offer ? `SKANDAL-ANGEBOT (darfst du nutzen, musst du nicht): ${offer.hint} Folgen nur als Gerücht oder Forderung. Nutzt du ihn, setze "archetyp" auf "${offer.key}".` : '',
+      recent.length ? `ZULETZT SCHON ERZÄHLT (nicht wiederholen): ${recent.join(', ')}` : '',
+    ].filter(Boolean).join('\n');
+  },
+  _dayTeams(day) {
+    const l = Alpine.store('league');
+    return [...new Set((l.schedule?.matchdays || [])
+      .filter((md) => md.day === day)
+      .flatMap((md) => (md.matches || []).flatMap((m) => [m.home, m.away])))];
+  },
+  _dayStatus(day) {
+    const l = Alpine.store('league');
+    const md = (l.schedule?.matchdays || []).find((m) => m.day === day);
+    const rows = (md?.matches || []).map((m) => {
+      const r = (l.results || []).find((x) => x.day === day && x.home === m.home && x.away === m.away);
+      const name = (id) => l.teams.find((t) => t.id === id)?.name || id;
+      return `${name(m.home)} – ${name(m.away)}: ${r && isMatchComplete(r) ? 'gespielt' : 'steht noch aus'}`;
+    });
+    return rows.length ? `STAND DES SPIELTAGS ${day}:\n${rows.join('\n')}` : '';
+  },
+  // Den fertigen Sendungsbeitrag schreiben.
+  async _publishShow(show, id, data, turns, { day, teamIds, source, createdAt }) {
+    const l = Alpine.store('league');
+    const known = new Set((l.teams || []).map((t) => t.id));
+    const docData = this._articleDoc({ ...data, absaetze: showParagraphs(show, turns) }, {
+      category: show.category,
+      authorId: null,
+      teamIds: (teamIds || []).filter((t) => known.has(t)),
+      day,
+      source,
+      createdAt,
+    });
+    await setDoc(doc(db, 'press', id), docData);
+    window.dispatchEvent(new CustomEvent('toast', { detail: { msg: `${show.title}: ${docData.title}` } }));
+    return id;
+  },
+
+  /** Cava LANZ zu einem Spieltag — als fertiger Beitrag oder als offener Termin. */
+  async generateLanz(day, { force = false, model = null } = {}) {
+    if (!this.hasKey || day == null) return null;
+    const id = this.lanzIdFor(day);
+    if (this.busy[id]) return null;
+    const existing = this.byId(id);
+    if (!force && existing && existing.status !== 'error') return null;
+    // Ein laufender Termin wird fortgesetzt, nicht neu besetzt.
+    if (existing?.source?.sessionId && this.sessionById(existing.source.sessionId)) {
+      return this.retryLanzSession(existing.source.sessionId, model);
+    }
+    const l = Alpine.store('league');
+    const show = SHOWS.lanz;
+    const ref = doc(db, 'press', id);
+    const createdAt = new Date().toISOString();
+    const trainers = (l.seasonTeams || []).map((t) => {
+      const tr = currentTrainer(t.trainers || []);
+      return tr ? { teamId: t.id, name: tr.name, image: tr.image || '', traits: tr.traits || [] } : null;
+    }).filter(Boolean);
+    const lineup = lanzLineup(PRESS_AUTHORS, trainers);
+    const trainer = lineup.guests.find((g) => g.kind === 'trainer') || null;
+    const source = { type: 'lanz', day, guests: lineup.guests, sessionId: trainer ? id : null };
+    this.busy = { ...this.busy, [id]: true };
+    try {
+      const claimed = await runTransaction(db, async (tx) => {
+        const snap = await tx.get(ref);
+        if (snap.exists() && !force && snap.data()?.status !== 'error') return false;
+        tx.set(ref, {
+          season: l.season, category: show.category, categories: [show.category, AI_CATEGORY],
+          // Mit Trainer wartet der Beitrag auf dessen Antworten und bleibt im Newsroom verborgen.
+          status: trainer ? 'waiting' : 'pending',
+          authorId: null, teamIds: trainer ? [trainer.teamId] : [], day, title: '', subtitle: '', body: '',
+          source, storylines: [], createdAt, publishedAt: createdAt, error: null,
+        });
+        return true;
+      });
+      if (!claimed) return null;
+
+      if (trainer) {
+        await setDoc(doc(db, 'pressSessions', id), {
+          season: l.season, day, teamId: trainer.teamId, opponentId: null, matchId: null,
+          type: 'talk', slot: 'talk', show: 'lanz',
+          role: { kind: 'trainer', name: trainer.name, image: trainer.image, traits: trainer.traits },
+          guests: lineup.guests, turns: [], pendingQuestion: null,
+          answersTarget: lanzAnswerTarget(), answersGiven: 0,
+          status: 'generating', articleId: id, error: null, createdAt, updatedAt: createdAt,
+        });
+        const next = { ...this.busy };
+        delete next[id];
+        this.busy = next;
+        return this.lanzNextPart(id, { model });
+      }
+
+      const speakers = [CAVALANZAS.name, ...lineup.guests.map((g) => g.name)];
+      const data = await generateJson({
+        apiKey: this.apiKey,
+        model: this._modelOf(model),
+        system: this._showSystem(show, lineup.guests),
+        prompt: buildUserPrompt({
+          task: LANZ_BRIEF,
+          direction: this._showDirection({ scandal: true }),
+          context: this.contextFor({ teamIds: this._dayTeams(day), day }),
+          addendum: [
+            `DIE RUNDE: ${speakers.join(', ')}. Cavalanzas moderiert, eröffnet und beendet die Sendung.`,
+            this._dayStatus(day),
+            'UMFANG: 30 bis 45 Wortbeiträge.',
+          ].filter(Boolean).join('\n\n'),
+        }),
+        schema: SHOW_SCHEMA,
+        maxOutputTokens: 16384,
+      });
+      const turns = cleanTurns(data.beitraege, speakers);
+      if (turns.length < 8) throw new Error('Die Sendung kam zu kurz zurück.');
+      return await this._publishShow(show, id, data, turns, { day, teamIds: this._dayTeams(day), source, createdAt });
+    } catch (e) {
+      console.error('Cava LANZ fehlgeschlagen:', e);
+      await this._fail(ref, e?.message || 'Unbekannter Fehler', this._modelOf(model));
+      return null;
+    } finally {
+      const next = { ...this.busy };
+      delete next[id];
+      this.busy = next;
+    }
+  },
+
+  // Der nächste Abschnitt der interaktiven Talkshow: bis zur nächsten Frage an den Trainer.
+  async lanzNextPart(sessionId, { model = null } = {}) {
+    const s = this.sessionById(sessionId);
+    if (!s || !this.hasKey || this.busy[sessionId]) return null;
+    const ref = doc(db, 'pressSessions', sessionId);
+    const trainer = (s.guests || []).find((g) => g.kind === 'trainer');
+    const press = (s.guests || []).find((g) => g.kind === 'press');
+    const turnsSoFar = s.turns || [];
+    const first = !turnsSoFar.length;
+    this.busy = { ...this.busy, [sessionId]: true };
+    try {
+      await setDoc(ref, { status: 'generating', error: null, updatedAt: new Date().toISOString() }, { merge: true });
+      const data = await generateJson({
+        apiKey: this.apiKey,
+        model: this._modelOf(model),
+        system: this._showSystem(SHOWS.lanz, s.guests || []),
+        prompt: buildUserPrompt({
+          task: LANZ_BRIEF,
+          direction: first ? this._showDirection({ scandal: true }) : '',
+          context: this.contextFor({ teamIds: [...new Set([trainer?.teamId, ...this._dayTeams(s.day)].filter(Boolean))], day: s.day }),
+          addendum: [
+            `DIE RUNDE: Cavalanzas (Moderation), ${press?.name}, Trainer ${trainer?.name}.`,
+            this._dayStatus(s.day),
+            'DIESE SENDUNG ENTSTEHT LIVE UND IN ABSCHNITTEN. Du schreibst jetzt NUR den nächsten Abschnitt.',
+            `Der Trainer ${trainer?.name} antwortet selbst — schreibe für ihn KEINEN einzigen Wortbeitrag.`,
+            first
+              ? `Beginne die Sendung: Cavalanzas eröffnet, stellt die Runde vor und diskutiert mit ${press?.name}. Nach 6 bis 10 Wortbeiträgen richtet Cavalanzas die erste Frage an ${trainer?.name}.`
+              : `Greife die letzte Antwort von ${trainer?.name} auf: Cavalanzas und ${press?.name} reagieren darauf, widersprechen, bohren nach oder wechseln das Thema. Nach 4 bis 8 Wortbeiträgen richtet Cavalanzas die nächste Frage an ${trainer?.name}.`,
+            'Die Frage an den Trainer steht NUR im Feld "frageAnTrainer", nicht zusätzlich in "beitraege".',
+            first ? '' : `BISHERIGES PROTOKOLL:\n${transcriptText(turnsSoFar)}`,
+          ].filter(Boolean).join('\n\n'),
+        }),
+        schema: SHOW_PART_SCHEMA,
+        maxOutputTokens: 8192,
+      });
+      const part = cleanTurns(data.beitraege, [CAVALANZAS.name, press?.name].filter(Boolean), { forbid: [trainer?.name] });
+      const question = String(data.frageAnTrainer || '').trim();
+      if (!question) throw new Error('Die Frage an den Trainer fehlt.');
+      await setDoc(ref, {
+        turns: [...turnsSoFar, ...part, { speaker: CAVALANZAS.name, text: question }],
+        pendingQuestion: question,
+        status: 'open',
+        updatedAt: new Date().toISOString(),
+      }, { merge: true });
+      return sessionId;
+    } catch (e) {
+      console.error('Cava LANZ (Abschnitt) fehlgeschlagen:', e);
+      this.lastError = e?.message || 'Unbekannter Fehler';
+      await setDoc(ref, { status: 'error', error: this.lastError, errorModel: this._modelOf(model), updatedAt: new Date().toISOString() }, { merge: true });
+      return null;
+    } finally {
+      const next = { ...this.busy };
+      delete next[sessionId];
+      this.busy = next;
+    }
+  },
+
+  // Die Antwort des Trainers — danach läuft die Sendung weiter oder wird abmoderiert.
+  async lanzAnswer(sessionId, text) {
+    const s = this.sessionById(sessionId);
+    const answer = String(text || '').trim();
+    if (!s || s.status !== 'open' || answer.length < 2) return null;
+    const trainer = (s.guests || []).find((g) => g.kind === 'trainer');
+    const given = (s.answersGiven || 0) + 1;
+    await setDoc(doc(db, 'pressSessions', sessionId), {
+      turns: [...(s.turns || []), { speaker: trainer?.name || s.role?.name, text: answer }],
+      answersGiven: given,
+      pendingQuestion: null,
+      status: given >= (s.answersTarget || 3) ? 'writing' : 'generating',
+      updatedAt: new Date().toISOString(),
+    }, { merge: true });
+    // Der Snapshot bringt den neuen Stand; kurz warten, damit der nächste Schritt ihn sieht.
+    await new Promise((r) => setTimeout(r, 300));
+    return given >= (s.answersTarget || 3) ? this.lanzFinish(sessionId) : this.lanzNextPart(sessionId);
+  },
+
+  // Schluss der interaktiven Talkshow: letzte Reaktionen, Abmoderation, Beitrag.
+  async lanzFinish(sessionId, { model = null } = {}) {
+    const s = this.sessionById(sessionId);
+    if (!s || !this.hasKey || this.busy[sessionId]) return null;
+    const ref = doc(db, 'pressSessions', sessionId);
+    const trainer = (s.guests || []).find((g) => g.kind === 'trainer');
+    const press = (s.guests || []).find((g) => g.kind === 'press');
+    const id = s.articleId || sessionId;
+    const existing = this.byId(id);
+    this.busy = { ...this.busy, [sessionId]: true };
+    try {
+      await setDoc(ref, { status: 'writing', error: null, updatedAt: new Date().toISOString() }, { merge: true });
+      const data = await generateJson({
+        apiKey: this.apiKey,
+        model: this._modelOf(model),
+        system: this._showSystem(SHOWS.lanz, s.guests || []),
+        prompt: buildUserPrompt({
+          task: LANZ_BRIEF,
+          context: this.contextFor({ teamIds: [...new Set([trainer?.teamId, ...this._dayTeams(s.day)].filter(Boolean))], day: s.day }),
+          addendum: [
+            `DIE RUNDE: Cavalanzas (Moderation), ${press?.name}, Trainer ${trainer?.name}.`,
+            'DIE SENDUNG IST FAST VORBEI. Schreibe NUR den Schluss: Cavalanzas und '
+              + `${press?.name} reagieren auf die letzte Antwort von ${trainer?.name}, dann moderiert Cavalanzas ab `
+              + '(melancholisch-realistisches Fazit, knappe Verabschiedung). 4 bis 8 Wortbeiträge, keiner vom Trainer.',
+            'Titel, Dachzeile und Storylines gelten für die GANZE Sendung. Die Aussagen des Trainers dürfen Geschichten '
+              + 'weiterdrehen oder neue eröffnen.',
+            `BISHERIGES PROTOKOLL:\n${transcriptText(s.turns || [])}`,
+          ].join('\n\n'),
+        }),
+        schema: SHOW_SCHEMA,
+        maxOutputTokens: 8192,
+      });
+      const closing = cleanTurns(data.beitraege, [CAVALANZAS.name, press?.name].filter(Boolean), { forbid: [trainer?.name] });
+      const turns = [...(s.turns || []), ...closing];
+      await this._publishShow(SHOWS.lanz, id, data, turns, {
+        day: s.day,
+        teamIds: [...new Set([trainer?.teamId, ...this._dayTeams(s.day)].filter(Boolean))],
+        source: existing?.source || { type: 'lanz', day: s.day, guests: s.guests, sessionId },
+        createdAt: existing?.createdAt || s.createdAt,
+      });
+      await setDoc(ref, { turns, status: 'done', articleId: id, updatedAt: new Date().toISOString() }, { merge: true });
+      return id;
+    } catch (e) {
+      console.error('Cava LANZ (Schluss) fehlgeschlagen:', e);
+      this.lastError = e?.message || 'Unbekannter Fehler';
+      await setDoc(ref, { status: 'error', error: this.lastError, errorModel: this._modelOf(model), updatedAt: new Date().toISOString() }, { merge: true });
+      return null;
+    } finally {
+      const next = { ...this.busy };
+      delete next[sessionId];
+      this.busy = next;
+    }
+  },
+
+  // Eine hängen gebliebene Talkshow dort fortsetzen, wo sie stand.
+  async retryLanzSession(sessionId, model = null) {
+    const s = this.sessionById(sessionId);
+    if (!s) return null;
+    if ((s.answersGiven || 0) >= (s.answersTarget || 3)) return this.lanzFinish(sessionId, { model });
+    if (s.pendingQuestion && s.status !== 'error') return sessionId;
+    if (s.pendingQuestion) {
+      await setDoc(doc(db, 'pressSessions', sessionId), { status: 'open', error: null }, { merge: true });
+      return sessionId;
+    }
+    return this.lanzNextPart(sessionId, { model });
+  },
+
+  // 50 plus Zweiblatt: sobald alle Spieltag-Awards vergeben und beide Siegerehrungen
+  // angesehen sind. Ausgelöst vom Bestand — mit Sperre gegen Endlosschleifen.
+  get missingPodcasts() {
+    const l = Alpine.store('league');
+    const awards = Alpine.store('awards');
+    if (l.season < PODCAST_FROM_SEASON || !awards?.loaded || awards.blocked) return [];
+    const days = awardableDays(completedMatchdays(l.schedule, l.results, isMatchComplete))
+      .filter((d) => d >= pressFromDay(l.season));
+    return podcastReadyDays(days, MATCHDAY_AWARDS.map((a) => a.key), (key, day) => awards.instance({ key, day }), PLAYERS)
+      .filter((day) => {
+        const a = this.byId(this.podcastIdFor(day));
+        return !a || a.status === 'error';
+      });
+  },
+  _watchPodcast() {
+    const l = Alpine.store('league');
+    if (!l.resultsLoaded || !l.scheduleLoaded || !this.articlesLoaded || !this.hasKey) return;
+    const day = this.missingPodcasts.find((d) => !pressTriedPodcast.has(this.podcastIdFor(d)));
+    if (day == null) return;
+    pressTriedPodcast.add(this.podcastIdFor(day));
+    setTimeout(() => this.generatePodcast(day).catch(() => {}), 5000);
+  },
+  async generatePodcast(day, { force = false, model = null } = {}) {
+    if (!this.hasKey || day == null) return null;
+    const id = this.podcastIdFor(day);
+    if (this.busy[id]) return null;
+    const existing = this.byId(id);
+    if (!force && existing && existing.status !== 'error') return null;
+    const l = Alpine.store('league');
+    const show = SHOWS.zweiblatt;
+    const ref = doc(db, 'press', id);
+    const createdAt = new Date().toISOString();
+    const source = { type: 'zweiblatt', day };
+    const teams = this._dayTeams(day);
+    this.busy = { ...this.busy, [id]: true };
+    try {
+      const claimed = await runTransaction(db, async (tx) => {
+        const snap = await tx.get(ref);
+        if (snap.exists() && !force && snap.data()?.status !== 'error') return false;
+        tx.set(ref, {
+          season: l.season, category: show.category, categories: [show.category, AI_CATEGORY], status: 'pending',
+          authorId: null, teamIds: teams, day, title: '', subtitle: '', body: '',
+          source, storylines: [], createdAt, publishedAt: createdAt, error: null,
+        });
+        return true;
+      });
+      if (!claimed) return null;
+      const awards = Alpine.store('awards');
+      const awardLines = MATCHDAY_AWARDS.map((a) => {
+        const winners = awardWinners(awards.instance({ key: a.key, day })).map((w) => w.id).join(', ');
+        return `${a.label}: ${winners || '—'}`;
+      });
+      const speakers = show.hosts.map((h) => h.name);
+      const data = await generateJson({
+        apiKey: this.apiKey,
+        model: this._modelOf(model),
+        system: this._showSystem(show),
+        prompt: buildUserPrompt({
+          task: ZWEIBLATT_BRIEF,
+          direction: this._showDirection({ scandal: false }),
+          context: this.contextFor({ teamIds: teams, day }),
+          addendum: [
+            `DIE HOSTS: ${speakers.join(' und ')}. Venicro eröffnet.`,
+            `SPIELTAG ${day} IST ABGESCHLOSSEN. Die Awards dieses Spieltags:\n${awardLines.join('\n')}`,
+            'UMFANG: 30 bis 45 Wortbeiträge.',
+          ].join('\n\n'),
+        }),
+        schema: SHOW_SCHEMA,
+        maxOutputTokens: 16384,
+      });
+      const turns = cleanTurns(data.beitraege, speakers);
+      if (turns.length < 8) throw new Error('Die Folge kam zu kurz zurück.');
+      return await this._publishShow(show, id, data, turns, { day, teamIds: teams, source, createdAt });
+    } catch (e) {
+      console.error('50 plus Zweiblatt fehlgeschlagen:', e);
       await this._fail(ref, e?.message || 'Unbekannter Fehler', this._modelOf(model));
       return null;
     } finally {
@@ -7490,7 +8226,7 @@ Alpine.store('press', {
       });
       if (!claimed) return null;
 
-      const direction = buildDirection(this.recentArchetypes());
+      const direction = buildDirection(this.recentArchetypes(), this.directionOpts({ market: 'none', scandal: false }));
       const data = await generateJson({
         apiKey: this.apiKey,
         model: this._modelOf(model),
@@ -7615,7 +8351,7 @@ Alpine.store('press', {
       const dayTeams = (l.schedule?.matchdays || [])
         .filter((md) => md.day === day)
         .flatMap((md) => (md.matches || []).flatMap((m) => [m.home, m.away]));
-      const direction = buildDirection(this.recentArchetypes());
+      const direction = buildDirection(this.recentArchetypes(), this.directionOpts({ market: 'free', scandal: false }));
       const data = await generateJson({
         apiKey: this.apiKey,
         model: this._modelOf(model),
@@ -7756,7 +8492,7 @@ Alpine.store('press', {
       });
       if (!claimed) return null;
 
-      const direction = buildDirection(this.recentArchetypes());
+      const direction = buildDirection(this.recentArchetypes(), this.directionOpts({ scandal: promptKey === 'offseason' }));
       const data = await generateJson({
         apiKey: this.apiKey,
         model: this._modelOf(model),
@@ -7966,6 +8702,10 @@ Alpine.store('press', {
       case 'offseason': return this.generateOffseasonArticle(src.index, opts);
       case 'commission': return this.generateCommissioned(id, opts);
       case 'newcomers': return this.generateNewcomers(src.season, opts);
+      case 'lanz': return src.sessionId && this.sessionById(src.sessionId)
+        ? this.retryLanzSession(src.sessionId, model)
+        : this.generateLanz(src.day, opts);
+      case 'zweiblatt': return this.generatePodcast(src.day, opts);
       case 'pk':
       case 'interview': return this.retrySession(src.sessionId, model);
       default: return null;
@@ -8030,7 +8770,7 @@ Alpine.store('press', {
       });
       if (!claimed) return null;
 
-      const direction = buildDirection(this.recentArchetypes());
+      const direction = buildDirection(this.recentArchetypes(), this.directionOpts());
       const data = await generateJson({
         apiKey: this.apiKey,
         model: this._modelOf(model),
@@ -8090,6 +8830,8 @@ Alpine.store('press', {
     const spicy = slot.slot === 'outlook'
       ? shuffle(Array.from({ length: count }, (_, i) => i < 2))
       : isPk ? Array.from({ length: count }, () => Math.random() < 0.35) : Array.from({ length: count }, () => true);
+    // Je Frage drei von zehn Haltungen; die Reihenfolge der Vorschläge wird danach gemischt.
+    const stances = pickStances(count);
     const createdAt = new Date().toISOString();
 
     this.busy = { ...this.busy, [id]: true };
@@ -8106,7 +8848,7 @@ Alpine.store('press', {
         matchId: slot.slot === 'post' ? slot.matchId : null,
         day: slot.day,
       });
-      const direction = buildDirection(this.recentArchetypes());
+      const direction = buildDirection(this.recentArchetypes(), this.directionOpts());
       const addendum = [
         `SITUATION: ${typeLabel(slot.type)} von ${team?.name || slot.teamId}. ${situationLine(slot)}`,
         `BEFRAGT WIRD: ${role.kind === 'trainer' ? `Trainer ${role.name}` : `das Pokémon ${role.name} aus dem Kader`}`
@@ -8116,8 +8858,10 @@ Alpine.store('press', {
         ...Array.from({ length: count }, (_, i) => {
           const a = cast[i % cast.length];
           return `  ${i + 1}. autorId "${a.id}" — ${a.name}, ${a.role} bei ${a.outlet}. Ressort: ${a.beat}. `
-            + `Diese Frage ist ${spicy[i] ? 'PROVOKANT' : 'SACHLICH'} (Feld "provokant" entsprechend setzen).`;
+            + `Diese Frage ist ${spicy[i] ? 'PROVOKANT' : 'SACHLICH'} (Feld "provokant" entsprechend setzen).\n`
+            + `     Antwortvorschläge zu dieser Frage in genau diesen drei Haltungen (Feld "haltung" exakt so): ${stanceBrief(stances[i])}.`;
         }),
+        'Diese Haltungen gehen jeder anderen Angabe zu Antwortvorschlägen vor.',
       ].join('\n');
 
       const data = await generateJson({
@@ -8134,20 +8878,25 @@ Alpine.store('press', {
         maxOutputTokens: 6144,
       });
 
-      const questions = (data.fragen || []).slice(0, count).map((q, i) => ({
-        id: `q${i + 1}`,
-        authorId: cast.find((a) => a.id === q.autorId)?.id || cast[i % cast.length].id,
-        topic: String(q.thema || '').trim(),
-        text: String(q.frage || '').trim(),
-        provocative: isPk ? !!spicy[i] : true,
-        options: (q.antwortvorschlaege || []).slice(0, 3).map((o) => ({
-          stance: ['souveraen', 'ausweichend', 'angriff'].includes(o?.haltung) ? o.haltung : 'souveraen',
+      const questions = (data.fragen || []).slice(0, count).map((q, i) => {
+        const wanted = stances[i] || [];
+        const options = (q.antwortvorschlaege || []).slice(0, 3).map((o, j) => ({
+          // Hält sich das Modell nicht an die Vorgabe, gilt die vorgegebene Haltung an dieser Stelle.
+          stance: STANCE_KEYS.includes(o?.haltung) ? o.haltung : (wanted[j] || 'souveraen'),
           text: String(o?.text || '').trim(),
-        })).filter((o) => o.text),
-      })).filter((q) => q.text);
+        })).filter((o) => o.text);
+        return {
+          id: `q${i + 1}`,
+          authorId: cast.find((a) => a.id === q.autorId)?.id || cast[i % cast.length].id,
+          topic: String(q.thema || '').trim(),
+          text: String(q.frage || '').trim(),
+          provocative: isPk ? !!spicy[i] : true,
+          options: shuffle(options),
+        };
+      }).filter((q) => q.text);
 
       if (questions.length < count) throw new Error(`Es kamen weniger als ${count} Fragen zurück.`);
-      await setDoc(ref, { questions, status: 'open', updatedAt: new Date().toISOString() }, { merge: true });
+      await setDoc(ref, { questions, scandal: direction.scandal?.key || null, status: 'open', updatedAt: new Date().toISOString() }, { merge: true });
       return id;
     } catch (e) {
       console.error('Fragen konnten nicht erzeugt werden:', e);
@@ -8193,17 +8942,20 @@ Alpine.store('press', {
         return [
           `FRAGE ${i + 1} (${author.name}, ${author.outlet}${q.provocative ? ', bewusst provokant' : ''}):`,
           `  ${q.text}`,
-          `ANTWORT (${session.role?.kind === 'trainer' ? `Trainer ${session.role?.name}` : session.role?.name}${a.custom ? ', frei formuliert' : `, gewählte Haltung: ${a.stance || 'unbekannt'}`}):`,
+          `ANTWORT (${session.role?.kind === 'trainer' ? `Trainer ${session.role?.name}` : session.role?.name}${a.custom ? ', frei formuliert — Haltung selbst aus dem Wortlaut lesen' : `, gewählte Haltung: ${stanceNote(a.stance)}`}):`,
           `  ${a.text || '(keine Antwort)'}`,
         ].join('\n');
       }).join('\n\n');
 
-      const direction = buildDirection(this.recentArchetypes());
+      const direction = buildDirection(this.recentArchetypes(), this.directionOpts({ scandal: false }));
       const addendum = [
         `SITUATION: ${typeLabel(session.type)} von ${team?.name || session.teamId}. ${situationLine(session)}`,
         `BEFRAGT WURDE: ${session.role?.kind === 'trainer' ? `Trainer ${session.role?.name}` : `das Pokémon ${session.role?.name}`}`
           + `${session.role?.traits?.length ? ` (${session.role.traits.join(', ')})` : ''}.`,
         `ANWESENDE PRESSEVERTRETER: ${(session.authorIds || []).map((x) => authorById(x).name).join(', ')}.`,
+        session.scandal
+          ? `SKANDAL: Die Fragen durften den Vorfall "${session.scandal}" aufgreifen. Ist er Thema des Beitrags, setze "archetyp" auf "${session.scandal}".`
+          : '',
         session.slot === 'outlook'
           ? 'ANLASS: Die Ausblicksrunde nach der Saison. Der Beitrag arbeitet heraus, was sich das Team '
             + 'für Transferfenster und Draft vorgenommen hat — und hält jede Festlegung so fest, dass '
@@ -8295,6 +9047,26 @@ Alpine.store('press', {
     return id;
   },
 
+  // Korrektur eines bestehenden (auch KI-geschriebenen) Beitrags. Gemergt, damit
+  // Herkunft, Storylines, Archetyp und Referenz-Markierung unberührt bleiben.
+  async updateArticle(input) {
+    const existing = input?.id ? this.byId(input.id) : null;
+    if (!existing) throw new Error('Beitrag nicht gefunden.');
+    const cats = normalizeCategories(input.category || existing.category || 'news', input.categories || []);
+    await setDoc(doc(db, 'press', existing.id), {
+      category: cats.category,
+      categories: cats.categories,
+      title: String(input.title || '').trim() || existing.title || 'Ohne Titel',
+      subtitle: String(input.subtitle || '').trim(),
+      body: sanitizeHtml(input.body || ''),
+      authorId: input.authorId || existing.authorId,
+      teamIds: input.teamIds || existing.teamIds || [],
+      day: input.day ?? existing.day ?? null,
+      editedAt: new Date().toISOString(),
+    }, { merge: true });
+    return existing.id;
+  },
+
   async deleteArticle(id) {
     await deleteDoc(doc(db, 'press', id));
   },
@@ -8318,17 +9090,19 @@ Alpine.store('press', {
    * Der Auftragstext bleibt an der Quelle des Dokuments stehen — nur so kann ein
    * späterer Anlauf dieselbe Vorgabe noch einmal verwenden.
    */
-  async commissionArticle({ brief, teamIds = [], day = null, authorId = null, model = null } = {}) {
+  async commissionArticle({ brief, teamIds = [], day = null, authorId = null, league = 'auto', model = null } = {}) {
     const text = String(brief || '').trim();
     if (!text || !this.hasKey) return null;
     const id = `${this.prefix}-cmd-${Date.now().toString(36)}-${Math.floor(Math.random() * 1296).toString(36)}`;
     const l = Alpine.store('league');
     const known = new Set((l.teams || []).map((t) => t.id));
     const author = (authorId && PRESS_AUTHORS.find((a) => a.id === authorId)) || randomAuthor();
+    const lg = ['erste', 'zweite'].includes(league) ? league : 'auto';
+    const cats = normalizeCategories('news', [lg === 'zweite' ? 'zweite-liga' : AI_CATEGORY]);
     await setDoc(doc(db, 'press', id), {
-      season: l.season, category: 'news', categories: ['news', AI_CATEGORY], status: 'pending',
+      season: l.season, category: cats.category, categories: cats.categories, status: 'pending',
       authorId: author.id, teamIds: teamIds.filter((t) => known.has(t)), day, title: '', subtitle: '', body: '',
-      source: { type: 'commission', brief: text, authorId: author.id, teamIds, day },
+      source: { type: 'commission', brief: text, authorId: author.id, teamIds, day, league: lg },
       storylines: [], createdAt: new Date().toISOString(), publishedAt: new Date().toISOString(), error: null,
     });
     return this.generateCommissioned(id, { force: true, model });
@@ -8352,7 +9126,8 @@ Alpine.store('press', {
     this.busy = { ...this.busy, [id]: true };
 
     try {
-      const direction = buildDirection(this.recentArchetypes());
+      const league = commissionLeague(src.league, brief);
+      const direction = buildDirection(this.recentArchetypes(), this.directionOpts({ scandal: false }));
       const data = await generateJson({
         apiKey: this.apiKey,
         model: this._modelOf(model),
@@ -8361,19 +9136,27 @@ Alpine.store('press', {
           task: this.promptFor('commission'),
           direction: direction.text,
           context: this.contextFor({ teamIds, day }),
-          addendum: `AUFTRAG DER REDAKTIONSLEITUNG (wörtlich):\n${brief}`,
+          addendum: [
+            `AUFTRAG DER REDAKTIONSLEITUNG (wörtlich):\n${brief}`,
+            league === 'zweite' ? 'LIGA: Dieser Beitrag gehört in die ZWEITE LIGA. Setze die Rubrik "zweite-liga".' : '',
+            league === 'erste' ? 'LIGA: Dieser Beitrag gehört in die Erste Liga — die Rubrik "zweite-liga" ist ausgeschlossen.' : '',
+          ].filter(Boolean).join('\n\n'),
         }),
-        schema: ARTICLE_SCHEMA_FREE_CATEGORY,
+        schema: ARTICLE_SCHEMA_COMMISSION,
         maxOutputTokens: 8192,
       });
 
       const known = new Set((l.teams || []).map((t) => t.id));
+      // Die Liga steht fest, wenn sie im Auftrag gewählt wurde; sonst entscheidet das
+      // Modell. „Zweite Liga" verdrängt dabei den automatischen Stempel „Erste Liga".
+      const second = league === 'zweite' || (league === 'auto' && data.kategorie === 'zweite-liga');
       const docData = this._articleDoc(data, {
         category: ['news', 'klatsch', 'geruechte', 'informationen'].includes(data.kategorie) ? data.kategorie : 'news',
+        categories: second ? ['zweite-liga'] : [],
         authorId: author.id,
         teamIds: teamIds.filter((t) => known.has(t)),
         day,
-        source: { type: 'commission', brief, authorId: author.id, teamIds, day },
+        source: { type: 'commission', brief, authorId: author.id, teamIds, day, league: src.league || 'auto' },
         createdAt,
       });
       await setDoc(ref, docData);
@@ -8619,7 +9402,150 @@ Alpine.store('tbsync', {
   fmt(iso) { return iso ? formatDateTime(iso) : '—'; },
 });
 
-Alpine.store('nav', { teamId: null, matchId: null, pokemonName: null, from: null, teamAId: null, teamBId: null, canBack: false });
+// === Benachrichtigungen =====================================================
+// Systemmeldungen des Geräts für das, was auf den Spieler wartet: offene Pressetermine,
+// fällige Awards, neue Beiträge — und ein Draft-Zug, der seit fünf Minuten liegt.
+//
+// Es gibt bewusst KEINEN Push-Server: Die Anwendung ist eine statische Seite ohne
+// Backend. Die Meldungen kommen deshalb über den Service Worker, solange die App auf
+// dem Gerät läuft — auch im Hintergrund-Tab bzw. als installierte App im Hintergrund,
+// nicht aber, wenn sie ganz geschlossen ist. Gemeldet wird nur, was NEU dazukommt,
+// und (außer beim Draft) nur, wenn die App gerade nicht im Blick ist.
+const NOTIFY_KEY = 'jhdl-notify-v1'; // { on: bool }
+const DRAFT_REMIND_MS = 5 * 60 * 1000;
+
+Alpine.store('notify', {
+  on: false,
+  permission: 'default',
+  _armed: false,
+  _press: 0,
+  _awards: 0,
+  _articles: null,
+  _turn: null, // { key, since, sent }
+
+  init() {
+    this.on = !!loadJson(NOTIFY_KEY).on;
+    this.permission = typeof Notification !== 'undefined' ? Notification.permission : 'unsupported';
+    if ('serviceWorker' in navigator) {
+      navigator.serviceWorker.register('./sw.js').catch((e) => console.warn('Service Worker nicht registriert:', e));
+    }
+    Alpine.effect(() => this._watch());
+    setInterval(() => this._checkDraft(), 30000);
+  },
+
+  get supported() { return typeof Notification !== 'undefined'; },
+
+  async toggle() {
+    if (!this.supported) return;
+    if (this.on) {
+      this.on = false;
+      saveJson(NOTIFY_KEY, { on: false });
+      return;
+    }
+    try {
+      this.permission = await Notification.requestPermission();
+    } catch (e) {
+      this.permission = Notification.permission;
+    }
+    this.on = this.permission === 'granted';
+    saveJson(NOTIFY_KEY, { on: this.on });
+    if (this.on) this.show('Benachrichtigungen aktiv', 'Du bekommst Bescheid, sobald etwas auf dich wartet.', 'jhdl-test');
+  },
+
+  async show(title, body, tag, { icon } = {}) {
+    if (!this.on || !this.supported || Notification.permission !== 'granted') return;
+    const opts = { body, tag, icon: icon || './web-app-manifest-192x192.png', badge: './favicon-96x96.png', renotify: true };
+    try {
+      const reg = 'serviceWorker' in navigator ? await navigator.serviceWorker.getRegistration() : null;
+      if (reg) { await reg.showNotification(title, opts); return; }
+      new Notification(title, opts);
+    } catch (e) { /* ohne Berechtigung oder API bleibt es beim Punkt in der Navigation */ }
+  },
+
+  pressAwaiting() {
+    const l = Alpine.store('league');
+    const press = Alpine.store('press');
+    if (!press?.sessionsLoaded || !(l.schedule?.matchdays || []).length) return 0;
+    const sessions = press.sessions || [];
+    const ids = l.seasonTeams.map((t) => t.id);
+    const bonusDone = bonusRoundComplete(ids, l.schedule, sessions);
+    const byId = Object.fromEntries(sessions.map((x) => [x.id, x]));
+    // Ein Termin, dessen Antworten schon bei der Redaktion liegen, wartet nicht mehr auf den Spieler.
+    const mine = Alpine.store('auth').myTeams || [];
+    const mineIds = new Set(mine.map((t) => t.id));
+    // Eine Talkshow wartet auf den Trainer, solange eine Frage offen ist.
+    const talks = sessions.filter((x) => x.type === 'talk' && mineIds.has(x.teamId) && seasonOfId(x.id) === l.season
+      && ['open', 'error'].includes(x.status)).length;
+    return talks + mine.reduce((sum, t) => sum
+      + pressSlots(t.id, l.schedule, l.results, sessions, bonusDone)
+        .filter((row) => row.open && !['done', 'writing'].includes(byId[row.id]?.status)).length, 0);
+  },
+  awardsAwaiting() {
+    const l = Alpine.store('league');
+    const awards = Alpine.store('awards');
+    if (!awards?.loaded || awards.blocked || !(l.schedule?.matchdays || []).length) return 0;
+    const days = completedMatchdays(l.schedule, l.results, isMatchComplete);
+    const instances = [];
+    awardableDays(days).forEach((day) => MATCHDAY_AWARDS.forEach((a) => instances.push(awards.instance({ key: a.key, day }))));
+    if (days.length === l.schedule.matchdays.length) {
+      SEASON_AWARDS.forEach((a) => {
+        if (a.perTeam) l.seasonTeams.forEach((t) => instances.push(awards.instance({ key: a.key, teamId: t.id })));
+        else instances.push(awards.instance({ key: a.key }));
+      });
+    }
+    return awaitingPlayer(instances, Alpine.store('auth').player);
+  },
+
+  // Beobachtet die Zähler und neue Beiträge. Der erste Durchlauf merkt sich nur den
+  // Stand — sonst meldete jeder Seitenaufruf den gesamten Bestand.
+  _watch() {
+    const press = this.pressAwaiting();
+    const awards = this.awardsAwaiting();
+    const store = Alpine.store('press');
+    const articles = store.articlesLoaded
+      ? store.articles.filter((a) => a.status === 'ready').map((a) => a.id)
+      : null;
+    const player = Alpine.store('auth').player;
+    if (!player || !articles || !Alpine.store('awards').loaded || !store.sessionsLoaded) return;
+    if (!this._armed) {
+      this._armed = true;
+      this._press = press;
+      this._awards = awards;
+      this._articles = new Set(articles);
+      return;
+    }
+    const away = typeof document !== 'undefined' && document.visibilityState === 'hidden';
+    if (away && press > this._press) this.show('Die Presse wartet', press === 1 ? 'Ein Termin wartet auf dich.' : `${press} Termine warten auf dich.`, 'jhdl-press');
+    if (away && awards > this._awards) this.show('Awards zu vergeben', awards === 1 ? 'Eine Abstimmung wartet auf dich.' : `${awards} Abstimmungen warten auf dich.`, 'jhdl-awards');
+    const fresh = articles.filter((id) => !this._articles.has(id));
+    if (away && fresh.length) {
+      const a = store.byId(fresh[fresh.length - 1]);
+      this.show(fresh.length === 1 ? 'Neuer Beitrag' : `${fresh.length} neue Beiträge`, a?.title || '', 'jhdl-article');
+    }
+    this._press = press;
+    this._awards = awards;
+    this._articles = new Set(articles);
+  },
+
+  // Am Zug im Draft und seit fünf Minuten nichts passiert, während die App nicht auf
+  // dem Draft steht oder im Hintergrund liegt: einmal erinnern.
+  _checkDraft() {
+    const l = Alpine.store('league');
+    const auth = Alpine.store('auth');
+    if (l.draft?.status !== 'running' || !auth.player) { this._turn = null; return; }
+    const cp = draftCurrentPick(l.draft, { picksPerTeam: PICKS_PER_TEAM });
+    const team = cp ? l.teams.find((t) => t.id === cp.teamId) : null;
+    if (!team || !auth.ownsTeam(team)) { this._turn = null; return; }
+    const key = `${l.season}|${l.draft.pickIndex}|${(l.draft.renewals || []).length}`;
+    if (this._turn?.key !== key) { this._turn = { key, since: Date.now(), sent: false }; return; }
+    if (this._turn.sent || Date.now() - this._turn.since < DRAFT_REMIND_MS) return;
+    if (document.visibilityState === 'visible' && Alpine.store('nav').view === 'draft') return;
+    this._turn.sent = true;
+    this.show('Du bist im Draft dran', `${team.name} wartet seit fünf Minuten auf deinen Pick.`, 'jhdl-draft');
+  },
+});
+
+Alpine.store('nav', { teamId: null, matchId: null, pokemonName: null, from: null, teamAId: null, teamBId: null, canBack: false, view: null });
 
 // Marktwerte (Elo-Quelle) aus dem öffentlichen Sheet — clientseitig, ohne Key.
 // Cache im localStorage; „Marktwert-Update" (refresh) lädt live neu.
@@ -8728,7 +9654,38 @@ Alpine.store('elo', {
 Alpine.data('authGate', authGate);
 Alpine.data('app', app);
 Alpine.data('draftBoard', draftBoard);
-Alpine.data('draftPlan', () => draftPlanView({ loadJson, saveJson, tierColor: (t) => TIER_COLORS[t] || '#6b7280', typeColor: (t) => TYPE_COLORS[t] || '#6b7280' }));
+const draftPlanRemote = {
+  available: () => !!(Alpine.store('auth').isLoggedIn && Alpine.store('auth').dataKey),
+  async load() {
+    const auth = Alpine.store('auth');
+    const data = await auth.loadPrivate(DRAFTPLAN_SCOPE, null, { fresh: true });
+    if (auth._private[DRAFTPLAN_SCOPE]?.error) throw new Error(auth._private[DRAFTPLAN_SCOPE].error);
+    const plans = { ...(data?.plans || {}) };
+    let legacy = null;
+    try { legacy = JSON.parse(localStorage.getItem(DRAFTPLAN_LEGACY_KEY) || 'null'); } catch (e) { legacy = null; }
+    if (legacy && typeof legacy === 'object' && Object.keys(legacy).length) {
+      // Je Team gewinnt der jüngere Stand.
+      let changed = false;
+      Object.entries(legacy).forEach(([teamId, plan]) => {
+        const have = plans[teamId];
+        if (!have || String(plan?.updatedAt || '') > String(have.updatedAt || '')) {
+          plans[teamId] = plan;
+          changed = true;
+        }
+      });
+      if (changed) await auth.savePrivate(DRAFTPLAN_SCOPE, { plans, savedAt: new Date().toISOString() });
+      try { localStorage.removeItem(DRAFTPLAN_LEGACY_KEY); } catch (e) { /* bleibt liegen, schadet nicht */ }
+    }
+    return plans;
+  },
+  async save(plans) {
+    await Alpine.store('auth').savePrivate(DRAFTPLAN_SCOPE, { plans, savedAt: new Date().toISOString() });
+  },
+};
+Alpine.data('draftPlan', () => draftPlanView({
+  loadJson, saveJson, remote: draftPlanRemote,
+  tierColor: (t) => TIER_COLORS[t] || '#6b7280', typeColor: (t) => TYPE_COLORS[t] || '#6b7280',
+}));
 Alpine.data('teamsView', teamsView);
 Alpine.data('scheduleView', scheduleView);
 Alpine.data('standingsView', standingsView);

@@ -10,7 +10,15 @@
     "tier": "S",
     "cost": 20,
     "image": "https://www.serebii.net/pokemonhome/pokemon/006-my.png",
-    "base_speed": 100
+    "base_speed": 100,
+    "stats": {
+      "hp": 78,
+      "atk": 104,
+      "def": 78,
+      "spa": 159,
+      "spd": 115,
+      "spe": 100
+    }
   },
   {
     "name": "Mega-Floette",
@@ -22,7 +30,15 @@
     "tier": "S",
     "cost": 20,
     "image": "https://www.serebii.net/pokemonhome/pokemon/670-m.png",
-    "base_speed": 102
+    "base_speed": 102,
+    "stats": {
+      "hp": 74,
+      "atk": 85,
+      "def": 87,
+      "spa": 155,
+      "spd": 148,
+      "spe": 102
+    }
   },
   {
     "name": "Mega-Gengar",
@@ -35,7 +51,15 @@
     "tier": "S",
     "cost": 20,
     "image": "https://www.serebii.net/pokemonhome/pokemon/094-m.png",
-    "base_speed": 130
+    "base_speed": 130,
+    "stats": {
+      "hp": 60,
+      "atk": 65,
+      "def": 80,
+      "spa": 170,
+      "spd": 95,
+      "spe": 130
+    }
   },
   {
     "name": "Gortrom",
@@ -48,7 +72,15 @@
     "cost": 20,
     "image": "https://www.serebii.net/pokemonhome/pokemon/812.png",
     "base_speed": 85,
-    "since": 2
+    "since": 2,
+    "stats": {
+      "hp": 100,
+      "atk": 125,
+      "def": 90,
+      "spa": 60,
+      "spd": 70,
+      "spe": 85
+    }
   },
   {
     "name": "Mega-Brutalanda",
@@ -62,7 +94,15 @@
     "cost": 20,
     "image": "https://www.serebii.net/pokemonhome/pokemon/373-m.png",
     "base_speed": 120,
-    "since": 2
+    "since": 2,
+    "stats": {
+      "hp": 95,
+      "atk": 145,
+      "def": 130,
+      "spa": 120,
+      "spd": 90,
+      "spe": 120
+    }
   },
   {
     "name": "Briduradon",
@@ -75,7 +115,15 @@
     "tier": "A",
     "cost": 15,
     "image": "https://www.serebii.net/pokemonhome/pokemon/1018.png",
-    "base_speed": 85
+    "base_speed": 85,
+    "stats": {
+      "hp": 90,
+      "atk": 105,
+      "def": 130,
+      "spa": 125,
+      "spd": 65,
+      "spe": 85
+    }
   },
   {
     "name": "Salmagnis ♂",
@@ -88,7 +136,15 @@
     "tier": "S",
     "cost": 19,
     "image": "https://www.serebii.net/pokemonhome/pokemon/902.png",
-    "base_speed": 78
+    "base_speed": 78,
+    "stats": {
+      "hp": 120,
+      "atk": 112,
+      "def": 65,
+      "spa": 80,
+      "spd": 75,
+      "spe": 78
+    }
   },
   {
     "name": "Mega-Frosdedje",
@@ -101,7 +157,15 @@
     "tier": "S",
     "cost": 19,
     "image": "https://www.serebii.net/pokemonhome/pokemon/478-m.png",
-    "base_speed": 120
+    "base_speed": 120,
+    "stats": {
+      "hp": 70,
+      "atk": 80,
+      "def": 70,
+      "spa": 140,
+      "spd": 100,
+      "spe": 120
+    }
   },
   {
     "name": "Snieboss",
@@ -114,7 +178,15 @@
     "tier": "S",
     "cost": 19,
     "image": "https://www.serebii.net/pokemonhome/pokemon/903.png",
-    "base_speed": 120
+    "base_speed": 120,
+    "stats": {
+      "hp": 80,
+      "atk": 130,
+      "def": 60,
+      "spa": 40,
+      "spd": 80,
+      "spe": 120
+    }
   },
   {
     "name": "Elfun",
@@ -127,7 +199,15 @@
     "tier": "S",
     "cost": 19,
     "image": "https://www.serebii.net/pokemonhome/pokemon/547.png",
-    "base_speed": 116
+    "base_speed": 116,
+    "stats": {
+      "hp": 60,
+      "atk": 67,
+      "def": 85,
+      "spa": 77,
+      "spd": 75,
+      "spe": 116
+    }
   },
   {
     "name": "Knakrack",
@@ -140,7 +220,15 @@
     "tier": "S",
     "cost": 18,
     "image": "https://www.serebii.net/pokemonhome/pokemon/445.png",
-    "base_speed": 102
+    "base_speed": 102,
+    "stats": {
+      "hp": 108,
+      "atk": 130,
+      "def": 95,
+      "spa": 80,
+      "spd": 85,
+      "spe": 102
+    }
   },
   {
     "name": "Fuegro",
@@ -153,7 +241,15 @@
     "tier": "S",
     "cost": 18,
     "image": "https://www.serebii.net/pokemonhome/pokemon/727.png",
-    "base_speed": 60
+    "base_speed": 60,
+    "stats": {
+      "hp": 95,
+      "atk": 115,
+      "def": 90,
+      "spa": 80,
+      "spd": 90,
+      "spe": 60
+    }
   },
   {
     "name": "Mega-Guardevoir",
@@ -166,7 +262,15 @@
     "tier": "S",
     "cost": 18,
     "image": "https://www.serebii.net/pokemonhome/pokemon/282-m.png",
-    "base_speed": 100
+    "base_speed": 100,
+    "stats": {
+      "hp": 68,
+      "atk": 85,
+      "def": 65,
+      "spa": 165,
+      "spd": 135,
+      "spe": 100
+    }
   },
   {
     "name": "Mega-Kangama",
@@ -178,7 +282,15 @@
     "tier": "S",
     "cost": 18,
     "image": "https://www.serebii.net/pokemonhome/pokemon/115-m.png",
-    "base_speed": 100
+    "base_speed": 100,
+    "stats": {
+      "hp": 105,
+      "atk": 125,
+      "def": 100,
+      "spa": 60,
+      "spd": 100,
+      "spe": 100
+    }
   },
   {
     "name": "Fatalitcha",
@@ -191,7 +303,15 @@
     "tier": "S",
     "cost": 18,
     "image": "https://www.serebii.net/pokemonhome/pokemon/1013.png",
-    "base_speed": 70
+    "base_speed": 70,
+    "stats": {
+      "hp": 71,
+      "atk": 60,
+      "def": 106,
+      "spa": 121,
+      "spd": 80,
+      "spe": 70
+    }
   },
   {
     "name": "Mega-Tectass",
@@ -205,7 +325,15 @@
     "cost": 18,
     "image": "https://www.serebii.net/pokemonhome/pokemon/768-m.png",
     "base_speed": 40,
-    "since": 2
+    "since": 2,
+    "stats": {
+      "hp": 75,
+      "atk": 150,
+      "def": 175,
+      "spa": 70,
+      "spd": 120,
+      "spe": 40
+    }
   },
   {
     "name": "Servol (weiblich)",
@@ -219,7 +347,15 @@
     "cost": 18,
     "image": "https://www.serebii.net/pokemonhome/pokemon/876-f.png",
     "base_speed": 85,
-    "since": 2
+    "since": 2,
+    "stats": {
+      "hp": 70,
+      "atk": 55,
+      "def": 65,
+      "spa": 95,
+      "spd": 105,
+      "spe": 85
+    }
   },
   {
     "name": "Aerodactyl",
@@ -232,7 +368,15 @@
     "tier": "A",
     "cost": 13,
     "image": "https://www.serebii.net/pokemonhome/pokemon/142.png",
-    "base_speed": 130
+    "base_speed": 130,
+    "stats": {
+      "hp": 80,
+      "atk": 105,
+      "def": 65,
+      "spa": 60,
+      "spd": 75,
+      "spe": 130
+    }
   },
   {
     "name": "Gladimperio",
@@ -245,7 +389,15 @@
     "tier": "A",
     "cost": 13,
     "image": "https://www.serebii.net/pokemonhome/pokemon/983.png",
-    "base_speed": 50
+    "base_speed": 50,
+    "stats": {
+      "hp": 100,
+      "atk": 135,
+      "def": 120,
+      "spa": 60,
+      "spd": 85,
+      "spe": 50
+    }
   },
   {
     "name": "Mega-Aerodactyl",
@@ -258,7 +410,15 @@
     "tier": "A",
     "cost": 13,
     "image": "https://www.serebii.net/pokemonhome/pokemon/142-m.png",
-    "base_speed": 150
+    "base_speed": 150,
+    "stats": {
+      "hp": 80,
+      "atk": 135,
+      "def": 85,
+      "spa": 70,
+      "spd": 95,
+      "spe": 150
+    }
   },
   {
     "name": "Mega-Turtok",
@@ -270,7 +430,15 @@
     "tier": "A",
     "cost": 13,
     "image": "https://www.serebii.net/pokemonhome/pokemon/009-m.png",
-    "base_speed": 78
+    "base_speed": 78,
+    "stats": {
+      "hp": 79,
+      "atk": 103,
+      "def": 120,
+      "spa": 135,
+      "spd": 115,
+      "spe": 78
+    }
   },
   {
     "name": "Mega-Fennexis",
@@ -283,7 +451,15 @@
     "tier": "A",
     "cost": 13,
     "image": "https://www.serebii.net/pokemonhome/pokemon/655-m.png",
-    "base_speed": 134
+    "base_speed": 134,
+    "stats": {
+      "hp": 75,
+      "atk": 69,
+      "def": 72,
+      "spa": 159,
+      "spd": 125,
+      "spe": 134
+    }
   },
   {
     "name": "Mega-Despotar",
@@ -296,7 +472,15 @@
     "tier": "A",
     "cost": 13,
     "image": "https://www.serebii.net/pokemonhome/pokemon/248-m.png",
-    "base_speed": 71
+    "base_speed": 71,
+    "stats": {
+      "hp": 100,
+      "atk": 164,
+      "def": 150,
+      "spa": 95,
+      "spd": 120,
+      "spe": 71
+    }
   },
   {
     "name": "Durengard",
@@ -309,7 +493,15 @@
     "tier": "A",
     "cost": 16,
     "image": "https://www.serebii.net/pokemonhome/pokemon/681.png",
-    "base_speed": 60
+    "base_speed": 60,
+    "stats": {
+      "hp": 60,
+      "atk": 50,
+      "def": 140,
+      "spa": 50,
+      "spd": 140,
+      "spe": 60
+    }
   },
   {
     "name": "Dragoran",
@@ -322,7 +514,15 @@
     "tier": "A",
     "cost": 16,
     "image": "https://www.serebii.net/pokemonhome/pokemon/149.png",
-    "base_speed": 80
+    "base_speed": 80,
+    "stats": {
+      "hp": 91,
+      "atk": 134,
+      "def": 95,
+      "spa": 100,
+      "spd": 100,
+      "spe": 80
+    }
   },
   {
     "name": "Farigiraf",
@@ -335,7 +535,15 @@
     "tier": "S",
     "cost": 20,
     "image": "https://www.serebii.net/pokemonhome/pokemon/981.png",
-    "base_speed": 60
+    "base_speed": 60,
+    "stats": {
+      "hp": 120,
+      "atk": 90,
+      "def": 70,
+      "spa": 110,
+      "spd": 70,
+      "spe": 60
+    }
   },
   {
     "name": "Famieps",
@@ -347,7 +555,15 @@
     "tier": "A",
     "cost": 16,
     "image": "https://www.serebii.net/pokemonhome/pokemon/925.png",
-    "base_speed": 111
+    "base_speed": 111,
+    "stats": {
+      "hp": 74,
+      "atk": 75,
+      "def": 70,
+      "spa": 65,
+      "spd": 75,
+      "spe": 111
+    }
   },
   {
     "name": "Mega-Lumiflora",
@@ -360,7 +576,15 @@
     "tier": "A",
     "cost": 16,
     "image": "https://www.serebii.net/pokemonhome/pokemon/970-m.png",
-    "base_speed": 101
+    "base_speed": 101,
+    "stats": {
+      "hp": 83,
+      "atk": 90,
+      "def": 105,
+      "spa": 150,
+      "spd": 96,
+      "spe": 101
+    }
   },
   {
     "name": "Mega-Schlapor",
@@ -373,7 +597,15 @@
     "tier": "A",
     "cost": 16,
     "image": "https://www.serebii.net/pokemonhome/pokemon/428-m.png",
-    "base_speed": 135
+    "base_speed": 135,
+    "stats": {
+      "hp": 65,
+      "atk": 136,
+      "def": 94,
+      "spa": 54,
+      "spd": 96,
+      "spe": 135
+    }
   },
   {
     "name": "Pelipper",
@@ -386,7 +618,15 @@
     "tier": "S",
     "cost": 20,
     "image": "https://www.serebii.net/pokemonhome/pokemon/279.png",
-    "base_speed": 65
+    "base_speed": 65,
+    "stats": {
+      "hp": 60,
+      "atk": 50,
+      "def": 100,
+      "spa": 95,
+      "spd": 70,
+      "spe": 65
+    }
   },
   {
     "name": "Despotar",
@@ -399,7 +639,15 @@
     "tier": "A",
     "cost": 16,
     "image": "https://www.serebii.net/pokemonhome/pokemon/248.png",
-    "base_speed": 61
+    "base_speed": 61,
+    "stats": {
+      "hp": 100,
+      "atk": 134,
+      "def": 110,
+      "spa": 95,
+      "spd": 100,
+      "spe": 61
+    }
   },
   {
     "name": "Ramoth",
@@ -412,7 +660,15 @@
     "tier": "A",
     "cost": 16,
     "image": "https://www.serebii.net/pokemonhome/pokemon/637.png",
-    "base_speed": 100
+    "base_speed": 100,
+    "stats": {
+      "hp": 85,
+      "atk": 60,
+      "def": 65,
+      "spa": 135,
+      "spd": 105,
+      "spe": 100
+    }
   },
   {
     "name": "Servol (männlich)",
@@ -426,7 +682,15 @@
     "cost": 16,
     "image": "https://www.serebii.net/pokemonhome/pokemon/876.png",
     "base_speed": 95,
-    "since": 2
+    "since": 2,
+    "stats": {
+      "hp": 60,
+      "atk": 65,
+      "def": 55,
+      "spa": 105,
+      "spd": 95,
+      "spe": 95
+    }
   },
   {
     "name": "Mega-Espinodon",
@@ -440,7 +704,15 @@
     "cost": 16,
     "image": "https://www.serebii.net/pokemonhome/pokemon/998-m.png",
     "base_speed": 87,
-    "since": 2
+    "since": 2,
+    "stats": {
+      "hp": 115,
+      "atk": 175,
+      "def": 117,
+      "spa": 105,
+      "spd": 101,
+      "spe": 87
+    }
   },
   {
     "name": "Pixi",
@@ -452,7 +724,15 @@
     "tier": "A",
     "cost": 15,
     "image": "https://www.serebii.net/pokemonhome/pokemon/036.png",
-    "base_speed": 60
+    "base_speed": 60,
+    "stats": {
+      "hp": 95,
+      "atk": 70,
+      "def": 73,
+      "spa": 95,
+      "spd": 90,
+      "spe": 60
+    }
   },
   {
     "name": "Katapuldra",
@@ -465,7 +745,15 @@
     "tier": "A",
     "cost": 15,
     "image": "https://www.serebii.net/pokemonhome/pokemon/887.png",
-    "base_speed": 142
+    "base_speed": 142,
+    "stats": {
+      "hp": 88,
+      "atk": 120,
+      "def": 75,
+      "spa": 100,
+      "spd": 75,
+      "spe": 142
+    }
   },
   {
     "name": "Hisui-Arkani",
@@ -478,7 +766,15 @@
     "tier": "B",
     "cost": 11,
     "image": "https://www.serebii.net/pokemonhome/pokemon/059-h.png",
-    "base_speed": 90
+    "base_speed": 90,
+    "stats": {
+      "hp": 95,
+      "atk": 115,
+      "def": 80,
+      "spa": 95,
+      "spd": 80,
+      "spe": 90
+    }
   },
   {
     "name": "Mega-Glurak X",
@@ -491,7 +787,15 @@
     "tier": "A",
     "cost": 15,
     "image": "https://www.serebii.net/pokemonhome/pokemon/006-mx.png",
-    "base_speed": 100
+    "base_speed": 100,
+    "stats": {
+      "hp": 78,
+      "atk": 130,
+      "def": 111,
+      "spa": 130,
+      "spd": 85,
+      "spe": 100
+    }
   },
   {
     "name": "Mega-Dragoran",
@@ -504,7 +808,15 @@
     "tier": "B",
     "cost": 11,
     "image": "https://www.serebii.net/pokemonhome/pokemon/149-m.png",
-    "base_speed": 100
+    "base_speed": 100,
+    "stats": {
+      "hp": 91,
+      "atk": 124,
+      "def": 115,
+      "spa": 145,
+      "spd": 125,
+      "spe": 100
+    }
   },
   {
     "name": "Mega-Lucario",
@@ -517,7 +829,15 @@
     "tier": "A",
     "cost": 15,
     "image": "https://www.serebii.net/pokemonhome/pokemon/448-m.png",
-    "base_speed": 112
+    "base_speed": 112,
+    "stats": {
+      "hp": 70,
+      "atk": 145,
+      "def": 88,
+      "spa": 140,
+      "spd": 70,
+      "spe": 112
+    }
   },
   {
     "name": "Mega-Scherox",
@@ -530,7 +850,15 @@
     "tier": "A",
     "cost": 15,
     "image": "https://www.serebii.net/pokemonhome/pokemon/212-m.png",
-    "base_speed": 75
+    "base_speed": 75,
+    "stats": {
+      "hp": 70,
+      "atk": 150,
+      "def": 140,
+      "spa": 65,
+      "spd": 100,
+      "spe": 75
+    }
   },
   {
     "name": "Mega-Starmie",
@@ -543,7 +871,15 @@
     "tier": "A",
     "cost": 15,
     "image": "https://www.serebii.net/pokemonhome/pokemon/121-m.png",
-    "base_speed": 120
+    "base_speed": 120,
+    "stats": {
+      "hp": 60,
+      "atk": 100,
+      "def": 105,
+      "spa": 130,
+      "spd": 105,
+      "spe": 120
+    }
   },
   {
     "name": "Primarene",
@@ -556,7 +892,15 @@
     "tier": "A",
     "cost": 15,
     "image": "https://www.serebii.net/pokemonhome/pokemon/730.png",
-    "base_speed": 60
+    "base_speed": 60,
+    "stats": {
+      "hp": 80,
+      "atk": 74,
+      "def": 74,
+      "spa": 126,
+      "spd": 116,
+      "spe": 60
+    }
   },
   {
     "name": "Feelinara",
@@ -568,7 +912,15 @@
     "tier": "A",
     "cost": 15,
     "image": "https://www.serebii.net/pokemonhome/pokemon/700.png",
-    "base_speed": 60
+    "base_speed": 60,
+    "stats": {
+      "hp": 95,
+      "atk": 65,
+      "def": 65,
+      "spa": 110,
+      "spd": 130,
+      "spe": 60
+    }
   },
   {
     "name": "Fiaro",
@@ -581,7 +933,15 @@
     "tier": "A",
     "cost": 15,
     "image": "https://www.serebii.net/pokemonhome/pokemon/663.png",
-    "base_speed": 126
+    "base_speed": 126,
+    "stats": {
+      "hp": 78,
+      "atk": 81,
+      "def": 71,
+      "spa": 74,
+      "spd": 69,
+      "spe": 126
+    }
   },
   {
     "name": "Qurtel",
@@ -593,7 +953,15 @@
     "tier": "A",
     "cost": 15,
     "image": "https://www.serebii.net/pokemonhome/pokemon/324.png",
-    "base_speed": 20
+    "base_speed": 20,
+    "stats": {
+      "hp": 70,
+      "atk": 85,
+      "def": 140,
+      "spa": 85,
+      "spd": 70,
+      "spe": 20
+    }
   },
   {
     "name": "Mega-Knakrack Z",
@@ -606,7 +974,15 @@
     "cost": 15,
     "image": "https://www.serebii.net/pokemonhome/pokemon/445-mz.png",
     "base_speed": 151,
-    "since": 2
+    "since": 2,
+    "stats": {
+      "hp": 108,
+      "atk": 130,
+      "def": 85,
+      "spa": 141,
+      "spd": 85,
+      "spe": 151
+    }
   },
   {
     "name": "Mega-Lucario Z",
@@ -620,7 +996,15 @@
     "cost": 15,
     "image": "https://www.serebii.net/pokemonhome/pokemon/448-mz.png",
     "base_speed": 151,
-    "since": 2
+    "since": 2,
+    "stats": {
+      "hp": 70,
+      "atk": 100,
+      "def": 70,
+      "spa": 164,
+      "spd": 70,
+      "spe": 151
+    }
   },
   {
     "name": "Alola-Vulnona",
@@ -633,7 +1017,15 @@
     "tier": "B",
     "cost": 10,
     "image": "https://www.serebii.net/pokemonhome/pokemon/038-a.png",
-    "base_speed": 109
+    "base_speed": 109,
+    "stats": {
+      "hp": 73,
+      "atk": 67,
+      "def": 75,
+      "spa": 81,
+      "spd": 100,
+      "spe": 109
+    }
   },
   {
     "name": "Arkani",
@@ -645,7 +1037,15 @@
     "tier": "B",
     "cost": 10,
     "image": "https://www.serebii.net/pokemonhome/pokemon/059.png",
-    "base_speed": 95
+    "base_speed": 95,
+    "stats": {
+      "hp": 90,
+      "atk": 110,
+      "def": 80,
+      "spa": 100,
+      "spd": 80,
+      "spe": 95
+    }
   },
   {
     "name": "Trikephalo",
@@ -658,7 +1058,15 @@
     "tier": "B",
     "cost": 10,
     "image": "https://www.serebii.net/pokemonhome/pokemon/635.png",
-    "base_speed": 98
+    "base_speed": 98,
+    "stats": {
+      "hp": 92,
+      "atk": 105,
+      "def": 90,
+      "spa": 125,
+      "spd": 90,
+      "spe": 98
+    }
   },
   {
     "name": "Grandiras",
@@ -671,7 +1079,15 @@
     "tier": "A",
     "cost": 14,
     "image": "https://www.serebii.net/pokemonhome/pokemon/784.png",
-    "base_speed": 85
+    "base_speed": 85,
+    "stats": {
+      "hp": 75,
+      "atk": 110,
+      "def": 125,
+      "spa": 100,
+      "spd": 105,
+      "spe": 85
+    }
   },
   {
     "name": "Mega-Pixi",
@@ -684,7 +1100,15 @@
     "tier": "B",
     "cost": 10,
     "image": "https://www.serebii.net/pokemonhome/pokemon/036-m.png",
-    "base_speed": 70
+    "base_speed": 70,
+    "stats": {
+      "hp": 95,
+      "atk": 80,
+      "def": 93,
+      "spa": 135,
+      "spd": 110,
+      "spe": 70
+    }
   },
   {
     "name": "Mega-Knakrack",
@@ -697,7 +1121,15 @@
     "tier": "B",
     "cost": 10,
     "image": "https://www.serebii.net/pokemonhome/pokemon/445-m.png",
-    "base_speed": 92
+    "base_speed": 92,
+    "stats": {
+      "hp": 108,
+      "atk": 170,
+      "def": 115,
+      "spa": 120,
+      "spd": 95,
+      "spe": 92
+    }
   },
   {
     "name": "Mega-Garados",
@@ -710,7 +1142,15 @@
     "tier": "B",
     "cost": 10,
     "image": "https://www.serebii.net/pokemonhome/pokemon/130-m.png",
-    "base_speed": 81
+    "base_speed": 81,
+    "stats": {
+      "hp": 95,
+      "atk": 155,
+      "def": 109,
+      "spa": 70,
+      "spd": 130,
+      "spe": 81
+    }
   },
   {
     "name": "Mega-Meganie",
@@ -723,7 +1163,15 @@
     "tier": "B",
     "cost": 10,
     "image": "https://www.serebii.net/pokemonhome/pokemon/154-m.png",
-    "base_speed": 80
+    "base_speed": 80,
+    "stats": {
+      "hp": 80,
+      "atk": 92,
+      "def": 115,
+      "spa": 143,
+      "spd": 115,
+      "spe": 80
+    }
   },
   {
     "name": "Mega-Halupenjo",
@@ -736,7 +1184,15 @@
     "tier": "B",
     "cost": 10,
     "image": "https://www.serebii.net/pokemonhome/pokemon/952-m.png",
-    "base_speed": 75
+    "base_speed": 75,
+    "stats": {
+      "hp": 65,
+      "atk": 138,
+      "def": 85,
+      "spa": 138,
+      "spd": 85,
+      "spe": 75
+    }
   },
   {
     "name": "Mega-Bisaflor",
@@ -749,7 +1205,15 @@
     "tier": "B",
     "cost": 10,
     "image": "https://www.serebii.net/pokemonhome/pokemon/003-m.png",
-    "base_speed": 80
+    "base_speed": 80,
+    "stats": {
+      "hp": 80,
+      "atk": 100,
+      "def": 123,
+      "spa": 122,
+      "spd": 120,
+      "spe": 80
+    }
   },
   {
     "name": "Milotic",
@@ -761,7 +1225,15 @@
     "tier": "B",
     "cost": 10,
     "image": "https://www.serebii.net/pokemonhome/pokemon/350.png",
-    "base_speed": 81
+    "base_speed": 81,
+    "stats": {
+      "hp": 95,
+      "atk": 60,
+      "def": 79,
+      "spa": 100,
+      "spd": 125,
+      "spe": 81
+    }
   },
   {
     "name": "Wasch-Rotom",
@@ -774,7 +1246,15 @@
     "tier": "B",
     "cost": 10,
     "image": "https://www.serebii.net/pokemonhome/pokemon/479-w.png",
-    "base_speed": 86
+    "base_speed": 86,
+    "stats": {
+      "hp": 50,
+      "atk": 65,
+      "def": 107,
+      "spa": 105,
+      "spd": 107,
+      "spe": 86
+    }
   },
   {
     "name": "Espinodon",
@@ -788,7 +1268,15 @@
     "cost": 14,
     "image": "https://www.serebii.net/pokemonhome/pokemon/998.png",
     "base_speed": 87,
-    "since": 2
+    "since": 2,
+    "stats": {
+      "hp": 115,
+      "atk": 145,
+      "def": 92,
+      "spa": 75,
+      "spd": 86,
+      "spe": 87
+    }
   },
   {
     "name": "Brutalanda",
@@ -802,7 +1290,15 @@
     "cost": 10,
     "image": "https://www.serebii.net/pokemonhome/pokemon/373.png",
     "base_speed": 100,
-    "since": 2
+    "since": 2,
+    "stats": {
+      "hp": 95,
+      "atk": 135,
+      "def": 80,
+      "spa": 110,
+      "spd": 80,
+      "spe": 100
+    }
   },
   {
     "name": "Krarmor",
@@ -815,7 +1311,15 @@
     "tier": "A",
     "cost": 13,
     "image": "https://www.serebii.net/pokemonhome/pokemon/823.png",
-    "base_speed": 67
+    "base_speed": 67,
+    "stats": {
+      "hp": 98,
+      "atk": 87,
+      "def": 105,
+      "spa": 53,
+      "spd": 85,
+      "spe": 67
+    }
   },
   {
     "name": "Stalobor",
@@ -828,7 +1332,15 @@
     "tier": "B",
     "cost": 9,
     "image": "https://www.serebii.net/pokemonhome/pokemon/530.png",
-    "base_speed": 88
+    "base_speed": 88,
+    "stats": {
+      "hp": 110,
+      "atk": 135,
+      "def": 60,
+      "spa": 50,
+      "spd": 65,
+      "spe": 88
+    }
   },
   {
     "name": "Lumiflora",
@@ -841,7 +1353,15 @@
     "tier": "B",
     "cost": 9,
     "image": "https://www.serebii.net/pokemonhome/pokemon/970.png",
-    "base_speed": 86
+    "base_speed": 86,
+    "stats": {
+      "hp": 83,
+      "atk": 55,
+      "def": 90,
+      "spa": 130,
+      "spd": 81,
+      "spe": 86
+    }
   },
   {
     "name": "Garados",
@@ -854,7 +1374,15 @@
     "tier": "B",
     "cost": 9,
     "image": "https://www.serebii.net/pokemonhome/pokemon/130.png",
-    "base_speed": 81
+    "base_speed": 81,
+    "stats": {
+      "hp": 95,
+      "atk": 125,
+      "def": 79,
+      "spa": 60,
+      "spd": 100,
+      "spe": 81
+    }
   },
   {
     "name": "Mega-Stalobor",
@@ -867,7 +1395,15 @@
     "tier": "B",
     "cost": 9,
     "image": "https://www.serebii.net/pokemonhome/pokemon/530-m.png",
-    "base_speed": 103
+    "base_speed": 103,
+    "stats": {
+      "hp": 110,
+      "atk": 165,
+      "def": 100,
+      "spa": 65,
+      "spd": 65,
+      "spe": 103
+    }
   },
   {
     "name": "Quaxo",
@@ -879,7 +1415,15 @@
     "tier": "B",
     "cost": 9,
     "image": "https://www.serebii.net/pokemonhome/pokemon/186.png",
-    "base_speed": 70
+    "base_speed": 70,
+    "stats": {
+      "hp": 90,
+      "atk": 75,
+      "def": 75,
+      "spa": 90,
+      "spd": 100,
+      "spe": 70
+    }
   },
   {
     "name": "Bisaflor",
@@ -892,7 +1436,15 @@
     "tier": "B",
     "cost": 9,
     "image": "https://www.serebii.net/pokemonhome/pokemon/003.png",
-    "base_speed": 80
+    "base_speed": 80,
+    "stats": {
+      "hp": 80,
+      "atk": 82,
+      "def": 83,
+      "spa": 100,
+      "spd": 100,
+      "spe": 80
+    }
   },
   {
     "name": "Pamomamo",
@@ -906,7 +1458,15 @@
     "cost": 9,
     "image": "https://www.serebii.net/pokemonhome/pokemon/923.png",
     "base_speed": 105,
-    "since": 2
+    "since": 2,
+    "stats": {
+      "hp": 70,
+      "atk": 115,
+      "def": 70,
+      "spa": 70,
+      "spd": 60,
+      "spe": 105
+    }
   },
   {
     "name": "Azumarill",
@@ -919,7 +1479,15 @@
     "tier": "B",
     "cost": 12,
     "image": "https://www.serebii.net/pokemonhome/pokemon/184.png",
-    "base_speed": 50
+    "base_speed": 50,
+    "stats": {
+      "hp": 100,
+      "atk": 50,
+      "def": 80,
+      "spa": 60,
+      "spd": 80,
+      "spe": 50
+    }
   },
   {
     "name": "Salmagnis ♀",
@@ -932,7 +1500,15 @@
     "tier": "B",
     "cost": 12,
     "image": "https://www.serebii.net/pokemonhome/pokemon/902-f.png",
-    "base_speed": 78
+    "base_speed": 78,
+    "stats": {
+      "hp": 120,
+      "atk": 92,
+      "def": 65,
+      "spa": 100,
+      "spd": 75,
+      "spe": 78
+    }
   },
   {
     "name": "Mamutel",
@@ -945,7 +1521,15 @@
     "tier": "B",
     "cost": 12,
     "image": "https://www.serebii.net/pokemonhome/pokemon/473.png",
-    "base_speed": 80
+    "base_speed": 80,
+    "stats": {
+      "hp": 110,
+      "atk": 130,
+      "def": 80,
+      "spa": 70,
+      "spd": 60,
+      "spe": 80
+    }
   },
   {
     "name": "Mega-Simsala",
@@ -957,7 +1541,15 @@
     "tier": "B",
     "cost": 12,
     "image": "https://www.serebii.net/pokemonhome/pokemon/065-m.png",
-    "base_speed": 150
+    "base_speed": 150,
+    "stats": {
+      "hp": 55,
+      "atk": 50,
+      "def": 65,
+      "spa": 175,
+      "spd": 105,
+      "spe": 150
+    }
   },
   {
     "name": "Mega-Galagladi",
@@ -970,7 +1562,15 @@
     "tier": "B",
     "cost": 12,
     "image": "https://www.serebii.net/pokemonhome/pokemon/475-m.png",
-    "base_speed": 110
+    "base_speed": 110,
+    "stats": {
+      "hp": 68,
+      "atk": 165,
+      "def": 95,
+      "spa": 65,
+      "spd": 115,
+      "spe": 110
+    }
   },
   {
     "name": "Mega-Quajutsu",
@@ -983,7 +1583,15 @@
     "tier": "B",
     "cost": 12,
     "image": "https://www.serebii.net/pokemonhome/pokemon/658-m.png",
-    "base_speed": 142
+    "base_speed": 142,
+    "stats": {
+      "hp": 72,
+      "atk": 125,
+      "def": 77,
+      "spa": 133,
+      "spd": 81,
+      "spe": 142
+    }
   },
   {
     "name": "Mega-Meditalis",
@@ -996,7 +1604,15 @@
     "tier": "B",
     "cost": 12,
     "image": "https://www.serebii.net/pokemonhome/pokemon/308-m.png",
-    "base_speed": 100
+    "base_speed": 100,
+    "stats": {
+      "hp": 60,
+      "atk": 100,
+      "def": 85,
+      "spa": 80,
+      "spd": 85,
+      "spe": 100
+    }
   },
   {
     "name": "Maskagato",
@@ -1009,7 +1625,15 @@
     "tier": "A",
     "cost": 16,
     "image": "https://www.serebii.net/pokemonhome/pokemon/908.png",
-    "base_speed": 123
+    "base_speed": 123,
+    "stats": {
+      "hp": 76,
+      "atk": 110,
+      "def": 70,
+      "spa": 81,
+      "spd": 70,
+      "spe": 123
+    }
   },
   {
     "name": "Delfinator",
@@ -1021,7 +1645,15 @@
     "tier": "B",
     "cost": 12,
     "image": "https://www.serebii.net/pokemonhome/pokemon/964.png",
-    "base_speed": 100
+    "base_speed": 100,
+    "stats": {
+      "hp": 100,
+      "atk": 70,
+      "def": 72,
+      "spa": 53,
+      "spd": 62,
+      "spe": 100
+    }
   },
   {
     "name": "Hitze-Rotom",
@@ -1034,7 +1666,15 @@
     "tier": "A",
     "cost": 16,
     "image": "https://www.serebii.net/pokemonhome/pokemon/479-h.png",
-    "base_speed": 86
+    "base_speed": 86,
+    "stats": {
+      "hp": 50,
+      "atk": 65,
+      "def": 107,
+      "spa": 105,
+      "spd": 107,
+      "spe": 86
+    }
   },
   {
     "name": "Aranestro",
@@ -1047,7 +1687,15 @@
     "tier": "B",
     "cost": 11,
     "image": "https://www.serebii.net/pokemonhome/pokemon/752.png",
-    "base_speed": 42
+    "base_speed": 42,
+    "stats": {
+      "hp": 68,
+      "atk": 70,
+      "def": 92,
+      "spa": 50,
+      "spd": 132,
+      "spe": 42
+    }
   },
   {
     "name": "Floette (Ewige Blume)",
@@ -1059,7 +1707,15 @@
     "tier": "B",
     "cost": 11,
     "image": "https://www.serebii.net/pokemonhome/pokemon/670-e.png",
-    "base_speed": 92
+    "base_speed": 92,
+    "stats": {
+      "hp": 74,
+      "atk": 65,
+      "def": 67,
+      "spa": 125,
+      "spd": 128,
+      "spe": 92
+    }
   },
   {
     "name": "Clavion",
@@ -1072,7 +1728,15 @@
     "tier": "B",
     "cost": 11,
     "image": "https://www.serebii.net/pokemonhome/pokemon/707.png",
-    "base_speed": 75
+    "base_speed": 75,
+    "stats": {
+      "hp": 57,
+      "atk": 80,
+      "def": 91,
+      "spa": 80,
+      "spd": 87,
+      "spe": 75
+    }
   },
   {
     "name": "Mega-Panzaeron",
@@ -1085,7 +1749,15 @@
     "tier": "B",
     "cost": 11,
     "image": "https://www.serebii.net/pokemonhome/pokemon/227-m.png",
-    "base_speed": 110
+    "base_speed": 110,
+    "stats": {
+      "hp": 65,
+      "atk": 140,
+      "def": 110,
+      "spa": 40,
+      "spd": 100,
+      "spe": 110
+    }
   },
   {
     "name": "Psiaugon ♂",
@@ -1097,7 +1769,15 @@
     "tier": "B",
     "cost": 11,
     "image": "https://www.serebii.net/pokemonhome/pokemon/678.png",
-    "base_speed": 104
+    "base_speed": 104,
+    "stats": {
+      "hp": 74,
+      "atk": 48,
+      "def": 76,
+      "spa": 83,
+      "spd": 81,
+      "spe": 104
+    }
   },
   {
     "name": "Mimigma",
@@ -1110,7 +1790,15 @@
     "tier": "B",
     "cost": 11,
     "image": "https://www.serebii.net/pokemonhome/pokemon/778.png",
-    "base_speed": 96
+    "base_speed": 96,
+    "stats": {
+      "hp": 55,
+      "atk": 90,
+      "def": 80,
+      "spa": 50,
+      "spd": 105,
+      "spe": 96
+    }
   },
   {
     "name": "Vulnona",
@@ -1122,7 +1810,15 @@
     "tier": "B",
     "cost": 11,
     "image": "https://www.serebii.net/pokemonhome/pokemon/038.png",
-    "base_speed": 100
+    "base_speed": 100,
+    "stats": {
+      "hp": 73,
+      "atk": 76,
+      "def": 75,
+      "spa": 81,
+      "spd": 100,
+      "spe": 100
+    }
   },
   {
     "name": "Paldea-Tauros (Wasser)",
@@ -1135,7 +1831,15 @@
     "tier": "B",
     "cost": 11,
     "image": "https://www.serebii.net/pokemonhome/pokemon/128-a.png",
-    "base_speed": 100
+    "base_speed": 100,
+    "stats": {
+      "hp": 75,
+      "atk": 110,
+      "def": 105,
+      "spa": 30,
+      "spd": 70,
+      "spe": 100
+    }
   },
   {
     "name": "Schneid-Rotom",
@@ -1148,7 +1852,15 @@
     "tier": "B",
     "cost": 11,
     "image": "https://www.serebii.net/pokemonhome/pokemon/479-m.png",
-    "base_speed": 86
+    "base_speed": 86,
+    "stats": {
+      "hp": 50,
+      "atk": 65,
+      "def": 107,
+      "spa": 105,
+      "spd": 107,
+      "spe": 86
+    }
   },
   {
     "name": "Zobiris",
@@ -1161,7 +1873,15 @@
     "tier": "A",
     "cost": 15,
     "image": "https://www.serebii.net/pokemonhome/pokemon/302.png",
-    "base_speed": 50
+    "base_speed": 50,
+    "stats": {
+      "hp": 50,
+      "atk": 75,
+      "def": 75,
+      "spa": 65,
+      "spd": 65,
+      "spe": 50
+    }
   },
   {
     "name": "Scherox",
@@ -1174,7 +1894,15 @@
     "tier": "B",
     "cost": 11,
     "image": "https://www.serebii.net/pokemonhome/pokemon/212.png",
-    "base_speed": 65
+    "base_speed": 65,
+    "stats": {
+      "hp": 70,
+      "atk": 130,
+      "def": 100,
+      "spa": 55,
+      "spd": 80,
+      "spe": 65
+    }
   },
   {
     "name": "Granforgita",
@@ -1187,7 +1915,15 @@
     "tier": "B",
     "cost": 11,
     "image": "https://www.serebii.net/pokemonhome/pokemon/959.png",
-    "base_speed": 94
+    "base_speed": 94,
+    "stats": {
+      "hp": 85,
+      "atk": 75,
+      "def": 77,
+      "spa": 70,
+      "spd": 105,
+      "spe": 94
+    }
   },
   {
     "name": "Liberlo",
@@ -1200,7 +1936,15 @@
     "cost": 11,
     "image": "https://www.serebii.net/pokemonhome/pokemon/815.png",
     "base_speed": 119,
-    "since": 2
+    "since": 2,
+    "stats": {
+      "hp": 80,
+      "atk": 116,
+      "def": 75,
+      "spa": 65,
+      "spd": 75,
+      "spe": 119
+    }
   },
   {
     "name": "Guardevoir",
@@ -1213,7 +1957,15 @@
     "tier": "C",
     "cost": 6,
     "image": "https://www.serebii.net/pokemonhome/pokemon/282.png",
-    "base_speed": 80
+    "base_speed": 80,
+    "stats": {
+      "hp": 68,
+      "atk": 65,
+      "def": 65,
+      "spa": 125,
+      "spd": 115,
+      "spe": 80
+    }
   },
   {
     "name": "Kleoparda",
@@ -1225,7 +1977,15 @@
     "tier": "C",
     "cost": 6,
     "image": "https://www.serebii.net/pokemonhome/pokemon/510.png",
-    "base_speed": 106
+    "base_speed": 106,
+    "stats": {
+      "hp": 64,
+      "atk": 88,
+      "def": 50,
+      "spa": 88,
+      "spd": 50,
+      "spe": 106
+    }
   },
   {
     "name": "Mega-Camerupt",
@@ -1238,7 +1998,15 @@
     "tier": "C",
     "cost": 6,
     "image": "https://www.serebii.net/pokemonhome/pokemon/323-m.png",
-    "base_speed": 20
+    "base_speed": 20,
+    "stats": {
+      "hp": 70,
+      "atk": 120,
+      "def": 100,
+      "spa": 145,
+      "spd": 105,
+      "spe": 20
+    }
   },
   {
     "name": "Mega-Golgantes",
@@ -1251,7 +2019,15 @@
     "tier": "C",
     "cost": 6,
     "image": "https://www.serebii.net/pokemonhome/pokemon/623-m.png",
-    "base_speed": 55
+    "base_speed": 55,
+    "stats": {
+      "hp": 89,
+      "atk": 159,
+      "def": 105,
+      "spa": 70,
+      "spd": 105,
+      "spe": 55
+    }
   },
   {
     "name": "Mega-Resladero",
@@ -1264,7 +2040,15 @@
     "tier": "C",
     "cost": 6,
     "image": "https://www.serebii.net/pokemonhome/pokemon/701-m.png",
-    "base_speed": 118
+    "base_speed": 118,
+    "stats": {
+      "hp": 78,
+      "atk": 137,
+      "def": 100,
+      "spa": 74,
+      "spd": 93,
+      "spe": 118
+    }
   },
   {
     "name": "Mega-Voltenso",
@@ -1276,7 +2060,15 @@
     "tier": "C",
     "cost": 6,
     "image": "https://www.serebii.net/pokemonhome/pokemon/310-m.png",
-    "base_speed": 135
+    "base_speed": 135,
+    "stats": {
+      "hp": 70,
+      "atk": 75,
+      "def": 80,
+      "spa": 135,
+      "spd": 80,
+      "spe": 135
+    }
   },
   {
     "name": "Kommandutan",
@@ -1289,7 +2081,15 @@
     "tier": "B",
     "cost": 10,
     "image": "https://www.serebii.net/pokemonhome/pokemon/765.png",
-    "base_speed": 60
+    "base_speed": 60,
+    "stats": {
+      "hp": 90,
+      "atk": 60,
+      "def": 80,
+      "spa": 90,
+      "spd": 110,
+      "spe": 60
+    }
   },
   {
     "name": "Raichu",
@@ -1301,7 +2101,15 @@
     "tier": "C",
     "cost": 6,
     "image": "https://www.serebii.net/pokemonhome/pokemon/026.png",
-    "base_speed": 110
+    "base_speed": 110,
+    "stats": {
+      "hp": 60,
+      "atk": 90,
+      "def": 55,
+      "spa": 90,
+      "spd": 80,
+      "spe": 110
+    }
   },
   {
     "name": "Amfira",
@@ -1314,7 +2122,15 @@
     "tier": "C",
     "cost": 6,
     "image": "https://www.serebii.net/pokemonhome/pokemon/758.png",
-    "base_speed": 117
+    "base_speed": 117,
+    "stats": {
+      "hp": 68,
+      "atk": 64,
+      "def": 60,
+      "spa": 111,
+      "spd": 60,
+      "spe": 117
+    }
   },
   {
     "name": "Vivillon",
@@ -1327,7 +2143,15 @@
     "tier": "B",
     "cost": 10,
     "image": "https://www.serebii.net/pokemonhome/pokemon/666.png",
-    "base_speed": 89
+    "base_speed": 89,
+    "stats": {
+      "hp": 80,
+      "atk": 52,
+      "def": 50,
+      "spa": 90,
+      "spd": 50,
+      "spe": 89
+    }
   },
   {
     "name": "Mega-Absol Z",
@@ -1341,7 +2165,15 @@
     "cost": 10,
     "image": "https://www.serebii.net/pokemonhome/pokemon/359-mz.png",
     "base_speed": 151,
-    "since": 2
+    "since": 2,
+    "stats": {
+      "hp": 65,
+      "atk": 154,
+      "def": 60,
+      "spa": 75,
+      "spd": 60,
+      "spe": 151
+    }
   },
   {
     "name": "Intelleon",
@@ -1354,7 +2186,15 @@
     "cost": 10,
     "image": "https://www.serebii.net/pokemonhome/pokemon/818.png",
     "base_speed": 120,
-    "since": 2
+    "since": 2,
+    "stats": {
+      "hp": 70,
+      "atk": 85,
+      "def": 65,
+      "spa": 125,
+      "spd": 65,
+      "spe": 120
+    }
   },
   {
     "name": "Lauchzelot",
@@ -1367,7 +2207,15 @@
     "cost": 10,
     "image": "https://www.serebii.net/pokemonhome/pokemon/865.png",
     "base_speed": 65,
-    "since": 2
+    "since": 2,
+    "stats": {
+      "hp": 62,
+      "atk": 135,
+      "def": 95,
+      "spa": 68,
+      "spd": 82,
+      "spe": 65
+    }
   },
   {
     "name": "Turtok",
@@ -1379,7 +2227,15 @@
     "tier": "C",
     "cost": 5,
     "image": "https://www.serebii.net/pokemonhome/pokemon/009.png",
-    "base_speed": 78
+    "base_speed": 78,
+    "stats": {
+      "hp": 79,
+      "atk": 83,
+      "def": 100,
+      "spa": 85,
+      "spd": 105,
+      "spe": 78
+    }
   },
   {
     "name": "Silembrim",
@@ -1392,7 +2248,15 @@
     "tier": "C",
     "cost": 5,
     "image": "https://www.serebii.net/pokemonhome/pokemon/858.png",
-    "base_speed": 29
+    "base_speed": 29,
+    "stats": {
+      "hp": 57,
+      "atk": 90,
+      "def": 95,
+      "spa": 136,
+      "spd": 103,
+      "spe": 29
+    }
   },
   {
     "name": "Hisui-Zoroark",
@@ -1405,7 +2269,15 @@
     "tier": "C",
     "cost": 5,
     "image": "https://www.serebii.net/pokemonhome/pokemon/571-h.png",
-    "base_speed": 110
+    "base_speed": 110,
+    "stats": {
+      "hp": 55,
+      "atk": 100,
+      "def": 60,
+      "spa": 125,
+      "spd": 60,
+      "spe": 110
+    }
   },
   {
     "name": "Rabigator",
@@ -1418,7 +2290,15 @@
     "tier": "B",
     "cost": 9,
     "image": "https://www.serebii.net/pokemonhome/pokemon/553.png",
-    "base_speed": 92
+    "base_speed": 92,
+    "stats": {
+      "hp": 95,
+      "atk": 117,
+      "def": 80,
+      "spa": 65,
+      "spd": 70,
+      "spe": 92
+    }
   },
   {
     "name": "Mega-Altaria",
@@ -1431,7 +2311,15 @@
     "tier": "C",
     "cost": 5,
     "image": "https://www.serebii.net/pokemonhome/pokemon/334-m.png",
-    "base_speed": 80
+    "base_speed": 80,
+    "stats": {
+      "hp": 75,
+      "atk": 110,
+      "def": 110,
+      "spa": 110,
+      "spd": 105,
+      "spe": 80
+    }
   },
   {
     "name": "Mega-Skelabra",
@@ -1444,7 +2332,15 @@
     "tier": "C",
     "cost": 5,
     "image": "https://www.serebii.net/pokemonhome/pokemon/609-m.png",
-    "base_speed": 90
+    "base_speed": 90,
+    "stats": {
+      "hp": 60,
+      "atk": 75,
+      "def": 110,
+      "spa": 175,
+      "spd": 110,
+      "spe": 90
+    }
   },
   {
     "name": "Mega-Palimpalim",
@@ -1457,7 +2353,15 @@
     "tier": "C",
     "cost": 5,
     "image": "https://www.serebii.net/pokemonhome/pokemon/358-m.png",
-    "base_speed": 65
+    "base_speed": 65,
+    "stats": {
+      "hp": 75,
+      "atk": 50,
+      "def": 110,
+      "spa": 135,
+      "spd": 120,
+      "spe": 65
+    }
   },
   {
     "name": "Mega-Impergator",
@@ -1470,7 +2374,15 @@
     "tier": "B",
     "cost": 9,
     "image": "https://www.serebii.net/pokemonhome/pokemon/160-m.png",
-    "base_speed": 78
+    "base_speed": 78,
+    "stats": {
+      "hp": 85,
+      "atk": 160,
+      "def": 125,
+      "spa": 89,
+      "spd": 93,
+      "spe": 78
+    }
   },
   {
     "name": "Mega-Psiaugon",
@@ -1482,7 +2394,15 @@
     "tier": "C",
     "cost": 5,
     "image": "https://www.serebii.net/pokemonhome/pokemon/678-m.png",
-    "base_speed": 124
+    "base_speed": 124,
+    "stats": {
+      "hp": 74,
+      "atk": 48,
+      "def": 76,
+      "spa": 143,
+      "spd": 101,
+      "spe": 124
+    }
   },
   {
     "name": "Mega-Zobiris",
@@ -1495,7 +2415,15 @@
     "tier": "B",
     "cost": 9,
     "image": "https://www.serebii.net/pokemonhome/pokemon/302-m.png",
-    "base_speed": 20
+    "base_speed": 20,
+    "stats": {
+      "hp": 50,
+      "atk": 85,
+      "def": 125,
+      "spa": 85,
+      "spd": 115,
+      "spe": 20
+    }
   },
   {
     "name": "UHaFnir",
@@ -1508,7 +2436,15 @@
     "tier": "C",
     "cost": 5,
     "image": "https://www.serebii.net/pokemonhome/pokemon/715.png",
-    "base_speed": 123
+    "base_speed": 123,
+    "stats": {
+      "hp": 85,
+      "atk": 70,
+      "def": 80,
+      "spa": 97,
+      "spd": 80,
+      "spe": 123
+    }
   },
   {
     "name": "Paldea-Tauros (Flammen)",
@@ -1521,7 +2457,15 @@
     "tier": "C",
     "cost": 5,
     "image": "https://www.serebii.net/pokemonhome/pokemon/128-b.png",
-    "base_speed": 100
+    "base_speed": 100,
+    "stats": {
+      "hp": 75,
+      "atk": 110,
+      "def": 105,
+      "spa": 30,
+      "spd": 70,
+      "spe": 100
+    }
   },
   {
     "name": "Rihornior",
@@ -1534,7 +2478,15 @@
     "tier": "C",
     "cost": 5,
     "image": "https://www.serebii.net/pokemonhome/pokemon/464.png",
-    "base_speed": 40
+    "base_speed": 40,
+    "stats": {
+      "hp": 115,
+      "atk": 140,
+      "def": 130,
+      "spa": 55,
+      "spd": 55,
+      "spe": 40
+    }
   },
   {
     "name": "Snibunna",
@@ -1547,7 +2499,15 @@
     "tier": "C",
     "cost": 5,
     "image": "https://www.serebii.net/pokemonhome/pokemon/461.png",
-    "base_speed": 125
+    "base_speed": 125,
+    "stats": {
+      "hp": 70,
+      "atk": 120,
+      "def": 65,
+      "spa": 45,
+      "spd": 85,
+      "spe": 125
+    }
   },
   {
     "name": "Crimanzo",
@@ -1560,7 +2520,15 @@
     "tier": "B",
     "cost": 12,
     "image": "https://www.serebii.net/pokemonhome/pokemon/936.png",
-    "base_speed": 75
+    "base_speed": 75,
+    "stats": {
+      "hp": 85,
+      "atk": 60,
+      "def": 100,
+      "spa": 125,
+      "spd": 80,
+      "spe": 75
+    }
   },
   {
     "name": "Azugladis",
@@ -1573,7 +2541,15 @@
     "tier": "C",
     "cost": 8,
     "image": "https://www.serebii.net/pokemonhome/pokemon/937.png",
-    "base_speed": 85
+    "base_speed": 85,
+    "stats": {
+      "hp": 75,
+      "atk": 125,
+      "def": 80,
+      "spa": 60,
+      "spd": 100,
+      "spe": 85
+    }
   },
   {
     "name": "Galagladi",
@@ -1586,7 +2562,15 @@
     "tier": "C",
     "cost": 8,
     "image": "https://www.serebii.net/pokemonhome/pokemon/475.png",
-    "base_speed": 80
+    "base_speed": 80,
+    "stats": {
+      "hp": 68,
+      "atk": 125,
+      "def": 65,
+      "spa": 65,
+      "spd": 115,
+      "spe": 80
+    }
   },
   {
     "name": "Gengar",
@@ -1599,7 +2583,15 @@
     "tier": "C",
     "cost": 8,
     "image": "https://www.serebii.net/pokemonhome/pokemon/094.png",
-    "base_speed": 110
+    "base_speed": 110,
+    "stats": {
+      "hp": 60,
+      "atk": 65,
+      "def": 60,
+      "spa": 130,
+      "spd": 75,
+      "spe": 110
+    }
   },
   {
     "name": "Hisui-Tornupto",
@@ -1612,7 +2604,15 @@
     "tier": "A",
     "cost": 16,
     "image": "https://www.serebii.net/pokemonhome/pokemon/157-h.png",
-    "base_speed": 95
+    "base_speed": 95,
+    "stats": {
+      "hp": 73,
+      "atk": 84,
+      "def": 78,
+      "spa": 119,
+      "spd": 85,
+      "spe": 95
+    }
   },
   {
     "name": "Mega-Stolloss",
@@ -1624,7 +2624,15 @@
     "tier": "C",
     "cost": 8,
     "image": "https://www.serebii.net/pokemonhome/pokemon/306-m.png",
-    "base_speed": 50
+    "base_speed": 50,
+    "stats": {
+      "hp": 70,
+      "atk": 140,
+      "def": 230,
+      "spa": 60,
+      "spd": 80,
+      "spe": 50
+    }
   },
   {
     "name": "Mega-Brigaron",
@@ -1637,7 +2645,15 @@
     "tier": "C",
     "cost": 8,
     "image": "https://www.serebii.net/pokemonhome/pokemon/652-m.png",
-    "base_speed": 44
+    "base_speed": 44,
+    "stats": {
+      "hp": 88,
+      "atk": 137,
+      "def": 172,
+      "spa": 74,
+      "spd": 115,
+      "spe": 44
+    }
   },
   {
     "name": "Mega-Krawell",
@@ -1650,7 +2666,15 @@
     "tier": "C",
     "cost": 8,
     "image": "https://www.serebii.net/pokemonhome/pokemon/740-m.png",
-    "base_speed": 33
+    "base_speed": 33,
+    "stats": {
+      "hp": 97,
+      "atk": 157,
+      "def": 122,
+      "spa": 62,
+      "spd": 107,
+      "spe": 33
+    }
   },
   {
     "name": "Mega-Sen-Long",
@@ -1663,7 +2687,15 @@
     "tier": "B",
     "cost": 12,
     "image": "https://www.serebii.net/pokemonhome/pokemon/780-m.png",
-    "base_speed": 36
+    "base_speed": 36,
+    "stats": {
+      "hp": 78,
+      "atk": 85,
+      "def": 110,
+      "spa": 160,
+      "spd": 116,
+      "spe": 36
+    }
   },
   {
     "name": "Mega-Flambirex",
@@ -1676,7 +2708,15 @@
     "tier": "C",
     "cost": 8,
     "image": "https://www.serebii.net/pokemonhome/pokemon/500-m.png",
-    "base_speed": 75
+    "base_speed": 75,
+    "stats": {
+      "hp": 110,
+      "atk": 148,
+      "def": 75,
+      "spa": 110,
+      "spd": 110,
+      "spe": 75
+    }
   },
   {
     "name": "Mega-Lahmus",
@@ -1689,7 +2729,15 @@
     "tier": "C",
     "cost": 8,
     "image": "https://www.serebii.net/pokemonhome/pokemon/080-m.png",
-    "base_speed": 30
+    "base_speed": 30,
+    "stats": {
+      "hp": 95,
+      "atk": 75,
+      "def": 180,
+      "spa": 130,
+      "spd": 80,
+      "spe": 30
+    }
   },
   {
     "name": "Zytomega",
@@ -1701,7 +2749,15 @@
     "tier": "C",
     "cost": 8,
     "image": "https://www.serebii.net/pokemonhome/pokemon/579.png",
-    "base_speed": 30
+    "base_speed": 30,
+    "stats": {
+      "hp": 110,
+      "atk": 65,
+      "def": 75,
+      "spa": 125,
+      "spd": 85,
+      "spe": 30
+    }
   },
   {
     "name": "Relaxo",
@@ -1713,7 +2769,15 @@
     "tier": "C",
     "cost": 8,
     "image": "https://www.serebii.net/pokemonhome/pokemon/143.png",
-    "base_speed": 30
+    "base_speed": 30,
+    "stats": {
+      "hp": 160,
+      "atk": 110,
+      "def": 65,
+      "spa": 65,
+      "spd": 110,
+      "spe": 30
+    }
   },
   {
     "name": "Fruyal",
@@ -1725,7 +2789,15 @@
     "tier": "C",
     "cost": 8,
     "image": "https://www.serebii.net/pokemonhome/pokemon/763.png",
-    "base_speed": 72
+    "base_speed": 72,
+    "stats": {
+      "hp": 72,
+      "atk": 120,
+      "def": 98,
+      "spa": 50,
+      "spd": 98,
+      "spe": 72
+    }
   },
   {
     "name": "Gelatwino",
@@ -1737,7 +2809,15 @@
     "tier": "C",
     "cost": 8,
     "image": "https://www.serebii.net/pokemonhome/pokemon/584.png",
-    "base_speed": 79
+    "base_speed": 79,
+    "stats": {
+      "hp": 71,
+      "atk": 95,
+      "def": 85,
+      "spa": 110,
+      "spd": 95,
+      "spe": 79
+    }
   },
   {
     "name": "Riffex (Hoch)",
@@ -1751,7 +2831,15 @@
     "cost": 8,
     "image": "https://www.serebii.net/pokemonhome/pokemon/849.png",
     "base_speed": 75,
-    "since": 2
+    "since": 2,
+    "stats": {
+      "hp": 75,
+      "atk": 98,
+      "def": 70,
+      "spa": 114,
+      "spd": 70,
+      "spe": 75
+    }
   },
   {
     "name": "Britzigel",
@@ -1764,7 +2852,15 @@
     "cost": 8,
     "image": "https://www.serebii.net/pokemonhome/pokemon/871.png",
     "base_speed": 15,
-    "since": 2
+    "since": 2,
+    "stats": {
+      "hp": 48,
+      "atk": 101,
+      "def": 95,
+      "spa": 91,
+      "spd": 85,
+      "spe": 15
+    }
   },
   {
     "name": "Tectass",
@@ -1778,7 +2874,15 @@
     "cost": 8,
     "image": "https://www.serebii.net/pokemonhome/pokemon/768.png",
     "base_speed": 40,
-    "since": 2
+    "since": 2,
+    "stats": {
+      "hp": 75,
+      "atk": 125,
+      "def": 140,
+      "spa": 60,
+      "spd": 90,
+      "spe": 40
+    }
   },
   {
     "name": "Meistagrif",
@@ -1790,7 +2894,15 @@
     "tier": "C",
     "cost": 7,
     "image": "https://www.serebii.net/pokemonhome/pokemon/534.png",
-    "base_speed": 45
+    "base_speed": 45,
+    "stats": {
+      "hp": 105,
+      "atk": 140,
+      "def": 95,
+      "spa": 55,
+      "spd": 65,
+      "spe": 45
+    }
   },
   {
     "name": "Impoleon",
@@ -1803,7 +2915,15 @@
     "tier": "C",
     "cost": 7,
     "image": "https://www.serebii.net/pokemonhome/pokemon/395.png",
-    "base_speed": 60
+    "base_speed": 60,
+    "stats": {
+      "hp": 84,
+      "atk": 86,
+      "def": 88,
+      "spa": 111,
+      "spd": 101,
+      "spe": 60
+    }
   },
   {
     "name": "Psiana",
@@ -1815,7 +2935,15 @@
     "tier": "C",
     "cost": 7,
     "image": "https://www.serebii.net/pokemonhome/pokemon/196.png",
-    "base_speed": 110
+    "base_speed": 110,
+    "stats": {
+      "hp": 65,
+      "atk": 65,
+      "def": 60,
+      "spa": 130,
+      "spd": 95,
+      "spe": 110
+    }
   },
   {
     "name": "Florges",
@@ -1827,7 +2955,15 @@
     "tier": "C",
     "cost": 7,
     "image": "https://www.serebii.net/pokemonhome/pokemon/671.png",
-    "base_speed": 75
+    "base_speed": 75,
+    "stats": {
+      "hp": 78,
+      "atk": 65,
+      "def": 68,
+      "spa": 112,
+      "spd": 154,
+      "spe": 75
+    }
   },
   {
     "name": "Galar-Lahmus",
@@ -1840,7 +2976,15 @@
     "tier": "C",
     "cost": 7,
     "image": "https://www.serebii.net/pokemonhome/pokemon/080-g.png",
-    "base_speed": 30
+    "base_speed": 30,
+    "stats": {
+      "hp": 95,
+      "atk": 100,
+      "def": 95,
+      "spa": 100,
+      "spd": 70,
+      "spe": 30
+    }
   },
   {
     "name": "Quajutsu",
@@ -1853,7 +2997,15 @@
     "tier": "C",
     "cost": 7,
     "image": "https://www.serebii.net/pokemonhome/pokemon/658.png",
-    "base_speed": 122
+    "base_speed": 122,
+    "stats": {
+      "hp": 72,
+      "atk": 95,
+      "def": 67,
+      "spa": 103,
+      "spd": 71,
+      "spe": 122
+    }
   },
   {
     "name": "Resladero",
@@ -1866,7 +3018,15 @@
     "tier": "C",
     "cost": 7,
     "image": "https://www.serebii.net/pokemonhome/pokemon/701.png",
-    "base_speed": 118
+    "base_speed": 118,
+    "stats": {
+      "hp": 78,
+      "atk": 92,
+      "def": 75,
+      "spa": 74,
+      "spd": 63,
+      "spe": 118
+    }
   },
   {
     "name": "Panferno",
@@ -1879,7 +3039,15 @@
     "tier": "C",
     "cost": 7,
     "image": "https://www.serebii.net/pokemonhome/pokemon/392.png",
-    "base_speed": 108
+    "base_speed": 108,
+    "stats": {
+      "hp": 76,
+      "atk": 104,
+      "def": 71,
+      "spa": 104,
+      "spd": 71,
+      "spe": 108
+    }
   },
   {
     "name": "Kangama",
@@ -1891,7 +3059,15 @@
     "tier": "C",
     "cost": 7,
     "image": "https://www.serebii.net/pokemonhome/pokemon/115.png",
-    "base_speed": 90
+    "base_speed": 90,
+    "stats": {
+      "hp": 105,
+      "atk": 95,
+      "def": 80,
+      "spa": 40,
+      "spd": 80,
+      "spe": 90
+    }
   },
   {
     "name": "Meditalis",
@@ -1904,7 +3080,15 @@
     "tier": "C",
     "cost": 7,
     "image": "https://www.serebii.net/pokemonhome/pokemon/308.png",
-    "base_speed": 80
+    "base_speed": 80,
+    "stats": {
+      "hp": 60,
+      "atk": 60,
+      "def": 75,
+      "spa": 60,
+      "spd": 75,
+      "spe": 80
+    }
   },
   {
     "name": "Mega-Skaraborn",
@@ -1917,7 +3101,15 @@
     "tier": "C",
     "cost": 7,
     "image": "https://www.serebii.net/pokemonhome/pokemon/214-m.png",
-    "base_speed": 75
+    "base_speed": 75,
+    "stats": {
+      "hp": 80,
+      "atk": 185,
+      "def": 115,
+      "spa": 40,
+      "spd": 105,
+      "spe": 75
+    }
   },
   {
     "name": "Mega-Tauboss",
@@ -1930,7 +3122,15 @@
     "tier": "C",
     "cost": 7,
     "image": "https://www.serebii.net/pokemonhome/pokemon/018-m.png",
-    "base_speed": 121
+    "base_speed": 121,
+    "stats": {
+      "hp": 83,
+      "atk": 80,
+      "def": 80,
+      "spa": 135,
+      "spd": 80,
+      "spe": 121
+    }
   },
   {
     "name": "Mega-Pinsir",
@@ -1943,7 +3143,15 @@
     "tier": "C",
     "cost": 7,
     "image": "https://www.serebii.net/pokemonhome/pokemon/127-m.png",
-    "base_speed": 105
+    "base_speed": 105,
+    "stats": {
+      "hp": 65,
+      "atk": 155,
+      "def": 120,
+      "spa": 65,
+      "spd": 90,
+      "spe": 105
+    }
   },
   {
     "name": "Mega-Tohaido",
@@ -1956,7 +3164,15 @@
     "tier": "C",
     "cost": 7,
     "image": "https://www.serebii.net/pokemonhome/pokemon/319-m.png",
-    "base_speed": 105
+    "base_speed": 105,
+    "stats": {
+      "hp": 70,
+      "atk": 140,
+      "def": 70,
+      "spa": 110,
+      "spd": 65,
+      "spe": 105
+    }
   },
   {
     "name": "Mega-Sarzenia",
@@ -1969,7 +3185,15 @@
     "tier": "C",
     "cost": 7,
     "image": "https://www.serebii.net/pokemonhome/pokemon/071-m.png",
-    "base_speed": 70
+    "base_speed": 70,
+    "stats": {
+      "hp": 80,
+      "atk": 125,
+      "def": 85,
+      "spa": 135,
+      "spd": 95,
+      "spe": 70
+    }
   },
   {
     "name": "Schlurm",
@@ -1981,7 +3205,15 @@
     "tier": "C",
     "cost": 7,
     "image": "https://www.serebii.net/pokemonhome/pokemon/968.png",
-    "base_speed": 65
+    "base_speed": 65,
+    "stats": {
+      "hp": 70,
+      "atk": 85,
+      "def": 145,
+      "spa": 60,
+      "spd": 55,
+      "spe": 65
+    }
   },
   {
     "name": "Lahmus",
@@ -1994,7 +3226,15 @@
     "tier": "C",
     "cost": 7,
     "image": "https://www.serebii.net/pokemonhome/pokemon/080.png",
-    "base_speed": 30
+    "base_speed": 30,
+    "stats": {
+      "hp": 95,
+      "atk": 75,
+      "def": 110,
+      "spa": 100,
+      "spd": 80,
+      "spe": 30
+    }
   },
   {
     "name": "Laschoking",
@@ -2007,7 +3247,15 @@
     "tier": "C",
     "cost": 7,
     "image": "https://www.serebii.net/pokemonhome/pokemon/199.png",
-    "base_speed": 30
+    "base_speed": 30,
+    "stats": {
+      "hp": 95,
+      "atk": 75,
+      "def": 80,
+      "spa": 100,
+      "spd": 110,
+      "spe": 30
+    }
   },
   {
     "name": "Damythir",
@@ -2020,7 +3268,15 @@
     "tier": "C",
     "cost": 7,
     "image": "https://www.serebii.net/pokemonhome/pokemon/899.png",
-    "base_speed": 65
+    "base_speed": 65,
+    "stats": {
+      "hp": 103,
+      "atk": 105,
+      "def": 72,
+      "spa": 105,
+      "spd": 75,
+      "spe": 65
+    }
   },
   {
     "name": "Riffex (Tief)",
@@ -2034,7 +3290,15 @@
     "cost": 7,
     "image": "https://www.serebii.net/pokemonhome/pokemon/849-l.png",
     "base_speed": 75,
-    "since": 2
+    "since": 2,
+    "stats": {
+      "hp": 75,
+      "atk": 98,
+      "def": 70,
+      "spa": 114,
+      "spd": 70,
+      "spe": 75
+    }
   },
   {
     "name": "Alola-Snobilikat",
@@ -2047,7 +3311,15 @@
     "cost": 7,
     "image": "https://www.serebii.net/pokemonhome/pokemon/053-a.png",
     "base_speed": 115,
-    "since": 2
+    "since": 2,
+    "stats": {
+      "hp": 65,
+      "atk": 60,
+      "def": 60,
+      "spa": 75,
+      "spd": 65,
+      "spe": 115
+    }
   },
   {
     "name": "Rexblisar",
@@ -2060,7 +3332,15 @@
     "tier": "C",
     "cost": 6,
     "image": "https://www.serebii.net/pokemonhome/pokemon/460.png",
-    "base_speed": 60
+    "base_speed": 60,
+    "stats": {
+      "hp": 90,
+      "atk": 92,
+      "def": 75,
+      "spa": 92,
+      "spd": 85,
+      "spe": 60
+    }
   },
   {
     "name": "Parfinesse",
@@ -2072,7 +3352,15 @@
     "tier": "C",
     "cost": 6,
     "image": "https://www.serebii.net/pokemonhome/pokemon/683.png",
-    "base_speed": 29
+    "base_speed": 29,
+    "stats": {
+      "hp": 101,
+      "atk": 72,
+      "def": 72,
+      "spa": 99,
+      "spd": 89,
+      "spe": 29
+    }
   },
   {
     "name": "Skelabra",
@@ -2085,7 +3373,15 @@
     "tier": "C",
     "cost": 6,
     "image": "https://www.serebii.net/pokemonhome/pokemon/609.png",
-    "base_speed": 80
+    "base_speed": 80,
+    "stats": {
+      "hp": 60,
+      "atk": 55,
+      "def": 90,
+      "spa": 145,
+      "spd": 90,
+      "spe": 80
+    }
   },
   {
     "name": "Grebbit",
@@ -2098,7 +3394,15 @@
     "tier": "C",
     "cost": 6,
     "image": "https://www.serebii.net/pokemonhome/pokemon/660.png",
-    "base_speed": 78
+    "base_speed": 78,
+    "stats": {
+      "hp": 85,
+      "atk": 56,
+      "def": 77,
+      "spa": 50,
+      "spd": 77,
+      "spe": 78
+    }
   },
   {
     "name": "Galar-Laschoking",
@@ -2111,7 +3415,15 @@
     "tier": "C",
     "cost": 6,
     "image": "https://www.serebii.net/pokemonhome/pokemon/199-g.png",
-    "base_speed": 30
+    "base_speed": 30,
+    "stats": {
+      "hp": 95,
+      "atk": 65,
+      "def": 80,
+      "spa": 110,
+      "spd": 110,
+      "spe": 30
+    }
   },
   {
     "name": "Hisui-Viscogon",
@@ -2124,7 +3436,15 @@
     "tier": "C",
     "cost": 6,
     "image": "https://www.serebii.net/pokemonhome/pokemon/706-h.png",
-    "base_speed": 60
+    "base_speed": 60,
+    "stats": {
+      "hp": 80,
+      "atk": 100,
+      "def": 100,
+      "spa": 110,
+      "spd": 150,
+      "spe": 60
+    }
   },
   {
     "name": "Hydrapfel",
@@ -2137,7 +3457,15 @@
     "tier": "C",
     "cost": 6,
     "image": "https://www.serebii.net/pokemonhome/pokemon/1019.png",
-    "base_speed": 44
+    "base_speed": 44,
+    "stats": {
+      "hp": 106,
+      "atk": 80,
+      "def": 110,
+      "spa": 120,
+      "spd": 80,
+      "spe": 44
+    }
   },
   {
     "name": "Axantor",
@@ -2150,7 +3478,15 @@
     "tier": "C",
     "cost": 6,
     "image": "https://www.serebii.net/pokemonhome/pokemon/900.png",
-    "base_speed": 85
+    "base_speed": 85,
+    "stats": {
+      "hp": 70,
+      "atk": 135,
+      "def": 95,
+      "spa": 45,
+      "spd": 70,
+      "spe": 85
+    }
   },
   {
     "name": "Lucario",
@@ -2163,7 +3499,15 @@
     "tier": "C",
     "cost": 6,
     "image": "https://www.serebii.net/pokemonhome/pokemon/448.png",
-    "base_speed": 90
+    "base_speed": 90,
+    "stats": {
+      "hp": 70,
+      "atk": 110,
+      "def": 70,
+      "spa": 115,
+      "spd": 70,
+      "spe": 90
+    }
   },
   {
     "name": "Mega-Rexblisar",
@@ -2176,7 +3520,15 @@
     "tier": "C",
     "cost": 6,
     "image": "https://www.serebii.net/pokemonhome/pokemon/460-m.png",
-    "base_speed": 30
+    "base_speed": 30,
+    "stats": {
+      "hp": 90,
+      "atk": 132,
+      "def": 105,
+      "spa": 132,
+      "spd": 105,
+      "spe": 30
+    }
   },
   {
     "name": "Mega-Hundemon",
@@ -2189,7 +3541,15 @@
     "tier": "C",
     "cost": 6,
     "image": "https://www.serebii.net/pokemonhome/pokemon/229-m.png",
-    "base_speed": 115
+    "base_speed": 115,
+    "stats": {
+      "hp": 75,
+      "atk": 90,
+      "def": 90,
+      "spa": 140,
+      "spd": 90,
+      "spe": 115
+    }
   },
   {
     "name": "Mega-Stahlos",
@@ -2202,7 +3562,15 @@
     "tier": "C",
     "cost": 6,
     "image": "https://www.serebii.net/pokemonhome/pokemon/208-m.png",
-    "base_speed": 30
+    "base_speed": 30,
+    "stats": {
+      "hp": 75,
+      "atk": 125,
+      "def": 230,
+      "spa": 55,
+      "spd": 95,
+      "spe": 30
+    }
   },
   {
     "name": "Pandagro",
@@ -2215,7 +3583,15 @@
     "tier": "C",
     "cost": 6,
     "image": "https://www.serebii.net/pokemonhome/pokemon/675.png",
-    "base_speed": 58
+    "base_speed": 58,
+    "stats": {
+      "hp": 95,
+      "atk": 124,
+      "def": 78,
+      "spa": 69,
+      "spd": 71,
+      "spe": 58
+    }
   },
   {
     "name": "Kryppuk",
@@ -2228,7 +3604,15 @@
     "tier": "C",
     "cost": 6,
     "image": "https://www.serebii.net/pokemonhome/pokemon/442.png",
-    "base_speed": 35
+    "base_speed": 35,
+    "stats": {
+      "hp": 50,
+      "atk": 92,
+      "def": 108,
+      "spa": 92,
+      "spd": 108,
+      "spe": 35
+    }
   },
   {
     "name": "Zoroark",
@@ -2240,7 +3624,15 @@
     "tier": "C",
     "cost": 6,
     "image": "https://www.serebii.net/pokemonhome/pokemon/571.png",
-    "base_speed": 105
+    "base_speed": 105,
+    "stats": {
+      "hp": 60,
+      "atk": 105,
+      "def": 60,
+      "spa": 120,
+      "spd": 60,
+      "spe": 105
+    }
   },
   {
     "name": "Kaocto",
@@ -2253,7 +3645,15 @@
     "cost": 6,
     "image": "https://www.serebii.net/pokemonhome/pokemon/853.png",
     "base_speed": 42,
-    "since": 2
+    "since": 2,
+    "stats": {
+      "hp": 80,
+      "atk": 118,
+      "def": 90,
+      "spa": 70,
+      "spd": 80,
+      "spe": 42
+    }
   },
   {
     "name": "Mauzinger",
@@ -2266,7 +3666,15 @@
     "cost": 6,
     "image": "https://www.serebii.net/pokemonhome/pokemon/863.png",
     "base_speed": 50,
-    "since": 2
+    "since": 2,
+    "stats": {
+      "hp": 70,
+      "atk": 110,
+      "def": 100,
+      "spa": 50,
+      "spd": 60,
+      "spe": 50
+    }
   },
   {
     "name": "Simsala",
@@ -2278,7 +3686,15 @@
     "tier": "D",
     "cost": 1,
     "image": "https://www.serebii.net/pokemonhome/pokemon/065.png",
-    "base_speed": 120
+    "base_speed": 120,
+    "stats": {
+      "hp": 55,
+      "atk": 50,
+      "def": 45,
+      "spa": 135,
+      "spd": 95,
+      "spe": 120
+    }
   },
   {
     "name": "Alola-Raichu",
@@ -2291,7 +3707,15 @@
     "tier": "D",
     "cost": 1,
     "image": "https://www.serebii.net/pokemonhome/pokemon/026-a.png",
-    "base_speed": 110
+    "base_speed": 110,
+    "stats": {
+      "hp": 60,
+      "atk": 85,
+      "def": 50,
+      "spa": 95,
+      "spd": 85,
+      "spe": 110
+    }
   },
   {
     "name": "Glurak",
@@ -2304,7 +3728,15 @@
     "tier": "D",
     "cost": 1,
     "image": "https://www.serebii.net/pokemonhome/pokemon/006.png",
-    "base_speed": 100
+    "base_speed": 100,
+    "stats": {
+      "hp": 78,
+      "atk": 84,
+      "def": 78,
+      "spa": 109,
+      "spd": 85,
+      "spe": 100
+    }
   },
   {
     "name": "Echnatoll",
@@ -2316,7 +3748,15 @@
     "tier": "D",
     "cost": 1,
     "image": "https://www.serebii.net/pokemonhome/pokemon/563.png",
-    "base_speed": 30
+    "base_speed": 30,
+    "stats": {
+      "hp": 58,
+      "atk": 50,
+      "def": 145,
+      "spa": 95,
+      "spd": 105,
+      "spe": 30
+    }
   },
   {
     "name": "Fennexis",
@@ -2329,7 +3769,15 @@
     "tier": "D",
     "cost": 1,
     "image": "https://www.serebii.net/pokemonhome/pokemon/655.png",
-    "base_speed": 104
+    "base_speed": 104,
+    "stats": {
+      "hp": 75,
+      "atk": 69,
+      "def": 72,
+      "spa": 114,
+      "spd": 100,
+      "spe": 104
+    }
   },
   {
     "name": "Psiopatra",
@@ -2341,7 +3789,15 @@
     "tier": "C",
     "cost": 5,
     "image": "https://www.serebii.net/pokemonhome/pokemon/956.png",
-    "base_speed": 105
+    "base_speed": 105,
+    "stats": {
+      "hp": 95,
+      "atk": 60,
+      "def": 60,
+      "spa": 101,
+      "spd": 60,
+      "spe": 105
+    }
   },
   {
     "name": "Saltigant",
@@ -2353,7 +3809,15 @@
     "tier": "C",
     "cost": 5,
     "image": "https://www.serebii.net/pokemonhome/pokemon/934.png",
-    "base_speed": 35
+    "base_speed": 35,
+    "stats": {
+      "hp": 100,
+      "atk": 100,
+      "def": 130,
+      "spa": 45,
+      "spd": 90,
+      "spe": 35
+    }
   },
   {
     "name": "Glaziola",
@@ -2365,7 +3829,15 @@
     "tier": "D",
     "cost": 1,
     "image": "https://www.serebii.net/pokemonhome/pokemon/471.png",
-    "base_speed": 65
+    "base_speed": 65,
+    "stats": {
+      "hp": 65,
+      "atk": 60,
+      "def": 110,
+      "spa": 130,
+      "spd": 95,
+      "spe": 65
+    }
   },
   {
     "name": "Pumpdjinn",
@@ -2378,7 +3850,15 @@
     "tier": "D",
     "cost": 1,
     "image": "https://www.serebii.net/pokemonhome/pokemon/711.png",
-    "base_speed": 84
+    "base_speed": 84,
+    "stats": {
+      "hp": 65,
+      "atk": 90,
+      "def": 122,
+      "spa": 58,
+      "spd": 75,
+      "spe": 84
+    }
   },
   {
     "name": "Hippoterus",
@@ -2390,7 +3870,15 @@
     "tier": "D",
     "cost": 1,
     "image": "https://www.serebii.net/pokemonhome/pokemon/450.png",
-    "base_speed": 47
+    "base_speed": 47,
+    "stats": {
+      "hp": 108,
+      "atk": 112,
+      "def": 118,
+      "spa": 68,
+      "spd": 72,
+      "spe": 47
+    }
   },
   {
     "name": "Folipurba",
@@ -2402,7 +3890,15 @@
     "tier": "C",
     "cost": 5,
     "image": "https://www.serebii.net/pokemonhome/pokemon/470.png",
-    "base_speed": 95
+    "base_speed": 95,
+    "stats": {
+      "hp": 65,
+      "atk": 110,
+      "def": 130,
+      "spa": 60,
+      "spd": 65,
+      "spe": 95
+    }
   },
   {
     "name": "Wolwerock (Zwielichtform)",
@@ -2414,7 +3910,15 @@
     "tier": "C",
     "cost": 5,
     "image": "https://www.serebii.net/pokemonhome/pokemon/745-d.png",
-    "base_speed": 110
+    "base_speed": 110,
+    "stats": {
+      "hp": 75,
+      "atk": 117,
+      "def": 65,
+      "spa": 55,
+      "spd": 65,
+      "spe": 110
+    }
   },
   {
     "name": "Mega-Banette",
@@ -2426,7 +3930,15 @@
     "tier": "D",
     "cost": 1,
     "image": "https://www.serebii.net/pokemonhome/pokemon/354-m.png",
-    "base_speed": 75
+    "base_speed": 75,
+    "stats": {
+      "hp": 64,
+      "atk": 165,
+      "def": 75,
+      "spa": 93,
+      "spd": 83,
+      "spe": 75
+    }
   },
   {
     "name": "Mega-Bibor",
@@ -2439,7 +3951,15 @@
     "tier": "D",
     "cost": 1,
     "image": "https://www.serebii.net/pokemonhome/pokemon/015-m.png",
-    "base_speed": 145
+    "base_speed": 145,
+    "stats": {
+      "hp": 65,
+      "atk": 150,
+      "def": 40,
+      "spa": 15,
+      "spd": 80,
+      "spe": 145
+    }
   },
   {
     "name": "Pampross",
@@ -2451,7 +3971,15 @@
     "tier": "C",
     "cost": 5,
     "image": "https://www.serebii.net/pokemonhome/pokemon/750.png",
-    "base_speed": 35
+    "base_speed": 35,
+    "stats": {
+      "hp": 100,
+      "atk": 125,
+      "def": 100,
+      "spa": 55,
+      "spd": 85,
+      "spe": 35
+    }
   },
   {
     "name": "Mortipot",
@@ -2463,7 +3991,15 @@
     "tier": "D",
     "cost": 1,
     "image": "https://www.serebii.net/pokemonhome/pokemon/855.png",
-    "base_speed": 70
+    "base_speed": 70,
+    "stats": {
+      "hp": 60,
+      "atk": 65,
+      "def": 65,
+      "spa": 134,
+      "spd": 114,
+      "spe": 70
+    }
   },
   {
     "name": "Bailonda",
@@ -2476,7 +4012,15 @@
     "tier": "D",
     "cost": 1,
     "image": "https://www.serebii.net/pokemonhome/pokemon/914.png",
-    "base_speed": 85
+    "base_speed": 85,
+    "stats": {
+      "hp": 85,
+      "atk": 120,
+      "def": 80,
+      "spa": 85,
+      "spd": 75,
+      "spe": 85
+    }
   },
   {
     "name": "Oghnatoll",
@@ -2489,7 +4033,15 @@
     "tier": "D",
     "cost": 1,
     "image": "https://www.serebii.net/pokemonhome/pokemon/867.png",
-    "base_speed": 30
+    "base_speed": 30,
+    "stats": {
+      "hp": 58,
+      "atk": 95,
+      "def": 145,
+      "spa": 50,
+      "spd": 105,
+      "spe": 30
+    }
   },
   {
     "name": "Serpiroyal",
@@ -2501,7 +4053,15 @@
     "tier": "D",
     "cost": 1,
     "image": "https://www.serebii.net/pokemonhome/pokemon/497.png",
-    "base_speed": 113
+    "base_speed": 113,
+    "stats": {
+      "hp": 75,
+      "atk": 75,
+      "def": 95,
+      "spa": 75,
+      "spd": 95,
+      "spe": 113
+    }
   },
   {
     "name": "Skelokrok",
@@ -2514,7 +4074,15 @@
     "tier": "D",
     "cost": 1,
     "image": "https://www.serebii.net/pokemonhome/pokemon/911.png",
-    "base_speed": 66
+    "base_speed": 66,
+    "stats": {
+      "hp": 104,
+      "atk": 75,
+      "def": 100,
+      "spa": 110,
+      "spd": 75,
+      "spe": 66
+    }
   },
   {
     "name": "Tornupto",
@@ -2526,7 +4094,15 @@
     "tier": "D",
     "cost": 1,
     "image": "https://www.serebii.net/pokemonhome/pokemon/157.png",
-    "base_speed": 100
+    "base_speed": 100,
+    "stats": {
+      "hp": 78,
+      "atk": 84,
+      "def": 78,
+      "spa": 109,
+      "spd": 85,
+      "spe": 100
+    }
   },
   {
     "name": "Nachtara",
@@ -2538,7 +4114,15 @@
     "tier": "D",
     "cost": 1,
     "image": "https://www.serebii.net/pokemonhome/pokemon/197.png",
-    "base_speed": 65
+    "base_speed": 65,
+    "stats": {
+      "hp": 95,
+      "atk": 65,
+      "def": 110,
+      "spa": 60,
+      "spd": 130,
+      "spe": 65
+    }
   },
   {
     "name": "Aquana",
@@ -2550,7 +4134,15 @@
     "tier": "C",
     "cost": 5,
     "image": "https://www.serebii.net/pokemonhome/pokemon/134.png",
-    "base_speed": 65
+    "base_speed": 65,
+    "stats": {
+      "hp": 130,
+      "atk": 65,
+      "def": 60,
+      "spa": 110,
+      "spd": 95,
+      "spe": 65
+    }
   },
   {
     "name": "Knuddeluff",
@@ -2564,7 +4156,15 @@
     "cost": 5,
     "image": "https://www.serebii.net/pokemonhome/pokemon/040.png",
     "base_speed": 45,
-    "since": 2
+    "since": 2,
+    "stats": {
+      "hp": 140,
+      "atk": 70,
+      "def": 45,
+      "spa": 85,
+      "spd": 50,
+      "spe": 45
+    }
   },
   {
     "name": "Olithena",
@@ -2578,7 +4178,15 @@
     "cost": 5,
     "image": "https://www.serebii.net/pokemonhome/pokemon/930.png",
     "base_speed": 39,
-    "since": 2
+    "since": 2,
+    "stats": {
+      "hp": 78,
+      "atk": 69,
+      "def": 90,
+      "spa": 125,
+      "spd": 109,
+      "spe": 39
+    }
   },
   {
     "name": "Mastifioso",
@@ -2591,7 +4199,15 @@
     "cost": 1,
     "image": "https://www.serebii.net/pokemonhome/pokemon/943.png",
     "base_speed": 85,
-    "since": 2
+    "since": 2,
+    "stats": {
+      "hp": 80,
+      "atk": 120,
+      "def": 90,
+      "spa": 60,
+      "spd": 70,
+      "spe": 85
+    }
   },
   {
     "name": "Pokusan",
@@ -2603,7 +4219,15 @@
     "tier": "D",
     "cost": 4,
     "image": "https://www.serebii.net/pokemonhome/pokemon/869.png",
-    "base_speed": 64
+    "base_speed": 64,
+    "stats": {
+      "hp": 65,
+      "atk": 60,
+      "def": 75,
+      "spa": 110,
+      "spd": 121,
+      "spe": 64
+    }
   },
   {
     "name": "Wampitz",
@@ -2615,7 +4239,15 @@
     "tier": "D",
     "cost": 4,
     "image": "https://www.serebii.net/pokemonhome/pokemon/939.png",
-    "base_speed": 45
+    "base_speed": 45,
+    "stats": {
+      "hp": 109,
+      "atk": 64,
+      "def": 91,
+      "spa": 103,
+      "spd": 83,
+      "spe": 45
+    }
   },
   {
     "name": "Brigaron",
@@ -2628,7 +4260,15 @@
     "tier": "D",
     "cost": 4,
     "image": "https://www.serebii.net/pokemonhome/pokemon/652.png",
-    "base_speed": 64
+    "base_speed": 64,
+    "stats": {
+      "hp": 88,
+      "atk": 107,
+      "def": 122,
+      "spa": 74,
+      "spd": 75,
+      "spe": 64
+    }
   },
   {
     "name": "Wummer",
@@ -2640,7 +4280,15 @@
     "tier": "D",
     "cost": 4,
     "image": "https://www.serebii.net/pokemonhome/pokemon/693.png",
-    "base_speed": 59
+    "base_speed": 59,
+    "stats": {
+      "hp": 71,
+      "atk": 73,
+      "def": 88,
+      "spa": 120,
+      "spd": 89,
+      "spe": 59
+    }
   },
   {
     "name": "Ditto",
@@ -2652,7 +4300,15 @@
     "tier": "D",
     "cost": 4,
     "image": "https://www.serebii.net/pokemonhome/pokemon/132.png",
-    "base_speed": 48
+    "base_speed": 48,
+    "stats": {
+      "hp": 48,
+      "atk": 48,
+      "def": 48,
+      "spa": 48,
+      "spd": 48,
+      "spe": 48
+    }
   },
   {
     "name": "Frosdedje",
@@ -2665,7 +4321,15 @@
     "tier": "D",
     "cost": 4,
     "image": "https://www.serebii.net/pokemonhome/pokemon/478.png",
-    "base_speed": 110
+    "base_speed": 110,
+    "stats": {
+      "hp": 70,
+      "atk": 80,
+      "def": 70,
+      "spa": 80,
+      "spd": 70,
+      "spe": 110
+    }
   },
   {
     "name": "Golgantes",
@@ -2678,7 +4342,15 @@
     "tier": "D",
     "cost": 4,
     "image": "https://www.serebii.net/pokemonhome/pokemon/623.png",
-    "base_speed": 55
+    "base_speed": 55,
+    "stats": {
+      "hp": 89,
+      "atk": 124,
+      "def": 80,
+      "spa": 55,
+      "spd": 80,
+      "spe": 55
+    }
   },
   {
     "name": "Viscogon",
@@ -2690,7 +4362,15 @@
     "tier": "D",
     "cost": 4,
     "image": "https://www.serebii.net/pokemonhome/pokemon/706.png",
-    "base_speed": 80
+    "base_speed": 80,
+    "stats": {
+      "hp": 90,
+      "atk": 100,
+      "def": 70,
+      "spa": 110,
+      "spd": 150,
+      "spe": 80
+    }
   },
   {
     "name": "Elezard",
@@ -2703,7 +4383,15 @@
     "tier": "D",
     "cost": 4,
     "image": "https://www.serebii.net/pokemonhome/pokemon/695.png",
-    "base_speed": 109
+    "base_speed": 109,
+    "stats": {
+      "hp": 62,
+      "atk": 55,
+      "def": 52,
+      "spa": 109,
+      "spd": 94,
+      "spe": 109
+    }
   },
   {
     "name": "Hisui-Silvarro",
@@ -2716,7 +4404,15 @@
     "tier": "D",
     "cost": 4,
     "image": "https://www.serebii.net/pokemonhome/pokemon/724-h.png",
-    "base_speed": 60
+    "base_speed": 60,
+    "stats": {
+      "hp": 88,
+      "atk": 112,
+      "def": 80,
+      "spa": 95,
+      "spd": 95,
+      "spe": 60
+    }
   },
   {
     "name": "Hisui-Admurai",
@@ -2729,7 +4425,15 @@
     "tier": "D",
     "cost": 4,
     "image": "https://www.serebii.net/pokemonhome/pokemon/503-h.png",
-    "base_speed": 85
+    "base_speed": 85,
+    "stats": {
+      "hp": 90,
+      "atk": 108,
+      "def": 80,
+      "spa": 100,
+      "spd": 65,
+      "spe": 85
+    }
   },
   {
     "name": "Blitza",
@@ -2741,7 +4445,15 @@
     "tier": "D",
     "cost": 4,
     "image": "https://www.serebii.net/pokemonhome/pokemon/135.png",
-    "base_speed": 130
+    "base_speed": 130,
+    "stats": {
+      "hp": 65,
+      "atk": 65,
+      "def": 60,
+      "spa": 110,
+      "spd": 95,
+      "spe": 130
+    }
   },
   {
     "name": "Luxtra",
@@ -2753,7 +4465,15 @@
     "tier": "D",
     "cost": 4,
     "image": "https://www.serebii.net/pokemonhome/pokemon/405.png",
-    "base_speed": 70
+    "base_speed": 70,
+    "stats": {
+      "hp": 80,
+      "atk": 120,
+      "def": 79,
+      "spa": 95,
+      "spd": 79,
+      "spe": 70
+    }
   },
   {
     "name": "Machomei",
@@ -2765,7 +4485,15 @@
     "tier": "D",
     "cost": 4,
     "image": "https://www.serebii.net/pokemonhome/pokemon/068.png",
-    "base_speed": 55
+    "base_speed": 55,
+    "stats": {
+      "hp": 90,
+      "atk": 130,
+      "def": 80,
+      "spa": 65,
+      "spd": 85,
+      "spe": 55
+    }
   },
   {
     "name": "Mega-Absol",
@@ -2777,7 +4505,15 @@
     "tier": "D",
     "cost": 4,
     "image": "https://www.serebii.net/pokemonhome/pokemon/359-m.png",
-    "base_speed": 115
+    "base_speed": 115,
+    "stats": {
+      "hp": 65,
+      "atk": 150,
+      "def": 60,
+      "spa": 115,
+      "spd": 60,
+      "spe": 115
+    }
   },
   {
     "name": "Mega-Ampharos",
@@ -2790,7 +4526,15 @@
     "tier": "D",
     "cost": 4,
     "image": "https://www.serebii.net/pokemonhome/pokemon/181-m.png",
-    "base_speed": 45
+    "base_speed": 45,
+    "stats": {
+      "hp": 90,
+      "atk": 95,
+      "def": 105,
+      "spa": 165,
+      "spd": 110,
+      "spe": 45
+    }
   },
   {
     "name": "Mega-Firnontor",
@@ -2802,7 +4546,15 @@
     "tier": "D",
     "cost": 4,
     "image": "https://www.serebii.net/pokemonhome/pokemon/362-m.png",
-    "base_speed": 100
+    "base_speed": 100,
+    "stats": {
+      "hp": 80,
+      "atk": 120,
+      "def": 80,
+      "spa": 120,
+      "spd": 80,
+      "spe": 100
+    }
   },
   {
     "name": "Rameidon",
@@ -2814,7 +4566,15 @@
     "tier": "D",
     "cost": 4,
     "image": "https://www.serebii.net/pokemonhome/pokemon/409.png",
-    "base_speed": 58
+    "base_speed": 58,
+    "stats": {
+      "hp": 97,
+      "atk": 165,
+      "def": 60,
+      "spa": 65,
+      "spd": 50,
+      "spe": 58
+    }
   },
   {
     "name": "Roserade",
@@ -2827,7 +4587,15 @@
     "tier": "D",
     "cost": 4,
     "image": "https://www.serebii.net/pokemonhome/pokemon/407.png",
-    "base_speed": 90
+    "base_speed": 90,
+    "stats": {
+      "hp": 60,
+      "atk": 70,
+      "def": 65,
+      "spa": 125,
+      "spd": 105,
+      "spe": 90
+    }
   },
   {
     "name": "Frost-Rotom",
@@ -2840,7 +4608,15 @@
     "tier": "C",
     "cost": 8,
     "image": "https://www.serebii.net/pokemonhome/pokemon/479-f.png",
-    "base_speed": 86
+    "base_speed": 86,
+    "stats": {
+      "hp": 50,
+      "atk": 65,
+      "def": 107,
+      "spa": 105,
+      "spd": 107,
+      "spe": 86
+    }
   },
   {
     "name": "Starmie",
@@ -2853,7 +4629,15 @@
     "tier": "D",
     "cost": 4,
     "image": "https://www.serebii.net/pokemonhome/pokemon/121.png",
-    "base_speed": 115
+    "base_speed": 115,
+    "stats": {
+      "hp": 60,
+      "atk": 75,
+      "def": 85,
+      "spa": 100,
+      "spd": 85,
+      "spe": 115
+    }
   },
   {
     "name": "Chelterrar",
@@ -2866,7 +4650,15 @@
     "tier": "D",
     "cost": 4,
     "image": "https://www.serebii.net/pokemonhome/pokemon/389.png",
-    "base_speed": 56
+    "base_speed": 56,
+    "stats": {
+      "hp": 95,
+      "atk": 109,
+      "def": 105,
+      "spa": 75,
+      "spd": 85,
+      "spe": 56
+    }
   },
   {
     "name": "Toxiquak",
@@ -2879,7 +4671,15 @@
     "tier": "D",
     "cost": 4,
     "image": "https://www.serebii.net/pokemonhome/pokemon/454.png",
-    "base_speed": 85
+    "base_speed": 85,
+    "stats": {
+      "hp": 83,
+      "atk": 106,
+      "def": 65,
+      "spa": 86,
+      "spd": 65,
+      "spe": 85
+    }
   },
   {
     "name": "Monargoras",
@@ -2892,7 +4692,15 @@
     "tier": "D",
     "cost": 4,
     "image": "https://www.serebii.net/pokemonhome/pokemon/697.png",
-    "base_speed": 71
+    "base_speed": 71,
+    "stats": {
+      "hp": 82,
+      "atk": 121,
+      "def": 119,
+      "spa": 69,
+      "spd": 59,
+      "spe": 71
+    }
   },
   {
     "name": "Pantimos",
@@ -2906,7 +4714,15 @@
     "cost": 4,
     "image": "https://www.serebii.net/pokemonhome/pokemon/122.png",
     "base_speed": 90,
-    "since": 2
+    "since": 2,
+    "stats": {
+      "hp": 40,
+      "atk": 45,
+      "def": 65,
+      "spa": 100,
+      "spd": 120,
+      "spe": 90
+    }
   },
   {
     "name": "Krawalloro (Grün/Blau)",
@@ -2920,7 +4736,15 @@
     "cost": 4,
     "image": "https://www.serebii.net/pokemonhome/pokemon/931.png",
     "base_speed": 92,
-    "since": 2
+    "since": 2,
+    "stats": {
+      "hp": 82,
+      "atk": 96,
+      "def": 51,
+      "spa": 45,
+      "spd": 51,
+      "spe": 92
+    }
   },
   {
     "name": "Krawalloro (Gelb/Weiß)",
@@ -2934,7 +4758,15 @@
     "cost": 4,
     "image": "https://www.serebii.net/pokemonhome/pokemon/931-y.png",
     "base_speed": 92,
-    "since": 2
+    "since": 2,
+    "stats": {
+      "hp": 82,
+      "atk": 96,
+      "def": 51,
+      "spa": 45,
+      "spd": 51,
+      "spe": 92
+    }
   },
   {
     "name": "Chevrumm",
@@ -2947,7 +4779,15 @@
     "cost": 4,
     "image": "https://www.serebii.net/pokemonhome/pokemon/673.png",
     "base_speed": 68,
-    "since": 2
+    "since": 2,
+    "stats": {
+      "hp": 123,
+      "atk": 100,
+      "def": 62,
+      "spa": 97,
+      "spd": 81,
+      "spe": 68
+    }
   },
   {
     "name": "Gaunux",
@@ -2960,7 +4800,15 @@
     "cost": 4,
     "image": "https://www.serebii.net/pokemonhome/pokemon/828.png",
     "base_speed": 90,
-    "since": 2
+    "since": 2,
+    "stats": {
+      "hp": 70,
+      "atk": 58,
+      "def": 58,
+      "spa": 87,
+      "spd": 92,
+      "spe": 90
+    }
   },
   {
     "name": "Ohrdoch",
@@ -2972,7 +4820,15 @@
     "tier": "D",
     "cost": 3,
     "image": "https://www.serebii.net/pokemonhome/pokemon/531.png",
-    "base_speed": 50
+    "base_speed": 50,
+    "stats": {
+      "hp": 103,
+      "atk": 60,
+      "def": 86,
+      "spa": 60,
+      "spd": 86,
+      "spe": 50
+    }
   },
   {
     "name": "Amagarga",
@@ -2985,7 +4841,15 @@
     "tier": "D",
     "cost": 3,
     "image": "https://www.serebii.net/pokemonhome/pokemon/699.png",
-    "base_speed": 58
+    "base_speed": 58,
+    "stats": {
+      "hp": 123,
+      "atk": 77,
+      "def": 72,
+      "spa": 99,
+      "spd": 92,
+      "spe": 58
+    }
   },
   {
     "name": "Siberio",
@@ -2997,7 +4861,15 @@
     "tier": "C",
     "cost": 7,
     "image": "https://www.serebii.net/pokemonhome/pokemon/614.png",
-    "base_speed": 50
+    "base_speed": 50,
+    "stats": {
+      "hp": 95,
+      "atk": 130,
+      "def": 80,
+      "spa": 70,
+      "spd": 80,
+      "spe": 50
+    }
   },
   {
     "name": "Krawell",
@@ -3010,7 +4882,15 @@
     "tier": "D",
     "cost": 3,
     "image": "https://www.serebii.net/pokemonhome/pokemon/740.png",
-    "base_speed": 43
+    "base_speed": 43,
+    "stats": {
+      "hp": 97,
+      "atk": 132,
+      "def": 77,
+      "spa": 62,
+      "spd": 67,
+      "spe": 43
+    }
   },
   {
     "name": "Silvarro",
@@ -3023,7 +4903,15 @@
     "tier": "D",
     "cost": 3,
     "image": "https://www.serebii.net/pokemonhome/pokemon/724.png",
-    "base_speed": 70
+    "base_speed": 70,
+    "stats": {
+      "hp": 78,
+      "atk": 107,
+      "def": 75,
+      "spa": 100,
+      "spd": 100,
+      "spe": 70
+    }
   },
   {
     "name": "Sen-Long",
@@ -3036,7 +4924,15 @@
     "tier": "D",
     "cost": 3,
     "image": "https://www.serebii.net/pokemonhome/pokemon/780.png",
-    "base_speed": 36
+    "base_speed": 36,
+    "stats": {
+      "hp": 78,
+      "atk": 60,
+      "def": 85,
+      "spa": 135,
+      "spd": 91,
+      "spe": 36
+    }
   },
   {
     "name": "Flambirex",
@@ -3049,7 +4945,15 @@
     "tier": "D",
     "cost": 3,
     "image": "https://www.serebii.net/pokemonhome/pokemon/500.png",
-    "base_speed": 65
+    "base_speed": 65,
+    "stats": {
+      "hp": 110,
+      "atk": 123,
+      "def": 65,
+      "spa": 100,
+      "spd": 65,
+      "spe": 65
+    }
   },
   {
     "name": "Impergator",
@@ -3061,7 +4965,15 @@
     "tier": "D",
     "cost": 3,
     "image": "https://www.serebii.net/pokemonhome/pokemon/160.png",
-    "base_speed": 78
+    "base_speed": 78,
+    "stats": {
+      "hp": 85,
+      "atk": 105,
+      "def": 100,
+      "spa": 79,
+      "spd": 83,
+      "spe": 78
+    }
   },
   {
     "name": "Drapfel",
@@ -3074,7 +4986,15 @@
     "tier": "D",
     "cost": 3,
     "image": "https://www.serebii.net/pokemonhome/pokemon/841.png",
-    "base_speed": 70
+    "base_speed": 70,
+    "stats": {
+      "hp": 70,
+      "atk": 110,
+      "def": 80,
+      "spa": 95,
+      "spd": 60,
+      "spe": 70
+    }
   },
   {
     "name": "Flamara",
@@ -3086,7 +5006,15 @@
     "tier": "D",
     "cost": 3,
     "image": "https://www.serebii.net/pokemonhome/pokemon/136.png",
-    "base_speed": 65
+    "base_speed": 65,
+    "stats": {
+      "hp": 65,
+      "atk": 130,
+      "def": 60,
+      "spa": 95,
+      "spd": 110,
+      "spe": 65
+    }
   },
   {
     "name": "Skorgro",
@@ -3099,7 +5027,15 @@
     "tier": "C",
     "cost": 7,
     "image": "https://www.serebii.net/pokemonhome/pokemon/472.png",
-    "base_speed": 95
+    "base_speed": 95,
+    "stats": {
+      "hp": 75,
+      "atk": 95,
+      "def": 125,
+      "spa": 45,
+      "spd": 75,
+      "spe": 95
+    }
   },
   {
     "name": "Skaraborn",
@@ -3112,7 +5048,15 @@
     "tier": "D",
     "cost": 3,
     "image": "https://www.serebii.net/pokemonhome/pokemon/214.png",
-    "base_speed": 85
+    "base_speed": 85,
+    "stats": {
+      "hp": 80,
+      "atk": 125,
+      "def": 75,
+      "spa": 40,
+      "spd": 95,
+      "spe": 85
+    }
   },
   {
     "name": "Wolwerock (Tagform)",
@@ -3124,7 +5068,15 @@
     "tier": "C",
     "cost": 7,
     "image": "https://www.serebii.net/pokemonhome/pokemon/745.png",
-    "base_speed": 112
+    "base_speed": 112,
+    "stats": {
+      "hp": 75,
+      "atk": 115,
+      "def": 65,
+      "spa": 55,
+      "spd": 65,
+      "spe": 112
+    }
   },
   {
     "name": "Mega-Ohrdoch",
@@ -3137,7 +5089,15 @@
     "tier": "D",
     "cost": 3,
     "image": "https://www.serebii.net/pokemonhome/pokemon/531-m.png",
-    "base_speed": 50
+    "base_speed": 50,
+    "stats": {
+      "hp": 103,
+      "atk": 60,
+      "def": 126,
+      "spa": 80,
+      "spd": 126,
+      "spe": 50
+    }
   },
   {
     "name": "Pantifrost",
@@ -3150,7 +5110,15 @@
     "tier": "D",
     "cost": 3,
     "image": "https://www.serebii.net/pokemonhome/pokemon/866.png",
-    "base_speed": 70
+    "base_speed": 70,
+    "stats": {
+      "hp": 80,
+      "atk": 85,
+      "def": 75,
+      "spa": 110,
+      "spd": 100,
+      "spe": 70
+    }
   },
   {
     "name": "Paldea-Tauros (Kampf)",
@@ -3162,7 +5130,15 @@
     "tier": "D",
     "cost": 3,
     "image": "https://www.serebii.net/pokemonhome/pokemon/128-p.png",
-    "base_speed": 100
+    "base_speed": 100,
+    "stats": {
+      "hp": 75,
+      "atk": 110,
+      "def": 105,
+      "spa": 30,
+      "spd": 70,
+      "spe": 100
+    }
   },
   {
     "name": "Quartermak",
@@ -3174,7 +5150,15 @@
     "tier": "D",
     "cost": 3,
     "image": "https://www.serebii.net/pokemonhome/pokemon/766.png",
-    "base_speed": 80
+    "base_speed": 80,
+    "stats": {
+      "hp": 100,
+      "atk": 120,
+      "def": 90,
+      "spa": 40,
+      "spd": 60,
+      "spe": 80
+    }
   },
   {
     "name": "Halupenjo",
@@ -3187,7 +5171,15 @@
     "tier": "C",
     "cost": 7,
     "image": "https://www.serebii.net/pokemonhome/pokemon/952.png",
-    "base_speed": 75
+    "base_speed": 75,
+    "stats": {
+      "hp": 65,
+      "atk": 108,
+      "def": 65,
+      "spa": 108,
+      "spd": 65,
+      "spe": 75
+    }
   },
   {
     "name": "Panzaeron",
@@ -3200,7 +5192,15 @@
     "tier": "D",
     "cost": 3,
     "image": "https://www.serebii.net/pokemonhome/pokemon/227.png",
-    "base_speed": 70
+    "base_speed": 70,
+    "stats": {
+      "hp": 65,
+      "atk": 80,
+      "def": 140,
+      "spa": 40,
+      "spd": 70,
+      "spe": 70
+    }
   },
   {
     "name": "Aggrostella",
@@ -3213,7 +5213,15 @@
     "tier": "D",
     "cost": 3,
     "image": "https://www.serebii.net/pokemonhome/pokemon/748.png",
-    "base_speed": 35
+    "base_speed": 35,
+    "stats": {
+      "hp": 50,
+      "atk": 63,
+      "def": 152,
+      "spa": 53,
+      "spd": 142,
+      "spe": 35
+    }
   },
   {
     "name": "Trombork",
@@ -3226,7 +5234,15 @@
     "tier": "D",
     "cost": 3,
     "image": "https://www.serebii.net/pokemonhome/pokemon/709.png",
-    "base_speed": 56
+    "base_speed": 56,
+    "stats": {
+      "hp": 85,
+      "atk": 110,
+      "def": 76,
+      "spa": 65,
+      "spd": 82,
+      "spe": 56
+    }
   },
   {
     "name": "Sarzenia",
@@ -3239,7 +5255,15 @@
     "tier": "D",
     "cost": 3,
     "image": "https://www.serebii.net/pokemonhome/pokemon/071.png",
-    "base_speed": 70
+    "base_speed": 70,
+    "stats": {
+      "hp": 80,
+      "atk": 105,
+      "def": 65,
+      "spa": 100,
+      "spd": 70,
+      "spe": 70
+    }
   },
   {
     "name": "Porenta",
@@ -3253,7 +5277,15 @@
     "cost": 3,
     "image": "https://www.serebii.net/pokemonhome/pokemon/083.png",
     "base_speed": 60,
-    "since": 2
+    "since": 2,
+    "stats": {
+      "hp": 52,
+      "atk": 90,
+      "def": 55,
+      "spa": 58,
+      "spd": 62,
+      "spe": 60
+    }
   },
   {
     "name": "Stolloss",
@@ -3266,7 +5298,15 @@
     "tier": "D",
     "cost": 2,
     "image": "https://www.serebii.net/pokemonhome/pokemon/306.png",
-    "base_speed": 50
+    "base_speed": 50,
+    "stats": {
+      "hp": 70,
+      "atk": 110,
+      "def": 180,
+      "spa": 60,
+      "spd": 60,
+      "spe": 50
+    }
   },
   {
     "name": "Arbok",
@@ -3278,7 +5318,15 @@
     "tier": "D",
     "cost": 2,
     "image": "https://www.serebii.net/pokemonhome/pokemon/024.png",
-    "base_speed": 80
+    "base_speed": 80,
+    "stats": {
+      "hp": 60,
+      "atk": 95,
+      "def": 69,
+      "spa": 65,
+      "spd": 79,
+      "spe": 80
+    }
   },
   {
     "name": "Ariados",
@@ -3291,7 +5339,15 @@
     "tier": "D",
     "cost": 2,
     "image": "https://www.serebii.net/pokemonhome/pokemon/168.png",
-    "base_speed": 40
+    "base_speed": 40,
+    "stats": {
+      "hp": 70,
+      "atk": 90,
+      "def": 70,
+      "spa": 60,
+      "spd": 70,
+      "spe": 40
+    }
   },
   {
     "name": "Bollterus",
@@ -3304,7 +5360,15 @@
     "tier": "D",
     "cost": 2,
     "image": "https://www.serebii.net/pokemonhome/pokemon/411.png",
-    "base_speed": 30
+    "base_speed": 30,
+    "stats": {
+      "hp": 60,
+      "atk": 52,
+      "def": 168,
+      "spa": 47,
+      "spd": 138,
+      "spe": 30
+    }
   },
   {
     "name": "Psiaugon ♀",
@@ -3316,7 +5380,15 @@
     "tier": "D",
     "cost": 2,
     "image": "https://www.serebii.net/pokemonhome/pokemon/678-f.png",
-    "base_speed": 104
+    "base_speed": 104,
+    "stats": {
+      "hp": 74,
+      "atk": 48,
+      "def": 76,
+      "spa": 83,
+      "spd": 81,
+      "spe": 104
+    }
   },
   {
     "name": "Morpeko",
@@ -3329,7 +5401,15 @@
     "tier": "D",
     "cost": 2,
     "image": "https://www.serebii.net/pokemonhome/pokemon/877.png",
-    "base_speed": 97
+    "base_speed": 97,
+    "stats": {
+      "hp": 58,
+      "atk": 95,
+      "def": 58,
+      "spa": 70,
+      "spd": 58,
+      "spe": 97
+    }
   },
   {
     "name": "Rotom",
@@ -3342,7 +5422,15 @@
     "tier": "D",
     "cost": 2,
     "image": "https://www.serebii.net/pokemonhome/pokemon/479.png",
-    "base_speed": 91
+    "base_speed": 91,
+    "stats": {
+      "hp": 50,
+      "atk": 50,
+      "def": 77,
+      "spa": 95,
+      "spd": 77,
+      "spe": 91
+    }
   },
   {
     "name": "Wirbel-Rotom",
@@ -3355,7 +5443,15 @@
     "tier": "D",
     "cost": 2,
     "image": "https://www.serebii.net/pokemonhome/pokemon/479-s.png",
-    "base_speed": 86
+    "base_speed": 86,
+    "stats": {
+      "hp": 50,
+      "atk": 65,
+      "def": 107,
+      "spa": 105,
+      "spd": 107,
+      "spe": 86
+    }
   },
   {
     "name": "Sanaconda",
@@ -3367,7 +5463,15 @@
     "tier": "D",
     "cost": 2,
     "image": "https://www.serebii.net/pokemonhome/pokemon/844.png",
-    "base_speed": 71
+    "base_speed": 71,
+    "stats": {
+      "hp": 72,
+      "atk": 107,
+      "def": 125,
+      "spa": 65,
+      "spd": 70,
+      "spe": 71
+    }
   },
   {
     "name": "Tohaido",
@@ -3380,7 +5484,15 @@
     "tier": "D",
     "cost": 2,
     "image": "https://www.serebii.net/pokemonhome/pokemon/319.png",
-    "base_speed": 95
+    "base_speed": 95,
+    "stats": {
+      "hp": 70,
+      "atk": 120,
+      "def": 40,
+      "spa": 95,
+      "spd": 40,
+      "spe": 95
+    }
   },
   {
     "name": "Sabbaione",
@@ -3392,7 +5504,15 @@
     "tier": "D",
     "cost": 2,
     "image": "https://www.serebii.net/pokemonhome/pokemon/685.png",
-    "base_speed": 72
+    "base_speed": 72,
+    "stats": {
+      "hp": 82,
+      "atk": 80,
+      "def": 86,
+      "spa": 85,
+      "spd": 75,
+      "spe": 72
+    }
   },
   {
     "name": "Stahlos",
@@ -3405,7 +5525,15 @@
     "tier": "C",
     "cost": 6,
     "image": "https://www.serebii.net/pokemonhome/pokemon/208.png",
-    "base_speed": 30
+    "base_speed": 30,
+    "stats": {
+      "hp": 75,
+      "atk": 85,
+      "def": 200,
+      "spa": 55,
+      "spd": 65,
+      "spe": 30
+    }
   },
   {
     "name": "Tauros",
@@ -3417,7 +5545,15 @@
     "tier": "D",
     "cost": 2,
     "image": "https://www.serebii.net/pokemonhome/pokemon/128.png",
-    "base_speed": 110
+    "base_speed": 110,
+    "stats": {
+      "hp": 75,
+      "atk": 100,
+      "def": 95,
+      "spa": 40,
+      "spd": 70,
+      "spe": 110
+    }
   },
   {
     "name": "Schlukwech",
@@ -3430,7 +5566,15 @@
     "cost": 2,
     "image": "https://www.serebii.net/pokemonhome/pokemon/317.png",
     "base_speed": 55,
-    "since": 2
+    "since": 2,
+    "stats": {
+      "hp": 100,
+      "atk": 73,
+      "def": 83,
+      "spa": 73,
+      "spd": 83,
+      "spe": 55
+    }
   },
   {
     "name": "Snobilikat",
@@ -3443,7 +5587,15 @@
     "cost": 2,
     "image": "https://www.serebii.net/pokemonhome/pokemon/053.png",
     "base_speed": 115,
-    "since": 2
+    "since": 2,
+    "stats": {
+      "hp": 65,
+      "atk": 70,
+      "def": 60,
+      "spa": 65,
+      "spd": 65,
+      "spe": 115
+    }
   },
   {
     "name": "Absol",
@@ -3455,7 +5607,15 @@
     "tier": "D",
     "cost": 1,
     "image": "https://www.serebii.net/pokemonhome/pokemon/359.png",
-    "base_speed": 75
+    "base_speed": 75,
+    "stats": {
+      "hp": 65,
+      "atk": 130,
+      "def": 60,
+      "spa": 75,
+      "spd": 60,
+      "spe": 75
+    }
   },
   {
     "name": "Altaria",
@@ -3468,7 +5628,15 @@
     "tier": "D",
     "cost": 1,
     "image": "https://www.serebii.net/pokemonhome/pokemon/334.png",
-    "base_speed": 80
+    "base_speed": 80,
+    "stats": {
+      "hp": 75,
+      "atk": 70,
+      "def": 90,
+      "spa": 70,
+      "spd": 105,
+      "spe": 80
+    }
   },
   {
     "name": "Ampharos",
@@ -3480,7 +5648,15 @@
     "tier": "D",
     "cost": 1,
     "image": "https://www.serebii.net/pokemonhome/pokemon/181.png",
-    "base_speed": 55
+    "base_speed": 55,
+    "stats": {
+      "hp": 90,
+      "atk": 75,
+      "def": 85,
+      "spa": 115,
+      "spd": 90,
+      "spe": 55
+    }
   },
   {
     "name": "Schlapfel",
@@ -3493,7 +5669,15 @@
     "tier": "D",
     "cost": 1,
     "image": "https://www.serebii.net/pokemonhome/pokemon/842.png",
-    "base_speed": 30
+    "base_speed": 30,
+    "stats": {
+      "hp": 110,
+      "atk": 85,
+      "def": 80,
+      "spa": 100,
+      "spd": 80,
+      "spe": 30
+    }
   },
   {
     "name": "Arktilas",
@@ -3505,7 +5689,15 @@
     "tier": "D",
     "cost": 1,
     "image": "https://www.serebii.net/pokemonhome/pokemon/713.png",
-    "base_speed": 28
+    "base_speed": 28,
+    "stats": {
+      "hp": 95,
+      "atk": 117,
+      "def": 184,
+      "spa": 44,
+      "spd": 46,
+      "spe": 28
+    }
   },
   {
     "name": "Banette",
@@ -3517,7 +5709,15 @@
     "tier": "D",
     "cost": 1,
     "image": "https://www.serebii.net/pokemonhome/pokemon/354.png",
-    "base_speed": 65
+    "base_speed": 65,
+    "stats": {
+      "hp": 64,
+      "atk": 115,
+      "def": 65,
+      "spa": 83,
+      "spd": 63,
+      "spe": 65
+    }
   },
   {
     "name": "Bibor",
@@ -3530,7 +5730,15 @@
     "tier": "D",
     "cost": 1,
     "image": "https://www.serebii.net/pokemonhome/pokemon/015.png",
-    "base_speed": 75
+    "base_speed": 75,
+    "stats": {
+      "hp": 65,
+      "atk": 90,
+      "def": 40,
+      "spa": 45,
+      "spd": 80,
+      "spe": 75
+    }
   },
   {
     "name": "Camerupt",
@@ -3543,7 +5751,15 @@
     "tier": "C",
     "cost": 5,
     "image": "https://www.serebii.net/pokemonhome/pokemon/323.png",
-    "base_speed": 40
+    "base_speed": 40,
+    "stats": {
+      "hp": 70,
+      "atk": 100,
+      "def": 70,
+      "spa": 105,
+      "spd": 75,
+      "spe": 40
+    }
   },
   {
     "name": "Formeo",
@@ -3555,7 +5771,15 @@
     "tier": "D",
     "cost": 1,
     "image": "https://www.serebii.net/pokemonhome/pokemon/351.png",
-    "base_speed": 70
+    "base_speed": 70,
+    "stats": {
+      "hp": 70,
+      "atk": 70,
+      "def": 70,
+      "spa": 70,
+      "spd": 70,
+      "spe": 70
+    }
   },
   {
     "name": "Palimpalim",
@@ -3567,7 +5791,15 @@
     "tier": "D",
     "cost": 1,
     "image": "https://www.serebii.net/pokemonhome/pokemon/358.png",
-    "base_speed": 65
+    "base_speed": 65,
+    "stats": {
+      "hp": 75,
+      "atk": 50,
+      "def": 80,
+      "spa": 95,
+      "spd": 90,
+      "spe": 65
+    }
   },
   {
     "name": "Dedenne",
@@ -3580,7 +5812,15 @@
     "tier": "D",
     "cost": 1,
     "image": "https://www.serebii.net/pokemonhome/pokemon/702.png",
-    "base_speed": 101
+    "base_speed": 101,
+    "stats": {
+      "hp": 67,
+      "atk": 58,
+      "def": 57,
+      "spa": 81,
+      "spd": 67,
+      "spe": 101
+    }
   },
   {
     "name": "Emolga",
@@ -3593,7 +5833,15 @@
     "tier": "D",
     "cost": 1,
     "image": "https://www.serebii.net/pokemonhome/pokemon/587.png",
-    "base_speed": 103
+    "base_speed": 103,
+    "stats": {
+      "hp": 55,
+      "atk": 75,
+      "def": 60,
+      "spa": 75,
+      "spd": 60,
+      "spe": 103
+    }
   },
   {
     "name": "Forstellka",
@@ -3606,7 +5854,15 @@
     "tier": "D",
     "cost": 1,
     "image": "https://www.serebii.net/pokemonhome/pokemon/205.png",
-    "base_speed": 40
+    "base_speed": 40,
+    "stats": {
+      "hp": 75,
+      "atk": 90,
+      "def": 140,
+      "spa": 60,
+      "spd": 60,
+      "spe": 40
+    }
   },
   {
     "name": "Coiffwaff",
@@ -3618,7 +5874,15 @@
     "tier": "D",
     "cost": 1,
     "image": "https://www.serebii.net/pokemonhome/pokemon/676.png",
-    "base_speed": 102
+    "base_speed": 102,
+    "stats": {
+      "hp": 75,
+      "atk": 80,
+      "def": 60,
+      "spa": 65,
+      "spd": 90,
+      "spe": 102
+    }
   },
   {
     "name": "Galar-Flunschlik",
@@ -3631,7 +5895,15 @@
     "tier": "D",
     "cost": 1,
     "image": "https://www.serebii.net/pokemonhome/pokemon/618-g.png",
-    "base_speed": 32
+    "base_speed": 32,
+    "stats": {
+      "hp": 109,
+      "atk": 81,
+      "def": 99,
+      "spa": 66,
+      "spd": 84,
+      "spe": 32
+    }
   },
   {
     "name": "Deponitox",
@@ -3643,7 +5915,15 @@
     "tier": "D",
     "cost": 1,
     "image": "https://www.serebii.net/pokemonhome/pokemon/569.png",
-    "base_speed": 75
+    "base_speed": 75,
+    "stats": {
+      "hp": 80,
+      "atk": 95,
+      "def": 82,
+      "spa": 60,
+      "spd": 82,
+      "spe": 75
+    }
   },
   {
     "name": "Firnontor",
@@ -3655,7 +5935,15 @@
     "tier": "D",
     "cost": 1,
     "image": "https://www.serebii.net/pokemonhome/pokemon/362.png",
-    "base_speed": 80
+    "base_speed": 80,
+    "stats": {
+      "hp": 80,
+      "atk": 80,
+      "def": 80,
+      "spa": 80,
+      "spd": 80,
+      "spe": 80
+    }
   },
   {
     "name": "Hisui-Arktilas",
@@ -3668,7 +5956,15 @@
     "tier": "D",
     "cost": 1,
     "image": "https://www.serebii.net/pokemonhome/pokemon/713-h.png",
-    "base_speed": 38
+    "base_speed": 38,
+    "stats": {
+      "hp": 95,
+      "atk": 127,
+      "def": 184,
+      "spa": 34,
+      "spd": 36,
+      "spe": 38
+    }
   },
   {
     "name": "Hundemon",
@@ -3681,7 +5977,15 @@
     "tier": "D",
     "cost": 1,
     "image": "https://www.serebii.net/pokemonhome/pokemon/229.png",
-    "base_speed": 95
+    "base_speed": 95,
+    "stats": {
+      "hp": 75,
+      "atk": 90,
+      "def": 50,
+      "spa": 110,
+      "spd": 80,
+      "spe": 95
+    }
   },
   {
     "name": "Schlapor",
@@ -3693,7 +5997,15 @@
     "tier": "D",
     "cost": 1,
     "image": "https://www.serebii.net/pokemonhome/pokemon/428.png",
-    "base_speed": 105
+    "base_speed": 105,
+    "stats": {
+      "hp": 65,
+      "atk": 76,
+      "def": 84,
+      "spa": 54,
+      "spd": 96,
+      "spe": 105
+    }
   },
   {
     "name": "Wolwerock (Nachtform)",
@@ -3705,7 +6017,15 @@
     "tier": "D",
     "cost": 1,
     "image": "https://www.serebii.net/pokemonhome/pokemon/745-m.png",
-    "base_speed": 82
+    "base_speed": 82,
+    "stats": {
+      "hp": 85,
+      "atk": 115,
+      "def": 75,
+      "spa": 55,
+      "spd": 75,
+      "spe": 82
+    }
   },
   {
     "name": "Voltenso",
@@ -3717,7 +6037,15 @@
     "tier": "D",
     "cost": 1,
     "image": "https://www.serebii.net/pokemonhome/pokemon/310.png",
-    "base_speed": 105
+    "base_speed": 105,
+    "stats": {
+      "hp": 70,
+      "atk": 75,
+      "def": 60,
+      "spa": 105,
+      "spd": 60,
+      "spe": 105
+    }
   },
   {
     "name": "Meganie",
@@ -3729,7 +6057,15 @@
     "tier": "D",
     "cost": 1,
     "image": "https://www.serebii.net/pokemonhome/pokemon/154.png",
-    "base_speed": 80
+    "base_speed": 80,
+    "stats": {
+      "hp": 80,
+      "atk": 82,
+      "def": 100,
+      "spa": 83,
+      "spd": 100,
+      "spe": 80
+    }
   },
   {
     "name": "Tauboss",
@@ -3742,7 +6078,15 @@
     "tier": "D",
     "cost": 1,
     "image": "https://www.serebii.net/pokemonhome/pokemon/018.png",
-    "base_speed": 101
+    "base_speed": 101,
+    "stats": {
+      "hp": 83,
+      "atk": 80,
+      "def": 75,
+      "spa": 70,
+      "spd": 70,
+      "spe": 101
+    }
   },
   {
     "name": "Pikachu",
@@ -3754,7 +6098,15 @@
     "tier": "D",
     "cost": 1,
     "image": "https://www.serebii.net/pokemonhome/pokemon/025.png",
-    "base_speed": 90
+    "base_speed": 90,
+    "stats": {
+      "hp": 35,
+      "atk": 55,
+      "def": 40,
+      "spa": 50,
+      "spd": 50,
+      "spe": 90
+    }
   },
   {
     "name": "Pinsir",
@@ -3766,7 +6118,15 @@
     "tier": "D",
     "cost": 1,
     "image": "https://www.serebii.net/pokemonhome/pokemon/127.png",
-    "base_speed": 85
+    "base_speed": 85,
+    "stats": {
+      "hp": 65,
+      "atk": 125,
+      "def": 100,
+      "spa": 55,
+      "spd": 70,
+      "spe": 85
+    }
   },
   {
     "name": "Admurai",
@@ -3778,7 +6138,15 @@
     "tier": "D",
     "cost": 1,
     "image": "https://www.serebii.net/pokemonhome/pokemon/503.png",
-    "base_speed": 70
+    "base_speed": 70,
+    "stats": {
+      "hp": 95,
+      "atk": 100,
+      "def": 85,
+      "spa": 108,
+      "spd": 70,
+      "spe": 70
+    }
   },
   {
     "name": "Sodachita",
@@ -3790,7 +6158,15 @@
     "tier": "D",
     "cost": 1,
     "image": "https://www.serebii.net/pokemonhome/pokemon/516.png",
-    "base_speed": 101
+    "base_speed": 101,
+    "stats": {
+      "hp": 75,
+      "atk": 98,
+      "def": 63,
+      "spa": 98,
+      "spd": 63,
+      "spe": 101
+    }
   },
   {
     "name": "Vegichita",
@@ -3802,7 +6178,15 @@
     "tier": "D",
     "cost": 1,
     "image": "https://www.serebii.net/pokemonhome/pokemon/512.png",
-    "base_speed": 101
+    "base_speed": 101,
+    "stats": {
+      "hp": 75,
+      "atk": 98,
+      "def": 63,
+      "spa": 98,
+      "spd": 63,
+      "spe": 101
+    }
   },
   {
     "name": "Grillchita",
@@ -3814,7 +6198,15 @@
     "tier": "D",
     "cost": 1,
     "image": "https://www.serebii.net/pokemonhome/pokemon/514.png",
-    "base_speed": 101
+    "base_speed": 101,
+    "stats": {
+      "hp": 75,
+      "atk": 98,
+      "def": 63,
+      "spa": 98,
+      "spd": 63,
+      "spe": 101
+    }
   },
   {
     "name": "Flunschlik",
@@ -3827,7 +6219,15 @@
     "tier": "D",
     "cost": 1,
     "image": "https://www.serebii.net/pokemonhome/pokemon/618.png",
-    "base_speed": 32
+    "base_speed": 32,
+    "stats": {
+      "hp": 109,
+      "atk": 66,
+      "def": 84,
+      "spa": 81,
+      "spd": 99,
+      "spe": 32
+    }
   },
   {
     "name": "Tukanon",
@@ -3840,7 +6240,15 @@
     "tier": "D",
     "cost": 1,
     "image": "https://www.serebii.net/pokemonhome/pokemon/733.png",
-    "base_speed": 60
+    "base_speed": 60,
+    "stats": {
+      "hp": 80,
+      "atk": 120,
+      "def": 75,
+      "spa": 75,
+      "spd": 75,
+      "spe": 60
+    }
   },
   {
     "name": "Kukmarda",
@@ -3852,7 +6260,15 @@
     "tier": "D",
     "cost": 1,
     "image": "https://www.serebii.net/pokemonhome/pokemon/505.png",
-    "base_speed": 77
+    "base_speed": 77,
+    "stats": {
+      "hp": 60,
+      "atk": 85,
+      "def": 69,
+      "spa": 60,
+      "spd": 69,
+      "spe": 77
+    }
   },
   {
     "name": "Mega-Raichu X",
@@ -3864,7 +6280,15 @@
     "tier": "S",
     "cost": null,
     "image": "https://www.serebii.net/pokemonhome/pokemon/026-mx.png",
-    "base_speed": 110
+    "base_speed": 110,
+    "stats": {
+      "hp": 60,
+      "atk": 135,
+      "def": 95,
+      "spa": 90,
+      "spd": 95,
+      "spe": 110
+    }
   },
   {
     "name": "Mega-Raichu Y",
@@ -3876,7 +6300,15 @@
     "tier": "A",
     "cost": null,
     "image": "https://www.serebii.net/pokemonhome/pokemon/026-my.png",
-    "base_speed": 130
+    "base_speed": 130,
+    "stats": {
+      "hp": 60,
+      "atk": 100,
+      "def": 55,
+      "spa": 160,
+      "spd": 80,
+      "spe": 130
+    }
   },
   {
     "name": "Giflor",
@@ -3889,7 +6321,15 @@
     "tier": "D",
     "cost": null,
     "image": "https://www.serebii.net/pokemonhome/pokemon/045.png",
-    "base_speed": 50
+    "base_speed": 50,
+    "stats": {
+      "hp": 75,
+      "atk": 80,
+      "def": 85,
+      "spa": 110,
+      "spd": 90,
+      "spe": 50
+    }
   },
   {
     "name": "Baldorfish",
@@ -3902,7 +6342,15 @@
     "tier": "D",
     "cost": null,
     "image": "https://www.serebii.net/pokemonhome/pokemon/211.png",
-    "base_speed": 85
+    "base_speed": 85,
+    "stats": {
+      "hp": 65,
+      "atk": 95,
+      "def": 85,
+      "spa": 55,
+      "spd": 55,
+      "spe": 85
+    }
   },
   {
     "name": "Gewaldro",
@@ -3914,7 +6362,15 @@
     "tier": "C",
     "cost": null,
     "image": "https://www.serebii.net/pokemonhome/pokemon/254.png",
-    "base_speed": 120
+    "base_speed": 120,
+    "stats": {
+      "hp": 70,
+      "atk": 85,
+      "def": 65,
+      "spa": 105,
+      "spd": 85,
+      "spe": 120
+    }
   },
   {
     "name": "Mega-Gewaldro",
@@ -3927,7 +6383,15 @@
     "tier": "B",
     "cost": null,
     "image": "https://www.serebii.net/pokemonhome/pokemon/254-m.png",
-    "base_speed": 145
+    "base_speed": 145,
+    "stats": {
+      "hp": 70,
+      "atk": 110,
+      "def": 75,
+      "spa": 145,
+      "spd": 85,
+      "spe": 145
+    }
   },
   {
     "name": "Lohgock",
@@ -3940,7 +6404,15 @@
     "tier": "B",
     "cost": null,
     "image": "https://www.serebii.net/pokemonhome/pokemon/257.png",
-    "base_speed": 80
+    "base_speed": 80,
+    "stats": {
+      "hp": 80,
+      "atk": 120,
+      "def": 70,
+      "spa": 110,
+      "spd": 70,
+      "spe": 80
+    }
   },
   {
     "name": "Mega-Lohgock",
@@ -3953,7 +6425,15 @@
     "tier": "B",
     "cost": null,
     "image": "https://www.serebii.net/pokemonhome/pokemon/257-m.png",
-    "base_speed": 100
+    "base_speed": 100,
+    "stats": {
+      "hp": 80,
+      "atk": 160,
+      "def": 80,
+      "spa": 130,
+      "spd": 80,
+      "spe": 100
+    }
   },
   {
     "name": "Sumpex",
@@ -3966,7 +6446,15 @@
     "tier": "B",
     "cost": null,
     "image": "https://www.serebii.net/pokemonhome/pokemon/260.png",
-    "base_speed": 60
+    "base_speed": 60,
+    "stats": {
+      "hp": 100,
+      "atk": 110,
+      "def": 90,
+      "spa": 85,
+      "spd": 90,
+      "spe": 60
+    }
   },
   {
     "name": "Mega-Sumpex",
@@ -3979,7 +6467,15 @@
     "tier": "A",
     "cost": null,
     "image": "https://www.serebii.net/pokemonhome/pokemon/260-m.png",
-    "base_speed": 70
+    "base_speed": 70,
+    "stats": {
+      "hp": 100,
+      "atk": 150,
+      "def": 110,
+      "spa": 95,
+      "spd": 110,
+      "spe": 70
+    }
   },
   {
     "name": "Flunkifer",
@@ -3992,7 +6488,15 @@
     "tier": "C",
     "cost": null,
     "image": "https://www.serebii.net/pokemonhome/pokemon/303.png",
-    "base_speed": 50
+    "base_speed": 50,
+    "stats": {
+      "hp": 50,
+      "atk": 85,
+      "def": 85,
+      "spa": 55,
+      "spd": 55,
+      "spe": 50
+    }
   },
   {
     "name": "Mega-Flunkifer",
@@ -4005,7 +6509,15 @@
     "tier": "S",
     "cost": null,
     "image": "https://www.serebii.net/pokemonhome/pokemon/303-m.png",
-    "base_speed": 50
+    "base_speed": 50,
+    "stats": {
+      "hp": 50,
+      "atk": 105,
+      "def": 125,
+      "spa": 55,
+      "spd": 95,
+      "spe": 50
+    }
   },
   {
     "name": "Metagross",
@@ -4018,7 +6530,15 @@
     "tier": "B",
     "cost": null,
     "image": "https://www.serebii.net/pokemonhome/pokemon/376.png",
-    "base_speed": 70
+    "base_speed": 70,
+    "stats": {
+      "hp": 80,
+      "atk": 135,
+      "def": 130,
+      "spa": 95,
+      "spd": 90,
+      "spe": 70
+    }
   },
   {
     "name": "Mega-Metagross",
@@ -4031,7 +6551,15 @@
     "tier": "S",
     "cost": null,
     "image": "https://www.serebii.net/pokemonhome/pokemon/376-m.png",
-    "base_speed": 110
+    "base_speed": 110,
+    "stats": {
+      "hp": 80,
+      "atk": 145,
+      "def": 150,
+      "spa": 105,
+      "spd": 110,
+      "spe": 110
+    }
   },
   {
     "name": "Staraptor",
@@ -4044,7 +6572,15 @@
     "tier": "C",
     "cost": null,
     "image": "https://www.serebii.net/pokemonhome/pokemon/398.png",
-    "base_speed": 100
+    "base_speed": 100,
+    "stats": {
+      "hp": 85,
+      "atk": 120,
+      "def": 70,
+      "spa": 50,
+      "spd": 60,
+      "spe": 100
+    }
   },
   {
     "name": "Mega-Staraptor",
@@ -4057,7 +6593,15 @@
     "tier": "S",
     "cost": null,
     "image": "https://www.serebii.net/pokemonhome/pokemon/398-m.png",
-    "base_speed": 110
+    "base_speed": 110,
+    "stats": {
+      "hp": 85,
+      "atk": 140,
+      "def": 100,
+      "spa": 60,
+      "spd": 90,
+      "spe": 110
+    }
   },
   {
     "name": "Somnivora",
@@ -4069,7 +6613,15 @@
     "tier": "D",
     "cost": null,
     "image": "https://www.serebii.net/pokemonhome/pokemon/518.png",
-    "base_speed": 29
+    "base_speed": 29,
+    "stats": {
+      "hp": 116,
+      "atk": 55,
+      "def": 85,
+      "spa": 107,
+      "spd": 95,
+      "spe": 29
+    }
   },
   {
     "name": "Cerapendra",
@@ -4082,7 +6634,15 @@
     "tier": "C",
     "cost": null,
     "image": "https://www.serebii.net/pokemonhome/pokemon/545.png",
-    "base_speed": 112
+    "base_speed": 112,
+    "stats": {
+      "hp": 60,
+      "atk": 100,
+      "def": 89,
+      "spa": 55,
+      "spd": 69,
+      "spe": 112
+    }
   },
   {
     "name": "Mega-Cerapendra",
@@ -4095,7 +6655,15 @@
     "tier": "B",
     "cost": null,
     "image": "https://www.serebii.net/pokemonhome/pokemon/545-m.png",
-    "base_speed": 62
+    "base_speed": 62,
+    "stats": {
+      "hp": 60,
+      "atk": 140,
+      "def": 149,
+      "spa": 75,
+      "spd": 99,
+      "spe": 62
+    }
   },
   {
     "name": "Irokex",
@@ -4108,7 +6676,15 @@
     "tier": "B",
     "cost": null,
     "image": "https://www.serebii.net/pokemonhome/pokemon/560.png",
-    "base_speed": 58
+    "base_speed": 58,
+    "stats": {
+      "hp": 65,
+      "atk": 90,
+      "def": 115,
+      "spa": 45,
+      "spd": 115,
+      "spe": 58
+    }
   },
   {
     "name": "Mega-Irokex",
@@ -4121,7 +6697,15 @@
     "tier": "B",
     "cost": null,
     "image": "https://www.serebii.net/pokemonhome/pokemon/560-m.png",
-    "base_speed": 68
+    "base_speed": 68,
+    "stats": {
+      "hp": 65,
+      "atk": 130,
+      "def": 135,
+      "spa": 55,
+      "spd": 135,
+      "spe": 68
+    }
   },
   {
     "name": "Zapplarang",
@@ -4133,7 +6717,15 @@
     "tier": "C",
     "cost": null,
     "image": "https://www.serebii.net/pokemonhome/pokemon/604.png",
-    "base_speed": 50
+    "base_speed": 50,
+    "stats": {
+      "hp": 85,
+      "atk": 115,
+      "def": 80,
+      "spa": 105,
+      "spd": 80,
+      "spe": 50
+    }
   },
   {
     "name": "Mega-Zapplarang",
@@ -4145,7 +6737,15 @@
     "tier": "B",
     "cost": null,
     "image": "https://www.serebii.net/pokemonhome/pokemon/604-m.png",
-    "base_speed": 80
+    "base_speed": 80,
+    "stats": {
+      "hp": 85,
+      "atk": 145,
+      "def": 80,
+      "spa": 135,
+      "spd": 90,
+      "spe": 80
+    }
   },
   {
     "name": "Pyroleo",
@@ -4158,7 +6758,15 @@
     "tier": "C",
     "cost": null,
     "image": "https://www.serebii.net/pokemonhome/pokemon/668.png",
-    "base_speed": 106
+    "base_speed": 106,
+    "stats": {
+      "hp": 86,
+      "atk": 68,
+      "def": 72,
+      "spa": 109,
+      "spd": 66,
+      "spe": 106
+    }
   },
   {
     "name": "Mega-Pyroleo",
@@ -4171,7 +6779,15 @@
     "tier": "B",
     "cost": null,
     "image": "https://www.serebii.net/pokemonhome/pokemon/668-m.png",
-    "base_speed": 126
+    "base_speed": 126,
+    "stats": {
+      "hp": 86,
+      "atk": 88,
+      "def": 92,
+      "spa": 129,
+      "spd": 86,
+      "spe": 126
+    }
   },
   {
     "name": "Calamanero",
@@ -4184,7 +6800,15 @@
     "tier": "C",
     "cost": null,
     "image": "https://www.serebii.net/pokemonhome/pokemon/687.png",
-    "base_speed": 73
+    "base_speed": 73,
+    "stats": {
+      "hp": 86,
+      "atk": 92,
+      "def": 88,
+      "spa": 68,
+      "spd": 75,
+      "spe": 73
+    }
   },
   {
     "name": "Mega-Calamanero",
@@ -4197,7 +6821,15 @@
     "tier": "C",
     "cost": null,
     "image": "https://www.serebii.net/pokemonhome/pokemon/687-m.png",
-    "base_speed": 88
+    "base_speed": 88,
+    "stats": {
+      "hp": 86,
+      "atk": 102,
+      "def": 88,
+      "spa": 98,
+      "spd": 120,
+      "spe": 88
+    }
   },
   {
     "name": "Thanathora",
@@ -4210,7 +6842,15 @@
     "tier": "D",
     "cost": null,
     "image": "https://www.serebii.net/pokemonhome/pokemon/689.png",
-    "base_speed": 68
+    "base_speed": 68,
+    "stats": {
+      "hp": 72,
+      "atk": 105,
+      "def": 115,
+      "spa": 54,
+      "spd": 86,
+      "spe": 68
+    }
   },
   {
     "name": "Mega-Thanathora",
@@ -4223,7 +6863,15 @@
     "tier": "B",
     "cost": null,
     "image": "https://www.serebii.net/pokemonhome/pokemon/689-m.png",
-    "base_speed": 88
+    "base_speed": 88,
+    "stats": {
+      "hp": 72,
+      "atk": 140,
+      "def": 130,
+      "spa": 64,
+      "spd": 106,
+      "spe": 88
+    }
   },
   {
     "name": "Tandrak",
@@ -4236,7 +6884,15 @@
     "tier": "C",
     "cost": null,
     "image": "https://www.serebii.net/pokemonhome/pokemon/691.png",
-    "base_speed": 44
+    "base_speed": 44,
+    "stats": {
+      "hp": 65,
+      "atk": 75,
+      "def": 90,
+      "spa": 97,
+      "spd": 123,
+      "spe": 44
+    }
   },
   {
     "name": "Mega-Tandrak",
@@ -4249,7 +6905,15 @@
     "tier": "B",
     "cost": null,
     "image": "https://www.serebii.net/pokemonhome/pokemon/691-m.png",
-    "base_speed": 44
+    "base_speed": 44,
+    "stats": {
+      "hp": 65,
+      "atk": 85,
+      "def": 105,
+      "spa": 132,
+      "spd": 163,
+      "spe": 44
+    }
   },
   {
     "name": "Olangaar",
@@ -4262,7 +6926,15 @@
     "tier": "S",
     "cost": null,
     "image": "https://www.serebii.net/pokemonhome/pokemon/861.png",
-    "base_speed": 60
+    "base_speed": 60,
+    "stats": {
+      "hp": 95,
+      "atk": 120,
+      "def": 65,
+      "spa": 95,
+      "spd": 75,
+      "spe": 60
+    }
   },
   {
     "name": "Legios",
@@ -4274,7 +6946,15 @@
     "tier": "C",
     "cost": null,
     "image": "https://www.serebii.net/pokemonhome/pokemon/870.png",
-    "base_speed": 75
+    "base_speed": 75,
+    "stats": {
+      "hp": 65,
+      "atk": 100,
+      "def": 100,
+      "spa": 70,
+      "spd": 60,
+      "spe": 75
+    }
   },
   {
     "name": "Mega-Legios",
@@ -4286,7 +6966,15 @@
     "tier": "C",
     "cost": null,
     "image": "https://www.serebii.net/pokemonhome/pokemon/870-m.png",
-    "base_speed": 100
+    "base_speed": 100,
+    "stats": {
+      "hp": 65,
+      "atk": 135,
+      "def": 135,
+      "spa": 70,
+      "spd": 65,
+      "spe": 100
+    }
   },
   {
     "name": "Myriador",
@@ -4299,7 +6987,15 @@
     "tier": "C",
     "cost": null,
     "image": "https://www.serebii.net/pokemonhome/pokemon/904.png",
-    "base_speed": 85
+    "base_speed": 85,
+    "stats": {
+      "hp": 85,
+      "atk": 115,
+      "def": 95,
+      "spa": 65,
+      "spd": 65,
+      "spe": 85
+    }
   },
   {
     "name": "Friedwuff",
@@ -4311,7 +7007,15 @@
     "tier": "B",
     "cost": null,
     "image": "https://www.serebii.net/pokemonhome/pokemon/972.png",
-    "base_speed": 68
+    "base_speed": 68,
+    "stats": {
+      "hp": 72,
+      "atk": 101,
+      "def": 100,
+      "spa": 50,
+      "spd": 97,
+      "spe": 68
+    }
   },
   {
     "name": "Epitaff",
@@ -4324,7 +7028,15 @@
     "tier": "A",
     "cost": null,
     "image": "https://www.serebii.net/pokemonhome/pokemon/979.png",
-    "base_speed": 90
+    "base_speed": 90,
+    "stats": {
+      "hp": 110,
+      "atk": 115,
+      "def": 80,
+      "spa": 50,
+      "spd": 90,
+      "spe": 90
+    }
   },
   {
     "name": "Monetigo",
@@ -4337,6 +7049,14 @@
     "tier": "S",
     "cost": null,
     "image": "https://www.serebii.net/pokemonhome/pokemon/1000.png",
-    "base_speed": 84
+    "base_speed": 84,
+    "stats": {
+      "hp": 87,
+      "atk": 60,
+      "def": 95,
+      "spa": 133,
+      "spd": 91,
+      "spe": 84
+    }
   }
 ]

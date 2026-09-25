@@ -477,7 +477,8 @@
 
   <!-- =========================== DRAFTPLAN =========================== -->
   <section data-draftplan x-data="draftPlan" x-show="tab === 'plan'" x-cloak x-effect="ensure()">
-    <div x-show="!loaded" class="py-12 text-center text-mist">Lade Draftplan…</div>
+    <div x-show="!loaded && store !== 'loadError'" class="py-12 text-center text-mist">Lade Draftplan…</div>
+    <div x-show="!loaded && store === 'loadError'" class="rounded-2xl border border-flame-500/40 bg-flame-500/5 p-6 text-center text-sm text-flame-300" x-text="storeError"></div>
 
     <template x-if="loaded && !team">
       <div class="rounded-2xl border border-line bg-panel p-10 text-center text-mist">
@@ -497,7 +498,10 @@
             <span class="text-sm font-semibold" x-text="t.name"></span>
           </button>
         </template>
-        <span x-show="!loggedIn" class="ml-1 text-xs text-mist">Nicht angemeldet — der Plan bleibt auf diesem Gerät.</span>
+        <span x-show="store === 'local'" class="ml-1 text-xs text-mist">Der Plan bleibt auf diesem Gerät.</span>
+        <span x-show="store === 'off'" class="ml-1 text-xs text-flame-400">Nicht angemeldet — der Plan wird nicht gespeichert.</span>
+        <span x-show="store === 'ready' || store === 'saving'" class="ml-auto text-xs text-mist" x-text="store === 'saving' ? 'Wird verschlüsselt gespeichert…' : 'Verschlüsselt am Konto gespeichert'"></span>
+        <span x-show="store === 'error'" class="ml-auto text-xs text-flame-400" x-text="storeError"></span>
       </div>
 
       <!-- Aktiver Pfad + Bereiche -->

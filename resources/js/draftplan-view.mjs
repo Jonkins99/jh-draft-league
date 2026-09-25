@@ -30,6 +30,10 @@ export function draftPlanView(deps = {}) {
     typeColor = () => '#6b7280',
     plansKey = 'jhdl-draftplan-v1',
     uiKey = 'jhdl-draftplan-ui-v1',
+    // Ablage am Konto: { available(), load() -> plans|null, save(plans) }. Ist sie
+    // gesetzt, liegt der Plan AUSSCHLIESSLICH dort (verschlüsselt) — gerätelokal
+    // bleiben nur die Bedienvorlieben. Ohne sie (Entwurf) gilt der localStorage.
+    remote = null,
   } = deps;
 
   return {
@@ -47,10 +51,16 @@ export function draftPlanView(deps = {}) {
     focusSlot: null,
     _memo: {},
     _ready: {},
+    // Zustand der Konto-Ablage: 'local' (ohne Ablage), 'off' (nicht angemeldet),
+    // 'loading', 'loadError', 'ready', 'saving', 'error' (Speichern gescheitert).
+    store: remote ? 'loading' : 'local',
+    storeError: '',
+    _storeFor: null,
+    _saveTimer: null,
 
     // --- Aufbau ------------------------------------------------------------
     init() {
-      this.plans = loadJson(plansKey) || {};
+      this.plans = remote ? {} : (loadJson(plansKey) || {});
       const ui = loadJson(uiKey) || {};
       this.view = ['board', 'pfade', 'analyse'].includes(ui.view) ? ui.view : 'board';
       this.layout = ui.layout === 'linien' ? 'linien' : 'liste';
@@ -62,12 +72,44 @@ export function draftPlanView(deps = {}) {
       this.$watch('showLost', () => this.saveUi());
     },
 
+    // Den Plan des angemeldeten Spielers aus der Ablage holen — auch nach einem
+    // späteren Login, deshalb aus ensure() heraus und je Spieler nur einmal.
+    async syncRemote() {
+      if (!remote) return;
+      const who = this.$store.auth.player || null;
+      if (this._storeFor === who) return;
+      this._storeFor = who;
+      if (!who || !remote.available()) {
+        this.store = 'off';
+        this.plans = {};
+        this._ready = {};
+        return;
+      }
+      this.store = 'loading';
+      try {
+        const plans = (await remote.load()) || {};
+        if (this._storeFor !== who) return;
+        this.plans = plans;
+        this._ready = {};
+        this._memo = {};
+        this.store = 'ready';
+        this.storeError = '';
+      } catch (e) {
+        // Ohne bekannten Stand wird nichts angezeigt und damit nichts überschrieben.
+        this.store = 'loadError';
+        this.storeError = 'Der Draftplan konnte nicht geladen werden. Bitte die Seite neu laden.';
+      }
+    },
+
     saveUi() {
       saveJson(uiKey, { teamId: this.teamId, view: this.view, layout: this.layout, showLost: this.showLost });
     },
 
     get league() { return this.$store.league; },
-    get loaded() { return this.league.pokemonLoaded && this.league.teamsLoaded && this.league.draftLoaded; },
+    get loaded() {
+      const storeReady = !remote || ['ready', 'saving', 'error', 'off'].includes(this.store);
+      return storeReady && this.league.pokemonLoaded && this.league.teamsLoaded && this.league.draftLoaded;
+    },
     get loggedIn() { return !!this.$store.auth.player; },
 
     // Planen lässt sich nur für die eigenen Teams. Ohne Anmeldung gibt es kein „eigen" —
@@ -85,6 +127,8 @@ export function draftPlanView(deps = {}) {
     // Angelegt und geradegezogen wird aus einem x-effect heraus, nicht im Getter: Ein
     // Getter, der schreibt, würde Alpines Auswertung im Kreis schicken.
     ensure() {
+      if (remote && this._storeFor !== (this.$store.auth.player || null)) { this.syncRemote(); return; }
+      if (remote && this.store === 'loading') return;
       const list = this.teams;
       if (!list.length) return;
       const id = list.some((t) => t.id === this.teamId) ? this.teamId : list[0].id;
@@ -102,7 +146,22 @@ export function draftPlanView(deps = {}) {
       const plan = this.plans[this.teamId];
       if (plan) plan.updatedAt = new Date().toISOString();
       this._memo = {};
-      saveJson(plansKey, JSON.parse(JSON.stringify(this.plans)));
+      const snapshot = JSON.parse(JSON.stringify(this.plans));
+      if (!remote) { saveJson(plansKey, snapshot); return; }
+      if (!['ready', 'saving', 'error'].includes(this.store) || !remote.available()) return;
+      // Klicks kommen in Serie — gebündelt schreiben, der letzte Stand gewinnt.
+      clearTimeout(this._saveTimer);
+      this.store = 'saving';
+      this._saveTimer = setTimeout(async () => {
+        try {
+          await remote.save(JSON.parse(JSON.stringify(this.plans)));
+          this.store = 'ready';
+          this.storeError = '';
+        } catch (e) {
+          this.store = 'error';
+          this.storeError = 'Der Draftplan konnte nicht gespeichert werden.';
+        }
+      }, 800);
     },
 
     selectTeam(id) {

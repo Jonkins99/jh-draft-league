@@ -27,6 +27,9 @@ export const PRESS_CATEGORIES = [
   { key: 'zweite-liga', label: 'Zweite Liga', short: '2. Liga', color: '#8e9aaf', manual: true },
   { key: 'geruechte', label: 'Gerüchte', short: 'Gerüchte', color: '#a855f7', manual: true },
   { key: 'informationen', label: 'Informationen', short: 'Infos', color: '#38bdf8', manual: true },
+  // Die beiden Sendungen (press-shows.mjs): eigene Rubrik, vergeben nur von der Sendung selbst.
+  { key: 'cava-lanz', label: 'Cava LANZ', short: 'Cava LANZ', color: '#f97316' },
+  { key: 'zweiblatt', label: '50 plus Zweiblatt', short: 'Zweiblatt', color: '#22c55e' },
 ];
 
 export const CATEGORY_BY_KEY = Object.fromEntries(PRESS_CATEGORIES.map((c) => [c.key, c]));
@@ -67,6 +70,13 @@ export function normalizeCategories(primary, extra = []) {
   // einander aus, und ohne diese Regel trägt ein Zweitliga-Stück beide Stempel.
   if (list.includes('zweite-liga')) list = list.filter((k) => k !== AI_CATEGORY);
   return { category: list[0] || 'news', categories: list };
+}
+
+// In welcher Liga ein Auftragsbeitrag erscheint: gewählt ('erste' | 'zweite') oder —
+// ohne Wahl — aus dem Auftragstext erkannt. 'auto' überlässt es dem Modell.
+export function commissionLeague(choice, brief = '') {
+  if (choice === 'erste' || choice === 'zweite') return choice;
+  return /\bzweite[nrs]?\s+liga\b|\b2\.\s*liga\b|\bzweitlig/i.test(String(brief)) ? 'zweite' : 'auto';
 }
 
 // Der Pool der Pressevertreter ist bewusst hartkodiert: sechs feste Gesichter mit
@@ -275,8 +285,10 @@ export function sessionDocId(day, teamId, type, season = 1) {
 }
 
 // Einmalige Auftaktrunde: vor diesem Spieltag tritt JEDES Team einmal zur
-// Pressekonferenz UND zum Interview an — 16 Termine, die den Rest der Saison
-// vorbereiten. Erst wenn sie durch sind, startet der Spieltag regulär.
+// Pressekonferenz an — acht Termine, die den Rest der Saison vorbereiten. Erst
+// wenn sie durch sind, startet der Spieltag regulär. In Saison 1 gehörte zu jeder
+// Konferenz noch ein Interview (16 Termine); das bleibt für diese Saison so
+// stehen, damit ihre Historie vollständig bleibt (`bonusTypes`).
 //
 // DER SPÄTE START WAR EINE EINMALIGE AUSNAHME DER SAISON 1. Die Presse ist dort
 // mitten in der Saison dazugekommen, deshalb liegt die Auftaktrunde vor Spieltag 8
@@ -297,6 +309,10 @@ export function pressFromDay(season = 1) {
   return bonusRoundDay(season);
 }
 
+export function bonusTypes(season = 1) {
+  return Number(season) === 1 ? ['pk', 'interview'] : ['pk'];
+}
+
 export function bonusSessionId(teamId, type, season = 1) {
   return `s${season}-bonus-${teamId}-${type}`;
 }
@@ -306,7 +322,7 @@ export function bonusSlotsFor(teamId, schedule, sessions = []) {
   const day = bonusRoundDay(season);
   const match = matchSequence(schedule).find((m) => m.day === day && (m.home === teamId || m.away === teamId));
   if (!match) return [];
-  return ['pk', 'interview'].map((type) => {
+  return bonusTypes(season).map((type) => {
     const id = bonusSessionId(teamId, type, season);
     return {
       id,
@@ -324,7 +340,7 @@ export function bonusSlotsFor(teamId, schedule, sessions = []) {
   });
 }
 
-// Sind alle 16 Termine der Auftaktrunde abgearbeitet?
+// Sind alle Termine der Auftaktrunde abgearbeitet?
 export function bonusRoundComplete(teamIds, schedule, sessions) {
   const rows = (teamIds || []).flatMap((id) => bonusSlotsFor(id, schedule, sessions));
   return rows.length > 0 && rows.every((r) => r.done);
@@ -445,6 +461,7 @@ export function slotLabel(slot) {
 }
 
 export function typeLabel(type) {
+  if (type === 'talk') return 'Talkshow · Cava LANZ';
   return type === 'pk' ? 'Pressekonferenz' : 'Interview';
 }
 
@@ -665,4 +682,113 @@ export function formatDateTime(iso) {
   const d = new Date(iso);
   if (Number.isNaN(d.getTime())) return '';
   return `${d.toLocaleDateString('de-DE', DATE_FMT)}, ${d.toLocaleTimeString('de-DE', { hour: '2-digit', minute: '2-digit' })} Uhr`;
+}
+
+// === Interview-Gäste =======================================================
+// Ein Interview richtet sich nicht an irgendwen aus dem Kader, sondern an die, über
+// die gerade geredet wird. Die Redaktion fragt je Termin eins bis drei Gesichter an;
+// Anzahl und Auswahl hängen an der Termin-ID und sind damit auf jedem Gerät gleich
+// und nicht durch erneutes Öffnen neu auszuwürfeln.
+
+// Eine ganze Zahlenfolge aus einem Startwert (mulberry32) — seededFloat liefert nur
+// einen einzelnen Wert je Schlüssel.
+export function seededRandom(seed) {
+  let a = seed >>> 0;
+  return () => {
+    a = (a + 0x6d2b79f5) >>> 0;
+    let t = a;
+    t = Math.imul(t ^ (t >>> 15), t | 1);
+    t ^= t + Math.imul(t ^ (t >>> 7), t | 61);
+    return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
+  };
+}
+
+// Kills, Deaths und Einsätze einer Seite in einem Ergebnis, je Pokémon.
+export function matchLines(result, side) {
+  const out = {};
+  const line = (name) => { if (!out[name]) out[name] = { kills: 0, deaths: 0, used: 0 }; return out[name]; };
+  (result?.battles || []).filter((b) => b && b.done).forEach((b) => {
+    (b.used?.[side] || []).forEach((n) => { if (n) line(n).used += 1; });
+    (b.kills || []).forEach((k) => {
+      if (k.victimSide === side && k.victim) line(k.victim).deaths += 1;
+      if (k.killerSide === side && k.victimSide !== side && k.killer) line(k.killer).kills += 1;
+    });
+  });
+  return out;
+}
+
+function mentions(text, name) {
+  if (!text || !name) return false;
+  return String(text).toLowerCase().includes(String(name).toLowerCase());
+}
+
+/**
+ * Wer ist für ein Interview gerade interessant?
+ * @param {object} input
+ *   roster:     [{ name, image, traits }]
+ *   trainer:    { name, image, traits } | null
+ *   storylines: [{ title, summary, status }] — laufende Geschichten des Teams
+ *   articles:   [{ pokemonNames }]            — jüngste Beiträge über das Team
+ *   awardWins:  { name: Anzahl }               — Auszeichnungen dieser Saison
+ *   lastMatch:  { name: { kills, deaths, used } } — das zuletzt gespielte Match
+ * @returns {Array} Kandidaten mit `score` und `reason` (bester Grund)
+ */
+export function interviewCandidates({ roster = [], trainer = null, storylines = [], articles = [], awardWins = {}, lastMatch = {} } = {}) {
+  const people = [
+    ...(trainer ? [{ kind: 'trainer', ...trainer }] : []),
+    ...roster.map((p) => ({ kind: 'pokemon', ...p })),
+  ];
+  return people.map((p) => {
+    const reasons = [];
+    let score = p.kind === 'trainer' ? 1.5 : 0;
+    storylines.filter((st) => st.status !== 'beendet' && (mentions(st.title, p.name) || mentions(st.summary, p.name)))
+      .forEach((st) => {
+        const w = st.status === 'eskaliert' ? 4 : st.status === 'beruhigt' ? 1.5 : 3;
+        score += w;
+        reasons.push({ w, text: `Im Gespräch: ${st.title}` });
+      });
+    const inArticles = articles.filter((a) => (a.pokemonNames || []).includes(p.name)).length;
+    if (inArticles) {
+      const w = Math.min(3, inArticles);
+      score += w;
+      reasons.push({ w: w - 0.5, text: inArticles === 1 ? 'Zuletzt in der Presse' : `${inArticles}× zuletzt in der Presse` });
+    }
+    const wins = awardWins[p.name] || 0;
+    if (wins) {
+      score += 2 * wins;
+      reasons.push({ w: 2 * wins, text: wins === 1 ? 'Ausgezeichnet' : `${wins} Auszeichnungen` });
+    }
+    const m = lastMatch[p.name];
+    if (m?.kills >= 2) {
+      score += m.kills;
+      reasons.push({ w: m.kills, text: `${m.kills} Kills im letzten Match` });
+    } else if (m?.used >= 2 && !m.kills && m.deaths >= 2) {
+      score += 1.5;
+      reasons.push({ w: 1.5, text: 'Zuletzt ohne Kill, oft gefallen' });
+    }
+    const best = reasons.sort((a, b) => b.w - a.w)[0];
+    return { ...p, score, reason: best?.text || (p.kind === 'trainer' ? 'Verantwortlich an der Seitenlinie' : '') };
+  });
+}
+
+// Eins bis drei Gäste aus den Kandidaten ziehen — gewichtet nach Relevanz, aus den
+// sechs relevantesten, reproduzierbar über die Termin-ID.
+export function pickInterviewGuests(seedKey, candidates = []) {
+  const list = candidates.filter((c) => c && c.name);
+  if (list.length <= 1) return list;
+  const rand = seededRandom(hashSeed(seedKey));
+  const count = Math.min(list.length, 1 + Math.floor(rand() * 3));
+  const pool = [...list].sort((a, b) => b.score - a.score || String(a.name).localeCompare(String(b.name))).slice(0, 6);
+  const out = [];
+  while (out.length < count && pool.length) {
+    const total = pool.reduce((sum, c) => sum + c.score + 0.5, 0);
+    let r = rand() * total;
+    let i = 0;
+    for (; i < pool.length - 1; i++) {
+      r -= pool[i].score + 0.5;
+      if (r <= 0) break;
+    }
+    out.push(pool.splice(i, 1)[0]);
+  }
+  return out.sort((a, b) => b.score - a.score);
 }

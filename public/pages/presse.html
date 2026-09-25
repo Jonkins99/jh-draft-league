@@ -71,10 +71,10 @@ match /settings/{doc} { allow read, write: if true; }</code></pre>
 
         <!-- Filter -->
         <div class="mb-5 flex flex-col gap-3 rounded-2xl border border-line bg-panel p-4">
-          <div class="flex flex-wrap items-center gap-2">
+          <div class="-mx-4 flex gap-2 overflow-x-auto overscroll-x-contain px-4 pb-1">
             <template x-for="c in categories" :key="'cat-'+c.key">
               <button type="button" @click="setCat(c.key)"
-                      class="inline-flex items-center gap-2 rounded-xl border px-3 py-2 font-display text-xs font-bold uppercase tracking-wider transition-colors"
+                      class="inline-flex shrink-0 items-center gap-2 whitespace-nowrap rounded-xl border px-3 py-2 font-display text-xs font-bold uppercase tracking-wider transition-colors"
                       :style="fCat === c.key ? `border-color:${c.color};background:${c.color}1f;color:${c.color}` : ''"
                       :class="fCat === c.key ? '' : 'border-line text-mist hover:text-ink'">
                 <span x-text="c.label"></span>
@@ -130,10 +130,10 @@ match /settings/{doc} { allow read, write: if true; }</code></pre>
                 <h2 class="press-break mt-1 font-display text-2xl font-bold leading-tight tracking-wide text-ink transition-colors group-hover:text-flame-300 md:text-4xl" x-text="lead.title"></h2>
                 <p class="press-break mt-3 text-sm leading-relaxed text-mist md:text-base" x-text="excerptOf(lead)"></p>
                 <div class="mt-5 flex flex-wrap items-center gap-3">
-                  <img :src="author(lead.authorId).image" :alt="author(lead.authorId).name" class="press-portrait size-10 rounded-full border border-line bg-elevated" />
+                  <img x-show="byline(lead).image" :src="byline(lead).image" :alt="byline(lead).name" class="press-portrait size-10 rounded-full border border-line bg-elevated" />
                   <div class="min-w-0">
-                    <p class="font-display text-sm font-bold text-ink" x-text="author(lead.authorId).name"></p>
-                    <p class="text-[11px] text-mist" x-text="`${author(lead.authorId).outlet} · ${minutesOf(lead)} Min. Lesezeit`"></p>
+                    <p class="font-display text-sm font-bold text-ink" x-text="byline(lead).name"></p>
+                    <p class="text-[11px] text-mist" x-text="`${byline(lead).outlet} · ${minutesOf(lead)} Min. Lesezeit`"></p>
                   </div>
                   <div class="ml-auto flex -space-x-2">
                     <template x-for="tid in (lead.teamIds || [])" :key="'lt-'+tid">
@@ -143,7 +143,7 @@ match /settings/{doc} { allow read, write: if true; }</code></pre>
                 </div>
               </div>
               <div class="press-wall relative order-1 hidden min-h-[11rem] items-end justify-center overflow-hidden sm:order-2 sm:flex">
-                <img :src="author(lead.authorId).image" :alt="author(lead.authorId).name" class="press-portrait h-40 w-auto object-contain opacity-90" />
+                <img x-show="byline(lead).image" :src="byline(lead).image" :alt="byline(lead).name" class="press-portrait h-40 w-auto object-contain opacity-90" />
               </div>
             </div>
           </article>
@@ -204,8 +204,8 @@ match /settings/{doc} { allow read, write: if true; }</code></pre>
                   <h3 class="press-break mt-0.5 font-display text-lg font-bold leading-snug text-ink" x-text="a.title"></h3>
                   <p class="press-break mt-2 line-clamp-3 text-sm leading-relaxed text-mist" x-text="excerptOf(a)"></p>
                   <div class="mt-4 flex items-center gap-2.5 pt-1">
-                    <img :src="author(a.authorId).image" :alt="author(a.authorId).name" class="press-portrait size-8 rounded-full border border-line bg-elevated" />
-                    <span class="min-w-0 truncate font-display text-xs font-semibold text-mist" x-text="author(a.authorId).name"></span>
+                    <img x-show="byline(a).image" :src="byline(a).image" :alt="byline(a).name" class="press-portrait size-8 rounded-full border border-line bg-elevated" />
+                    <span class="min-w-0 truncate font-display text-xs font-semibold text-mist" x-text="byline(a).name"></span>
                     <div class="ml-auto flex -space-x-1.5">
                       <template x-for="tid in (a.teamIds || [])" :key="'t-'+a.id+'-'+tid">
                         <img :src="teamLogo(tid)" :alt="teamById(tid)?.name" :title="teamById(tid)?.name" class="size-6 rounded-full border border-line bg-void object-contain p-0.5" />
@@ -217,11 +217,19 @@ match /settings/{doc} { allow read, write: if true; }</code></pre>
             </article>
           </template>
         </div>
+
+        <div x-show="moreCount" class="mt-5 flex justify-center">
+          <button type="button" @click="showMore()"
+                  class="inline-flex items-center gap-2 rounded-xl border border-line px-5 py-2.5 font-display text-sm font-bold uppercase tracking-wider text-mist transition-colors hover:border-flame-500/40 hover:text-flame-400">
+            Mehr laden
+            <span class="tabular-nums opacity-60" x-text="`(${moreCount})`"></span>
+          </button>
+        </div>
       </section>
 
       <!-- ============================== TERMINE =============================== -->
       <section x-show="tab === 'termine'">
-        <!-- Einmalige Auftaktrunde: 16 Termine, danach beginnt der Spieltag regulär. -->
+        <!-- Einmalige Auftaktrunde: je Team eine Pressekonferenz, danach beginnt der Spieltag regulär. -->
         <div x-show="bonusProgress.total && !bonusComplete" class="mb-5 overflow-hidden rounded-2xl border border-flame-500/40 bg-flame-500/10">
           <div class="flex flex-wrap items-center gap-4 p-4">
             <span class="grid size-11 shrink-0 place-items-center rounded-xl bg-flame-500/20 text-flame-400">
@@ -229,7 +237,7 @@ match /settings/{doc} { allow read, write: if true; }</code></pre>
             </span>
             <div class="min-w-0 flex-1">
               <p class="font-display text-base font-bold text-ink" x-text="bonusDay > 1 ? `Große Presserunde vor Spieltag ${bonusDay}` : 'Große Presserunde zum Saisonauftakt'"></p>
-              <p class="mt-0.5 text-sm text-mist">Jedes Team tritt einmal zur Pressekonferenz und einmal zum Interview an. Erst danach wird wieder gespielt.</p>
+              <p class="mt-0.5 text-sm text-mist" x-text="bonusProgress.total > league.seasonTeams.length ? 'Jedes Team tritt einmal zur Pressekonferenz und einmal zum Interview an. Erst danach wird wieder gespielt.' : 'Jedes Team tritt einmal zur Pressekonferenz an. Erst danach wird gespielt.'"></p>
             </div>
             <p class="shrink-0 font-display text-2xl font-bold tabular-nums text-flame-400" x-text="`${bonusProgress.done}/${bonusProgress.total}`"></p>
           </div>
@@ -289,9 +297,10 @@ match /settings/{doc} { allow read, write: if true; }</code></pre>
                      :class="row.open ? 'border-line' : 'border-line/60 opacity-60'">
                   <div class="flex items-start gap-3">
                     <span class="grid size-11 shrink-0 place-items-center rounded-xl"
-                          :class="row.type === 'pk' ? 'bg-volt-400/15 text-volt-400' : 'bg-flame-500/15 text-flame-400'">
+                          :class="row.type === 'talk' ? 'bg-orange-500/15 text-orange-400' : row.type === 'pk' ? 'bg-volt-400/15 text-volt-400' : 'bg-flame-500/15 text-flame-400'">
+                      <svg x-show="row.type === 'talk'" viewBox="0 0 24 24" class="size-5" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="6" width="18" height="12" rx="2"/><path d="m8 2 4 4 4-4"/><path d="M8 21h8"/></svg>
                       <svg x-show="row.type === 'pk'" viewBox="0 0 24 24" class="size-5" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3v10"/><path d="M9 6a3 3 0 0 1 6 0v4a3 3 0 0 1-6 0z"/><path d="M5 11a7 7 0 0 0 14 0"/><path d="M8 21h8"/></svg>
-                      <svg x-show="row.type !== 'pk'" viewBox="0 0 24 24" class="size-5" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M20 15a2 2 0 0 1-2 2H8l-4 4V5a2 2 0 0 1 2-2h12a2 2 0 0 1 2 2z"/><path d="M8 8h8"/><path d="M8 12h5"/></svg>
+                      <svg x-show="row.type === 'interview'" viewBox="0 0 24 24" class="size-5" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M20 15a2 2 0 0 1-2 2H8l-4 4V5a2 2 0 0 1 2-2h12a2 2 0 0 1 2 2z"/><path d="M8 8h8"/><path d="M8 12h5"/></svg>
                     </span>
                     <div class="min-w-0 flex-1">
                       <p class="font-display text-base font-bold text-ink" x-text="typeLabel(row.type)"></p>
@@ -308,7 +317,8 @@ match /settings/{doc} { allow read, write: if true; }</code></pre>
                             :disabled="(!press.hasKey && row.session?.status !== 'done') || (!ownsPickTeam && row.session?.status !== 'done')"
                             class="rounded-xl px-3.5 py-2 font-display text-xs font-bold uppercase tracking-wider transition-colors disabled:opacity-40"
                             :class="row.session?.status === 'done' ? 'border border-line text-mist hover:text-flame-400' : 'bg-flame-500 text-white hover:bg-flame-600'"
-                            x-text="row.session?.status === 'done' ? 'Beitrag lesen' : row.session?.status === 'open' ? 'Fortsetzen' : row.session?.status === 'error' ? 'Neu ansetzen' : 'Termin wahrnehmen'"></button>
+                            x-text="row.session?.status === 'done' ? 'Beitrag lesen' : row.type === 'talk' ? (row.session?.status === 'open' ? 'Ins Studio' : row.session?.status === 'error' ? 'Weiter versuchen' : 'Zuschauen') : row.session?.status === 'open' ? 'Fortsetzen' : row.session?.status === 'error' ? 'Neu ansetzen' : 'Termin wahrnehmen'"></button>
+                    <span x-show="row.type === 'talk' && row.session?.status === 'open'" class="text-xs text-orange-300">Cavalanzas wartet auf eine Antwort.</span>
                     <span x-show="row.session?.status === 'error'" class="text-xs text-flame-300">Beim letzten Anlauf ist etwas schiefgegangen.</span>
                   </div>
                 </div>
@@ -340,7 +350,7 @@ match /settings/{doc} { allow read, write: if true; }</code></pre>
             <p x-show="article.subtitle" class="press-break mt-4 font-display text-xs font-bold uppercase tracking-[0.25em] text-flame-400" x-text="article.subtitle"></p>
             <h2 class="press-break mt-1 font-display text-2xl font-bold leading-tight tracking-wide text-ink sm:text-3xl" x-text="article.title"></h2>
           </div>
-          <img :src="author(article.authorId).image" :alt="author(article.authorId).name"
+          <img x-show="byline(article).image" :src="byline(article).image" :alt="byline(article).name"
                class="press-portrait hidden h-32 w-auto shrink-0 self-end object-contain sm:block" />
           <button type="button" popovertarget="press-article" popovertargetaction="hide" aria-label="Schließen"
                   class="absolute right-3 top-3 grid size-9 place-items-center rounded-xl border border-line bg-void/70 text-mist backdrop-blur transition-colors hover:text-flame-400">
@@ -350,12 +360,12 @@ match /settings/{doc} { allow read, write: if true; }</code></pre>
 
         <div class="px-5 py-6 sm:px-8">
           <div class="mb-6 flex flex-wrap items-center gap-3 border-b border-line pb-5">
-            <img :src="author(article.authorId).image" :alt="author(article.authorId).name" class="press-portrait size-11 rounded-full border border-line bg-elevated sm:hidden" />
+            <img x-show="byline(article).image" :src="byline(article).image" :alt="byline(article).name" class="press-portrait size-11 rounded-full border border-line bg-elevated sm:hidden" />
             <div class="min-w-0">
-              <p class="font-display text-sm font-bold text-ink" x-text="author(article.authorId).name"></p>
+              <p class="font-display text-sm font-bold text-ink" x-text="byline(article).name"></p>
               <p class="text-[11px] text-mist">
-                <span x-text="author(article.authorId).role"></span> ·
-                <span x-text="author(article.authorId).outlet"></span>
+                <span x-text="byline(article).role"></span> ·
+                <span x-text="byline(article).outlet"></span>
               </p>
             </div>
             <p class="ml-auto text-right text-[11px] text-mist">
@@ -404,7 +414,7 @@ match /settings/{doc} { allow read, write: if true; }</code></pre>
           <div class="mt-8 flex flex-wrap items-center gap-2 border-t border-line pt-5">
             <button type="button" x-show="article.source?.type === 'match'" @click="goMatch(article.source.matchId)"
                     class="rounded-xl border border-line px-3 py-2 font-display text-xs font-bold uppercase tracking-wider text-mist transition-colors hover:text-flame-400">Zum Spielbericht im Spielplan</button>
-            <button type="button" x-show="article.editorial" @click="openComposer(article)"
+            <button type="button" x-show="article.editorial || article.status === 'ready'" @click="openComposer(article)"
                     class="rounded-xl border border-line px-3 py-2 font-display text-xs font-bold uppercase tracking-wider text-mist transition-colors hover:text-flame-400">Bearbeiten</button>
             <template x-if="canRetry(article)">
               <label class="flex items-center gap-2 text-[11px] text-mist">
@@ -511,9 +521,9 @@ match /settings/{doc} { allow read, write: if true; }</code></pre>
       <div class="max-h-[88vh] overflow-y-auto p-5 sm:p-7">
         <div class="mb-5 flex items-start justify-between gap-4">
           <div>
-            <p class="font-display text-xs font-semibold uppercase tracking-[0.3em] text-flame-400">Eigener Beitrag</p>
-            <h2 class="mt-1 font-display text-2xl font-bold tracking-wide text-ink">Redaktion</h2>
-            <p class="mt-1 text-sm text-mist">Was hier steht, gilt als gesetzt – die Redaktion greift es in kommenden Berichten auf.</p>
+            <p class="font-display text-xs font-semibold uppercase tracking-[0.3em] text-flame-400" x-text="composer.aiEdit ? 'Korrektur' : 'Eigener Beitrag'"></p>
+            <h2 class="mt-1 font-display text-2xl font-bold tracking-wide text-ink" x-text="composer.aiEdit ? 'Beitrag bearbeiten' : 'Redaktion'"></h2>
+            <p class="mt-1 text-sm text-mist" x-text="composer.aiEdit ? 'Titel, Text und Rubriken lassen sich korrigieren. Herkunft und Erzählstränge des Beitrags bleiben erhalten.' : 'Was hier steht, gilt als gesetzt – die Redaktion greift es in kommenden Berichten auf.'"></p>
           </div>
           <button type="button" @click="closeComposer()" aria-label="Schließen"
                   class="grid size-9 shrink-0 place-items-center rounded-xl border border-line text-mist transition-colors hover:text-flame-400">
@@ -668,7 +678,7 @@ match /settings/{doc} { allow read, write: if true; }</code></pre>
         <div class="mt-6 flex flex-wrap items-center gap-2">
           <button type="button" @click="saveComposer()" :disabled="!composerValid || composer.saving"
                   class="rounded-xl bg-flame-500 px-5 py-2.5 font-display text-sm font-bold uppercase tracking-wider text-white transition-colors hover:bg-flame-600 disabled:opacity-40"
-                  x-text="composer.saving ? 'Wird veröffentlicht…' : 'Veröffentlichen'"></button>
+                  x-text="composer.saving ? 'Wird gespeichert…' : (composer.id ? 'Speichern' : 'Veröffentlichen')"></button>
           <button type="button" @click="closeComposer()"
                   class="rounded-xl border border-line px-4 py-2.5 font-display text-sm font-semibold uppercase tracking-wider text-mist transition-colors hover:text-flame-400">Abbrechen</button>
         </div>
@@ -704,10 +714,10 @@ match /settings/{doc} { allow read, write: if true; }</code></pre>
         <div x-show="stage.phase === 'role'" class="relative mx-auto w-full max-w-4xl flex-1 px-4 py-8 sm:px-8">
           <p class="font-display text-xs font-semibold uppercase tracking-[0.3em] text-flame-400">Wer tritt vor die Presse?</p>
           <h2 class="mt-2 font-display text-3xl font-bold tracking-wide text-ink">Rolle wählen</h2>
-          <p class="mt-2 max-w-xl text-sm text-mist" x-text="stage.slot.type === 'pk' ? 'Auf dem Podium sitzt der Trainer. Drei Pressevertreter stellen je eine Frage.' : 'Ein Pressevertreter, drei Fragen. Antworten darf der Trainer – oder ein Pokémon aus dem Kader.'"></p>
+          <p class="mt-2 max-w-xl text-sm text-mist" x-text="stage.slot.type === 'pk' ? 'Auf dem Podium sitzt der Trainer. Die Pressevertreter stellen je eine Frage.' : roleOptions.length === 1 ? 'Ein Pressevertreter, drei Fragen. Die Redaktion hat genau einen Gesprächspartner angefragt — dieser Termin ist Pflicht.' : `Ein Pressevertreter, drei Fragen. Die Redaktion hat ${roleOptions.length} Gesprächspartner angefragt — einer davon tritt an.`"></p>
 
           <p x-show="!roleOptions.length" class="mt-6 rounded-2xl border border-line bg-panel/80 p-6 text-sm text-mist">
-            Für dieses Team ist kein amtierender Trainer hinterlegt. Ohne Trainer gibt es keine Pressekonferenz – im Team-Bereich lässt sich einer eintragen.
+            <span x-text="stage.slot.type === 'pk' ? 'Für dieses Team ist kein amtierender Trainer hinterlegt. Ohne Trainer gibt es keine Pressekonferenz – im Team-Bereich lässt sich einer eintragen.' : 'Für dieses Team gibt es noch keinen Gesprächspartner – weder Trainer noch Kader.'"></span>
           </p>
 
           <div class="mt-6 grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
@@ -721,12 +731,76 @@ match /settings/{doc} { allow read, write: if true; }</code></pre>
                 <span class="press-break flex-1">
                   <span class="block font-display text-base font-bold text-ink" x-text="r.name"></span>
                   <span class="block text-[11px] uppercase tracking-wider text-flame-400" x-text="r.kind === 'trainer' ? 'Trainer' : 'Pokémon'"></span>
+                  <span x-show="r.reason" class="mt-1 block text-[11px] font-semibold leading-snug text-volt-400" x-text="r.reason"></span>
                   <span x-show="r.traits?.length" class="mt-0.5 line-clamp-3 block text-[11px] leading-snug text-mist"
                         x-text="(r.traits || []).join(', ')" :title="(r.traits || []).join(', ')"></span>
                 </span>
               </button>
             </template>
           </div>
+        </div>
+
+        <!-- Talkshow Cava LANZ: Protokoll und freie Antwort des Trainers -->
+        <div x-show="stage.phase === 'talk'" class="relative mx-auto flex w-full max-w-3xl flex-1 flex-col px-4 pb-8 sm:px-8">
+          <div class="mb-5 flex flex-wrap items-center gap-2">
+            <span class="rounded-full border border-orange-400/50 bg-orange-400/10 px-2.5 py-1 font-display text-[10px] font-bold uppercase tracking-wider text-orange-300">Live · Cava LANZ</span>
+            <template x-for="g in talkGuests" :key="'tg-'+g.name">
+              <span class="flex items-center gap-1.5 rounded-full border border-line bg-panel/70 py-0.5 pl-0.5 pr-2.5 text-xs text-ink">
+                <img x-show="g.image" :src="g.image" :alt="g.name" class="press-portrait size-6 rounded-full bg-elevated object-cover" />
+                <span x-text="g.name"></span>
+                <span class="text-mist" x-text="`· ${g.label}`"></span>
+              </span>
+            </template>
+          </div>
+
+          <div class="grid gap-2.5">
+            <template x-for="(t, ti) in (session?.turns || [])" :key="'turn-'+ti">
+              <p class="press-break max-w-[92%] rounded-2xl border px-3.5 py-2.5 text-sm leading-relaxed"
+                 :class="talkIsTrainer(t) ? 'ml-auto border-flame-500/40 bg-flame-500/10 text-ink' : 'border-line bg-panel/80 text-ink'">
+                <strong class="font-display" x-text="`${t.speaker}:`"></strong>
+                <span x-text="t.text"></span>
+              </p>
+            </template>
+          </div>
+
+          <div x-show="['generating', 'writing'].includes(session?.status) || stage.sending" class="mt-4 flex items-center gap-3 text-sm text-mist">
+            <span class="size-2 animate-ping rounded-full bg-orange-400"></span>
+            <span x-text="session?.status === 'writing' ? 'Cavalanzas moderiert ab — die Sendung wird zusammengeschnitten…' : 'Die Runde diskutiert…'"></span>
+          </div>
+
+          <div x-show="session?.status === 'open' && !stage.sending" class="mt-5 rounded-2xl border border-dashed border-orange-400/40 bg-panel/70 p-4 backdrop-blur">
+            <p class="mb-2 font-display text-[11px] font-bold uppercase tracking-wider text-orange-300" x-text="`Deine Antwort als ${session?.role?.name || 'Trainer'}`"></p>
+            <textarea x-model="stage.custom" rows="4" placeholder="Frei antworten – die Runde greift auf, was du sagst."
+                      @keydown.ctrl.enter="answerTalk()" @keydown.meta.enter="answerTalk()"
+                      class="w-full resize-y rounded-xl border border-line bg-elevated px-3 py-2.5 text-sm text-ink placeholder:text-mist focus:border-orange-400 focus:outline-none"></textarea>
+            <div class="mt-2 flex flex-wrap items-center gap-2">
+              <button type="button" @click="answerTalk()" :disabled="(stage.custom || '').trim().length < 2"
+                      class="rounded-xl bg-flame-500 px-4 py-2 font-display text-xs font-bold uppercase tracking-wider text-white transition-colors hover:bg-flame-600 disabled:opacity-40">Antworten</button>
+              <span class="ml-auto text-[11px] text-mist" x-text="`Wortbeiträge bisher: ${session?.answersGiven || 0}`"></span>
+            </div>
+          </div>
+
+          <div x-show="session?.status === 'error' && !stage.sending" class="mt-5 rounded-2xl border border-flame-500/40 bg-flame-500/10 p-4">
+            <p class="text-sm font-semibold text-flame-300">Die Übertragung ist abgerissen.</p>
+            <p class="press-break mt-1 text-xs text-mist" x-text="session?.error || press.lastError || ''"></p>
+            <div class="mt-3 flex flex-wrap items-center gap-2">
+              <select @change="setRetryModel(stage.slot.id, $event.target.value)"
+                      class="min-w-0 rounded-xl border border-line bg-elevated px-2 py-2 text-xs text-ink">
+                <template x-for="m in models" :key="'tm-'+m.id">
+                  <option :value="m.id" :selected="m.id === retryModelFor(stage.slot.id)" x-text="m.label"></option>
+                </template>
+              </select>
+              <button type="button" @click="retryTalk()"
+                      class="rounded-xl bg-flame-500 px-4 py-2 font-display text-xs font-bold uppercase tracking-wider text-white transition-colors hover:bg-flame-600">Weiter versuchen</button>
+            </div>
+          </div>
+
+          <div x-show="session?.status === 'done'" class="mt-6 flex flex-wrap items-center gap-2">
+            <p class="text-sm text-mist">Die Sendung ist im Kasten.</p>
+            <button type="button" @click="stage.articleId = session?.articleId; readStageArticle()"
+                    class="rounded-xl bg-flame-500 px-4 py-2 font-display text-xs font-bold uppercase tracking-wider text-white transition-colors hover:bg-flame-600">Beitrag lesen</button>
+          </div>
+          <span id="talk-end" class="block h-px" x-effect="(session?.turns || []).length; scrollTalk()"></span>
         </div>
 
         <!-- Wartezustand -->
@@ -788,8 +862,6 @@ match /settings/{doc} { allow read, write: if true; }</code></pre>
               <button type="button" @click="answerWith(o)"
                       class="group rounded-2xl border border-line bg-panel/80 p-4 text-left backdrop-blur transition-colors hover:border-flame-500/50 hover:bg-panel">
                 <p class="press-break text-sm leading-relaxed text-ink" x-text="`„${o.text}“`"></p>
-                <p class="mt-2 font-display text-[10px] font-bold uppercase tracking-wider text-mist transition-colors group-hover:text-flame-400"
-                   x-text="o.stance === 'souveraen' ? 'ruhig und klar' : o.stance === 'ausweichend' ? 'ausweichend' : 'mit Gegenwehr'"></p>
               </button>
             </template>
 
@@ -877,10 +949,32 @@ match /settings/{doc} { allow read, write: if true; }</code></pre>
         <div x-show="settings.tab === 'zugang'" class="grid gap-4">
           <label class="block">
             <span class="mb-1.5 block font-display text-[11px] font-bold uppercase tracking-wider text-mist">API-Schlüssel</span>
-            <input type="password" x-model="settings.key" autocomplete="off" spellcheck="false" placeholder="AIza…"
+            <input type="password" x-model="settings.key" autocomplete="off" spellcheck="false" placeholder="AQ.…"
                    class="w-full rounded-lg border border-line bg-elevated px-3 py-2.5 font-mono text-sm text-ink placeholder:text-mist focus:border-flame-500 focus:outline-none" />
             <span class="mt-1.5 block text-xs leading-relaxed text-mist">Bleibt ausschließlich auf diesem Gerät (localStorage) und wird nie in die Datenbank geschrieben. Jedes Gerät, das Beiträge erzeugen soll, braucht einen eigenen Eintrag.</span>
           </label>
+          <details class="fold group rounded-xl border border-line bg-elevated/40">
+            <summary class="flex cursor-pointer items-center gap-2 rounded-xl px-3 py-2.5 text-sm font-semibold text-ink transition-colors hover:bg-elevated">
+              <svg viewBox="0 0 24 24" class="size-4 shrink-0 text-flame-400" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><path d="M12 11v5"/><path d="M12 8h.01"/></svg>
+              <span class="flex-1">So bekommst du einen Schlüssel</span>
+              <svg viewBox="0 0 24 24" class="size-4 shrink-0 text-mist transition-transform group-open:rotate-180" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m6 9 6 6 6-6"/></svg>
+            </summary>
+            <div class="border-t border-line px-3 py-3 text-xs leading-relaxed text-mist">
+              <p>Die Redaktion schreibt über die <span class="text-ink">Gemini Developer API</span> von Google. Den Schlüssel dafür gibt es kostenlos in Google AI Studio — ein Google-Konto genügt.</p>
+              <ol class="mt-2 list-decimal space-y-1.5 pl-5">
+                <li><a href="https://aistudio.google.com/app/apikey" target="_blank" rel="noopener noreferrer" class="font-semibold text-flame-400 underline decoration-flame-400/40 underline-offset-2 hover:decoration-flame-400">aistudio.google.com/app/apikey</a> öffnen und mit dem Google-Konto anmelden. Beim ersten Besuch die Nutzungsbedingungen bestätigen — AI Studio legt dann selbst ein Projekt an.</li>
+                <li>Auf <span class="text-ink">„API-Schlüssel erstellen"</span> (Create API key) tippen und das vorgeschlagene Projekt übernehmen. Wer schon ein Google-Cloud-Konto hat, importiert sein Projekt vorher unter Dashboard → Projects → Import projects.</li>
+                <li>Den Schlüssel kopieren. Er beginnt mit <span class="font-mono text-ink">AQ.</span> — oben einfügen, <span class="text-ink">Speichern</span>, dann <span class="text-ink">Verbindung testen</span>.</li>
+              </ol>
+              <p class="mt-2">Ältere Schlüssel, die mit <span class="font-mono text-ink">AIza</span> beginnen, sind sogenannte Standardschlüssel. Google lehnt sie seit September 2026 ab — dann einfach einen neuen Schlüssel wie oben beschrieben erstellen.</p>
+              <p class="mt-2">Ohne hinterlegte Zahlungsart läuft alles im kostenlosen Kontingent; stößt die Redaktion an dessen Grenze, heißt es „Kontingent erschöpft" — dann hilft Warten oder ein anderes Modell.</p>
+              <p class="mt-2 flex flex-wrap gap-x-3 gap-y-1">
+                <a href="https://ai.google.dev/gemini-api/docs/api-key" target="_blank" rel="noopener noreferrer" class="text-flame-400 underline decoration-flame-400/40 underline-offset-2 hover:decoration-flame-400">Anleitung von Google</a>
+                <a href="https://ai.google.dev/gemini-api/docs/rate-limits" target="_blank" rel="noopener noreferrer" class="text-flame-400 underline decoration-flame-400/40 underline-offset-2 hover:decoration-flame-400">Kontingente</a>
+                <a href="https://aistudio.google.com/usage" target="_blank" rel="noopener noreferrer" class="text-flame-400 underline decoration-flame-400/40 underline-offset-2 hover:decoration-flame-400">Verbrauch ansehen</a>
+              </p>
+            </div>
+          </details>
           <label class="block">
             <span class="mb-1.5 block font-display text-[11px] font-bold uppercase tracking-wider text-mist">Modell</span>
             <select x-model="settings.model"

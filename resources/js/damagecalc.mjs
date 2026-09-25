@@ -239,6 +239,50 @@ export function parseLegacyEvs(text) {
   return out;
 }
 
+// --- Namensauflösung -------------------------------------------------------
+// Attacken, Fähigkeiten und Items kommen aus drei Quellen: der deutschen
+// Vorschlagsliste, einem Showdown-Import (englisch) und Handeingaben mit
+// abweichender Groß-/Kleinschreibung oder Leerzeichen. Verglichen wird deshalb
+// über einen Schlüssel ohne Diakritika, Satz- und Leerzeichen.
+//
+// Unbekannte Namen dürfen NICHT ungeprüft an @smogon/calc gehen: Ein fremdes
+// Item lässt `calculate()` für JEDE Attacke abbrechen, eine fremde Attacke wird
+// stillschweigend zur 0-BP-Attacke.
+
+export function nameKey(value) {
+  return String(value ?? '')
+    .normalize('NFD')
+    .replace(/[̀-ͯ]/g, '')
+    .toLowerCase()
+    .replace(/ß/g, 'ss')
+    .replace(/[^a-z0-9]+/g, '');
+}
+
+// deToEn: { deutscher Name: englischer Name }, enNames: alle Namen, die der
+// Rechner kennt. Deutsche Namen gehen vor — die Vorschlagsliste ist deutsch.
+export function buildNameIndex(deToEn, enNames) {
+  const known = new Map();
+  (enNames || []).forEach((en) => {
+    const k = nameKey(en);
+    if (k && !known.has(k)) known.set(k, en);
+  });
+  const index = new Map();
+  Object.entries(deToEn || {}).forEach(([de, en]) => {
+    const k = nameKey(de);
+    const target = known.get(nameKey(en));
+    if (k && target && !index.has(k)) index.set(k, target);
+  });
+  known.forEach((en, k) => { if (!index.has(k)) index.set(k, en); });
+  return index;
+}
+
+// Englischer Rechner-Name, '' für eine leere Eingabe, null für „unbekannt".
+export function resolveName(index, value) {
+  const k = nameKey(value);
+  if (!k) return '';
+  return index?.get(k) || null;
+}
+
 // --- Typen -----------------------------------------------------------------
 // @smogon/calc liefert englische Typnamen; die Oberfläche (Farben, Badges)
 // arbeitet durchgehend mit den deutschen.

@@ -234,6 +234,33 @@
   color: var(--color-mist);
 }
 
+.press-tile .press-rival-list {
+  margin-top: 0.7rem;
+  padding: 0.6rem 0 0;
+  border-top: 1px solid var(--color-line);
+  font-size: 0.78rem;
+  line-height: 1.5;
+  color: var(--color-ink);
+  list-style: none;
+}
+
+.press-tile .press-rival-list li {
+  margin-top: 0.2em;
+}
+
+.press-rival-list span {
+  color: var(--color-mist);
+}
+
+.press-rival-head {
+  font-family: var(--font-display);
+  font-size: 0.62rem;
+  font-weight: 700;
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+  color: var(--color-mist);
+}
+
 .press-video-frame {
   display: block;
   aspect-ratio: 16 / 9;

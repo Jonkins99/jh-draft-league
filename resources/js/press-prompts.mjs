@@ -19,9 +19,15 @@ export const LEAGUE_PRIMER = `SO FUNKTIONIERT DIE JH DRAFT LEAGUE:
   gehört genau einem Team und ist ligaweit einmalig.
 - Tier (S, A, B, C, D) und Draft-Kosten beschreiben die ERWARTUNG an ein Pokémon: S ist teuer und
   soll tragen, D ist billig und darf überraschen. Der MARKTWERT ist die externe Stärkeeinschätzung
-  aus dem Draft-Sheet, in Euro ausgedrückt wie im Fußball; ein 100-Millionen-Pokémon mit schwacher
-  Bilanz ist eine Geschichte für sich. Der rohe Elo-Wert steht in den Metadaten, taugt im Text aber
-  höchstens für eine Klammer — schreibe über Marktwerte, nicht über Elo.
+  aus dem Draft-Sheet, in Euro ausgedrückt wie im Fußball. Er ist EIN Blickwinkel unter vielen, nicht
+  der Maßstab jeder Geschichte. Der rohe Elo-Wert steht in den Metadaten, taugt im Text aber
+  höchstens für eine Klammer — wenn überhaupt, schreibe über Marktwerte, nicht über Elo.
+- Jedes Pokémon hat sechs STATUSWERTE (KP, Angriff, Verteidigung, Spezial-Angriff,
+  Spezial-Verteidigung, Initiative; Block "statuswerte" im Kader) und daraus eine grobe ROLLE.
+  Sie verraten, was man von ihm erwarten darf — siehe Regel 14.
+- Pokémon und Trainer können hinterlegte CHARAKTER-EIGENSCHAFTEN haben (bei Pokémon im Kader das
+  Feld "charakter", bei Trainern "persoenlichkeit"). Sie sind der Stoff für Zitate, Eigenheiten und
+  Konflikte.
 - Ein Spieltag besteht aus vier Matches; jedes Team spielt eines.
 - Ein Match besteht aus DREI Kämpfen. Für jedes Match nominiert ein Team ein Aufgebot von 6 seiner
   10 Pokémon; pro Kampf stehen davon 4 im Einsatz. Wer nicht nominiert wird, sitzt draußen —
@@ -71,8 +77,9 @@ export const CANON_RULES = `UNVERRÜCKBARE REGELN (Kanon):
    Marktwerte werden exakt so genannt, wie sie in den Metadaten stehen — keine eigenen Beträge.
 4. Erfundene Zitate, Szenen, Beobachtungen, Stimmungen, Reaktionen von Umfeld und Publikum sind
    nicht nur erlaubt, sondern erwünscht. Sie sind das Fleisch am Knochen.
-5. Trainer reden und handeln so, wie ihre hinterlegte Persönlichkeit es nahelegt. Ein als ruhig
-   beschriebener Trainer poltert nicht ohne Grund — und wenn doch, ist genau das die Geschichte.
+5. Trainer UND Pokémon reden und handeln so, wie ihre hinterlegte Persönlichkeit ("persoenlichkeit"
+   bzw. "charakter") es nahelegt. Ein als ruhig beschriebener Trainer poltert nicht ohne Grund — und wenn doch, ist
+   genau das die Geschichte. Auf diese Eigenschaften darf und soll sich ein Text beziehen.
 6. Kein Wort über künstliche Intelligenz, Modelle, Prompts, Generierung oder diese Metadaten.
    Du bist eine Redaktion, sonst nichts. Schreibe niemals über den Vorgang des Schreibens.
 7. Deutsch, Gegenwart der Liga, keine Anreden an den Leser als "Nutzer", kein Meta-Kommentar.
@@ -115,7 +122,21 @@ export const CANON_RULES = `UNVERRÜCKBARE REGELN (Kanon):
    Verlängerung ist ein starkes Thema — gelegentlich, nicht in jedem Beitrag.
 13. EIN IM WINTER GEHOLTES POKÉMON HAT DIE HINRUNDE NICHT VERPASST — es war nicht da. Trägt ein
    Kadereintrag "imKaderSeitSpieltag", beziehen sich alle seine Zahlen erst auf die Spieltage ab
-   dann. Ihm fehlende Einsätze, Kills oder Erfahrung aus der Hinrunde vorzuhalten, ist ein Fehler.`;
+   dann. Ihm fehlende Einsätze, Kills oder Erfahrung aus der Hinrunde vorzuhalten, ist ein Fehler.
+14. KILLS SIND NICHT FÜR JEDEN DIE WÄHRUNG. Die Statuswerte bestimmen, was man erwarten darf:
+   - Ein DEFENSIVES Pokémon (hohe KP, Verteidigung oder Spezial-Verteidigung, dafür niedriger Angriff
+     UND Spezial-Angriff; Rolle "defensiv") wird nicht an seinen Kills gemessen. Wenige Kills sind
+     hier normal. Beurteile es an Überleben, Einsätzen, Deaths und dem, was es für das Team hält.
+     Einem solchen Pokémon eine magere Kill-Ausbeute vorzuwerfen, ist ein handwerklicher Fehler.
+   - Ein OFFENSIVES Pokémon (hoher Angriff oder Spezial-Angriff, dünne Verteidigung; Rolle
+     "offensiv") ist GENAU DAFÜR im Kader. Bleiben seine Kills aus, bohrst du nach — hartnäckig,
+     mit Zahlen, und ohne dich mit Ausreden abspeisen zu lassen.
+   - Alles dazwischen ("ausgewogen") misst du am Gesamtbild.
+   Nenne die Statuswerte selbst sparsam; sie sind Begründung, nicht Inhalt.
+15. MARKTWERTE SIND WÜRZE, NICHT DAS HAUPTGERICHT. Die Regie legt je Text fest, ob sie überhaupt
+   vorkommen dürfen ("MARKTWERTE" in der Regie). Das Gefälle zwischen teurem und billigem Kader ist
+   ein Motiv unter vielen und darf nicht zur Standardgeschichte werden. Erzähle über Leistung,
+   Charakter, Taktik, Rivalitäten, Umfeld, Kurioses — und nur ab und zu über Geld.`;
 
 // === Regie: Tonlage ========================================================
 // Gewichtung statt Gleichverteilung — die Liga soll überwiegend ernst genommen werden,
@@ -182,7 +203,7 @@ export const STORY_ARCHETYPES = [
   { key: 'trainerdebatte', label: 'Die Trainerfrage', hint: 'Nach schwachen Ergebnissen wird öffentlich über den Trainer diskutiert — Rückendeckung, die keine ist.' },
   { key: 'formkrise', label: 'Die Krise', hint: 'Eine Serie ohne Sieg, Erklärungsversuche, Selbstzweifel, Schuldzuweisungen.' },
   { key: 'erfolgswelle', label: 'Der Lauf', hint: 'Ein Team gewinnt und gewinnt — und die Frage steht im Raum, wann es kippt.' },
-  { key: 'bankdrueckerrevolte', label: 'Der Unzufriedene', hint: 'Ein Pokémon sitzt zu oft draußen, obwohl Tier und Marktwert etwas anderes versprechen.' },
+  { key: 'bankdrueckerrevolte', label: 'Der Unzufriedene', hint: 'Ein Pokémon sitzt zu oft draußen, obwohl Tier und Anspruch etwas anderes versprechen.' },
   { key: 'wechselgeruecht', label: 'Das Wechselgerücht', hint: 'Angeblich soll ein Pokémon im nächsten Transferfenster abgegeben werden — nur ein Gerücht.' },
   { key: 'kabinenzoff', label: 'Zoff in der Kabine', hint: 'Zwei Pokémon oder Trainer und Kader sollen aneinandergeraten sein.' },
   { key: 'taktikstreit', label: 'Der Taktikstreit', hint: 'Aufstellung, Rotation und Initiative werden öffentlich hinterfragt.' },
@@ -201,7 +222,55 @@ export const STORY_ARCHETYPES = [
   { key: 'erwartungsdruck', label: 'Der Preis des Drafts', hint: 'Was Draft-Kosten und Tier versprochen haben — und was geliefert wurde.' },
   { key: 'fanstimmung', label: 'Die Stimmung im Umfeld', hint: 'Das Umfeld wird laut: Erwartungen, Pfiffe, Transparente.' },
   { key: 'rekordjagd', label: 'Die Rekordjagd', hint: 'Eine Bestmarke aus den Daten ist in Reichweite.' },
+  { key: 'rivalitaet', label: 'Die Rivalität', hint: 'Zwei Pokémon verschiedener Teams können sich nicht ausstehen — auf dem Feld und daneben.' },
+  { key: 'mentor', label: 'Der Mentor', hint: 'Ein erfahrenes Pokémon nimmt ein jüngeres unter seine Fittiche — oder verweigert genau das.' },
+  { key: 'stillerheld', label: 'Der stille Held', hint: 'Ein Pokémon ohne große Kill-Zahlen hält das Team zusammen: überlebt, schützt, räumt auf.' },
+  { key: 'mauer', label: 'Die Mauer', hint: 'Ein defensives Pokémon, an dem sich die Gegner die Zähne ausbeißen.' },
+  { key: 'ladehemmung', label: 'Die Ladehemmung', hint: 'Ein Angreifer, der genau für Kills im Kader steht, trifft nicht mehr.' },
+  { key: 'typenfrage', label: 'Die Typenfrage', hint: 'Ein Typ-Duell oder eine Schwäche im Kader, die jeder Gegner kennt.' },
+  { key: 'tempo', label: 'Die Tempofrage', hint: 'Wer ist zuerst am Zug? Initiative als heimliche Entscheidung der Partie.' },
+  { key: 'charakterkopf', label: 'Der Charakterkopf', hint: 'Eine Eigenheit, eine Marotte, ein Ritual eines Pokémon rückt ins Zentrum.' },
+  { key: 'kapitaensfrage', label: 'Die Binde', hint: 'Wer führt auf dem Feld das Wort? Anspruch, Rangordnung, verletzter Stolz.' },
+  { key: 'integration', label: 'Der Neue', hint: 'Ein Neuzugang sucht seinen Platz in einem Kader, der ihn nicht erwartet hat.' },
+  { key: 'aberglaube', label: 'Der Aberglaube', hint: 'Ein Glücksbringer, ein Ritual, eine Serie, an die plötzlich alle glauben.' },
+  { key: 'jubilaeum', label: 'Das Jubiläum', hint: 'Ein runder Wert (Einsätze, Kills, Siege) ist erreicht — und was er erzählt.' },
+  { key: 'geheimwaffe', label: 'Die Geheimwaffe', hint: 'Eine taktische Überraschung, die niemand hat kommen sehen.' },
 ];
+
+// Kleine Skandale, wie sie der Profisport kennt. Sie sind SELTEN und werden nur
+// über die Regie angeboten (siehe buildDirection) — nie in jedem Text. Die
+// Kabinen-Prügelei ist die Ausnahme der Ausnahme: höchstens einmal je Saison.
+export const SCANDALS = [
+  { key: 'skandal-nachtleben', weight: 10, hint: 'Nächtliche Eskapaden: gesichtet in einem Club, zwei Nächte vor dem Spiel.' },
+  { key: 'skandal-disziplin', weight: 10, hint: 'Verstoß gegen die Team-Disziplin: verschlafen, zu spät zum Training, Teambus verpasst.' },
+  { key: 'skandal-like', weight: 8, hint: 'Ein fragwürdiger Social-Media-Beitrag wurde geliked — und jemand hat einen Screenshot.' },
+  { key: 'skandal-chatleak', weight: 7, hint: 'Aus einem internen Gruppenchat gelangen Nachrichten an die Presse.' },
+  { key: 'skandal-ausraster', weight: 8, hint: 'Ein frustrierter Kommentar in den sozialen Medien nach einer Niederlage, schnell gelöscht, nie vergessen.' },
+  { key: 'skandal-trainerkritik', weight: 8, hint: 'Kritik am eigenen Trainer — nicht intern, sondern über die Medien.' },
+  { key: 'skandal-wechselwunsch', weight: 7, hint: 'Eine Anspielung auf einen Wechselwunsch; niemand dementiert so richtig.' },
+  { key: 'skandal-doping', weight: 5, hint: 'Dopingverdacht mit Augenzwinkern: Sternenstaub, Beleber, Sonderbonbons oder X-Angriff in der Kabine.' },
+  { key: 'skandal-wetten', weight: 4, hint: 'Wettverdacht: ein Pokémon soll auf den Ausgang eines Spiels getippt haben, das es selbst bestreitet.' },
+  { key: 'skandal-affaere', weight: 4, hint: 'Eine Affäre, ein Seitensprung, ein Foto, das nie hätte entstehen dürfen.' },
+  { key: 'skandal-seitenlinie', weight: 6, hint: 'Eine Entgleisung am Spielfeldrand: Wortgefecht, Geste, Rudelbildung.' },
+  { key: 'skandal-maulwurf', weight: 6, hint: 'Maulwurfsuche im Verein: Wer trägt interne Informationen nach draußen?' },
+  { key: 'skandal-urlaub', weight: 5, hint: 'Urlaub in der Krise: Strandfotos aus Alola, während der Verein kriselt.' },
+  { key: 'skandal-trikot', weight: 5, hint: 'Ein Foto zeigt ein Pokémon im Trikot eines Konkurrenzvereins.' },
+  { key: 'skandal-werbung', weight: 5, hint: 'Ein peinlicher Werbeauftritt — ausgerechnet für den Sponsor des Rivalen.' },
+  { key: 'skandal-protz', weight: 4, hint: 'Ein Luxuskauf mitten in der Formkrise, stolz im Netz gezeigt.' },
+  { key: 'skandal-enthuellung', weight: 3, hint: 'Ein angekündigtes Enthüllungsbuch, dessen erstes Kapitel angeblich schon kursiert.' },
+  { key: 'skandal-fanfrust', weight: 5, hint: 'Ein Eklat mit Fans: verweigerte Autogramme, ein Wortwechsel am Zaun.' },
+  { key: 'skandal-pruegelei', weight: 1, once: true, hint: 'Eine Kabinen-Prügelei. Das Äußerste, was diese Liga kennt — entsprechend ernst und folgenreich erzählt.' },
+];
+export const SCANDAL_KEYS = SCANDALS.map((x) => x.key);
+export function isScandal(archetype) { return SCANDAL_KEYS.includes(String(archetype || '')); }
+
+// Wie oft ein Text überhaupt einen Skandal angeboten bekommt — und ab wie vielen
+// Skandalen unter den jüngsten Beiträgen die Regie eine Pause einlegt.
+export const SCANDAL_CHANCE = 0.14;
+export const SCANDAL_WINDOW = 12;
+export const SCANDAL_MAX_IN_WINDOW = 2;
+// Anteil der Texte, in denen Marktwerte überhaupt vorkommen dürfen.
+export const MARKET_CHANCE = 0.25;
 
 export const ARCHETYPE_BY_KEY = Object.fromEntries(STORY_ARCHETYPES.map((a) => [a.key, a]));
 
@@ -226,23 +295,60 @@ function sample(list, n) {
   return out;
 }
 
+// Die Marktwert-Vorgabe der Regie. 'free' = Marktwerte sind das Thema (Update),
+// 'none' = kein Wort dazu (Neuzugänge ohne Wert), 'auto' = gewürfelt.
+export function marketRule(mode = 'auto', rand = Math.random) {
+  if (mode === 'free') return { allowed: true, text: 'MARKTWERTE: Sie sind das Thema dieses Textes.' };
+  if (mode === 'none') return { allowed: false, text: '' };
+  return rand() < MARKET_CHANCE
+    ? { allowed: true, text: 'MARKTWERTE: Dürfen vorkommen, aber nur als Nebenbemerkung — höchstens ein genannter Betrag und höchstens eine Kachel [marktwert: …] oder [verlauf: …].' }
+    : { allowed: false, text: 'MARKTWERTE: In diesem Text KEINE — kein Betrag, kein Kaderwert, kein Vergleich teurer gegen billiger Kader, keine Kachel [marktwert: …] oder [verlauf: …]. Erzähle über Leistung, Charakter, Taktik, Rivalitäten und Umfeld.' };
+}
+
+// Der Skandal-Impuls. Nur ein Angebot, keine Pflicht — und bewusst selten.
+// recent: Archetypen der jüngsten Beiträge; seasonArchetypes: alle der Saison.
+export function scandalPick({ allowed = true, recent = [], seasonArchetypes = [], rand = Math.random } = {}) {
+  if (!allowed) return null;
+  const inWindow = recent.slice(0, SCANDAL_WINDOW).filter(isScandal).length;
+  if (inWindow >= SCANDAL_MAX_IN_WINDOW) return null;
+  if (rand() >= SCANDAL_CHANCE) return null;
+  const used = new Set(seasonArchetypes);
+  const recentSet = new Set(recent.slice(0, SCANDAL_WINDOW));
+  const pool = SCANDALS.filter((x) => !(x.once && used.has(x.key)) && !recentSet.has(x.key));
+  if (!pool.length) return null;
+  const total = pool.reduce((sum, x) => sum + x.weight, 0);
+  let r = rand() * total;
+  for (const x of pool) {
+    r -= x.weight;
+    if (r <= 0) return x;
+  }
+  return pool[pool.length - 1];
+}
+
 /**
  * Die Regie-Anweisung für eine einzelne Anfrage.
  * @param {string[]} recentArchetypes zuletzt verwendete Archetyp-Schlüssel (werden gemieden)
+ * @param {object} opts { market: 'auto'|'free'|'none', scandal: bool, seasonArchetypes: string[] }
  */
-export function buildDirection(recentArchetypes = []) {
-  const recent = new Set(recentArchetypes.filter(Boolean));
+export function buildDirection(recentArchetypes = [], opts = {}) {
+  const { market = 'auto', scandal: scandalAllowed = false, seasonArchetypes = [], rand = Math.random } = opts;
+  const recentList = recentArchetypes.filter(Boolean);
+  const recent = new Set(recentList);
   const fresh = STORY_ARCHETYPES.filter((a) => !recent.has(a.key));
   const pool = fresh.length >= 4 ? fresh : STORY_ARCHETYPES;
   const tone = weightedPick(TONES);
   const opening = pick(OPENINGS);
   const constraints = sample(STYLE_CONSTRAINTS, 2);
   const suggestions = sample(pool, 4);
+  const marketDirective = marketRule(market, rand);
+  const scandal = scandalPick({ allowed: scandalAllowed, recent: recentList, seasonArchetypes, rand });
   return {
     tone,
     opening,
     constraints,
     suggestions,
+    market: marketDirective.allowed,
+    scandal,
     text: [
       `TONLAGE FÜR DIESEN TEXT: ${tone.text}`,
       tone.key === 'anerkennend'
@@ -256,8 +362,62 @@ export function buildDirection(recentArchetypes = []) {
       recent.size
         ? `ZULETZT SCHON ERZÄHLT (nicht wiederholen): ${[...recent].join(', ')}`
         : 'Bisher wurde noch nichts erzählt — setze den ersten Akzent.',
+      marketDirective.text,
+      scandal
+        ? [
+          `SKANDAL-ANGEBOT (darfst du nutzen, musst du nicht): ${scandal.hint}`,
+          '  Nimm das nur als Inspiration und dreh es so, dass es zu Daten und Charakteren passt — oder erfinde einen',
+          '  vergleichbaren Vorfall. Wähle einen Beteiligten, zu dessen Charakter-Eigenschaften und Lage er passt.',
+          '  Der Vorfall selbst darf als Beobachtung, Augenzeugenbericht, Foto oder Leak erzählt werden; Folgen wie Strafe,',
+          '  Suspendierung, Wechsel oder Entlassung nur als Forderung oder Spekulation (Kanon). Verhältnismäßig bleiben.',
+          `  Nutzt du ihn, setze das Feld "archetyp" auf "${scandal.key}".`,
+        ].join('\n')
+        : 'SKANDALE: In diesem Text wird KEIN neuer Skandal eröffnet. Ein bereits laufender darf fortgeschrieben werden.',
     ].filter(Boolean).join('\n'),
   };
+}
+
+// === Antwort-Haltungen =====================================================
+// Zehn Haltungen, aus denen je Frage drei gezogen werden — in zufälliger
+// Reihenfolge und ohne Beschriftung in der Oberfläche. Wer antwortet, soll aus dem
+// Text selbst lesen, was die Antwort auslösen dürfte. `effect` geht an die Redaktion,
+// die aus den Antworten den Beitrag schreibt.
+export const ANSWER_STANCES = [
+  { key: 'souveraen', label: 'ruhig und klar', write: 'deeskaliert, übernimmt Verantwortung, bleibt sachlich und konkret', effect: 'nimmt einer Geschichte die Kraft — "beruhigt" oder "beendet"' },
+  { key: 'ausweichend', label: 'ausweichend', write: 'weicht aus, bleibt vage, schiebt Verantwortung weg, Floskeln statt Festlegung', effect: 'hält die Geschichte am Köcheln — "laufend"' },
+  { key: 'angriff', label: 'mit Gegenwehr', write: 'geht zum Gegenangriff über, überheblich oder scharf gegen Frage und Fragesteller', effect: 'eskaliert — weitere Beteiligte, Folgekonflikt' },
+  { key: 'selbstkritisch', label: 'selbstkritisch', write: 'räumt einen Fehler offen ein, benennt ihn konkret, ohne sich zu zerfleischen', effect: 'beruhigt, zeigt aber eine Angriffsfläche, die später zitiert werden kann' },
+  { key: 'humor', label: 'mit Humor', write: 'nimmt die Frage mit Witz oder Selbstironie, ohne sie ganz zu beantworten', effect: 'entschärft — oder wirkt respektlos, je nach Lage des Teams' },
+  { key: 'stichelei', label: 'stichelnd', write: 'stichelt gegen den nächsten Gegner, einen Rivalen oder das andere Lager', effect: 'eröffnet einen Konflikt mit einem ANDEREN Team — Mindgames' },
+  { key: 'emotional', label: 'emotional', write: 'zeigt offen Frust, Enttäuschung oder Stolz; ungefiltert, nah am Moment', effect: 'erzeugt Mitgefühl oder wird als Nervenschwäche gelesen' },
+  { key: 'kryptisch', label: 'kryptisch', write: 'deutet etwas an, ohne es auszusprechen; ein Satz, der mehr offen lässt als er klärt', effect: 'öffnet die Tür für Spekulation und Gerüchte' },
+  { key: 'schutzschild', label: 'schützend', write: 'stellt sich demonstrativ vor einen Mitspieler oder den Trainer', effect: 'Loyalität — kann Lager bilden und Rangordnung sichtbar machen' },
+  { key: 'kampfansage', label: 'Kampfansage', write: 'legt sich fest: ein Versprechen, eine Ansage, ein Ziel mit Zahl', effect: 'setzt eine Messlatte, an der die Presse später misst' },
+];
+export const STANCE_KEYS = ANSWER_STANCES.map((x) => x.key);
+export const STANCE_BY_KEY = Object.fromEntries(ANSWER_STANCES.map((x) => [x.key, x]));
+
+// Je Frage drei verschiedene Haltungen. Über die Fragen eines Termins hinweg wird
+// gestreut: dieselbe Haltung taucht erst wieder auf, wenn der Vorrat erschöpft ist.
+export function pickStances(count, perQuestion = 3, rand = Math.random) {
+  const out = [];
+  let bag = [];
+  for (let q = 0; q < count; q++) {
+    const set = [];
+    while (set.length < perQuestion) {
+      if (!bag.length) bag = [...STANCE_KEYS];
+      const i = Math.floor(rand() * bag.length);
+      const [k] = bag.splice(i, 1);
+      if (!set.includes(k)) set.push(k);
+    }
+    out.push(set);
+  }
+  return out;
+}
+
+// Zeile für den Auftrag: welche drei Haltungen zu Frage n gehören.
+export function stanceBrief(keys) {
+  return keys.map((k) => `"${k}" (${STANCE_BY_KEY[k]?.write || k})`).join(' · ');
 }
 
 // === Änderbare Redaktionsaufträge ==========================================
@@ -288,8 +448,8 @@ AUFTRAG
 - Erzähle die Partie über ihre drei Kämpfe hinweg. Nicht Kampf für Kampf abhaken, sondern die
   Geschichte der Partie finden: Wo ist sie gekippt? Wer hat sie entschieden? Was war die
   Fehlentscheidung?
-- Ordne Leistungen an der Erwartung ein. Ein S-Tier mit hohem Marktwert, das nichts reißt, ist ein
-  Thema. Ein D-Tier mit zwei Kills ebenso. Nutze Einsatzquoten: Wer stand in allen drei Kämpfen,
+- Ordne Leistungen an der Erwartung ein. Ein S-Tier, das nichts reißt, ist ein Thema. Ein D-Tier
+  mit zwei Kills ebenso. Ein Angreifer ohne Kill ist ein anderes Thema als eine Mauer ohne Kill. Nutze Einsatzquoten: Wer stand in allen drei Kämpfen,
   wer saß trotz gutem Tier draußen?
 - Setze die Partie in den Saisonzusammenhang: Tabelle, Serie, nächster Gegner, Ziele. Wenn es der
   letzte oder vorletzte Spieltag ist, rechne aus, worum es tabellarisch noch geht.
@@ -325,16 +485,17 @@ AUFTRAG
   muss, Loyalität, Hierarchie im Kader, Rückendeckung für den Trainer.
 - Jede Frage startet entweder einen NEUEN Erzählstrang oder verschärft einen laufenden. Wenn es
   laufende Geschichten gibt, greife mindestens eine davon auf und drehe sie weiter.
-- Verwende konkrete Daten in den Fragen (Ergebnis, Kills, Einsatzquote, Tabellenplatz, Tier, Marktwert,
-  nächster Gegner). Eine Frage ohne Zahl oder Zitat ist eine schlechte Frage.
+- Verwende konkrete Daten in den Fragen (Ergebnis, Kills, Einsatzquote, Tabellenplatz, Tier,
+  Statuswerte und Rolle, nächster Gegner, frühere Zitate). Eine Frage ohne Zahl oder Zitat ist eine
+  schlechte Frage. Marktwerte nur, wenn die Regie sie zulässt.
 - Sprich dein Gegenüber direkt an und bleibe in deiner Rolle als Pressevertreter.
 
 ANTWORTVORSCHLÄGE
 - Liefere zu jeder Frage DREI vorformulierte Antworten aus Sicht des Befragten, je ein bis drei
   Sätze, in der Ich-Form.
-- Die drei Vorschläge müssen klar unterschiedliche Haltungen haben: einer deeskaliert und
-  handhabt das Thema souverän, einer weicht aus oder schiebt Verantwortung weg, einer gießt Öl
-  ins Feuer und greift an.
+- Welche drei Haltungen zu welcher Frage gehören, gibt der Anhang vor. Die Antworten müssen klar
+  unterscheidbar sein, aber die Haltung darf man ihnen nicht auf den ersten Blick ansehen — keine
+  Etiketten, keine Überzeichnung.
 - Sie müssen zur hinterlegten Persönlichkeit des Trainers bzw. zum Charakter des Pokémon passen.`,
 
   interviewArticle: `Du machst aus einem gerade geführten Einzelinterview einen Beitrag für die
@@ -346,13 +507,16 @@ AUFTRAG
   nicht gemeint hat. Verfälsche den Wortlaut nicht, verschiebe nur die Bedeutung.
 - Erfinde Wirkung: wie andere im Kader das aufgenommen haben sollen, was "im Umfeld" darüber
   geredet wird, wer sich angesprochen fühlen dürfte, was das für das nächste Spiel heißt.
-- BEWERTE DIE ANTWORTEN und schreibe die Geschichte entsprechend fort:
+- BEWERTE DIE ANTWORTEN und schreibe die Geschichte entsprechend fort. Zu jeder Antwort steht im
+  Protokoll ihre Haltung und deren typische Wirkung — halte dich daran:
   - souverän, konkret, verantwortungsübernehmend  -> die Geschichte verliert an Kraft. Setze den
     Storyline-Status auf "beruhigt" oder "beendet" und schreibe einen Text, der das Thema fair
     abschließt, wenn auch mit leisem Bedauern über die entgangene Aufregung.
-  - ausweichend, floskelhaft, widersprüchlich      -> die Geschichte köchelt weiter ("laufend").
-  - angreifend, überheblich, nachtretend           -> die Geschichte eskaliert ("eskaliert").
+  - ausweichend, floskelhaft, kryptisch            -> die Geschichte köchelt weiter ("laufend").
+  - angreifend, stichelnd, überheblich             -> die Geschichte eskaliert ("eskaliert").
     Ziehe weitere Beteiligte hinein und eröffne einen Folgekonflikt.
+  - selbstkritisch, emotional, humorvoll, schützend, Kampfansage -> jede hat ihre eigene Wirkung
+    (siehe Protokoll); mach daraus eine passende Wendung statt eines Schemas.
 - Beziehe laufende Geschichten und frühere Beiträge mit ein, statt isoliert zu berichten.
 
 FORM
@@ -374,8 +538,8 @@ AUFTRAG
 - Nutze konkrete Daten und, wenn vorhanden, laufende Geschichten.
 
 ANTWORTVORSCHLÄGE
-- Zu jeder Frage DREI Antworten in der Ich-Form des Trainers, passend zu seiner Persönlichkeit:
-  eine souverän-deeskalierende, eine ausweichende, eine offensiv-zugespitzte.`,
+- Zu jeder Frage DREI Antworten in der Ich-Form des Trainers, passend zu seiner Persönlichkeit.
+  Welche drei Haltungen zu welcher Frage gehören, gibt der Anhang vor.`,
 
   pkArticle: `Du fasst eine Pressekonferenz der JH Draft League zu einem Beitrag zusammen.
 
@@ -387,8 +551,9 @@ AUFTRAG
   Zentrum und der Rest der Pressekonferenz wird zur Kulisse.
 - Zitiere die Antworten wörtlich und ordne sie ein. Nenne die fragenden Pressevertreter beim
   Namen.
-- Bewerte die Antworten wie im Einzelinterview: souveräne Antworten beruhigen eine Geschichte,
-  ausweichende halten sie am Leben, angreifende eskalieren sie.
+- Bewerte die Antworten wie im Einzelinterview anhand der Haltung und ihrer Wirkung im Protokoll:
+  souveräne beruhigen eine Geschichte, ausweichende halten sie am Leben, angreifende eskalieren sie,
+  die übrigen wirken so, wie das Protokoll es beschreibt.
 - Schließe mit einem Ausblick auf das nächste Spiel oder die Tabellensituation.
 
 FORM
@@ -461,7 +626,7 @@ AUFTRAG
   geschehen dargestellt werden. Der Trainer spricht über Absichten, nicht über Vollzogenes.
 
 ANTWORTVORSCHLÄGE
-- Drei je Frage: souverän, ausweichend, mit Gegenwehr. Jede Antwort in der Stimme des Trainers,
+- Drei je Frage, in den Haltungen, die der Anhang vorgibt. Jede Antwort in der Stimme des Trainers,
   jede mit einer konkreten Aussage — eine Zahl, ein Name, eine Festlegung. Antworten, aus denen
   sich später ein gebrochenes Versprechen zitieren lässt, sind die besten.`,
 
@@ -586,6 +751,9 @@ seinem Absatz, ohne weiteren Text davor oder dahinter, und in genau dieser Schre
 - [ergebnis: <Match-Id>]       -> Ergebniskachel mit Logos, Kampf- und Kill-Stand
 - [tabelle: <Team-Id>]         -> Tabellenausschnitt um dieses Team; [tabelle: top] zeigt die Spitze
 - [video: <Match-Id>]          -> das Video zum Spiel, sofern eines hinterlegt ist
+- [rivalität: <Team-Id> | <Team-Id>] -> Bilanz zweier Vereine über ALLE Saisons, ihre heißesten
+                                  Duelle und die Geschichten zwischen ihnen — für Vorberichte,
+                                  Mindgames und Duelle mit Vorgeschichte
 Team-Ids, Pokémon-Namen und Match-Ids stehen in den Metadaten und werden EXAKT übernommen.
 SETZE BAUSTEINE REGELMÄSSIG — zwei bis drei je Beitrag sind der Normalfall, nicht die Ausnahme,
 und das gilt für JEDE Textsorte: Spielbericht, freier Beitrag, Nachbericht zu Interview oder
@@ -624,8 +792,13 @@ export function buildSystem({ author, extra = '' } = {}) {
       + 'von der Hand geht, ist sie vermutlich genau die, die schon dreimal dastand — nimm die zweite Idee. '
       + 'Ein Pokémon, ein Team, ein Trainer bekommt in jedem Text einen ANDEREN Beinamen oder gar keinen.',
     'INTERPRETIERE. Die Metadaten sind Rohmaterial, kein Text. Rechne Tabellensituationen aus, erkenne Serien, '
-      + 'vergleiche Erwartung (Tier, Marktwert, Draft-Kosten) mit Wirkung (Kills, Einsatzquote, Siege), erkenne, wenn '
-      + 'jemand auffällig selten aufgestellt wird, und zieh daraus Schlüsse, die in den Daten nicht ausgeschrieben stehen.',
+      + 'vergleiche Erwartung (Tier, Draft-Kosten, Rolle laut Statuswerten) mit Wirkung (Kills, Deaths, Einsatzquote, Siege), '
+      + 'erkenne, wenn jemand auffällig selten aufgestellt wird, und zieh daraus Schlüsse, die in den Daten nicht '
+      + 'ausgeschrieben stehen.',
+    'ABWECHSLUNG. Das Gefälle zwischen teuren und billigen Kadern ist das bequemste Motiv dieser Liga — und deshalb '
+      + 'das verbrauchteste. Such zuerst anderswo: Charaktere und ihre Eigenheiten, Rivalitäten, Taktik und Typen, '
+      + 'Initiative, Serien, Kurioses, das Umfeld, die Spieler Janik und Henrik. Kleine Skandale gibt es nur, wenn die '
+      + 'Regie sie anbietet.',
     TILE_RULES,
     extra,
     'Antworte ausschließlich mit dem geforderten JSON-Objekt.',
@@ -688,6 +861,18 @@ export const ARTICLE_SCHEMA_FREE_CATEGORY = schemaOf({
   storylines: STORYLINE_SCHEMA,
 }, ['dachzeile', 'titel', 'kategorie', 'absaetze', 'storylines']);
 
+// Wie ARTICLE_SCHEMA_FREE_CATEGORY, zusätzlich mit der Zweiten Liga — nur der
+// Auftragsbeitrag kann dort landen.
+export const ARTICLE_SCHEMA_COMMISSION = schemaOf({
+  dachzeile: S.string('Drei bis fünf Wörter über der Überschrift'),
+  titel: S.string('Die Überschrift'),
+  kategorie: S.enum(['news', 'klatsch', 'geruechte', 'informationen', 'zweite-liga'], 'Die Rubrik dieses Beitrags'),
+  absaetze: S.array(S.string(), 'Die Absätze des Textes. "## " am Anfang macht eine Zwischenüberschrift, "> " ein hervorgehobenes Zitat.'),
+  archetyp: S.string('Schlüssel des verwendeten Erzählstrangs'),
+  erwaehntePokemon: S.array(S.string(), 'Namen der Pokémon, um die es im Text geht'),
+  storylines: STORYLINE_SCHEMA,
+}, ['dachzeile', 'titel', 'kategorie', 'absaetze', 'storylines']);
+
 export const QUESTIONS_SCHEMA = schemaOf({
   fragen: S.array(
     S.object({
@@ -697,7 +882,7 @@ export const QUESTIONS_SCHEMA = schemaOf({
       provokant: S.bool('Ob die Frage bewusst provoziert'),
       antwortvorschlaege: S.array(
         S.object({
-          haltung: S.enum(['souveraen', 'ausweichend', 'angriff'], 'Grundhaltung dieser Antwort'),
+          haltung: S.enum(STANCE_KEYS, 'Haltung dieser Antwort — eine der drei, die der Anhang für diese Frage vorgibt'),
           text: S.string('Die Antwort in der Ich-Form des Befragten, ein bis drei Sätze'),
         }, ['haltung', 'text']),
         'Genau drei Antwortvorschläge',

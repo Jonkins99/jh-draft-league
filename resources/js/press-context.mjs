@@ -11,7 +11,9 @@ import { battleStats, computeStandings, pokemonStats, transferAvailability } fro
 import { newcomersOfSeason } from './seasons.mjs';
 import { RENEWAL_TIERS, RELEGATION_FROM_PLACE, renewalState } from './draft.mjs';
 import { AWARD_BY_KEY, awardWinners } from './awards.mjs';
-import { currentTrainer, trainerHistory, periodLabel, genderLabel } from './trainers.mjs';
+import { currentTrainer, trainerHistory, periodLabel, genderLabel, monTraitsOf } from './trainers.mjs';
+import { statBlock } from './basestats.mjs';
+import { showOf } from './press-shows.mjs';
 import {
   activeStorylines, collectStorylines, authorById, categoryLabel,
   matchSequence, isMatchComplete, plainText, seasonComplete, categoriesOf,
@@ -284,8 +286,10 @@ function formBlock(teamId, results, teams, limit = 5) {
 function rosterBlock(team, results, pokedex, eloRows, availability) {
   const stats = pokemonStats([team], results, pokedex, { scopeTeamId: team.id, availability });
   const byName = Object.fromEntries(stats.map((s) => [s.pokemon?.name, s]));
+  const dexByName = Object.fromEntries((pokedex || []).map((x) => [x.name, x]));
   return (team.pokemon || []).map((p) => {
     const st = byName[p.name] || {};
+    const charakter = monTraitsOf(team, p.name);
     // Ein im Wintertransfer geholtes Pokémon hat die Hinrunde nicht verpasst — es war
     // schlicht nicht da. Ohne diesen Hinweis liest das Modell die Quoten falsch.
     const from = availability?.[`${team.id}|${p.name}`]?.from ?? null;
@@ -300,6 +304,9 @@ function rosterBlock(team, results, pokedex, eloRows, availability) {
       draftKosten: p.cost ?? null,
       typen: p.types || [],
       initiative: p.base_speed ?? null,
+      // Statuswerte und Rolle: Maßstab dafür, ob wenige Kills ein Thema sind (Kanon 14).
+      ...(statBlock(dexByName[p.name] || p) || {}),
+      ...(charakter.length ? { charakter } : {}),
       ...eloFor(eloRows, p.name),
       kills: st.kills || 0,
       deaths: st.deaths || 0,
@@ -418,6 +425,7 @@ export function newcomerBlock(pokedex, season) {
       draftKosten: p.cost ?? null,
       typen: p.types || [],
       initiative: p.base_speed ?? null,
+      ...(statBlock(p) || {}),
     });
   });
   return {
@@ -432,6 +440,7 @@ export function newcomerBlock(pokedex, season) {
     liste: list.map((x) => ({
       name: x.name, tier: x.tier, draftKosten: x.cost ?? null,
       typen: x.types || [], initiative: x.base_speed ?? null,
+      rolle: statBlock(x)?.rolle || null,
     })),
   };
 }
@@ -555,6 +564,12 @@ export function isReference(a) {
  * an der Aktualität vorbei — und mit deutlich mehr Text, weil genau dieser Text der
  * Grund ist, warum sie mitgehen.
  */
+// Sendungen haben keinen Autor — dort steht die Sendung selbst.
+function autorOf(a) {
+  const show = showOf(a);
+  return show ? `${show.kind} "${show.title}"` : authorById(a.authorId)?.name;
+}
+
 export function referenceBlock(articles, limit = REFERENCE_LIMIT) {
   return (articles || [])
     .filter(isReference)
@@ -563,7 +578,7 @@ export function referenceBlock(articles, limit = REFERENCE_LIMIT) {
     .map((a) => ({
       titel: a.title,
       kategorie: categoryLabel(a.category),
-      autor: authorById(a.authorId)?.name,
+      autor: autorOf(a),
       spieltag: a.day ?? null,
       vonDerRedaktionDerSpieler: categoriesOf(a).includes('redaktion'),
       inhalt: plainText(a.body).slice(0, 2600),
@@ -582,7 +597,7 @@ export function newsBlock(articles, teamId, limit = NEWS_TEAM_LIMIT) {
     .map((a) => ({
       titel: a.title,
       kategorie: categoryLabel(a.category),
-      autor: authorById(a.authorId)?.name,
+      autor: autorOf(a),
       spieltag: a.day ?? null,
       vonDerRedaktionDerSpieler: a.category === 'redaktion',
       inhalt: plainText(a.body).slice(0, 900),

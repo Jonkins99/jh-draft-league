@@ -143,3 +143,28 @@ export function nextFromDay(list, latestDay) {
 export function withDismissed(list, trainerId2, untilDay) {
   return (list || []).map((t) => (t && t.id === trainerId2 ? { ...t, untilDay: untilDay ?? null } : t));
 }
+
+// === Charakter-Eigenschaften der Pokémon ===================================
+// Wie bei den Trainern, aber als freie Einträge statt kommagetrennt: ein Eintrag
+// darf ein Stichwort oder ein ganzer Satz sein (und damit selbst Kommas tragen).
+// Gespeichert am Team-Dokument unter `monTraits.<Pokémon-Name>`.
+export const MAX_MON_TRAITS = 12;
+export const MAX_MON_TRAIT_LENGTH = 240;
+
+export function normalizeMonTraits(list) {
+  const seen = new Set();
+  const out = [];
+  (Array.isArray(list) ? list : []).forEach((raw) => {
+    const text = String(raw ?? '').replace(/\s+/g, ' ').trim().slice(0, MAX_MON_TRAIT_LENGTH);
+    const key = text.toLowerCase();
+    if (!text || seen.has(key) || out.length >= MAX_MON_TRAITS) return;
+    seen.add(key);
+    out.push(text);
+  });
+  return out;
+}
+
+export function monTraitsOf(team, name) {
+  const list = team?.monTraits?.[name];
+  return Array.isArray(list) ? list : [];
+}
