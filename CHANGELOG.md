@@ -1,6 +1,7 @@
 # Changelog
 
 ## Press: reliability of the Gemini desk
+
 - **Automatic fallback across models.** Every Flash model has its own free daily quota (about 20 requests). When the chosen model hits its limit or is overloaded, the desk moves on by itself: 3.8 → 3.7 → 3.6 → 3.5 Flash → 3 Flash Preview → 2.5 Flash, and — if enabled — the Lite models with about 500 requests a day as the last reserve. Both switches live in the access tab. The model that actually wrote a piece is stored on the article (`model`).
 - **Several API keys.** The access tab takes up to six keys (with optional labels, reorderable, each tested on its own). On a quota error the desk tries the same model on the next key before stepping down to the next model. Quota counts per Google project, so a second key only helps if it comes from another project or account.
 - **Quota book.** A 429 is classified as daily or per-minute limit (from Google's `QuotaFailure`/`RetryInfo`). Daily limits block that key/model combination until midnight Pacific time (9:00 German time), minute limits for a few seconds — exhausted combinations are no longer asked again for every piece. The access tab lists what is blocked until when and can reset it. Only if nothing but minute limits are left does the desk wait once and try again.
