@@ -76,18 +76,58 @@ export function roleLabel(r) {
   return r.role === 'defensiv' ? role : `${role} · ${side}`;
 }
 
+// Die Spieler können die gerechnete Rolle überschreiben, wenn sie nicht passt (ein
+// Pokémon mit hohen Angriffswerten, das in der Liga als Wand gespielt wird). Die
+// Überschreibung liegt je Pokémon am Konto der Liga (drafts/pokedex.roles) und kommt
+// hier als `mon.roleOverride = { role, side }` an. Fehlt eine Hälfte, gilt die gerechnete.
+export const ROLE_OPTIONS = [
+  { key: 'offensiv', label: 'Offensiv' },
+  { key: 'defensiv', label: 'Defensiv' },
+  { key: 'ausgewogen', label: 'Ausgewogen' },
+];
+export const SIDE_OPTIONS = [
+  { key: 'physisch', label: 'physisch' },
+  { key: 'speziell', label: 'speziell' },
+  { key: 'gemischt', label: 'gemischt' },
+];
+
+export function normalizeRoleOverride(raw) {
+  if (!raw || typeof raw !== 'object') return null;
+  const role = ROLE_OPTIONS.some((o) => o.key === raw.role) ? raw.role : null;
+  const side = SIDE_OPTIONS.some((o) => o.key === raw.side) ? raw.side : null;
+  return role || side ? { role, side } : null;
+}
+
+// Die geltende Rolle: Überschreibung vor Rechnung. `overridden` sagt, dass die
+// Spieler sie festgelegt haben.
+export function monRole(mon) {
+  const base = statRole(statsOf(mon));
+  const o = normalizeRoleOverride(mon?.roleOverride);
+  if (!o) return base;
+  return {
+    role: o.role || base?.role || 'ausgewogen',
+    side: o.side || base?.side || 'gemischt',
+    overridden: true,
+    computed: base,
+  };
+}
+
 // Kurzform für die Presse-Metadaten.
 export function statBlock(mon) {
   const stats = statsOf(mon);
-  if (!stats) return null;
-  const r = statRole(stats);
+  const r = monRole(mon);
+  if (!stats && !r) return null;
   return {
-    statuswerte: {
-      kp: stats.hp, angriff: stats.atk, verteidigung: stats.def,
-      spezialAngriff: stats.spa, spezialVerteidigung: stats.spd, initiative: stats.spe,
-      summe: statTotal(stats),
-    },
+    ...(stats ? {
+      statuswerte: {
+        kp: stats.hp, angriff: stats.atk, verteidigung: stats.def,
+        spezialAngriff: stats.spa, spezialVerteidigung: stats.spd, initiative: stats.spe,
+        summe: statTotal(stats),
+      },
+    } : {}),
     rolle: r.role,
     angriffsart: r.side,
+    // Von den Spielern festgelegt: gilt vor dem, was die Werte nahelegen.
+    ...(r.overridden ? { rolleFestgelegt: 'Von der Liga festgelegt — gilt vor dem, was die Statuswerte nahelegen.' } : {}),
   };
 }

@@ -136,12 +136,55 @@
       <section x-show="baseStats" class="mt-6 rounded-2xl border border-line bg-panel p-5 sm:p-6">
         <div class="mb-4 flex flex-wrap items-baseline justify-between gap-x-4 gap-y-1">
           <h2 class="font-display text-xl font-bold uppercase tracking-wider text-ink">Statuswerte</h2>
-          <p class="text-sm text-mist">
+          <p class="flex flex-wrap items-baseline gap-x-1.5 gap-y-1 text-sm text-mist">
             <span class="font-semibold text-ink" x-text="baseStats?.role"></span>
+            <span x-show="baseStats?.overridden" class="rounded-full border border-volt-400/50 bg-volt-400/10 px-1.5 py-0.5 font-display text-[10px] font-bold uppercase tracking-wider text-volt-400"
+                  :title="`Von der Liga festgelegt. Gerechnet wäre: ${baseStats?.computed}`">festgelegt</span>
+            <button type="button" x-show="canEditNotes && !roleEdit" @click="openRoleEdit()"
+                    class="rounded-lg border border-line px-2 py-0.5 text-[11px] font-semibold text-mist transition-colors hover:border-flame-500/40 hover:text-flame-400">Rolle ändern</button>
             <span aria-hidden="true"> · </span>
-            Summe <span class="font-display font-bold tabular-nums text-ink" x-text="baseStats?.total"></span>
+            <span>Summe <span class="font-display font-bold tabular-nums text-ink" x-text="baseStats?.total"></span></span>
           </p>
         </div>
+
+        <template x-if="roleEdit">
+          <div class="mb-5 rounded-xl border border-flame-500/40 bg-elevated/40 p-3 sm:p-4">
+            <p class="text-sm text-ink">Rolle in der Liga</p>
+            <p class="mt-0.5 text-xs leading-relaxed text-mist">Gilt für beide Spieler und überall — auch in der Presse. <span x-show="baseStats?.overridden" x-text="`Aus den Werten gerechnet: ${baseStats?.computed}.`"></span></p>
+            <div class="mt-3 grid gap-3 sm:grid-cols-2">
+              <div>
+                <p class="mb-1.5 font-display text-[11px] font-bold uppercase tracking-wider text-mist">Ausrichtung</p>
+                <div class="flex flex-wrap gap-1.5">
+                  <template x-for="o in roleOptions" :key="'ro-'+o.key">
+                    <button type="button" @click="roleEdit.role = o.key"
+                            class="rounded-lg border px-3 py-1.5 text-xs font-semibold transition-colors"
+                            :class="roleEdit.role === o.key ? 'border-flame-500 bg-flame-500/10 text-flame-300' : 'border-line text-mist hover:text-ink'"
+                            x-text="o.label"></button>
+                  </template>
+                </div>
+              </div>
+              <div x-show="roleEdit.role !== 'defensiv'">
+                <p class="mb-1.5 font-display text-[11px] font-bold uppercase tracking-wider text-mist">Angriffsart</p>
+                <div class="flex flex-wrap gap-1.5">
+                  <template x-for="o in sideOptions" :key="'so-'+o.key">
+                    <button type="button" @click="roleEdit.side = o.key"
+                            class="rounded-lg border px-3 py-1.5 text-xs font-semibold transition-colors"
+                            :class="roleEdit.side === o.key ? 'border-flame-500 bg-flame-500/10 text-flame-300' : 'border-line text-mist hover:text-ink'"
+                            x-text="o.label"></button>
+                  </template>
+                </div>
+              </div>
+            </div>
+            <div class="mt-4 flex flex-wrap items-center gap-2">
+              <button type="button" @click="saveRole()" :disabled="roleEdit.busy"
+                      class="rounded-lg bg-flame-500 px-3.5 py-2 text-xs font-bold uppercase tracking-wider text-white transition-colors hover:bg-flame-600 disabled:opacity-40">Speichern</button>
+              <button type="button" x-show="baseStats?.overridden" @click="saveRole(true)" :disabled="roleEdit.busy"
+                      class="rounded-lg border border-line px-3 py-2 text-xs font-semibold text-mist transition-colors hover:text-flame-400 disabled:opacity-40">Auf Rechnung zurücksetzen</button>
+              <button type="button" @click="cancelRoleEdit()"
+                      class="rounded-lg border border-line px-3 py-2 text-xs font-semibold text-mist transition-colors hover:text-ink">Abbrechen</button>
+            </div>
+          </div>
+        </template>
         <dl class="grid gap-2.5">
           <template x-for="st in (baseStats?.rows || [])" :key="'bs-'+st.key">
             <div class="grid grid-cols-[7.5rem_2.5rem_1fr] items-center gap-3 sm:grid-cols-[11rem_2.75rem_1fr]">
@@ -153,6 +196,57 @@
             </div>
           </template>
         </dl>
+      </section>
+
+      <!-- CHARAKTER -->
+      <section x-show="mon" class="mt-6 rounded-2xl border border-line bg-panel p-5 sm:p-6">
+        <div class="mb-3 flex flex-wrap items-start justify-between gap-2">
+          <div class="min-w-0">
+            <h2 class="font-display text-xl font-bold uppercase tracking-wider text-ink">Charakter</h2>
+            <p class="mt-1 text-sm text-mist">Eigenheiten, die die Presse in Interviews und Beiträgen aufgreift. Beide Spieler pflegen sie — egal, wo das Pokémon gerade spielt.</p>
+          </div>
+          <button type="button" x-show="canEditNotes && !traitEdit" @click="openTraitEdit()"
+                  class="shrink-0 rounded-lg border border-line px-2.5 py-1.5 text-xs font-semibold text-mist transition-colors hover:border-flame-500/40 hover:text-flame-400"
+                  x-text="monTraits.length ? 'Bearbeiten' : 'Hinzufügen'"></button>
+        </div>
+        <template x-if="!traitEdit">
+          <div>
+            <ul x-show="monTraits.length" class="flex flex-wrap gap-1.5">
+              <template x-for="(t, ti) in monTraits" :key="'mtr-'+ti">
+                <li class="max-w-full break-words rounded-lg border border-line bg-elevated/40 px-2 py-1 text-xs leading-snug text-mist" x-text="t"></li>
+              </template>
+            </ul>
+            <p x-show="!monTraits.length" class="text-xs text-mist/70">Noch keine Eigenschaften hinterlegt.</p>
+          </div>
+        </template>
+        <template x-if="traitEdit">
+          <div class="space-y-2">
+            <template x-for="(item, i) in traitEdit.items" :key="'mte-'+i">
+              <div class="flex items-start gap-2">
+                <textarea data-mon-trait-input x-model="traitEdit.items[i]" rows="1" maxlength="240"
+                          placeholder="z. B. abergläubisch — trägt vor jedem Kampf dieselbe Beere bei sich"
+                          @keydown.enter.prevent="addTraitRow()"
+                          class="min-h-10 min-w-0 flex-1 resize-y rounded-lg border border-line bg-elevated px-3 py-2 text-sm text-ink placeholder:text-mist/60 focus:border-flame-500 focus:outline-none [field-sizing:content]"></textarea>
+                <button type="button" @click="removeTraitRow(i)"
+                        class="grid size-10 shrink-0 place-items-center rounded-lg border border-line text-mist transition-colors hover:border-flame-500/40 hover:text-flame-400"
+                        title="Eintrag entfernen" aria-label="Eintrag entfernen">
+                  <svg viewBox="0 0 24 24" class="size-4" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M18 6 6 18M6 6l12 12"/></svg>
+                </button>
+              </div>
+            </template>
+            <div class="flex flex-wrap items-center gap-2 pt-1">
+              <button type="button" @click="addTraitRow()" :disabled="traitEdit.items.length >= maxMonTraits"
+                      class="inline-flex items-center gap-1.5 rounded-lg border border-dashed border-line px-3 py-2 text-xs font-semibold text-mist transition-colors hover:border-flame-500/40 hover:text-flame-400 disabled:opacity-40">
+                <svg viewBox="0 0 24 24" class="size-3.5" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M12 5v14M5 12h14"/></svg>
+                Eintrag
+              </button>
+              <button type="button" @click="saveTraitEdit()" :disabled="traitEdit.busy"
+                      class="ml-auto rounded-lg bg-flame-500 px-3.5 py-2 text-xs font-bold uppercase tracking-wider text-white transition-colors hover:bg-flame-600 disabled:opacity-40">Speichern</button>
+              <button type="button" @click="cancelTraitEdit()"
+                      class="rounded-lg border border-line px-3 py-2 text-xs font-semibold text-mist transition-colors hover:text-ink">Abbrechen</button>
+            </div>
+          </div>
+        </template>
       </section>
 
       <!-- TYP-TABELLE -->

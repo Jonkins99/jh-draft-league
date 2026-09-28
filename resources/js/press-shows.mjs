@@ -16,20 +16,40 @@ import { hashSeed, seededFloat } from './press.mjs';
 export const CAVALANZAS = {
   id: 'cavalanzas',
   name: 'Cavalanzas',
-  voice: `ROLLE & HALTUNG: Souverän, aber oft demonstrativ ungläubig; inszeniert sich als kritischer Anwalt des
-"gesunden Menschenverstands" und der normalen Fans, der Trainern und Experten auf den Zahn fühlen will.
-EINSTIEGE: Startet direkt und leicht distanziert oder leitet ein Thema mit einer dramaturgischen Zuspitzung ein
-(etwa: "Guten Abend. Es ist eine Zeit, in der vieles ins Rutschen geraten ist …" oder "Herr X, sind wir
-eigentlich noch zu retten?").
-STILMITTEL: Nutzt sehr häufig "Punkt." als Stoppsignal oder Zäsur, dazu "Bei allem Respekt …", "Hand aufs Herz"
-und "Die entscheidende Frage ist doch …".
-INTERAKTION: Bohrt penetrant nach, unterbricht charmant, aber bestimmt, wenn jemand ausweicht ("Um die Frage noch
-einmal ganz präzise zu stellen …"), und wiederholt Kernfragen in leicht veränderter Form, bis eine konkrete
-Antwort kommt.
-SPRACHE: Parataktisch, schnell, viele rhetorische Fragen. Liebt Kontraste ("Auf der einen Seite … und auf der
-anderen Seite steht die bittere Realität").
-ABSCHLUSS: Zieht ein melancholisch-realistisches Fazit, das die Komplexität der Lage betont, und verabschiedet
-sich dann knapp und prägnant von den Zuschauern.`,
+  voice: `ROLLE & HALTUNG: Neugieriger, zugewandter Gastgeber mit echtem Interesse an seinen Gästen — höflich, warm,
+oft mit einem kleinen Lächeln in der Stimme, dabei hartnäckig in der Sache. Er ist nicht unfreundlich und nicht
+herablassend: Er will VERSTEHEN, und er will, dass es die Fans vor den Bildschirmen auch verstehen. Wer ausweicht,
+wird freundlich, aber bestimmt zurückgeholt. Er lobt ehrlich, wenn eine Antwort sitzt ("Das ist ein starker Punkt.").
+EINSTIEG: Begrüßt die Zuschauer und stellt jeden Gast mit einem persönlichen, anerkennenden Halbsatz vor. Führt dann
+mit Dringlichkeit ins Hauptthema: "Wir müssen heute über etwas reden, das eine ungeheure Sprengkraft hat …"
+
+SEINE REDEMUSTER (regelmäßig und abwechselnd einsetzen, nie alle in einem Beitrag):
+1. DAZWISCHENGEHEN, UM DAS GESPRÄCH ZU FÜHREN — wenn ein Gast in einen Monolog oder in Floskeln abdriftet, unterbricht
+   er mitten im Gedanken, um bei einem Detail nachzuhaken: "Da muss ich kurz rein …", "Ganz kurz, [Name] …",
+   "Lassen Sie mich den Gedanken kurz zu Ende führen …" (gern genau dann, wenn er selbst gerade jemandem ins Wort
+   fällt). Das ist Regie, keine Unhöflichkeit.
+2. ZUGESPITZT ÜBERSETZEN — Ausweichendes oder Kompliziertes bringt er auf eine einfache, gern provokante These:
+   "Was Sie im Grunde sagen, ist doch …", "Das heißt übersetzt …", "Ich versuche das nur zu verstehen: Ist das jetzt
+   ein Ja oder ein Nein?"
+3. ANWALT DER FANS — er erdet Taktik-Debatten mit der Sicht der Zuschauer: "Das versteht doch draußen kein Mensch
+   mehr.", "Was sagen Sie dem Fan, der sich extra den Abend freigenommen hat, um dieses Match zu sehen?", "Wenn Sie
+   jetzt daheim auf der Couch sitzen, fragen Sie sich doch …"
+4. HERANHOLEN, BEVOR ES STEIL WIRD — bevor er eine These oder eine Konfrontation aufbaut: "Gucken Sie mal …",
+   "Passen Sie auf …", "Lassen Sie uns das mal kurz aufdröseln."
+5. DRAMATISIEREN — er gibt den Themen Gewicht: "Das ist doch der eigentliche Punkt!", "An dieser Stelle müssen wir
+   einmal kurz innehalten."
+6. VEREINSLINIE ODER PERSÖNLICHE MEINUNG — bei Trainern und Insidern legt er den Abstand zwischen offizieller Linie
+   des Vereins (bzw. des Managements, das den Kader zusammenstellt) und eigener Überzeugung frei: "Ist das die
+   Meinung des Vereins oder Ihre persönliche Haltung?", "Jetzt mal ganz ehrlich …", "Butter bei die Fische …",
+   "Wann haben Sie persönlich gemerkt, dass das schiefgeht?"
+
+ÜBERTRAGUNG AUF DIE LIGA: Statt Politik geht es um Draft-Entscheidungen, Aufstellungen, verlorene Kämpfe, Trainer
+unter Druck, Marktwerte, Rivalitäten und Gerüchte. Statt "der Partei" steht der Verein, statt "der Bäckerin" der Fan
+im Stream oder auf der Couch.
+SPRACHE: Gesprochen, lebendig, kurze Sätze, viele Fragen, gern ein "Hm." oder "Okay." als Denkpause. Er nennt
+Gäste beim Namen. Keine Beleidigungen, kein Spott von oben herab.
+ABSCHLUSS: Ein nachdenkliches, faires Fazit, das die Lage einordnet und beiden Seiten gerecht wird, dann ein
+knapper, herzlicher Abschied von Gästen und Zuschauern.`,
 };
 
 export const VENICRO = {
@@ -199,7 +219,7 @@ const PROTOCOL_RULES = `FORM — REINES GESPRÄCHSPROTOKOLL:
   kein Erzähler, keine Einleitung und kein Nachwort außerhalb der Wortbeiträge.
 - Das Feld "sprecher" trägt exakt einen der vorgegebenen Namen, sonst nichts.
 - Bausteine wie [marktwert: …] oder [tabelle: …] gibt es in diesem Format nicht.
-- Die Gäste sprechen in ihrer eigenen Stimme; Pressevertreter so, wie ihre Handschrift es vorgibt.`;
+- Die Gäste sprechen in ihrer eigenen Stimme — als Menschen im Gespräch, nicht als Autoren eines Textes.`;
 
 export const LANZ_BRIEF = `Du schreibst die Talkshow "Cava LANZ" — die Sendung, in der Cavalanzas nach den Spielen
 eines Spieltags Gäste zum Stand der JH Draft League befragt.
@@ -210,11 +230,25 @@ THEMEN, in dieser Gewichtung:
 3. Der Ausblick auf die noch ausstehenden Spiele des Spieltags.
 
 AUFTRAG
-- Cavalanzas führt durch die Sendung, stellt die Fragen und hakt nach. Er eröffnet und er beendet.
+- Cavalanzas führt durch die Sendung, stellt die Fragen und hakt nach. Er eröffnet und er beendet. Er ist
+  freundlich und neugierig, nicht harsch — seine Schärfe liegt im Nachhaken, nicht im Ton.
 - Die Gäste haben Meinungen und widersprechen einander. Aussagen dürfen Geschichten weiterdrehen oder neue
   eröffnen — der Kanon gilt trotzdem: Wechsel, Strafen, Entlassungen bleiben Gerücht, Forderung, Vermutung.
 - Fakten (Ergebnisse, Kills, Tabelle) kommen ausschließlich aus den Metadaten.
 - Ausführlich: Das fertige Protokoll liest sich in drei bis fünf Minuten.
+
+DIE PRESSEGÄSTE SIND IM STUDIO, NICHT AM SCHREIBTISCH
+- Sie REDEN. Sie sitzen als Experten in einer Diskussionsrunde und sprechen zu Cavalanzas und zueinander — sie
+  schreiben keinen Bericht, keine Kolumne und keinen Kommentar.
+- Gesprochene Sprache: erste Person ("Ich sag Ihnen was …", "Also, ich war am Samstag da, und …"), kurze Sätze,
+  Satzabbrüche, Nachfragen, Zustimmung und Widerspruch ("Nee, da muss ich widersprechen.", "Genau das meine ich!"),
+  direkte Anrede der anderen beim Namen.
+- Verboten sind Schreibformeln: keine Überschriften oder Schlagzeilen, keine Einleitung wie "In der heutigen Analyse",
+  kein "wie ich in meinem Artikel schrieb", keine Aufzählungen, keine Zwischenfazits, keine Zitate über Dritte in
+  Reportage-Manier ("so der Trainer"), kein Ausblick-Absatz am Ende eines Wortbeitrags.
+- Ihre Handschrift aus der Redaktion zeigt sich als TEMPERAMENT und Haltung im Gespräch (bissig, nüchtern,
+  begeistert, verschwörerisch …), nicht als Schreibstil.
+- Sie reagieren auf das, was unmittelbar davor gesagt wurde, und lassen sich von Cavalanzas unterbrechen.
 
 ${PROTOCOL_RULES}`;
 

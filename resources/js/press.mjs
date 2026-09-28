@@ -792,3 +792,117 @@ export function pickInterviewGuests(seedKey, candidates = []) {
   }
   return out.sort((a, b) => b.score - a.score);
 }
+
+// --- Beitragsleichen ----------------------------------------------------------
+// Ein Platzhalter steht auf `pending`, solange ein Gerät schreibt. Wird das Gerät
+// mittendrin geschlossen (oder stirbt der Tab), bleibt er für immer so stehen: kein
+// Titel, kein Text. Nach dieser Zeit gilt er als abgebrochen und darf neu geschrieben
+// werden — auch von einem anderen Gerät.
+export const PENDING_STALE_MS = 10 * 60 * 1000;
+
+export function isStalePending(a, now = Date.now()) {
+  if (!a || a.status !== 'pending') return false;
+  const at = Date.parse(a.updatedAt || a.createdAt || a.publishedAt || '');
+  return !Number.isFinite(at) || now - at > PENDING_STALE_MS;
+}
+
+// Fehlt der Beitrag, ist er gescheitert oder abgebrochen? Dann darf er (neu) entstehen.
+export function needsRewrite(a, now = Date.now()) {
+  return !a || a.status === 'error' || isStalePending(a, now);
+}
+
+// Anzeige-Status: ein abgebrochener Platzhalter erscheint als Fehlschlag mit
+// Wiederholen-Knopf, nicht als ewiges „Die Redaktion schreibt gerade…".
+export function articleViewStatus(a, now = Date.now()) {
+  return isStalePending(a, now) ? 'error' : a?.status || 'ready';
+}
+
+// Hat die KI überhaupt etwas geliefert? Ein Datensatz mit leerem Titel oder ohne
+// einen einzigen Absatz Text wird verworfen und neu angefragt — sonst entsteht ein
+// „fertiger" Beitrag ohne Inhalt. Antworten ohne diese Felder (Fragen, Gesprächsteile)
+// bleiben unberührt.
+export function hasArticleContent(data) {
+  if (!data || typeof data !== 'object') return false;
+  if ('titel' in data && !String(data.titel || '').trim()) return false;
+  if ('absaetze' in data) {
+    const list = Array.isArray(data.absaetze) ? data.absaetze : [data.absaetze];
+    if (!list.some((p) => String(p || '').trim())) return false;
+  }
+  return true;
+}
+
+// --- Vorschaubild -------------------------------------------------------------
+// Das Bild über einem Beitrag war immer der Autor. Passt inhaltlich etwas Besseres —
+// ein eingebettetes Bild, der Trainer, um den es geht, das Pokémon aus der Überschrift,
+// das Wappen des einen betroffenen Vereins —, steht das dort. Gewertet wird nach
+// Stellung: Überschrift schlägt Dachzeile schlägt bloße Erwähnung. Unter der Schwelle
+// bleibt es beim Autor.
+const previewFold = (v) => String(v ?? '')
+  .replace(/ß/g, 'ss')
+  .normalize('NFD').replace(/[̀-ͯ]/g, '')
+  .toLowerCase();
+
+function previewMentions(text, name) {
+  const n = previewFold(name).trim();
+  if (n.length < 3) return false;
+  const esc = n.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+  return new RegExp(`(^|[^a-z0-9])${esc}([^a-z0-9]|$)`).test(previewFold(text));
+}
+
+export const PREVIEW_MIN_SCORE = 30;
+
+/**
+ * @param {object} a  Beitrag
+ * @param {object} ctx
+ * @param {Array}  ctx.teams     Teams (mit id, name, logoUrl)
+ * @param {Array}  ctx.trainers  [{ name, image, teamId }] — amtierende und frühere
+ * @param {function} ctx.monImage  (name) => Bild-URL
+ * @param {object} ctx.session   zugehöriger Termin (Interview/PK), falls vorhanden
+ * @returns {{ kind: 'image'|'trainer'|'pokemon'|'team', src, name, score } | null}
+ */
+export function pickPreview(a, ctx = {}) {
+  if (!a) return null;
+  const title = a.title || '';
+  const sub = a.subtitle || '';
+  const body = String(a.body || '');
+  const out = [];
+  const add = (kind, src, name, score) => { if (src) out.push({ kind, src, name, score }); };
+  const place = (name, strong, mid, weak) => (previewMentions(title, name) ? strong : previewMentions(sub, name) ? mid : weak);
+
+  // Eingebettetes Bild: [bild: …] oder ein <img> im Text.
+  const tile = body.match(/\[bild:\s*(https?:\/\/[^\]\s]+)\s*\]/i)?.[1];
+  const img = body.match(/<img[^>]+src="(https?:\/\/[^"]+)"/i)?.[1];
+  const embedded = tile || img;
+  if (embedded) add('image', embedded, '', 90);
+
+  // Der Termin sagt, wer im Mittelpunkt stand.
+  const role = ctx.session?.role;
+  if (role?.kind === 'trainer' && role.image) add('trainer', role.image, role.name, 70);
+  if (role?.kind === 'pokemon') add('pokemon', role.image || ctx.monImage?.(role.name), role.name, 72);
+  (ctx.session?.guests || ctx.session?.stage?.guests || []).forEach((g) => {
+    if (g?.kind === 'pokemon') add('pokemon', g.image || ctx.monImage?.(g.name), g.name, place(g.name, 85, 60, 50));
+    if (g?.kind === 'trainer' && g.image) add('trainer', g.image, g.name, place(g.name, 86, 62, 55));
+  });
+
+  (ctx.trainers || []).forEach((t) => {
+    if (!t?.image || !t.name) return;
+    const inTile = new RegExp(`\\[trainer:\\s*${previewFold(t.name).replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}`, 'i').test(previewFold(body));
+    const s = place(t.name, 85, 45, inTile ? 35 : 0);
+    if (s) add('trainer', t.image, t.name, s);
+  });
+
+  (a.pokemonNames || []).forEach((name, i) => {
+    add('pokemon', ctx.monImage?.(name), name, place(name, 80, 42, i === 0 ? 22 : 15));
+  });
+
+  const teamIds = a.teamIds || [];
+  (ctx.teams || []).forEach((t) => {
+    if (!t?.name) return;
+    const linked = teamIds.includes(t.id);
+    const s = place(t.name, 60, 38, linked && teamIds.length === 1 ? 30 : 0);
+    if (s) add('team', t.logoUrl, t.name, s);
+  });
+
+  const best = out.sort((x, y) => y.score - x.score)[0];
+  return best && best.score >= PREVIEW_MIN_SCORE ? best : null;
+}

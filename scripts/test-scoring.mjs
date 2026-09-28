@@ -71,9 +71,9 @@ import {
   turnParagraph, showParagraphs, cleanTurns, SHOW_SCHEMA,
 } from '../resources/js/press-shows.mjs';
 import { teamForm, formFromTimeline, formSparkSvg, careerStations, rivalry, splitPair } from '../resources/js/career.mjs';
-import { statsOf, statTotal, statPercent, statRole, statBlock, roleLabel } from '../resources/js/basestats.mjs';
+import { statsOf, statTotal, statPercent, statRole, statBlock, roleLabel, monRole, normalizeRoleOverride } from '../resources/js/basestats.mjs';
 import { completedMatchdays, awaitingPlayer } from '../resources/js/awards.mjs';
-import { normalizeMonTraits, monTraitsOf, MAX_MON_TRAITS } from '../resources/js/trainers.mjs';
+import { normalizeMonTraits, monTraitsOf, monTraitsFor, MAX_MON_TRAITS } from '../resources/js/trainers.mjs';
 import {
   commissionLeague, interviewCandidates, pickInterviewGuests, matchLines, isMatchComplete as pressMatchComplete,
 } from '../resources/js/press.mjs';
@@ -82,6 +82,15 @@ import {
 } from '../resources/js/press-prompts.mjs';
 
 let passed = 0;
+import {
+  generateJson, modelChain, classifyQuota, QuotaBook, nextPacificMidnight, normalizeKeys, keyTag, FALLBACK_ORDER,
+} from '../resources/js/gemini.mjs';
+import { isStalePending, needsRewrite, articleViewStatus, hasArticleContent, PENDING_STALE_MS, pickPreview } from '../resources/js/press.mjs';
+
+import { franchiseTeams, franchiseSeasons, franchisePokemon } from '../resources/js/seasons.mjs';
+import { franchiseTrainerHistory } from '../resources/js/trainers.mjs';
+import { franchiseSquadHistory } from '../resources/js/market.mjs';
+
 function test(name, fn) { fn(); passed++; console.log('  ok -', name); }
 // Die Anmeldung rechnet asynchron (WebCrypto) — dafür ein eigener, awaitbarer Helfer.
 async function atest(name, fn) { await fn(); passed++; console.log('  ok -', name); }
@@ -2111,6 +2120,210 @@ test('Formkurve, Stationen und Rivalitäten', () => {
   const html = tileHtml({ kind: 'rivalität', key: 's2-a | s2-b' }, { teams: [...teams, { id: 's2-a', season: 2, name: 'A2' }], seasonTeams: [], results, storylines: [] });
   assert.ok(html && html.includes('Rivalität · 3 Duelle'));
   assert.equal(parseTile('[rivalitaet: a | b]').kind, 'rivalitaet');
+});
+
+
+// --- Gemini: Ausweichen über Modelle und Schlüssel ---------------------------------
+test('Modellkette: gewähltes zuerst, Lite nur auf Wunsch, ohne Ausweichen nur eins', () => {
+  const chain = modelChain('gemini-3.7-flash');
+  assert.equal(chain[0], 'gemini-3.7-flash');
+  assert.equal(new Set(chain).size, chain.length);
+  assert.ok(chain.includes('gemini-3.8-flash') && chain.includes('gemini-3.5-flash-lite'));
+  assert.ok(chain.indexOf('gemini-3.5-flash') < chain.indexOf('gemini-3.5-flash-lite'));
+  assert.ok(!modelChain('gemini-3.8-flash', { lite: false }).some((m) => /lite/.test(m)));
+  assert.deepEqual(modelChain('gemini-3.8-flash', { fallback: false }), ['gemini-3.8-flash']);
+  assert.deepEqual(normalizeKeys([' a ', { key: 'b' }, 'a', '']), ['a', 'b']);
+  assert.notEqual(keyTag('a'), keyTag('b'));
+  assert.ok(FALLBACK_ORDER.includes('gemini-3.6-flash'));
+});
+
+test('Kontingent: Tages- und Minutenlimit werden unterschieden', () => {
+  const now = Date.UTC(2026, 8, 28, 8, 0, 0); // 01:00 in Kalifornien (PDT)
+  const day = classifyQuota({ details: [{ '@type': 'type.googleapis.com/google.rpc.QuotaFailure', violations: [{ quotaId: 'GenerateRequestsPerDayPerProjectPerModel-FreeTier' }] }] }, now);
+  assert.equal(day.scope, 'day');
+  assert.equal(day.until, Date.UTC(2026, 8, 29, 7, 0, 0));
+  const min = classifyQuota({ detail: 'Quota exceeded. Please retry in 21.5s.', details: [{ '@type': 'type.googleapis.com/google.rpc.QuotaFailure', violations: [{ quotaId: 'GenerateRequestsPerMinutePerProjectPerModel-FreeTier' }] }] }, now);
+  assert.equal(min.scope, 'minute');
+  assert.equal(min.until, now + 22000);
+  assert.equal(classifyQuota({ detail: 'limit: 0, model: x' }, now).scope, 'day');
+  assert.equal(nextPacificMidnight(now), Date.UTC(2026, 8, 29, 7, 0, 0));
+});
+
+test('Sperrliste: Modell je Schlüssel, Schlüssel für alle Modelle, Ablauf', () => {
+  let t = 1000;
+  let saved = null;
+  const book = new QuotaBook({ now: () => t, save: (e) => { saved = e; } });
+  book.block('k1', 'm1', 5000, 'day');
+  assert.ok(book.blocked('k1', 'm1'));
+  assert.ok(!book.blocked('k1', 'm2'));
+  assert.ok(!book.blocked('k2', 'm1'));
+  book.block('k2', null, 3000, 'key');
+  assert.ok(book.blocked('k2', 'm9'));
+  assert.ok(saved && Object.keys(saved).length === 2);
+  t = 4000;
+  assert.ok(!book.blocked('k2', 'm9'));
+  assert.equal(book.list().length, 1);
+  const again = new QuotaBook({ now: () => t, load: () => saved });
+  assert.ok(again.blocked('k1', 'm1'));
+});
+
+await atest('generateJson weicht bei 429 auf den nächsten Schlüssel und dann das nächste Modell aus', async () => {
+  const calls = [];
+  const realFetch = globalThis.fetch;
+  const quota429 = (scope) => ({
+    ok: false, status: 429,
+    json: async () => ({ error: { status: 'RESOURCE_EXHAUSTED', message: 'Quota exceeded', details: [{ '@type': 'type.googleapis.com/google.rpc.QuotaFailure', violations: [{ quotaId: `GenerateRequestsPer${scope}PerProjectPerModel-FreeTier` }] }] } }),
+  });
+  const ok = (obj) => ({ ok: true, status: 200, json: async () => ({ candidates: [{ content: { parts: [{ text: JSON.stringify(obj) }] }, finishReason: 'STOP' }] }) });
+  globalThis.fetch = async (url, init) => {
+    const model = decodeURIComponent(String(url).split('/models/')[1].split(':')[0]);
+    const key = init.headers['x-goog-api-key'] || init.headers.Authorization;
+    calls.push(`${model}@${String(key).replace('Bearer ', '')}`);
+    if (model === 'm1') return quota429('Day');
+    if (model === 'm2' && String(key).includes('k1')) return quota429('Day');
+    return ok({ titel: 'T', absaetze: ['x'] });
+  };
+  try {
+    const book = new QuotaBook();
+    let used = null;
+    const data = await generateJson({ keys: ['AIza-k1', 'AIza-k2'], models: ['m1', 'm2'], quota: book, prompt: 'p', onSuccess: (u) => { used = u; } });
+    assert.equal(data.titel, 'T');
+    assert.deepEqual(calls, ['m1@AIza-k1', 'm1@AIza-k2', 'm2@AIza-k1', 'm2@AIza-k2']);
+    assert.deepEqual(used, { model: 'm2', keyIndex: 1 });
+    // Beim nächsten Auftrag werden die gesperrten Kombinationen gar nicht erst gefragt.
+    calls.length = 0;
+    await generateJson({ keys: ['AIza-k1', 'AIza-k2'], models: ['m1', 'm2'], quota: book, prompt: 'p' });
+    assert.deepEqual(calls, ['m2@AIza-k2']);
+    // Alles gesperrt: sofortiger Fehler mit Uhrzeit, ohne Anfrage.
+    book.block('AIza-k2', 'm2', Date.now() + 3600000, 'day');
+    calls.length = 0;
+    await assert.rejects(
+      () => generateJson({ keys: ['AIza-k1', 'AIza-k2'], models: ['m1', 'm2'], quota: book, prompt: 'p' }),
+      (e) => e.status === 429 && /Kontingent erschöpft/.test(e.message),
+    );
+    assert.equal(calls.length, 0);
+  } finally {
+    globalThis.fetch = realFetch;
+  }
+});
+
+await atest('generateJson verwirft leere Antworten und fragt dieselbe Kombination neu', async () => {
+  const realFetch = globalThis.fetch;
+  let n = 0;
+  globalThis.fetch = async () => {
+    n++;
+    const obj = n === 1 ? { titel: '', absaetze: [] } : { titel: 'Da', absaetze: ['Text'] };
+    return { ok: true, status: 200, json: async () => ({ candidates: [{ content: { parts: [{ text: JSON.stringify(obj) }] }, finishReason: 'STOP' }] }) };
+  };
+  try {
+    const data = await generateJson({ apiKey: 'AIza-x', model: 'm1', prompt: 'p', accept: hasArticleContent });
+    assert.equal(data.titel, 'Da');
+    assert.equal(n, 2);
+  } finally {
+    globalThis.fetch = realFetch;
+  }
+});
+
+test('Beitragsleichen: abgebrochene Platzhalter dürfen neu entstehen', () => {
+  const now = Date.parse('2026-09-28T10:00:00Z');
+  const fresh = { status: 'pending', createdAt: new Date(now - 60000).toISOString() };
+  const old = { status: 'pending', createdAt: new Date(now - PENDING_STALE_MS - 1000).toISOString() };
+  assert.ok(!isStalePending(fresh, now));
+  assert.ok(isStalePending(old, now));
+  assert.ok(!needsRewrite(fresh, now));
+  assert.ok(needsRewrite(old, now));
+  assert.ok(needsRewrite(null, now));
+  assert.ok(needsRewrite({ status: 'error' }, now));
+  assert.ok(!needsRewrite({ status: 'ready' }, now));
+  assert.ok(!isStalePending({ status: 'waiting', createdAt: '2020-01-01' }, now));
+  assert.equal(articleViewStatus(old, now), 'error');
+  assert.equal(articleViewStatus(fresh, now), 'pending');
+  assert.ok(!hasArticleContent({ titel: ' ', absaetze: ['x'] }));
+  assert.ok(!hasArticleContent({ titel: 'T', absaetze: ['', ' '] }));
+  assert.ok(hasArticleContent({ titel: 'T', absaetze: ['x'] }));
+  assert.ok(hasArticleContent({ fragen: [] }));
+});
+
+
+test('Rolle überschreibbar, Charakter ligaweit', () => {
+  const mon = { name: 'X', stats: { hp: 60, atk: 130, def: 60, spa: 50, spd: 60, spe: 100 } };
+  assert.equal(monRole(mon).role, 'offensiv');
+  const over = monRole({ ...mon, roleOverride: { role: 'defensiv' } });
+  assert.equal(over.role, 'defensiv');
+  assert.equal(over.side, 'physisch');
+  assert.ok(over.overridden);
+  assert.equal(statBlock({ ...mon, roleOverride: { role: 'defensiv', side: null } }).rolle, 'defensiv');
+  assert.ok(statBlock({ ...mon, roleOverride: { role: 'defensiv' } }).rolleFestgelegt);
+  assert.equal(normalizeRoleOverride({ role: 'quatsch' }), null);
+  assert.equal(statBlock({ name: 'Y', roleOverride: { role: 'offensiv', side: 'speziell' } }).rolle, 'offensiv');
+  const teams = [
+    { id: 's1-a', season: 1, monTraits: { X: ['alt'] } },
+    { id: 's2-b', season: 2, monTraits: { X: ['neu'] } },
+  ];
+  assert.deepEqual(monTraitsFor('X', {}, teams), ['neu']);
+  assert.deepEqual(monTraitsFor('X', { X: [] }, teams), []);
+  assert.deepEqual(monTraitsFor('Z', {}, teams), []);
+  assert.deepEqual(monTraitsOf(teams[0], 'X', { traits: ['global'] }), ['global']);
+  assert.deepEqual(monTraitsOf(teams[0], 'X'), ['alt']);
+});
+
+
+test('Vorschaubild: Überschrift schlägt Erwähnung, sonst bleibt der Autor', () => {
+  const ctx = {
+    teams: [{ id: 's2-a', name: 'Beast Force', logoUrl: 'a.png' }, { id: 's2-b', name: 'Heerashai SV', logoUrl: 'b.png' }],
+    trainers: [{ name: 'Rüdiger Rot', image: 'r.png', teamId: 's2-a' }],
+    monImage: (n) => `${n}.png`,
+  };
+  assert.equal(pickPreview({ title: 'Glurak brennt alles nieder', pokemonNames: ['Glurak', 'Mew'], teamIds: ['s2-a', 's2-b'] }, ctx).src, 'Glurak.png');
+  assert.equal(pickPreview({ title: 'Rüdiger Rot vor dem Aus?', pokemonNames: ['Glurak'], teamIds: ['s2-a'] }, ctx).kind, 'trainer');
+  assert.equal(pickPreview({ title: 'Krise bei Beast Force', teamIds: ['s2-a', 's2-b'] }, ctx).src, 'a.png');
+  assert.equal(pickPreview({ title: 'Ein ruhiger Abend', teamIds: ['s2-a', 's2-b'] }, ctx), null);
+  assert.equal(pickPreview({ title: 'Ein ruhiger Abend', teamIds: ['s2-b'] }, ctx).src, 'b.png');
+  assert.equal(pickPreview({ title: 'Talk', body: '<p>[bild: https://x.y/z.jpg]</p>' }, ctx).kind, 'image');
+  assert.equal(pickPreview({ title: 'Nach dem Spiel', teamIds: ['s2-a', 's2-b'] }, { ...ctx, session: { role: { kind: 'pokemon', name: 'Mew' } } }).src, 'Mew.png');
+  // Kurze Namen treffen keine Wortteile.
+  assert.equal(pickPreview({ title: 'Mewtu dominiert', pokemonNames: ['Mew'], teamIds: [] }, ctx), null);
+});
+
+
+test('Franchise: Saisons, Pokémon, Trainer und Kaderwert über alle Saisons', () => {
+  const teams = [
+    { id: 's1-a', season: 1, name: 'A', pokemon: [{ name: 'X' }, { name: 'Y' }], trainers: [{ id: 't1', name: 'Tom', fromDay: null, untilDay: null }] },
+    { id: 's1-b', season: 1, name: 'B', pokemon: [{ name: 'Z' }] },
+    { id: 's2-a', season: 2, name: 'A', pokemon: [{ name: 'X' }], trainers: [{ id: 't1', name: 'Tom', fromDay: null, untilDay: 3 }, { id: 't2', name: 'Ute', fromDay: 4, untilDay: null }] },
+    { id: 's2-c', season: 2, name: 'C', pokemon: [{ name: 'Z' }] },
+  ];
+  const battle = (winner, killer, victim) => ({ done: true, used: { home: [], away: [] }, score: { home: 1, away: 0 }, winner, kills: [{ victimSide: 'away', victim, killerSide: 'home', killer }] });
+  const results = [
+    { id: 's1-d1-m0', day: 1, home: 's1-a', away: 's1-b', squads: { home: ['X', 'Y'], away: ['Z'] }, battles: [battle('home', 'Y', 'Z'), battle('home', 'Y', 'Z'), battle('home', 'X', 'Z')] },
+    { id: 's2-d1-m0', day: 1, home: 's2-a', away: 's2-c', squads: { home: ['X'], away: ['Z'] }, battles: [battle('home', 'X', 'Z'), battle('home', 'X', 'Z'), battle('home', 'X', 'Z')] },
+  ];
+  assert.deepEqual(franchiseTeams(teams, 'a').map((t) => t.id), ['s1-a', 's2-a']);
+  const seasons = franchiseSeasons(teams, results, {}, 'a');
+  assert.deepEqual(seasons.map((x) => [x.season, x.place, x.points]), [[1, 1, 3], [2, 1, 3]]);
+  const mons = franchisePokemon(teams, results, [], 'a');
+  const x = mons.find((m) => m.name === 'X');
+  const y = mons.find((m) => m.name === 'Y');
+  assert.equal(x.kills, 4);
+  assert.deepEqual(x.seasons, [1, 2]);
+  assert.ok(x.current);
+  assert.equal(y.kills, 2);
+  assert.ok(!y.current);
+  const hist = franchiseTrainerHistory([{ season: 1, trainers: teams[0].trainers }, { season: 2, trainers: teams[2].trainers }]);
+  assert.equal(hist.length, 2);
+  assert.equal(hist[0].name, 'Ute');
+  assert.ok(hist[0].current);
+  assert.equal(hist[1].period, 'S1 · vor der Saison – S2 · Spieltag 3');
+  const index = {
+    X: { history: [{ key: 'h0', elo: 1500 }, { key: 'h1', elo: 1500 }] },
+    Y: { history: [{ key: 'h0', elo: 1500 }, { key: 'h1', elo: 1500 }] },
+  };
+  const stops = [{ key: 'h0', season: 1 }, { key: 'h1', season: 2 }];
+  const pts = franchiseSquadHistory(franchiseTeams(teams, 'a'), index, stops);
+  assert.equal(pts.length, 2);
+  assert.equal(pts[0].known, 2);
+  assert.equal(pts[1].known, 1);
+  assert.equal(franchiseSquadHistory(franchiseTeams(teams, 'c'), index, stops).length, 0);
 });
 
 console.log(`\n${passed} Tests bestanden.`);

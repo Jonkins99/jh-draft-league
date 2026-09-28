@@ -289,7 +289,7 @@ function rosterBlock(team, results, pokedex, eloRows, availability) {
   const dexByName = Object.fromEntries((pokedex || []).map((x) => [x.name, x]));
   return (team.pokemon || []).map((p) => {
     const st = byName[p.name] || {};
-    const charakter = monTraitsOf(team, p.name);
+    const charakter = monTraitsOf(team, p.name, dexByName[p.name]);
     // Ein im Wintertransfer geholtes Pokémon hat die Hinrunde nicht verpasst — es war
     // schlicht nicht da. Ohne diesen Hinweis liest das Modell die Quoten falsch.
     const from = availability?.[`${team.id}|${p.name}`]?.from ?? null;

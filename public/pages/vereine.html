@@ -1,0 +1,299 @@
+<div x-data="franchiseView">
+
+  <!-- ÜBERSICHT -->
+  <div x-show="!slug">
+    <header class="mb-8">
+      <p class="font-display text-xs font-semibold uppercase tracking-[0.3em] text-flame-400">Alle Saisons</p>
+      <h1 class="mt-1 font-display text-4xl font-bold tracking-wide text-ink md:text-5xl">Teams</h1>
+      <p class="mt-2 text-mist">Jeder Verein, der je in der Liga gespielt hat — mit seiner Bilanz über alle Saisons. Tippe ein Team an für die Detailansicht.</p>
+    </header>
+
+    <div x-show="!loaded" class="py-12 text-center text-mist">Lade Teams…</div>
+
+    <div x-show="loaded" class="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-3">
+      <template x-for="r in rows" :key="'fr-'+r.slug">
+        <article @click="open(r.slug)"
+                 class="flex min-w-0 cursor-pointer flex-col rounded-2xl border border-line bg-panel p-5 transition-colors hover:border-flame-500/40">
+          <div class="flex min-w-0 items-center gap-4">
+            <img :src="logoUrl(r.latest.logo)" :alt="r.latest.name" loading="lazy" class="size-14 shrink-0 rounded-xl object-contain" />
+            <div class="min-w-0">
+              <h2 class="truncate font-display text-xl font-bold tracking-wide" :style="`color:${teamColor(r.latest)}`" x-text="r.latest.name" :title="r.latest.name"></h2>
+              <span class="mt-1 inline-flex max-w-full items-center truncate rounded-full px-2.5 py-0.5 text-xs font-semibold"
+                    :style="`color:${playerColor(r.latest.player)}; background:${playerColor(r.latest.player)}1f`"
+                    x-text="r.latest.player"></span>
+            </div>
+            <span x-show="r.titles" class="ml-auto inline-flex shrink-0 items-center gap-1 rounded-full border border-volt-400/50 bg-volt-400/10 px-2 py-0.5 font-display text-xs font-bold text-volt-400"
+                  :title="`${r.titles} Meistertitel`">
+              <svg viewBox="0 0 24 24" class="size-3.5" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M8 21h8"/><path d="M12 17v4"/><path d="M7 4h10v5a5 5 0 0 1-10 0z"/><path d="M17 5h3v2a3 3 0 0 1-3 3"/><path d="M7 5H4v2a3 3 0 0 0 3 3"/></svg>
+              <span x-text="r.titles"></span>
+            </span>
+          </div>
+
+          <div class="mt-4 flex flex-wrap gap-1.5">
+            <template x-for="s in r.seasons" :key="'frs-'+r.slug+'-'+s.season">
+              <span class="rounded-lg border border-line bg-elevated/50 px-2 py-0.5 text-[11px] font-semibold tabular-nums text-mist"
+                    x-text="s.played ? `S${s.season} · ${s.place}.` : `S${s.season} · —`"></span>
+            </template>
+          </div>
+
+          <dl class="mt-4 grid grid-cols-3 gap-2 border-t border-line pt-4 text-center">
+            <div>
+              <dt class="font-display text-[10px] font-semibold uppercase tracking-wider text-mist">Punkte</dt>
+              <dd class="font-display text-lg font-bold tabular-nums text-ink" x-text="r.points"></dd>
+            </div>
+            <div>
+              <dt class="font-display text-[10px] font-semibold uppercase tracking-wider text-mist">Bilanz</dt>
+              <dd class="font-display text-lg font-bold tabular-nums text-ink" x-text="`${r.won}-${r.draw}-${r.lost}`"></dd>
+            </div>
+            <div>
+              <dt class="font-display text-[10px] font-semibold uppercase tracking-wider text-mist">Ø Platz</dt>
+              <dd class="font-display text-lg font-bold tabular-nums text-ink" x-text="r.avgPlace == null ? '—' : fmtNum(r.avgPlace, 1)"></dd>
+            </div>
+          </dl>
+
+          <div class="mt-3 flex min-w-0 items-center gap-2 text-sm">
+            <template x-if="r.trainer">
+              <span class="flex min-w-0 items-center gap-2">
+                <img x-show="r.trainer.image" :src="r.trainer.image" :alt="r.trainer.name" loading="lazy" class="size-7 shrink-0 rounded-lg border border-line object-cover" />
+                <span class="min-w-0 truncate text-mist">Trainer <span class="font-semibold text-ink" x-text="r.trainer.name"></span></span>
+              </span>
+            </template>
+            <span x-show="!r.trainer" class="text-mist">Ohne Trainer</span>
+            <span x-show="r.market" class="ml-auto shrink-0 font-display font-bold tabular-nums text-volt-400" x-text="fmtMarket(r.market)"></span>
+          </div>
+        </article>
+      </template>
+    </div>
+
+    <!-- Langzeit-Statistik -->
+    <section x-show="loaded && rows.length" class="mt-8 rounded-2xl border border-line bg-panel p-5 sm:p-6">
+      <h2 class="font-display text-xl font-bold uppercase tracking-wider text-ink">Langzeit-Statistik</h2>
+      <p class="mb-4 mt-1 text-sm text-mist">Alle Saisons zusammengezählt. Spaltenkopf antippen sortiert.</p>
+      <div class="-mx-5 overflow-x-auto sm:-mx-6">
+        <table class="w-full min-w-[56rem] border-collapse text-sm">
+          <thead>
+            <tr class="border-b border-line text-left">
+              <th class="sticky left-0 z-10 bg-panel py-2 pl-5 pr-3 sm:pl-6">
+                <button type="button" @click="sortBy('name')" class="font-display text-[11px] font-bold uppercase tracking-wider text-mist hover:text-ink">
+                  Team <span class="text-flame-400" x-text="sortMark('name')"></span>
+                </button>
+              </th>
+              <template x-for="c in columns" :key="'fc-'+c.key">
+                <th class="px-2 py-2 text-right">
+                  <button type="button" @click="sortBy(c.key)" :title="c.label"
+                          class="whitespace-nowrap font-display text-[11px] font-bold uppercase tracking-wider text-mist hover:text-ink">
+                    <span x-text="c.short"></span> <span class="text-flame-400" x-text="sortMark(c.key)"></span>
+                  </button>
+                </th>
+              </template>
+            </tr>
+          </thead>
+          <tbody>
+            <template x-for="r in sortedRows" :key="'ft-'+r.slug">
+              <tr @click="open(r.slug)" class="cursor-pointer border-b border-line/50 transition-colors hover:bg-elevated/40">
+                <td class="sticky left-0 z-10 bg-panel py-2 pl-5 pr-3 sm:pl-6">
+                  <span class="flex min-w-0 items-center gap-2">
+                    <img :src="logoUrl(r.latest.logo)" :alt="r.latest.name" loading="lazy" class="size-7 shrink-0 object-contain" />
+                    <span class="max-w-[9rem] truncate font-semibold sm:max-w-none" :style="`color:${teamColor(r.latest)}`" x-text="r.latest.name"></span>
+                  </span>
+                </td>
+                <template x-for="c in columns" :key="'fv-'+r.slug+'-'+c.key">
+                  <td class="whitespace-nowrap px-2 py-2 text-right font-display tabular-nums"
+                      :class="sortKey === c.key ? 'font-bold text-ink' : 'text-mist'" x-text="cell(r, c)"></td>
+                </template>
+              </tr>
+            </template>
+          </tbody>
+        </table>
+      </div>
+    </section>
+
+    <!-- Kaderwerte über alle Saisons -->
+    <section x-show="loaded && $store.elo.rows.length" class="mt-8 rounded-2xl border border-line bg-panel p-5 sm:p-6">
+      <h2 class="font-display text-xl font-bold uppercase tracking-wider text-ink">Kaderwerte über alle Saisons</h2>
+      <p class="mb-4 mt-1 text-sm text-mist">Jeder Zeitpunkt zählt mit dem Kader, den das Team in dieser Saison hatte. Tippen oder zeigen gibt die Werte aus; die Legende blendet Teams aus.</p>
+      <div x-init="mountAllChart($el)"></div>
+    </section>
+  </div>
+
+  <!-- DETAILANSICHT -->
+  <template x-if="slug && team">
+    <div>
+      <button type="button" @click="close()"
+              class="mb-6 inline-flex items-center gap-2 font-display text-sm font-semibold uppercase tracking-wider text-mist transition-colors hover:text-flame-400">
+        <svg viewBox="0 0 24 24" class="size-4" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M15 18l-6-6 6-6"/></svg>
+        Alle Teams
+      </button>
+
+      <section class="team-hero relative overflow-hidden rounded-2xl border p-6 md:p-8" :style="`--team:${color}`">
+        <div class="flex flex-wrap items-center gap-6">
+          <div class="relative shrink-0">
+            <div class="team-hero-glow absolute inset-2 -z-10 rounded-full blur-2xl"></div>
+            <img :src="logoUrl(team.logo)" :alt="team.name" class="relative size-20 rounded-2xl object-contain sm:size-28" />
+          </div>
+          <div class="min-w-0">
+            <h1 class="break-words font-display text-3xl font-bold tracking-wide sm:text-4xl md:text-5xl" :style="`color:${color}`" x-text="team.name"></h1>
+            <p x-show="formerNames.length" class="mt-1 text-sm text-mist" x-text="`Früher: ${formerNames.join(', ')}`"></p>
+            <div class="mt-3 flex flex-wrap items-center gap-3">
+              <span class="inline-flex max-w-full items-center truncate rounded-full px-3 py-1 text-sm font-semibold"
+                    :style="`color:${playerColor(team.player)}; background:${playerColor(team.player)}1f`"
+                    x-text="team.player"></span>
+              <span class="font-display text-sm font-semibold uppercase tracking-wider text-mist"
+                    x-text="`${chain.length} ${chain.length === 1 ? 'Saison' : 'Saisons'}`"></span>
+              <span x-show="row?.titles" class="inline-flex items-center gap-1 rounded-full border border-volt-400/50 bg-volt-400/10 px-2.5 py-0.5 font-display text-sm font-bold text-volt-400"
+                    x-text="row?.titles === 1 ? '1 Meistertitel' : `${row?.titles} Meistertitel`"></span>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <!-- Kennzahlen -->
+      <section x-show="row" class="mt-6 grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-6">
+        <template x-for="k in [
+            { l: 'Punkte', v: row?.points },
+            { l: 'Bilanz', v: row ? `${row.won}-${row.draw}-${row.lost}` : '—' },
+            { l: 'Kills : Deaths', v: row ? `${row.kills} : ${row.deaths}` : '—' },
+            { l: 'Kill-Differenz', v: row ? fmtDiff(row.diff) : '—' },
+            { l: 'Ø Platz', v: row?.avgPlace == null ? '—' : fmtNum(row.avgPlace, 1) },
+            { l: 'Bester Platz', v: row?.bestPlace == null ? '—' : `${row.bestPlace}.` },
+          ]" :key="'fk-'+k.l">
+          <div class="rounded-2xl border border-line bg-panel p-4">
+            <p class="font-display text-[10px] font-semibold uppercase tracking-wider text-mist" x-text="k.l"></p>
+            <p class="mt-1 font-display text-2xl font-bold tabular-nums text-ink" x-text="k.v"></p>
+          </div>
+        </template>
+      </section>
+
+      <!-- Saison für Saison -->
+      <section class="mt-6 rounded-2xl border border-line bg-panel p-5 sm:p-6">
+        <h2 class="mb-4 font-display text-xl font-bold uppercase tracking-wider text-ink">Saison für Saison</h2>
+        <div class="-mx-5 overflow-x-auto sm:-mx-6">
+          <table class="w-full min-w-[34rem] border-collapse text-sm">
+            <thead>
+              <tr class="border-b border-line text-left font-display text-[11px] font-bold uppercase tracking-wider text-mist">
+                <th class="py-2 pl-5 pr-2 sm:pl-6">Saison</th>
+                <th class="px-2 py-2">Platz</th>
+                <th class="px-2 py-2 text-right">Sp</th>
+                <th class="px-2 py-2 text-right">S-U-N</th>
+                <th class="px-2 py-2 text-right">Pkt</th>
+                <th class="px-2 py-2 text-right">K : D</th>
+                <th class="py-2 pl-2 pr-5 text-right sm:pr-6">Diff</th>
+              </tr>
+            </thead>
+            <tbody>
+              <template x-for="s in seasonRows" :key="'fs-'+s.season">
+                <tr class="border-b border-line/50">
+                  <td class="py-2 pl-5 pr-2 sm:pl-6">
+                    <span class="font-display font-bold text-ink" x-text="`S${s.season}`"></span>
+                    <span x-show="s.team.name !== team.name" class="ml-1 text-xs text-mist" x-text="`als ${s.team.name}`"></span>
+                    <span x-show="!s.finished && s.played" class="ml-1 rounded bg-flame-500/15 px-1.5 py-0.5 font-display text-[10px] font-bold uppercase tracking-wider text-flame-300">läuft</span>
+                  </td>
+                  <td class="px-2 py-2">
+                    <span class="font-display font-bold tabular-nums text-ink" x-text="s.place ? `${s.place}. von ${s.of}` : '—'"></span>
+                    <span x-show="s.champion" class="ml-1 font-display text-xs font-bold uppercase tracking-wider text-volt-400">Meister</span>
+                  </td>
+                  <td class="px-2 py-2 text-right font-display tabular-nums text-mist" x-text="s.played"></td>
+                  <td class="px-2 py-2 text-right font-display tabular-nums text-mist" x-text="`${s.won}-${s.draw}-${s.lost}`"></td>
+                  <td class="px-2 py-2 text-right font-display font-bold tabular-nums text-ink" x-text="s.points"></td>
+                  <td class="px-2 py-2 text-right font-display tabular-nums text-mist" x-text="`${s.kills} : ${s.deaths}`"></td>
+                  <td class="py-2 pl-2 pr-5 text-right font-display tabular-nums text-mist sm:pr-6" x-text="fmtDiff(s.diff)"></td>
+                </tr>
+              </template>
+            </tbody>
+          </table>
+        </div>
+      </section>
+
+      <!-- Kaderwert über alle Saisons -->
+      <section x-show="$store.elo.rows.length" class="mt-6 rounded-2xl border border-line bg-panel p-5 sm:p-6">
+        <div class="mb-4 flex flex-wrap items-baseline justify-between gap-x-4 gap-y-1">
+          <h2 class="font-display text-xl font-bold uppercase tracking-wider text-ink">Kaderwert über alle Saisons</h2>
+          <p x-show="marketSpan" class="text-sm text-mist">
+            Höchststand <span class="font-display font-bold tabular-nums text-volt-400" x-text="marketSpan ? fmtMarket(marketSpan.peak.value) : ''"></span>
+            <span x-text="marketSpan ? `(${marketSpan.peak.label})` : ''"></span>
+          </p>
+        </div>
+        <div x-init="mountTeamChart($el)"></div>
+      </section>
+
+      <!-- Trainer -->
+      <section class="mt-6 rounded-2xl border border-line bg-panel p-5 sm:p-6">
+        <h2 class="mb-4 font-display text-xl font-bold uppercase tracking-wider text-ink">Trainer-Historie</h2>
+        <p x-show="!trainerRows.length" class="rounded-xl border border-line bg-elevated/40 px-3 py-3 text-sm text-mist">Noch nie ein Trainer ernannt.</p>
+        <ul x-show="trainerRows.length" class="grid gap-2 md:grid-cols-2">
+          <template x-for="t in trainerRows" :key="'ftr-'+t.id">
+            <li class="flex min-w-0 items-center gap-3 rounded-xl border border-line bg-elevated/40 p-2.5" :class="t.current ? 'border-volt-400/40' : ''">
+              <img x-show="t.image" :src="t.image" :alt="t.name" loading="lazy" class="size-12 shrink-0 rounded-lg object-cover" />
+              <span x-show="!t.image" class="grid size-12 shrink-0 place-items-center rounded-lg bg-elevated text-mist">
+                <svg viewBox="0 0 24 24" class="size-5" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="8.5" r="3.6"/><path d="M4.5 20a7.5 7.5 0 0 1 15 0"/></svg>
+              </span>
+              <span class="min-w-0 flex-1">
+                <span class="flex flex-wrap items-center gap-2">
+                  <span class="font-semibold text-ink" x-text="t.name"></span>
+                  <span x-show="t.current" class="rounded bg-volt-400/15 px-1.5 py-0.5 font-display text-[10px] font-bold uppercase tracking-wider text-volt-400">Im Amt</span>
+                </span>
+                <span class="block text-xs text-mist" x-text="t.period"></span>
+                <span x-show="(t.traits || []).length" class="mt-1 block truncate text-[11px] text-mist/80" x-text="(t.traits || []).join(' · ')"></span>
+              </span>
+            </li>
+          </template>
+        </ul>
+      </section>
+
+      <!-- Pokémon -->
+      <section class="mt-6 rounded-2xl border border-line bg-panel p-5 sm:p-6">
+        <h2 class="font-display text-xl font-bold uppercase tracking-wider text-ink">Pokémon</h2>
+        <p class="mb-4 mt-1 text-sm text-mist">Jedes Pokémon, das je für diesen Verein im Kader stand — mit dem, was es für ihn geleistet hat. Spaltenkopf antippen sortiert.</p>
+        <p x-show="!monRows.length" class="rounded-xl border border-line bg-elevated/40 px-3 py-3 text-sm text-mist">Noch kein Kader.</p>
+        <div x-show="monRows.length" class="-mx-5 overflow-x-auto sm:-mx-6">
+          <table class="w-full min-w-[44rem] border-collapse text-sm">
+            <thead>
+              <tr class="border-b border-line text-left">
+                <th class="sticky left-0 z-10 bg-panel py-2 pl-5 pr-3 sm:pl-6">
+                  <button type="button" @click="monSortBy('name')" class="font-display text-[11px] font-bold uppercase tracking-wider text-mist hover:text-ink">
+                    Pokémon <span class="text-flame-400" x-text="monSortMark('name')"></span>
+                  </button>
+                </th>
+                <template x-for="c in monColumns" :key="'mc-'+c.key">
+                  <th class="px-2 py-2 text-right">
+                    <button type="button" @click="monSortBy(c.key)" :title="c.label"
+                            class="whitespace-nowrap font-display text-[11px] font-bold uppercase tracking-wider text-mist hover:text-ink">
+                      <span x-text="c.short"></span> <span class="text-flame-400" x-text="monSortMark(c.key)"></span>
+                    </button>
+                  </th>
+                </template>
+              </tr>
+            </thead>
+            <tbody>
+              <template x-for="m in sortedMons" :key="'fm-'+m.name">
+                <tr class="border-b border-line/50">
+                  <td class="sticky left-0 z-10 bg-panel py-1.5 pl-5 pr-3 sm:pl-6">
+                    <button type="button" @click="goMon(m.name)" class="flex min-w-0 items-center gap-2 text-left transition-colors hover:text-flame-400">
+                      <img :src="m.pokemon?.image" :alt="m.name" loading="lazy" class="size-8 shrink-0 object-contain" />
+                      <span class="min-w-0">
+                        <span class="block max-w-[8.5rem] truncate font-semibold text-ink sm:max-w-none" x-text="m.name"></span>
+                        <span class="block text-[10px] text-mist">
+                          <span x-text="seasonsLabel(m.seasons)"></span>
+                          <span x-show="m.current" class="ml-1 font-bold uppercase tracking-wider text-volt-400">im Kader</span>
+                        </span>
+                      </span>
+                    </button>
+                  </td>
+                  <template x-for="c in monColumns" :key="'mv-'+m.name+'-'+c.key">
+                    <td class="whitespace-nowrap px-2 py-1.5 text-right font-display tabular-nums"
+                        :class="monSortKey === c.key ? 'font-bold text-ink' : 'text-mist'" x-text="monCell(m, c)"></td>
+                  </template>
+                </tr>
+              </template>
+            </tbody>
+          </table>
+        </div>
+        <div x-show="monRows.length > 25" class="mt-4 flex justify-center">
+          <button type="button" @click="showAllMons = !showAllMons"
+                  class="rounded-xl border border-line px-4 py-2 font-display text-xs font-bold uppercase tracking-wider text-mist transition-colors hover:border-flame-500/40 hover:text-flame-400"
+                  x-text="showAllMons ? 'Weniger zeigen' : `Alle ${monRows.length} zeigen`"></button>
+        </div>
+      </section>
+    </div>
+  </template>
+</div>

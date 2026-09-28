@@ -1,5 +1,31 @@
 # Changelog
 
+## Press: reliability of the Gemini desk
+- **Automatic fallback across models.** Every Flash model has its own free daily quota (about 20 requests). When the chosen model hits its limit or is overloaded, the desk moves on by itself: 3.8 → 3.7 → 3.6 → 3.5 Flash → 3 Flash Preview → 2.5 Flash, and — if enabled — the Lite models with about 500 requests a day as the last reserve. Both switches live in the access tab. The model that actually wrote a piece is stored on the article (`model`).
+- **Several API keys.** The access tab takes up to six keys (with optional labels, reorderable, each tested on its own). On a quota error the desk tries the same model on the next key before stepping down to the next model. Quota counts per Google project, so a second key only helps if it comes from another project or account.
+- **Quota book.** A 429 is classified as daily or per-minute limit (from Google's `QuotaFailure`/`RetryInfo`). Daily limits block that key/model combination until midnight Pacific time (9:00 German time), minute limits for a few seconds — exhausted combinations are no longer asked again for every piece. The access tab lists what is blocked until when and can reset it. Only if nothing but minute limits are left does the desk wait once and try again.
+- **No more empty article corpses.** An answer without title or text is rejected and requested again instead of being published. A placeholder whose device was closed mid-write counts as aborted after ten minutes: it shows up as a failed piece with a retry button, may be rewritten from any device, and is retried automatically once per session. Only finished pieces can become the lead story — an unfinished one used to appear there as a large empty card.
+
+## Teams across all seasons (new)
+- **A team area in the "all seasons" scope.** Every club that has ever played, grouped as a franchise: logo, player, seasons with final placing, titles, points, record, average placing, current trainer and today's squad value — no rosters.
+- **Long-term statistics.** One sortable table with seasons, matches, W-D-L, points, points per match, kills, deaths, difference, titles, average and best placing, number of trainers and market value.
+- **Squad value across all seasons.** A combined chart for all clubs on the overview and one per club in the detail view. Each data point uses the squad the club had in that season, including the winter-transfer cut.
+- **Detail view.** Season by season (placing, record, points, kills), the full trainer history across seasons (a trainer carried over into the next season counts as one tenure), and every Pokémon that ever stood in the squad with what it achieved for this club. Team links in the all-seasons scope open the franchise.
+
+## Cava LANZ
+- **Press guests talk instead of writing.** They sit in the studio as experts: first person, spoken language, interruptions, agreement and contradiction — no headlines, no report phrasing. Their desk voice only shapes their temperament.
+- **A friendlier, sharper host.** Cavalanzas is curious and warm, persistent in substance rather than harsh in tone, and works with Lanz's speech patterns transferred to the league: stepping in to steer, translating evasions into a blunt thesis, speaking for the fans on the couch, "Gucken Sie mal …", dramatising, and separating club line from personal opinion.
+
+## Pokémon
+- **Role can be overridden.** In the Pokémon detail view both players can set the role (offensive, defensive, balanced) and the attacking side if the stats-based guess does not fit. The override is stored league-wide (`drafts/pokedex.roles`) and applies everywhere, including the press metadata; it can be reset to the calculated role.
+- **Character traits belong to the Pokémon.** Both players can edit them — in the detail view and at the bottom of any team view — whether the Pokémon plays for them, for the opponent or for nobody. They are stored league-wide (`drafts/pokedex.traits`) and move with the Pokémon; entries on the old team documents stay valid until the Pokémon is edited again.
+
+## Press
+- **Better preview images.** When the content fits, a piece shows a matching trainer portrait, club crest, Pokémon or embedded image instead of the author — weighted by where the name appears (headline over kicker over mention). Applies to the lead story, the cards and the article header.
+
+## Teambuilder
+- **Team notes in the notes panel.** The private notes of both teams of the matchup are shown and editable there — the same notes as in the team view.
+
 ## Press shows (new)
 - **"Cava LANZ", the talk show.** Once per matchday — after the second or third released game, drawn per matchday and the same on every device — Cavalanzas hosts a round of three: a press member plus, with equal odds, a second press member or a random club's trainer. With two press members the show is written in one go. With a trainer it runs live in the appointments tab: the show is generated up to the question to the trainer, the owner answers freely, host and guest pick the answer up and argue on, until the trainer has spoken three or four times; then Cavalanzas signs off and the episode is published. While it runs, the piece stays out of the newsroom. Topics: scandals first, then the matchday's results and the games still to come.
 - **"50 plus Zweiblatt", the podcast.** Venicro and Chelast review a matchday once all three matchday awards are decided and both players have watched the ceremonies. Analytical first, scandals and awards on the side. Starts with season 2; season 1 is not filled in retroactively.

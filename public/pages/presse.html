@@ -142,8 +142,14 @@ match /settings/{doc} { allow read, write: if true; }</code></pre>
                   </div>
                 </div>
               </div>
-              <div class="press-wall relative order-1 hidden min-h-[11rem] items-end justify-center overflow-hidden sm:order-2 sm:flex">
-                <img x-show="byline(lead).image" :src="byline(lead).image" :alt="byline(lead).name" class="press-portrait h-40 w-auto object-contain opacity-90" />
+              <div class="press-wall relative order-1 min-h-[11rem] items-end justify-center overflow-hidden sm:order-2 sm:flex"
+                   :class="previewOf(lead) ? 'flex h-44 sm:h-auto' : 'hidden'">
+                <template x-if="previewOf(lead)">
+                  <img :src="previewOf(lead).src" :alt="previewOf(lead).name" :class="previewClass(previewOf(lead).kind, 'lead')" />
+                </template>
+                <template x-if="!previewOf(lead)">
+                  <img x-show="byline(lead).image" :src="byline(lead).image" :alt="byline(lead).name" class="press-portrait h-40 w-auto object-contain opacity-90" />
+                </template>
               </div>
             </div>
           </article>
@@ -152,9 +158,9 @@ match /settings/{doc} { allow read, write: if true; }</code></pre>
         <!-- Listing -->
         <div class="grid gap-3 lg:grid-cols-2">
           <template x-for="a in rest" :key="'art-'+a.id">
-            <article @click="a.status === 'ready' && openArticle(a.id)"
+            <article @click="viewStatus(a) === 'ready' && openArticle(a.id)"
                      class="flex flex-col rounded-2xl border border-line bg-panel p-4 transition-colors"
-                     :class="a.status === 'ready' ? 'cursor-pointer hover:border-flame-500/40' : 'opacity-70'">
+                     :class="viewStatus(a) === 'ready' ? 'cursor-pointer hover:border-flame-500/40' : 'opacity-70'">
               <div class="flex flex-wrap items-center gap-2">
                 <template x-for="c in catsOf(a)" :key="'ac-'+a.id+'-'+c">
                   <span class="rounded-full px-2 py-0.5 font-display text-[10px] font-bold uppercase tracking-wider"
@@ -168,16 +174,16 @@ match /settings/{doc} { allow read, write: if true; }</code></pre>
                 <span class="ml-auto shrink-0 text-[11px] text-mist" x-text="fmtDate(a.publishedAt)"></span>
               </div>
 
-              <template x-if="a.status === 'pending'">
+              <template x-if="viewStatus(a) === 'pending'">
                 <div class="mt-3 flex items-center gap-3">
                   <span class="size-2 animate-ping rounded-full bg-flame-500"></span>
                   <p class="font-display text-base font-bold text-mist">Die Redaktion schreibt gerade…</p>
                 </div>
               </template>
-              <template x-if="a.status === 'error'">
+              <template x-if="viewStatus(a) === 'error'">
                 <div class="mt-3">
                   <p class="font-display text-base font-bold text-flame-300">Der Beitrag ist nicht fertig geworden.</p>
-                  <p class="press-break mt-1 text-xs text-mist" x-text="a.error"></p>
+                  <p class="press-break mt-1 text-xs text-mist" x-text="viewError(a)"></p>
                   <div class="mt-3 flex flex-wrap items-center gap-2" @click.stop>
                     <template x-if="canRetry(a)">
                       <label class="flex min-w-0 flex-1 basis-full items-center gap-2 text-[11px] text-mist sm:basis-auto">
@@ -198,10 +204,19 @@ match /settings/{doc} { allow read, write: if true; }</code></pre>
                   </div>
                 </div>
               </template>
-              <template x-if="a.status === 'ready'">
+              <template x-if="viewStatus(a) === 'ready'">
                 <div class="mt-2 flex min-w-0 flex-1 flex-col">
-                  <p x-show="a.subtitle" class="press-break font-display text-[11px] font-bold uppercase tracking-[0.22em] text-flame-400" x-text="a.subtitle"></p>
-                  <h3 class="press-break mt-0.5 font-display text-lg font-bold leading-snug text-ink" x-text="a.title"></h3>
+                  <div class="flex min-w-0 items-start gap-3">
+                    <div class="min-w-0 flex-1">
+                      <p x-show="a.subtitle" class="press-break font-display text-[11px] font-bold uppercase tracking-[0.22em] text-flame-400" x-text="a.subtitle"></p>
+                      <h3 class="press-break mt-0.5 font-display text-lg font-bold leading-snug text-ink" x-text="a.title"></h3>
+                    </div>
+                    <template x-if="previewOf(a)">
+                      <div class="size-16 shrink-0 overflow-hidden rounded-xl border border-line bg-elevated">
+                        <img :src="previewOf(a).src" :alt="previewOf(a).name" loading="lazy" :class="previewClass(previewOf(a).kind, 'card')" />
+                      </div>
+                    </template>
+                  </div>
                   <p class="press-break mt-2 line-clamp-3 text-sm leading-relaxed text-mist" x-text="excerptOf(a)"></p>
                   <div class="mt-4 flex items-center gap-2.5 pt-1">
                     <img x-show="byline(a).image" :src="byline(a).image" :alt="byline(a).name" class="press-portrait size-8 rounded-full border border-line bg-elevated" />
@@ -350,8 +365,14 @@ match /settings/{doc} { allow read, write: if true; }</code></pre>
             <p x-show="article.subtitle" class="press-break mt-4 font-display text-xs font-bold uppercase tracking-[0.25em] text-flame-400" x-text="article.subtitle"></p>
             <h2 class="press-break mt-1 font-display text-2xl font-bold leading-tight tracking-wide text-ink sm:text-3xl" x-text="article.title"></h2>
           </div>
-          <img x-show="byline(article).image" :src="byline(article).image" :alt="byline(article).name"
-               class="press-portrait hidden h-32 w-auto shrink-0 self-end object-contain sm:block" />
+          <template x-if="previewOf(article)">
+            <img :src="previewOf(article).src" :alt="previewOf(article).name"
+                 class="hidden shrink-0 self-end sm:block" :class="previewClass(previewOf(article).kind, 'detail')" />
+          </template>
+          <template x-if="!previewOf(article)">
+            <img x-show="byline(article).image" :src="byline(article).image" :alt="byline(article).name"
+                 class="press-portrait hidden h-32 w-auto shrink-0 self-end object-contain sm:block" />
+          </template>
           <button type="button" popovertarget="press-article" popovertargetaction="hide" aria-label="Schließen"
                   class="absolute right-3 top-3 grid size-9 place-items-center rounded-xl border border-line bg-void/70 text-mist backdrop-blur transition-colors hover:text-flame-400">
             <svg viewBox="0 0 24 24" class="size-4" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M18 6 6 18M6 6l12 12"/></svg>
@@ -947,12 +968,37 @@ match /settings/{doc} { allow read, write: if true; }</code></pre>
 
         <!-- Zugang -->
         <div x-show="settings.tab === 'zugang'" class="grid gap-4">
-          <label class="block">
+          <div>
             <span class="mb-1.5 block font-display text-[11px] font-bold uppercase tracking-wider text-mist">API-Schlüssel</span>
-            <input type="password" x-model="settings.key" autocomplete="off" spellcheck="false" placeholder="AQ.…"
-                   class="w-full rounded-lg border border-line bg-elevated px-3 py-2.5 font-mono text-sm text-ink placeholder:text-mist focus:border-flame-500 focus:outline-none" />
-            <span class="mt-1.5 block text-xs leading-relaxed text-mist">Bleibt ausschließlich auf diesem Gerät (localStorage) und wird nie in die Datenbank geschrieben. Jedes Gerät, das Beiträge erzeugen soll, braucht einen eigenen Eintrag.</span>
-          </label>
+            <div class="grid gap-2">
+              <template x-for="(k, i) in settings.keys" :key="'key-'+i">
+                <div class="rounded-xl border border-line bg-elevated/40 p-2.5">
+                  <div class="flex items-center gap-2">
+                    <span class="grid size-6 shrink-0 place-items-center rounded-full border border-line font-display text-[11px] font-bold text-mist" x-text="i + 1"></span>
+                    <input type="text" x-model="k.label" maxlength="30" placeholder="Bezeichnung (optional)"
+                           class="min-w-0 flex-1 rounded-lg border border-line bg-elevated px-2.5 py-1.5 text-sm text-ink placeholder:text-mist focus:border-flame-500 focus:outline-none" />
+                    <button type="button" @click="moveKeyRow(i, -1)" :disabled="i === 0" aria-label="Nach oben"
+                            class="grid size-8 shrink-0 place-items-center rounded-lg border border-line text-mist transition-colors hover:text-ink disabled:opacity-30">
+                      <svg viewBox="0 0 24 24" class="size-4" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m18 15-6-6-6 6"/></svg>
+                    </button>
+                    <button type="button" @click="removeKeyRow(i)" aria-label="Schlüssel entfernen"
+                            class="grid size-8 shrink-0 place-items-center rounded-lg border border-line text-mist transition-colors hover:text-flame-400">
+                      <svg viewBox="0 0 24 24" class="size-4" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M18 6 6 18M6 6l12 12"/></svg>
+                    </button>
+                  </div>
+                  <input type="password" x-model="k.key" autocomplete="off" spellcheck="false" placeholder="AQ.…"
+                         class="mt-2 w-full rounded-lg border border-line bg-elevated px-3 py-2.5 font-mono text-sm text-ink placeholder:text-mist focus:border-flame-500 focus:outline-none" />
+                  <p x-show="k.msg" class="press-break mt-1.5 text-xs leading-relaxed" :class="k.ok ? 'text-volt-400' : 'text-flame-300'" x-text="k.msg"></p>
+                </div>
+              </template>
+            </div>
+            <button type="button" @click="addKeyRow()" x-show="settings.keys.length < 6"
+                    class="mt-2 inline-flex items-center gap-1.5 rounded-lg border border-dashed border-line px-3 py-1.5 text-xs font-semibold text-mist transition-colors hover:border-flame-500/40 hover:text-flame-400">
+              <svg viewBox="0 0 24 24" class="size-3.5" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M12 5v14M5 12h14"/></svg>
+              Weiteren Schlüssel hinzufügen
+            </button>
+            <span class="mt-1.5 block text-xs leading-relaxed text-mist">Bleiben ausschließlich auf diesem Gerät (localStorage) und werden nie in die Datenbank geschrieben. Ist ein Kontingent erschöpft, wechselt die Redaktion von selbst zum nächsten Schlüssel. <span class="text-ink">Wichtig:</span> Google zählt je Projekt, nicht je Schlüssel — ein zweiter Schlüssel aus demselben Projekt bringt nichts. Sinnvoll ist z. B. je Spieler ein Schlüssel aus dem eigenen Google-Konto.</span>
+          </div>
           <details class="fold group rounded-xl border border-line bg-elevated/40">
             <summary class="flex cursor-pointer items-center gap-2 rounded-xl px-3 py-2.5 text-sm font-semibold text-ink transition-colors hover:bg-elevated">
               <svg viewBox="0 0 24 24" class="size-4 shrink-0 text-flame-400" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><path d="M12 11v5"/><path d="M12 8h.01"/></svg>
@@ -967,7 +1013,7 @@ match /settings/{doc} { allow read, write: if true; }</code></pre>
                 <li>Den Schlüssel kopieren. Er beginnt mit <span class="font-mono text-ink">AQ.</span> — oben einfügen, <span class="text-ink">Speichern</span>, dann <span class="text-ink">Verbindung testen</span>.</li>
               </ol>
               <p class="mt-2">Ältere Schlüssel, die mit <span class="font-mono text-ink">AIza</span> beginnen, sind sogenannte Standardschlüssel. Google lehnt sie seit September 2026 ab — dann einfach einen neuen Schlüssel wie oben beschrieben erstellen.</p>
-              <p class="mt-2">Ohne hinterlegte Zahlungsart läuft alles im kostenlosen Kontingent; stößt die Redaktion an dessen Grenze, heißt es „Kontingent erschöpft" — dann hilft Warten oder ein anderes Modell.</p>
+              <p class="mt-2">Ohne hinterlegte Zahlungsart läuft alles im kostenlosen Kontingent; stößt die Redaktion an dessen Grenze, weicht sie auf andere Modelle und weitere Schlüssel aus (siehe unten).</p>
               <p class="mt-2 flex flex-wrap gap-x-3 gap-y-1">
                 <a href="https://ai.google.dev/gemini-api/docs/api-key" target="_blank" rel="noopener noreferrer" class="text-flame-400 underline decoration-flame-400/40 underline-offset-2 hover:decoration-flame-400">Anleitung von Google</a>
                 <a href="https://ai.google.dev/gemini-api/docs/rate-limits" target="_blank" rel="noopener noreferrer" class="text-flame-400 underline decoration-flame-400/40 underline-offset-2 hover:decoration-flame-400">Kontingente</a>
@@ -984,6 +1030,18 @@ match /settings/{doc} { allow read, write: if true; }</code></pre>
               </template>
             </select>
           </label>
+          <label class="flex items-start gap-3 rounded-xl border border-line bg-elevated/40 p-3">
+            <input type="checkbox" x-model="settings.fallback" class="mt-0.5 size-4 shrink-0 accent-flame-500" />
+            <span class="text-sm text-ink">Automatisch ausweichen
+              <span class="mt-0.5 block text-xs leading-relaxed text-mist">Ist das Kontingent des gewählten Modells erschöpft oder das Modell überlastet, versucht die Redaktion nacheinander 3.8, 3.7, 3.6 und 3.5 Flash — jedes hat sein eigenes Tageskontingent.</span>
+            </span>
+          </label>
+          <label x-show="settings.fallback" class="flex items-start gap-3 rounded-xl border border-line bg-elevated/40 p-3">
+            <input type="checkbox" x-model="settings.lite" class="mt-0.5 size-4 shrink-0 accent-flame-500" />
+            <span class="text-sm text-ink">Lite-Modelle als letzte Reserve
+              <span class="mt-0.5 block text-xs leading-relaxed text-mist">Erst wenn alle Flash-Modelle leer sind: 3.5 und 3.1 Flash Lite mit je rund 500 Anfragen am Tag. Die Texte fallen etwas schlichter aus, aber der Beitrag entsteht.</span>
+            </span>
+          </label>
           <div class="flex flex-wrap items-center gap-2">
             <button type="button" @click="saveAccess()"
                     class="rounded-xl bg-flame-500 px-4 py-2.5 font-display text-sm font-bold uppercase tracking-wider text-white transition-colors hover:bg-flame-600">Speichern</button>
@@ -995,6 +1053,24 @@ match /settings/{doc} { allow read, write: if true; }</code></pre>
              class="rounded-lg border px-3 py-2.5 text-sm leading-relaxed break-words"
              :style="`border-color:${settings.testOk ? '#63bc5a' : '#e3350d'}66;background:${settings.testOk ? '#63bc5a' : '#e3350d'}14;color:${settings.testOk ? '#63bc5a' : '#ff5a36'}`"
              x-text="settings.testMsg"></p>
+          <div class="rounded-xl border border-line bg-elevated/40 p-3">
+            <div class="flex items-center justify-between gap-2">
+              <p class="font-display text-[11px] font-bold uppercase tracking-wider text-mist">Erschöpfte Kontingente</p>
+              <button type="button" x-show="quotaRows.length" @click="press.clearQuota()"
+                      class="rounded-lg border border-line px-2.5 py-1 text-[11px] font-semibold text-mist transition-colors hover:text-flame-400">Zurücksetzen</button>
+            </div>
+            <p x-show="!quotaRows.length" class="mt-1.5 text-xs text-mist">Derzeit ist nichts gesperrt.</p>
+            <ul x-show="quotaRows.length" class="mt-2 grid gap-1.5">
+              <template x-for="q in quotaRows" :key="'q-'+q.tag+'-'+q.model">
+                <li class="flex flex-wrap items-baseline gap-x-2 gap-y-0.5 text-xs">
+                  <span class="font-semibold text-ink" x-text="q.modelLabel"></span>
+                  <span class="text-mist" x-text="`· ${q.keyLabel}`"></span>
+                  <span class="ml-auto text-mist" x-text="`${q.scope === 'day' ? 'Tageslimit' : q.scope === 'minute' ? 'Minutenlimit' : 'gesperrt'} bis ${quotaUntil(q.until)}`"></span>
+                </li>
+              </template>
+            </ul>
+            <p class="mt-2 text-[11px] leading-relaxed text-mist">Das Tageskontingent springt um Mitternacht pazifischer Zeit zurück — bei uns 9 Uhr morgens. Die Liste gilt nur für dieses Gerät.</p>
+          </div>
         </div>
 
         <!-- Prompts -->

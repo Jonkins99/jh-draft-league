@@ -322,6 +322,34 @@ export function rosterSpans(team, transfer, stops, cutIndex) {
   });
 }
 
+/**
+ * Kaderwert eines Franchise über ALLE Saisons. Jeder Zeitpunkt gehört zu einer Saison
+ * (`stop.season`); gerechnet wird mit dem Kader, den das Franchise in DIESER Saison
+ * hatte — samt Wintertransfer-Schnitt innerhalb der Saison. Saisons ohne Team des
+ * Franchise (vor dem Aufstieg) bleiben leer.
+ * @param {Array} chain      Team-Dokumente des Franchise
+ * @param {object} index     eloIndex über die UNBESCHNITTENEN Zeilen
+ * @param {Array} stops      historyStops über alle Saisons
+ * @param {function} contextOf  (team) => { transfer, afterDay }
+ */
+export function franchiseSquadHistory(chain, index, stops, contextOf = () => ({})) {
+  const seasonOf = (t) => (Number.isFinite(t?.season) ? t.season : Number((String(t?.id || '').match(/^s(\d+)-/) || [])[1] || 1));
+  const bySeason = new Map();
+  (chain || []).forEach((team) => {
+    const season = seasonOf(team);
+    const own = [];
+    (stops || []).forEach((s, i) => { if (s.season === season) own.push(i); });
+    const ctx = contextOf(team) || {};
+    const cut = transferCutIndex(own.map((i) => stops[i]), { season, afterDay: ctx.afterDay ?? null });
+    bySeason.set(season, { team, transfer: ctx.transfer || null, own, cut });
+  });
+  return squadHistory((stop, i) => {
+    const c = bySeason.get(stop.season);
+    if (!c) return [];
+    return rosterAtIndex(c.team, c.transfer, c.own.indexOf(i), c.cut);
+  }, index, stops);
+}
+
 // === Veränderungen =========================================================
 
 /** Momentaufnahme für den Vergleich beim nächsten Update: { name: { elo, tier } }. */

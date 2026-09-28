@@ -18,12 +18,13 @@ import {
   marketValue, formatMarket, formatMarketDelta, formatPercent, eloIndex,
   squadMarketValue, tierBoundaries, historyPoints, historyStops, squadHistory, limitHistory,
   snapshotOf, diffSnapshots, historyDiff, stopKeyForDay, parseHistoryLabel, tierForElo,
-  transferCutIndex, rosterAtIndex, rosterSpans,
+  transferCutIndex, rosterAtIndex, rosterSpans, franchiseSquadHistory,
 } from './market.mjs';
 import {
   SEASON_ALL, seasonPrefix, seasonOfId, seasonOfTeam, franchiseSlug, seasonsFrom,
   teamsOfSeason, resultsOfSeason, allTimeTable, seasonSummaries, allTimePlayers,
   allTimePokemon, buildRecords, awardLeaderboard, newcomersOfSeason,
+  franchiseTeams, franchiseSeasons, franchisePokemon,
 } from './seasons.mjs';
 import {
   RENEWAL_TIERS, previousRosters, renewalState, hasOpenRenewal, renewalTurn,
@@ -36,8 +37,8 @@ import { runMarketShow } from './marketshow.mjs';
 import { runCeremony } from './ceremony.mjs';
 import { buildFinaleScript, runFinale } from './finale.mjs';
 import {
-  GENDERS, genderLabel, normalizeTrainer, currentTrainer, trainerHistory,
-  nextFromDay, withDismissed, normalizeMonTraits, monTraitsOf, MAX_MON_TRAITS,
+  GENDERS, genderLabel, normalizeTrainer, currentTrainer, trainerHistory, franchiseTrainerHistory,
+  nextFromDay, withDismissed, normalizeMonTraits, monTraitsFor, MAX_MON_TRAITS,
 } from './trainers.mjs';
 import {
   CALC_GEN, CALC_GAME_TYPE, STATS as CALC_STATS, STAT_KEYS as CALC_STAT_KEYS,
@@ -59,6 +60,7 @@ import {
   collectStorylines, sanitizeHtml, paragraphsToHtml, excerpt, readingMinutes,
   formatDate, formatDateTime, sortArticles, articleMatchesFilter, storyId, commissionLeague,
   interviewCandidates, pickInterviewGuests, matchLines,
+  isStalePending, needsRewrite, articleViewStatus, hasArticleContent, pickPreview,
 } from './press.mjs';
 import { buildContext, isReference } from './press-context.mjs';
 import {
@@ -71,7 +73,9 @@ import {
   ARTICLE_SCHEMA, ARTICLE_SCHEMA_WITH_CATEGORY, ARTICLE_SCHEMA_FREE_CATEGORY, ARTICLE_SCHEMA_COMMISSION, QUESTIONS_SCHEMA,
   pickStances, stanceBrief, STANCE_KEYS, STANCE_BY_KEY, marketRule, scandalPick,
 } from './press-prompts.mjs';
-import { generateJson, testKey, GEMINI_MODELS, DEFAULT_MODEL } from './gemini.mjs';
+import {
+  generateJson, testKey, GEMINI_MODELS, DEFAULT_MODEL, modelChain, QuotaBook, keyTag,
+} from './gemini.mjs';
 import {
   PLAYERS as AUTH_PLAYERS, userId, playerOf, otherPlayer,
   createCredential, verifyCredential, isValidSession,
@@ -83,7 +87,9 @@ import {
 } from './notes.mjs';
 import { draftPlanView } from './draftplan-view.mjs';
 import { teamForm, formFromTimeline, formLabel, formSparkSvg, careerStations } from './career.mjs';
-import { BASE_STATS, statsOf, statTotal, statPercent, statTone, statRole, roleLabel } from './basestats.mjs';
+import {
+  BASE_STATS, statsOf, statTotal, statPercent, statTone, roleLabel, monRole, normalizeRoleOverride, ROLE_OPTIONS, SIDE_OPTIONS,
+} from './basestats.mjs';
 
 const PICKS_PER_TEAM = 10;
 const TIER_ORDER = ['S', 'A', 'B', 'C', 'D'];
@@ -163,7 +169,9 @@ const TB_SPEEDCFG_KEY = 'jhdl-tb-speedcfg-v1';   // { open: bool }  (Kader-/Spee
 
 // Presse: Zugangsdaten der Redaktion liegen bewusst NUR auf dem Gerät. Firestore ist
 // offen lesbar — ein API-Key hätte dort nichts verloren.
-const PRESS_KEY = 'jhdl-press-key-v1';           // { key, model }
+const PRESS_KEY = 'jhdl-press-key-v1';           // { key, keys: [{ key, label }], model, fallback, lite }
+// Welcher Schlüssel ist mit welchem Modell bis wann erschöpft (QuotaBook, gemini.mjs)?
+const PRESS_QUOTA_KEY = 'jhdl-press-quota-v1';
 const PRESS_FILTER_KEY = 'jhdl-press-filter-v1'; // { category, teamId, q }
 // Freie Beiträge je Spieltag — freigeschaltet mit dem 1., 2. und 3. fertigen Match.
 const RANDOM_ARTICLES_PER_DAY = 3;
@@ -1018,6 +1026,8 @@ function app() {
     // Verlinkungs-Navigation: Ziel im nav-Store ablegen, dann Ansicht laden.
     onNavigate(detail) {
       if (!detail || !detail.key) return;
+      // Ein Team-Link führt im saisonübergreifenden Bereich zum Franchise.
+      if (detail.key === 'teams' && this.$store.season?.isAll) detail = { ...detail, key: 'vereine' };
       const params = {
         teamId: detail.teamId || null,
         matchId: detail.matchId || null,
@@ -1055,13 +1065,15 @@ function app() {
         draft: { key: 'draft', label: 'Draft', file: './pages/draft.html', icon: ICONS.draft },
         transfer: { key: 'transfer', label: 'Transfer', file: './pages/transfer.html', icon: ICONS.transfer },
         rekorde: { key: 'rekorde', label: 'Rekorde', file: './pages/rekorde.html', icon: ICONS.record },
+        // Saisonübergreifend: die Teams als Franchises über alle Saisons.
+        vereine: { key: 'vereine', label: 'Teams', file: './pages/vereine.html', icon: ICONS.teams },
       };
       const l = this.$store.league;
       // Saisonübergreifend gibt es nur, was über Saisongrenzen hinweg Sinn ergibt:
       // Spielplan, Teambuilding, Teams, Draft und Transfer gehören immer zu genau
       // einer Saison und fallen deshalb weg; dafür kommen die Rekorde dazu.
       if (this.$store.season?.isAll) {
-        return ['tabelle', 'stats', 'presse', 'awards', 'spieler', 'rekorde'].map((k) => byKey[k]);
+        return ['tabelle', 'vereine', 'stats', 'presse', 'awards', 'spieler', 'rekorde'].map((k) => byKey[k]);
       }
       const keys = ['tabelle', 'spieltag', 'teambuilding', 'teams', 'stats', 'presse', 'awards', 'spieler', 'draft'];
       if (l.draft?.status === 'done') keys.push('transfer');
@@ -2106,10 +2118,12 @@ function teamsView() {
 
     // === Charakter der Pokémon ==============================================
     // Freie Einträge je Pokémon; bearbeitet wird immer nur eines auf einmal.
-    monTraitsOf(name) { return monTraitsOf(this.selectedTeam, name); },
+    // Ligaweit: jeder angemeldete Spieler darf den Charakter pflegen, auch beim Gegner.
+    monTraitsOf(name) { return this.league.monTraitsFor(name, this.selectedTeam); },
     get maxMonTraits() { return MAX_MON_TRAITS; },
+    get canEditTraits() { return !!this.$store.auth?.player; },
     openTraitEdit(name) {
-      if (!this.ownsSelected) return;
+      if (!this.canEditTraits) return;
       const items = [...this.monTraitsOf(name)];
       this.traitEdit = { name, items: items.length ? items : [''], busy: false };
     },
@@ -2128,10 +2142,10 @@ function teamsView() {
     cancelTraitEdit() { this.traitEdit = null; },
     async saveTraitEdit() {
       const edit = this.traitEdit;
-      if (!edit || edit.busy || !this.ownsSelected) return;
+      if (!edit || edit.busy || !this.canEditTraits) return;
       edit.busy = true;
       try {
-        await this.league.setMonTraits(this.selectedId, edit.name, edit.items);
+        await this.league.setMonTraits(edit.name, edit.items);
         this.traitEdit = null;
       } catch (e) {
         console.error('Charakter-Eigenschaften konnten nicht gespeichert werden:', e);
@@ -3360,6 +3374,9 @@ function pokemonView() {
     // Partner-/Gegner-Bilanzen: absolute Zahlen oder Prozent.
     recMode: 'abs', // 'abs' | 'pct'
     recMin: 1,      // Mindest-Anzahl gemeinsamer Kämpfe
+    // Bearbeitung der ligaweiten Angaben: Rolle ({ role, side, busy }) und Charakter.
+    roleEdit: null,
+    traitEdit: null,
 
     // Ziel-Pokémon + Herkunft aus dem nav-Store puffern (nicht löschen -> Reload/Watch).
     init() {
@@ -3406,11 +3423,73 @@ function pokemonView() {
     get baseStats() {
       const stats = statsOf(this.mon);
       if (!stats) return null;
+      const r = monRole(this.league.withNotes(this.mon));
       return {
         rows: BASE_STATS.map((d) => ({ ...d, value: stats[d.key], pct: statPercent(stats[d.key]), tone: statTone(stats[d.key]) })),
         total: statTotal(stats),
-        role: roleLabel(statRole(stats)),
+        role: roleLabel(r),
+        overridden: !!r?.overridden,
+        computed: r?.overridden ? roleLabel(r.computed) : '',
       };
+    },
+
+    // === Ligaweite Angaben: Rolle und Charakter ==============================
+    // Beide Spieler dürfen beides pflegen — egal, in welchem Kader das Pokémon steht.
+    get canEditNotes() { return !!this.$store.auth?.player; },
+    get roleOptions() { return ROLE_OPTIONS; },
+    get sideOptions() { return SIDE_OPTIONS; },
+    openRoleEdit() {
+      if (!this.canEditNotes || !this.mon) return;
+      const r = monRole(this.league.withNotes(this.mon)) || { role: 'ausgewogen', side: 'gemischt' };
+      this.roleEdit = { role: r.role, side: r.side, busy: false };
+    },
+    cancelRoleEdit() { this.roleEdit = null; },
+    async saveRole(reset = false) {
+      const edit = this.roleEdit;
+      if (!this.canEditNotes || !this.mon || (edit && edit.busy)) return;
+      if (edit) edit.busy = true;
+      try {
+        await this.league.setMonRole(this.mon.name, reset ? null : { role: edit.role, side: edit.side });
+        this.roleEdit = null;
+        window.dispatchEvent(new CustomEvent('toast', { detail: { msg: reset ? 'Rolle zurückgesetzt — es gilt wieder die Rechnung.' : 'Rolle gespeichert.' } }));
+      } catch (e) {
+        console.error('Rolle konnte nicht gespeichert werden:', e);
+        if (edit) edit.busy = false;
+        window.dispatchEvent(new CustomEvent('toast', { detail: { msg: 'Die Rolle konnte nicht gespeichert werden.' } }));
+      }
+    },
+    get monTraits() { return this.mon ? this.league.monTraitsFor(this.mon.name, this.team) : []; },
+    get maxMonTraits() { return MAX_MON_TRAITS; },
+    openTraitEdit() {
+      if (!this.canEditNotes) return;
+      const items = [...this.monTraits];
+      this.traitEdit = { items: items.length ? items : [''], busy: false };
+    },
+    addTraitRow() {
+      if (!this.traitEdit || this.traitEdit.items.length >= MAX_MON_TRAITS) return;
+      this.traitEdit.items = [...this.traitEdit.items, ''];
+      this.$nextTick(() => {
+        const inputs = document.querySelectorAll('[data-mon-trait-input]');
+        inputs[inputs.length - 1]?.focus();
+      });
+    },
+    removeTraitRow(i) {
+      if (!this.traitEdit) return;
+      this.traitEdit.items = this.traitEdit.items.filter((_, j) => j !== i);
+    },
+    cancelTraitEdit() { this.traitEdit = null; },
+    async saveTraitEdit() {
+      const edit = this.traitEdit;
+      if (!edit || edit.busy || !this.canEditNotes || !this.mon) return;
+      edit.busy = true;
+      try {
+        await this.league.setMonTraits(this.mon.name, edit.items);
+        this.traitEdit = null;
+      } catch (e) {
+        console.error('Charakter-Eigenschaften konnten nicht gespeichert werden:', e);
+        edit.busy = false;
+        window.dispatchEvent(new CustomEvent('toast', { detail: { msg: 'Die Eigenschaften konnten nicht gespeichert werden.' } }));
+      }
     },
 
     // Statistik-Profil (scoring.mjs). Memoisiert über Name + Ergebnis-/Team-Stand.
@@ -4996,6 +5075,249 @@ function teambuildingView() {
     setMatchupNote(text) {
       if (this.pairMatchId) this.$store.notes.set('matches', this.pairMatchId, text);
     },
+    // Dieselben privaten Team-Notizen wie im Team-View — hier für beide Teams der Paarung.
+    teamNoteOf(teamId) {
+      return teamId ? this.$store.notes.teamNote(teamId) : '';
+    },
+    setTeamNoteOf(teamId, text) {
+      if (teamId) this.$store.notes.set('teams', teamId, text);
+    },
+  };
+}
+
+// === Teams saisonübergreifend (Franchises) =================================
+// Nur im Bereich „Alle Saisons": jedes Franchise mit seiner Langzeitbilanz, ohne
+// Kaderliste. Die Detailansicht zeigt Saison für Saison, alle Trainer, jedes Pokémon,
+// das je für den Verein gespielt hat, und den Kaderwert über alle Saisons.
+function franchiseView() {
+  return {
+    slug: null,
+    sortKey: 'points',
+    sortDir: 'desc',
+    monSortKey: 'kills',
+    monSortDir: 'desc',
+    showAllMons: false,
+    _tableKey: null,
+    _tableCache: null,
+
+    init() {
+      this.$store.elo.ensureLoaded();
+      const nav = this.$store.nav;
+      const teamId = nav?.teamId || null;
+      if (nav) nav.teamId = null;
+      if (teamId) this.slug = franchiseSlug(teamId);
+    },
+
+    get league() { return this.$store.league; },
+    get loaded() { return this.league.teamsLoaded && this.league.resultsLoaded; },
+    logoUrl(file) { return `./img/teams/${file}`; },
+    playerColor(player) { return player === 'Henrik' ? '#4d90d5' : '#e3350d'; },
+    teamColor(team) { return teamColor(team); },
+    fmtMarket(v) { return formatMarket(v); },
+    fmtNum(v, d = 2) { return Number.isFinite(v) ? v.toFixed(d).replace('.', ',') : '—'; },
+    fmtPct(v) { return Number.isFinite(v) ? `${Math.round(v * 100)} %` : '—'; },
+    fmtDiff(v) { return v > 0 ? `+${v}` : String(v); },
+    goMon(name) { this.$dispatch('navigate', { key: 'pokemon', pokemonName: name }); },
+
+    // --- Übersicht -----------------------------------------------------------
+    get table() {
+      const l = this.league;
+      const key = `${l.teams.length}|${(l.allResults || []).length}|${Object.keys(l.allSchedules || {}).length}`
+        + `|${(l.allResults || []).reduce((n, r) => n + (r.battles || []).filter((b) => b?.done).length, 0)}`;
+      if (this._tableKey !== key) {
+        this._tableKey = key;
+        this._tableCache = allTimeTable(l.teams, l.allResults, { schedules: l.allSchedules });
+      }
+      return this._tableCache || [];
+    },
+    latestTeam(slug) {
+      const chain = franchiseTeams(this.league.teams, slug);
+      return chain[chain.length - 1] || null;
+    },
+    trainerNow(slug) {
+      return currentTrainer(this.latestTeam(slug)?.trainers || []);
+    },
+    trainerCount(slug) {
+      const chain = franchiseTeams(this.league.teams, slug);
+      return new Set(chain.flatMap((t) => (t.trainers || []).map((x) => x.name))).size;
+    },
+    marketNow(slug) {
+      return squadMarketValue(this.latestTeam(slug)?.pokemon || [], this.$store.elo.index());
+    },
+    get rows() {
+      return this.table.map((r) => ({
+        ...r,
+        latest: this.latestTeam(r.slug) || r.team,
+        market: this.marketNow(r.slug),
+        trainers: this.trainerCount(r.slug),
+        trainer: this.trainerNow(r.slug),
+      }));
+    },
+    get sortedRows() {
+      const dir = this.sortDir === 'asc' ? 1 : -1;
+      const k = this.sortKey;
+      const val = (r) => (k === 'name' ? r.latest.name : k === 'avgPlace' || k === 'bestPlace' ? (r[k] ?? 99) : r[k] ?? 0);
+      return [...this.rows].sort((a, b) => {
+        const x = val(a);
+        const y = val(b);
+        if (typeof x === 'string') return x.localeCompare(y) * dir;
+        return (x - y) * dir || b.points - a.points;
+      });
+    },
+    sortBy(key) {
+      if (this.sortKey === key) this.sortDir = this.sortDir === 'asc' ? 'desc' : 'asc';
+      else {
+        this.sortKey = key;
+        this.sortDir = ['name', 'avgPlace', 'bestPlace'].includes(key) ? 'asc' : 'desc';
+      }
+    },
+    sortMark(key) { return this.sortKey === key ? (this.sortDir === 'asc' ? '▲' : '▼') : ''; },
+    get columns() {
+      return [
+        { key: 'seasonCount', label: 'Saisons', short: 'Sai' },
+        { key: 'played', label: 'Spiele', short: 'Sp' },
+        { key: 'won', label: 'Siege', short: 'S' },
+        { key: 'draw', label: 'Unentschieden', short: 'U' },
+        { key: 'lost', label: 'Niederlagen', short: 'N' },
+        { key: 'points', label: 'Punkte', short: 'Pkt' },
+        { key: 'pointsPerMatch', label: 'Punkte je Spiel', short: 'Ø Pkt', fmt: (v) => this.fmtNum(v) },
+        { key: 'kills', label: 'Kills', short: 'K' },
+        { key: 'deaths', label: 'Deaths', short: 'D' },
+        { key: 'diff', label: 'Kill-Differenz', short: 'Diff', fmt: (v) => this.fmtDiff(v) },
+        { key: 'titles', label: 'Titel', short: 'Titel' },
+        { key: 'avgPlace', label: 'Durchschnittliche Platzierung', short: 'Ø Pl.', fmt: (v) => (v == null ? '—' : this.fmtNum(v, 1)) },
+        { key: 'bestPlace', label: 'Beste Platzierung', short: 'Best', fmt: (v) => (v == null ? '—' : `${v}.`) },
+        { key: 'trainers', label: 'Trainer insgesamt', short: 'Trainer' },
+        { key: 'market', label: 'Marktwert heute', short: 'Marktwert', fmt: (v) => (v ? this.fmtMarket(v) : '—') },
+      ];
+    },
+    cell(row, col) {
+      const v = row[col.key];
+      return col.fmt ? col.fmt(v) : v ?? '—';
+    },
+
+    open(slug) {
+      this.withTransition(() => {
+        this.slug = slug;
+        this.showAllMons = false;
+        window.scrollTo({ top: 0 });
+      });
+    },
+    close() {
+      this.withTransition(() => { this.slug = null; });
+    },
+    withTransition(fn) {
+      const reduce = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+      if (document.startViewTransition && !reduce) {
+        document.startViewTransition(async () => { fn(); await this.$nextTick(); });
+      } else fn();
+    },
+
+    // --- Detail --------------------------------------------------------------
+    get chain() { return this.slug ? franchiseTeams(this.league.teams, this.slug) : []; },
+    get team() { return this.chain[this.chain.length - 1] || null; },
+    get row() { return this.rows.find((r) => r.slug === this.slug) || null; },
+    get color() { return this.team ? teamColor(this.team) : '#e3350d'; },
+    // Frühere Namen, falls sich der Vereinsname geändert hat.
+    get formerNames() {
+      const now = this.team?.name;
+      return [...new Set(this.chain.map((t) => t.name).filter((n) => n && n !== now))];
+    },
+    get seasonRows() {
+      if (!this.slug) return [];
+      return franchiseSeasons(this.league.teams, this.league.allResults, this.league.allSchedules, this.slug).reverse();
+    },
+    get trainerRows() {
+      return franchiseTrainerHistory(this.chain.map((t) => ({ season: seasonOfTeam(t), trainers: t.trainers || [] })));
+    },
+    get monRows() {
+      if (!this.slug) return [];
+      return franchisePokemon(this.league.teams, this.league.allResults, this.league.pokemon, this.slug, { availability: this.league.availability });
+    },
+    get monColumns() {
+      return [
+        { key: 'seasonsCount', label: 'Saisons', short: 'Sai' },
+        { key: 'battles', label: 'Kämpfe', short: 'Kä' },
+        { key: 'kills', label: 'Kills', short: 'K' },
+        { key: 'deaths', label: 'Deaths', short: 'D' },
+        { key: 'diff', label: 'Kill-Differenz', short: 'Diff', fmt: (v) => this.fmtDiff(v) },
+        { key: 'kd', label: 'Kills je Death', short: 'K/D', fmt: (v) => this.fmtNum(v) },
+        { key: 'killsPerBattle', label: 'Kills je Kampf', short: 'K/Kä', fmt: (v) => this.fmtNum(v) },
+        { key: 'winRate', label: 'Siegquote in Kämpfen', short: 'Sieg %', fmt: (v) => this.fmtPct(v) },
+        { key: 'matchups', label: 'Matches im Aufgebot', short: 'Aufg.' },
+      ];
+    },
+    get sortedMons() {
+      const dir = this.monSortDir === 'asc' ? 1 : -1;
+      const k = this.monSortKey;
+      const list = this.monRows.map((m) => ({ ...m, seasonsCount: m.seasons.length }));
+      list.sort((a, b) => (k === 'name' ? a.name.localeCompare(b.name) * dir : ((a[k] ?? 0) - (b[k] ?? 0)) * dir || b.kills - a.kills));
+      return this.showAllMons ? list : list.slice(0, 25);
+    },
+    monSortBy(key) {
+      if (this.monSortKey === key) this.monSortDir = this.monSortDir === 'asc' ? 'desc' : 'asc';
+      else { this.monSortKey = key; this.monSortDir = key === 'name' ? 'asc' : 'desc'; }
+    },
+    monSortMark(key) { return this.monSortKey === key ? (this.monSortDir === 'asc' ? '▲' : '▼') : ''; },
+    monCell(m, col) {
+      const v = m[col.key];
+      return col.fmt ? col.fmt(v) : v ?? '—';
+    },
+    seasonsLabel(list) { return (list || []).map((n) => `S${n}`).join(' · '); },
+
+    // --- Marktwert über alle Saisons ---------------------------------------
+    // Der Verlauf läuft hier über ALLE Saisonspalten des Sheets; jeder Zeitpunkt wird
+    // mit dem Kader der Saison gerechnet, zu der er gehört.
+    _franchisePoints(slug) {
+      const rows = this.$store.elo.rows || [];
+      const index = eloIndex(rows);
+      const stops = historyStops(rows);
+      const l = this.league;
+      return franchiseSquadHistory(franchiseTeams(l.teams, slug), index, stops, (team) => {
+        const season = seasonOfTeam(team);
+        const days = (l.scheduleOf(season).matchdays || []).filter((md) => md.leg === 'hin').map((md) => md.day);
+        return { transfer: l.transferOf(season), afterDay: days.length ? Math.max(...days) : null };
+      });
+    },
+    _chartConfig(onlySlug) {
+      const rows = this.$store.elo.rows || [];
+      const stops = historyStops(rows).map((s) => ({ ...s, short: s.season != null ? `S${s.season} ${s.short}` : s.short }));
+      const shortOf = new Map(stops.map((s) => [s.key, s.short]));
+      const slugs = onlySlug ? [onlySlug] : this.table.map((r) => r.slug);
+      const series = slugs.map((slug) => {
+        const team = this.latestTeam(slug);
+        return {
+          key: slug,
+          label: team?.name || slug,
+          color: team ? teamColor(team) : '#4d90d5',
+          highlight: !!onlySlug,
+          points: this._franchisePoints(slug).map((p) => ({ ...p, short: shortOf.get(p.key) || p.short })),
+        };
+      }).filter((sr) => sr.points.length);
+      return {
+        series,
+        stops,
+        bands: [],
+        scale: 'linear',
+        legend: !onlySlug,
+        format: (v) => formatMarket(v, { unit: false }),
+        ariaLabel: onlySlug ? 'Kaderwert des Teams über alle Saisons' : 'Kaderwert aller Teams über alle Saisons',
+        emptyText: 'Noch keine Verlaufsdaten im Sheet.',
+      };
+    },
+    mountAllChart(el) {
+      bindMarketChart(this, el, 'franchise-all', () => this._chartConfig(null));
+    },
+    mountTeamChart(el) {
+      bindMarketChart(this, el, `franchise-${this.slug}`, () => this._chartConfig(this.slug));
+    },
+    get marketSpan() {
+      if (!this.slug) return null;
+      const pts = this._franchisePoints(this.slug);
+      if (pts.length < 2) return null;
+      const peak = pts.reduce((m, p) => (p.value > m.value ? p : m), pts[0]);
+      return { first: pts[0], last: pts[pts.length - 1], peak };
+    },
   };
 }
 
@@ -5666,6 +5988,52 @@ function presseView() {
       const show = showOf(a);
       return show ? showByline(show) : authorById(a?.authorId);
     },
+    // Das Vorschaubild: passt inhaltlich ein Trainer, ein Pokémon, ein Vereinswappen oder
+    // ein eingebettetes Bild, steht das statt des Autors da (pickPreview). Zwischengespeichert
+    // je Fassung des Beitrags — die Kacheln fragen mehrfach je Durchlauf.
+    previewOf(a) {
+      if (!a || articleViewStatus(a) !== 'ready') return null;
+      const key = `${a.id}|${a.publishedAt || ''}|${a.title || ''}|${(a.body || '').length}|${this.league.teams.length}`;
+      if (pressPreviewCache.has(key)) return pressPreviewCache.get(key);
+      const byName = new Map();
+      [...this.league.teams].sort((x, y) => (x.season || 0) - (y.season || 0)).forEach((t) => {
+        byName.set(t.name, { id: t.id, name: t.name, logoUrl: this.logoUrl(t.logo) });
+      });
+      const teams = [...byName.values(), ...this.league.teams
+        .filter((t) => (a.teamIds || []).includes(t.id) && byName.get(t.name)?.id !== t.id)
+        .map((t) => ({ id: t.id, name: t.name, logoUrl: this.logoUrl(t.logo) }))];
+      const trainers = this.league.teams.flatMap((t) => (t.trainers || [])
+        .filter((tr) => tr?.name && tr?.image)
+        .map((tr) => ({ name: tr.name, image: tr.image, teamId: t.id })));
+      const session = a.source?.sessionId ? this.press.sessionById(a.source.sessionId) : null;
+      const out = pickPreview(a, { teams, trainers, session, monImage: (n) => this.monImage(n) });
+      if (pressPreviewCache.size > 400) pressPreviewCache.clear();
+      pressPreviewCache.set(key, out);
+      return out;
+    },
+    previewClass(kind, where) {
+      const map = {
+        lead: {
+          image: 'absolute inset-0 size-full object-cover',
+          trainer: 'press-portrait relative h-40 w-auto object-contain',
+          pokemon: 'relative h-36 w-auto self-center object-contain',
+          team: 'relative size-32 self-center object-contain p-2',
+        },
+        card: {
+          image: 'size-full object-cover',
+          trainer: 'press-portrait size-full object-cover',
+          pokemon: 'size-full object-contain p-0.5',
+          team: 'size-full object-contain p-1.5',
+        },
+        detail: {
+          image: 'h-32 w-48 rounded-xl border border-line object-cover',
+          trainer: 'press-portrait h-32 w-auto object-contain',
+          pokemon: 'h-28 w-auto object-contain',
+          team: 'size-28 object-contain p-2',
+        },
+      };
+      return map[where]?.[kind] || '';
+    },
     catLabel(key) { return categoryLabel(key); },
     catColor(key) { return categoryColor(key); },
     catsOf(article) { return categoriesOf(article); },
@@ -5707,12 +6075,20 @@ function presseView() {
     excerptOf(a) { return excerpt(a, 200); },
     minutesOf(a) { return readingMinutes(a); },
     // Der oberste Beitrag bekommt die große Aufmachung — aber nur ungefiltert.
+    // Nur ein fertiger Beitrag taugt zum Aufmacher: ein Platzhalter oder Fehlschlag
+    // stand dort sonst als große, leere Kachel (Rubrik und Spieltag, sonst nichts).
     get lead() {
-      return !this.hasFilters && this.feed.length ? this.feed[0] : null;
+      return this.hasFilters ? null : this.feed.find((a) => this.viewStatus(a) === 'ready') || null;
     },
     get rest() {
-      const page = this.feed.slice(0, this.shown);
-      return this.lead ? page.slice(1) : page;
+      const lead = this.lead;
+      return this.feed.filter((a) => a !== lead).slice(0, lead ? this.shown - 1 : this.shown);
+    },
+    viewStatus(a) { return articleViewStatus(a); },
+    viewError(a) {
+      return isStalePending(a)
+        ? 'Abgebrochen — das Gerät, das ihn geschrieben hat, wurde vermutlich mittendrin geschlossen.'
+        : a?.error || '';
     },
     get moreCount() { return Math.max(0, this.feed.length - this.shown); },
     showMore() { this.shown += PRESS_PAGE_STEP; },
@@ -6154,10 +6530,9 @@ function presseView() {
         || done.filter((r) => slot.day == null || (r.day ?? 0) < slot.day).sort((a, b) => (b.day || 0) - (a.day || 0))[0]
         || null;
       const lastMatch = match ? matchLines(match, match.home === team.id ? 'home' : 'away') : {};
-      const traits = team.monTraits || {};
       const candidates = interviewCandidates({
         trainer: tr ? { name: tr.name, image: tr.image || '', traits: tr.traits || [] } : null,
-        roster: (team.pokemon || []).map((p) => ({ name: p.name, image: p.image || '', traits: traits[p.name] || [] })),
+        roster: (team.pokemon || []).map((p) => ({ name: p.name, image: p.image || '', traits: this.league.monTraitsFor(p.name, team) })),
         storylines,
         articles,
         awardWins,
@@ -6287,8 +6662,10 @@ function presseView() {
       const p = this.press.prompts;
       this.settings = {
         tab: this.press.hasKey ? 'prompts' : 'zugang',
-        key: this.press.apiKey,
+        keys: this.press.keys.length ? this.press.keys.map((k) => ({ ...k, msg: '', ok: false })) : [{ key: '', label: '', msg: '', ok: false }],
         model: this.press.model,
+        fallback: this.press.fallback,
+        lite: this.press.lite,
         promptKey: PROMPT_DEFS[0].key,
         prompts: Object.fromEntries(PROMPT_DEFS.map((d) => [d.key, p[d.key] || ''])),
         testing: false,
@@ -6305,32 +6682,60 @@ function presseView() {
       this.settings = null;
     },
     saveAccess() {
-      this.press.saveAccess(this.settings.key, this.settings.model);
-      this.settings.testMsg = 'Gespeichert.';
+      const s = this.settings;
+      this.press.saveAccess({ keys: s.keys, model: s.model, fallback: s.fallback, lite: s.lite });
+      s.testOk = true;
+      s.testMsg = `Gespeichert — ${this.press.keys.length} Schlüssel.`;
     },
+    addKeyRow() {
+      if (this.settings.keys.length >= 6) return;
+      this.settings.keys = [...this.settings.keys, { key: '', label: '', msg: '', ok: false }];
+    },
+    removeKeyRow(i) {
+      const next = this.settings.keys.filter((_, idx) => idx !== i);
+      this.settings.keys = next.length ? next : [{ key: '', label: '', msg: '', ok: false }];
+    },
+    moveKeyRow(i, dir) {
+      const list = [...this.settings.keys];
+      const j = i + dir;
+      if (j < 0 || j >= list.length) return;
+      [list[i], list[j]] = [list[j], list[i]];
+      this.settings.keys = list;
+    },
+    // Jeden Schlüssel einzeln prüfen — mit genau dem gewählten Modell, ohne Ausweichen:
+    // der Test soll sagen, ob DIESER Schlüssel funktioniert.
     async testAccess() {
       if (!this.settings || this.settings.testing) return;
-      const key = String(this.settings.key || '').trim();
-      if (!key) {
+      const rows = this.settings.keys.filter((k) => String(k.key || '').trim());
+      if (!rows.length) {
         this.settings.testOk = false;
         this.settings.testMsg = 'Bitte zuerst einen Schlüssel eintragen.';
         return;
       }
       this.settings.testing = true;
       this.settings.testMsg = '';
-      try {
-        await testKey({ apiKey: key, model: this.settings.model });
-        this.settings.testOk = true;
-        this.settings.testMsg = 'Verbindung steht.';
-      } catch (e) {
-        // Der Wortlaut der API steht bewusst mit in der Meldung — ohne ihn lässt sich
-        // ein abgelehnter Schlüssel nicht von einer nicht freigeschalteten API unterscheiden.
-        this.settings.testOk = false;
-        this.settings.testMsg = e?.message || 'Verbindung fehlgeschlagen.';
-        console.error('Gemini-Verbindungstest fehlgeschlagen:', e?.status || '', e?.message || e, e?.detail || '');
+      let ok = 0;
+      for (const row of rows) {
+        row.msg = 'Prüfe…';
+        try {
+          await testKey({ apiKey: String(row.key).trim(), model: this.settings.model });
+          row.ok = true;
+          row.msg = 'Verbindung steht.';
+          ok++;
+        } catch (e) {
+          // Der Wortlaut der API steht bewusst mit in der Meldung — ohne ihn lässt sich
+          // ein abgelehnter Schlüssel nicht von einer nicht freigeschalteten API unterscheiden.
+          row.ok = false;
+          row.msg = e?.message || 'Verbindung fehlgeschlagen.';
+          console.error('Gemini-Verbindungstest fehlgeschlagen:', e?.status || '', e?.message || e, e?.detail || '');
+        }
       }
+      this.settings.testOk = ok === rows.length;
+      this.settings.testMsg = `${ok} von ${rows.length} Schlüssel${rows.length === 1 ? '' : 'n'} erreichbar.`;
       this.settings.testing = false;
     },
+    get quotaRows() { return this.press.quotaRows; },
+    quotaUntil(ms) { return formatDateTime(new Date(ms).toISOString()); },
     resetPrompt(key) {
       this.settings.prompts[key] = DEFAULT_PROMPTS[key];
     },
@@ -6993,11 +7398,51 @@ Alpine.store('league', {
     await setDoc(doc(db, 'teams', teamId), { color: normalizeHexColor(color) }, { merge: true });
   },
 
-  // Charakter-Eigenschaften eines Pokémon im Kader. Gemergt wird je Pokémon, damit
-  // zwei Einträge für verschiedene Pokémon einander nicht überschreiben.
-  async setMonTraits(teamId, name, traits) {
-    if (!teamId || !name) return;
-    await setDoc(doc(db, 'teams', teamId), { monTraits: { [name]: normalizeMonTraits(traits) } }, { merge: true });
+  // === Ligaweite Angaben je Pokémon (drafts/pokedex) =======================
+  // Charakter und Rolle gehören dem Pokémon, nicht einem Team: beide Spieler pflegen
+  // sie, egal ob es im eigenen, im gegnerischen oder in gar keinem Kader steht. Das
+  // Dokument liegt bewusst unter `drafts` — die Collection ist für beliebige IDs
+  // freigegeben und kommt ohnehin über den drafts-Listener herein.
+  get pokedexNotes() {
+    return this._drafts.pokedex || {};
+  },
+  monTraitsFor(name, team = null) {
+    const global = this.pokedexNotes.traits || {};
+    if (Array.isArray(global[name])) return global[name];
+    const own = team?.monTraits?.[name];
+    if (Array.isArray(own) && own.length) return own;
+    return monTraitsFor(name, global, this.teams);
+  },
+  roleOverrideFor(name) {
+    return normalizeRoleOverride(this.pokedexNotes.roles?.[name]);
+  },
+  // Stammdaten samt ligaweiter Angaben — für alles, was Rolle oder Charakter lesen muss
+  // (Presse-Kontext, Detailansicht).
+  withNotes(mon) {
+    if (!mon) return mon;
+    const roleOverride = this.roleOverrideFor(mon.name);
+    const traits = this.monTraitsFor(mon.name);
+    return { ...mon, roleOverride, traits };
+  },
+  get pokedexEffective() {
+    return (this.pokemon || []).map((p) => this.withNotes(p));
+  },
+  // Gemergt wird je Pokémon, damit zwei Einträge für verschiedene Pokémon einander
+  // nicht überschreiben.
+  async setMonTraits(name, traits) {
+    if (!name) return;
+    await setDoc(doc(db, 'drafts', 'pokedex'), {
+      traits: { [name]: normalizeMonTraits(traits) },
+      updatedAt: new Date().toISOString(),
+    }, { merge: true });
+  },
+  // `null` hebt die Überschreibung auf — dann gilt wieder die aus den Werten gerechnete Rolle.
+  async setMonRole(name, override) {
+    if (!name) return;
+    await setDoc(doc(db, 'drafts', 'pokedex'), {
+      roles: { [name]: normalizeRoleOverride(override) },
+      updatedAt: new Date().toISOString(),
+    }, { merge: true });
   },
 
   // === Trainer ==============================================================
@@ -7475,6 +7920,19 @@ const pressTriedNewcomers = new Set();
 const pressTriedPodcast = new Set();
 // Der Podcast beginnt mit Saison 2 — die abgeschlossene Saison 1 wird nicht nachgeholt.
 const PODCAST_FROM_SEASON = 2;
+// Abgebrochene Platzhalter (isStalePending), die in dieser Sitzung schon einmal neu
+// angestoßen wurden — ein zweiter Fehlschlag soll nicht im Kreis laufen.
+const pressTriedStale = new Set();
+// Sperrliste der Kontingente: gerätelokal, damit ein für heute leeres Modell nicht bei
+// jedem Beitrag neu angefragt wird.
+const pressQuota = new QuotaBook({
+  load: () => loadJson(PRESS_QUOTA_KEY),
+  save: (entries) => saveJson(PRESS_QUOTA_KEY, entries),
+});
+const acceptNonEmpty = (data) => hasArticleContent(data);
+// Vorschaubilder der Beiträge (pickPreview) — außerhalb der Reaktivität, sonst löste
+// das Befüllen beim Rendern selbst ein neues Rendern aus.
+const pressPreviewCache = new Map();
 
 // Beschreibt dem Modell, wann der Termin stattfindet — die Auftaktrunde liegt
 // außerhalb des normalen Rhythmus und braucht ihre eigene Einordnung.
@@ -7507,16 +7965,29 @@ Alpine.store('press', {
   sessionsLoaded: false,
   configLoaded: false,
   blocked: false,
-  apiKey: '',
+  // Mehrere Schlüssel: `keys` in der gewählten Reihenfolge, `apiKey` ist der erste.
+  keys: [],
   model: DEFAULT_MODEL,
+  // Bei Kontingent- oder Serverfehlern automatisch auf andere Modelle ausweichen,
+  // auf Wunsch bis in die Lite-Reserve.
+  fallback: true,
+  lite: true,
   busy: {},
   lastError: null,
+  // Sichtbarer Stand der Sperrliste (für die Einstellungen); die Liste selbst lebt in
+  // `pressQuota` außerhalb der Reaktivität.
+  quotaTick: 0,
 
   init() {
     const saved = loadJson(PRESS_KEY);
-    this.apiKey = saved.key || '';
+    const list = Array.isArray(saved.keys) && saved.keys.length ? saved.keys : (saved.key ? [{ key: saved.key }] : []);
+    this.keys = list
+      .map((k) => ({ key: String((typeof k === 'object' ? k?.key : k) || '').trim(), label: String(k?.label || '').trim() }))
+      .filter((k) => k.key);
     // Ein abgelegtes Modell, das es nicht mehr gibt, würde das Auswahlfeld leer lassen.
     this.model = GEMINI_MODELS.some((m) => m.id === saved.model) ? saved.model : DEFAULT_MODEL;
+    this.fallback = saved.fallback !== false;
+    this.lite = saved.lite !== false;
 
     onSnapshot(
       collection(db, 'press'),
@@ -7555,16 +8026,78 @@ Alpine.store('press', {
     Alpine.effect(() => this._watchSeasonEnd());
     Alpine.effect(() => this._watchNewcomers());
     Alpine.effect(() => this._watchPodcast());
+    Alpine.effect(() => this._watchStale());
+  },
+
+  // Beitragsleichen heilen: ein Platzhalter, dessen Gerät mittendrin geschlossen wurde,
+  // wird einmal je Sitzung neu geschrieben.
+  _watchStale() {
+    if (!this.articlesLoaded || !this.sessionsLoaded || !this.hasKey) return;
+    const stale = (this.articles || []).filter((a) => isStalePending(a) && !pressTriedStale.has(a.id) && this.canRetry(a));
+    if (!stale.length) return;
+    stale.forEach((a) => pressTriedStale.add(a.id));
+    setTimeout(async () => {
+      for (const a of stale) await this.retryArticle(a.id).catch(() => null);
+    }, 6000);
   },
 
   // --- Zugang --------------------------------------------------------------
-  get hasKey() {
-    return !!this.apiKey;
+  get apiKey() {
+    return this.keys[0]?.key || '';
   },
-  saveAccess(key, model) {
-    this.apiKey = String(key || '').trim();
+  get hasKey() {
+    return this.keys.length > 0;
+  },
+  saveAccess({ keys = [], model = DEFAULT_MODEL, fallback = true, lite = true } = {}) {
+    const seen = new Set();
+    this.keys = (keys || [])
+      .map((k) => ({ key: String(k?.key || '').trim(), label: String(k?.label || '').trim() }))
+      .filter((k) => k.key && !seen.has(k.key) && seen.add(k.key));
     this.model = model || DEFAULT_MODEL;
-    saveJson(PRESS_KEY, { key: this.apiKey, model: this.model });
+    this.fallback = fallback !== false;
+    this.lite = lite !== false;
+    saveJson(PRESS_KEY, { key: this.apiKey, keys: this.keys, model: this.model, fallback: this.fallback, lite: this.lite });
+  },
+  // Die Modelle, die ein Auftrag nacheinander probiert — das gewünschte zuerst.
+  modelChainFor(model = null) {
+    return modelChain(this._modelOf(model), { fallback: this.fallback, lite: this.lite });
+  },
+  // Stand der Sperrliste für die Anzeige: je Eintrag Modell, Schlüssel und Uhrzeit.
+  get quotaRows() {
+    void this.quotaTick;
+    const tags = new Map(this.keys.map((k, i) => [keyTag(k.key), k.label || `Schlüssel ${i + 1}`]));
+    return pressQuota.list().map((e) => ({
+      ...e,
+      keyLabel: tags.get(e.tag) || 'alter Schlüssel',
+      modelLabel: e.model === '*' ? 'alle Modelle' : this.modelLabel(e.model),
+    }));
+  },
+  clearQuota() {
+    pressQuota.clear();
+    this.quotaTick++;
+  },
+  /**
+   * Der eine Weg zur KI für alle Presse-Aufträge: Modellkette, alle Schlüssel und die
+   * Sperrliste. Leere Antworten (weder Titel noch Text) gelten als Fehlschlag und werden
+   * neu angefragt, statt als Beitragsleiche liegen zu bleiben. Das tatsächlich
+   * verwendete Modell hängt unsichtbar am Ergebnis (`_model`).
+   */
+  async _generate(model, opts) {
+    let used = null;
+    try {
+      const data = await generateJson({
+        accept: acceptNonEmpty,
+        ...opts,
+        keys: this.keys.map((k) => k.key),
+        models: this.modelChainFor(model),
+        quota: pressQuota,
+        onSuccess: ({ model: m }) => { used = m; },
+      });
+      if (data && typeof data === 'object') Object.defineProperty(data, '_model', { value: used, enumerable: false });
+      return data;
+    } finally {
+      this.quotaTick++;
+    }
   },
 
   // --- Redaktionsaufträge --------------------------------------------------
@@ -7632,7 +8165,9 @@ Alpine.store('press', {
         transfer: l.transfer,
         draft: l.draft,
         prevRosters: l.prevRosters,
-        pokedex: l.pokemon,
+        // Mit ligaweiter Rolle und Charakter: eine von den Spielern korrigierte Rolle gilt
+        // auch in der Presse.
+        pokedex: l.pokedexEffective,
         eloRows: Alpine.store('elo')?.rows || [],
         awardDocs: Alpine.store('awards')?.docs || [],
         articles: this.articles,
@@ -7690,7 +8225,7 @@ Alpine.store('press', {
     for (let i = 0; i < slots; i++) {
       const id = this.randomIdFor(day, i);
       const existing = this.byId(id);
-      if (!existing || existing.status === 'error') out.push({ id, day, index: i });
+      if (needsRewrite(existing)) out.push({ id, day, index: i });
     }
     return out;
   },
@@ -7718,7 +8253,7 @@ Alpine.store('press', {
     const id = this.randomIdFor(day, index);
     if (this.busy[id]) return null;
     const existing = this.byId(id);
-    if (!force && existing && existing.status !== 'error') return null;
+    if (!force && !needsRewrite(existing)) return null;
 
     const ref = doc(db, 'press', id);
     const author = randomAuthor();
@@ -7730,7 +8265,7 @@ Alpine.store('press', {
     try {
       const claimed = await runTransaction(db, async (tx) => {
         const snap = await tx.get(ref);
-        if (snap.exists() && !force && snap.data()?.status !== 'error') return false;
+        if (snap.exists() && !force && !needsRewrite(snap.data())) return false;
         tx.set(ref, {
           season: l.season, category: 'news', categories: ['news', AI_CATEGORY], status: 'pending',
           authorId: author.id, teamIds: [], day, title: '', subtitle: '', body: '',
@@ -7744,9 +8279,7 @@ Alpine.store('press', {
         .filter((md) => md.day === day)
         .flatMap((md) => (md.matches || []).flatMap((m) => [m.home, m.away]));
       const direction = buildDirection(this.recentArchetypes(), this.directionOpts());
-      const data = await generateJson({
-        apiKey: this.apiKey,
-        model: this._modelOf(model),
+      const data = await this._generate(model, {
         system: buildSystem({ author }),
         prompt: buildUserPrompt({
           task: this.promptFor('random'),
@@ -7795,7 +8328,11 @@ Alpine.store('press', {
       ...show.hosts.map((h) => `${h.name} (Gastgeber):\n${h.voice}`),
       ...guests.filter((g) => g.kind === 'press').map((g) => {
         const a = authorById(g.id);
-        return `${a.name} (Gast, ${a.role} bei ${a.outlet}): ${a.voice} Ressort: ${a.beat}`;
+        // Die Stimme eines Autors beschreibt, wie er SCHREIBT. Im Studio wird daraus
+        // nur das Temperament — sonst redet der Gast wie ein vorgelesener Artikel.
+        return `${a.name} (Gast im Studio, sonst ${a.role} bei ${a.outlet}, Fachgebiet: ${a.beat}). `
+          + `Sitzt hier als redender Experte in der Diskussionsrunde und schreibt NICHTS. Temperament und Haltung, `
+          + `übertragen auf gesprochene Sprache (nicht als Schreibstil übernehmen): ${a.voice}`;
       }),
       ...guests.filter((g) => g.kind === 'trainer').map((g) => {
         const team = Alpine.store('league').teams.find((t) => t.id === g.teamId);
@@ -7862,7 +8399,7 @@ Alpine.store('press', {
     const id = this.lanzIdFor(day);
     if (this.busy[id]) return null;
     const existing = this.byId(id);
-    if (!force && existing && existing.status !== 'error') return null;
+    if (!force && !needsRewrite(existing)) return null;
     // Ein laufender Termin wird fortgesetzt, nicht neu besetzt.
     if (existing?.source?.sessionId && this.sessionById(existing.source.sessionId)) {
       return this.retryLanzSession(existing.source.sessionId, model);
@@ -7882,7 +8419,7 @@ Alpine.store('press', {
     try {
       const claimed = await runTransaction(db, async (tx) => {
         const snap = await tx.get(ref);
-        if (snap.exists() && !force && snap.data()?.status !== 'error') return false;
+        if (snap.exists() && !force && !needsRewrite(snap.data())) return false;
         tx.set(ref, {
           season: l.season, category: show.category, categories: [show.category, AI_CATEGORY],
           // Mit Trainer wartet der Beitrag auf dessen Antworten und bleibt im Newsroom verborgen.
@@ -7910,9 +8447,7 @@ Alpine.store('press', {
       }
 
       const speakers = [CAVALANZAS.name, ...lineup.guests.map((g) => g.name)];
-      const data = await generateJson({
-        apiKey: this.apiKey,
-        model: this._modelOf(model),
+      const data = await this._generate(model, {
         system: this._showSystem(show, lineup.guests),
         prompt: buildUserPrompt({
           task: LANZ_BRIEF,
@@ -7953,9 +8488,7 @@ Alpine.store('press', {
     this.busy = { ...this.busy, [sessionId]: true };
     try {
       await setDoc(ref, { status: 'generating', error: null, updatedAt: new Date().toISOString() }, { merge: true });
-      const data = await generateJson({
-        apiKey: this.apiKey,
-        model: this._modelOf(model),
+      const data = await this._generate(model, {
         system: this._showSystem(SHOWS.lanz, s.guests || []),
         prompt: buildUserPrompt({
           task: LANZ_BRIEF,
@@ -8029,9 +8562,7 @@ Alpine.store('press', {
     this.busy = { ...this.busy, [sessionId]: true };
     try {
       await setDoc(ref, { status: 'writing', error: null, updatedAt: new Date().toISOString() }, { merge: true });
-      const data = await generateJson({
-        apiKey: this.apiKey,
-        model: this._modelOf(model),
+      const data = await this._generate(model, {
         system: this._showSystem(SHOWS.lanz, s.guests || []),
         prompt: buildUserPrompt({
           task: LANZ_BRIEF,
@@ -8095,7 +8626,7 @@ Alpine.store('press', {
     return podcastReadyDays(days, MATCHDAY_AWARDS.map((a) => a.key), (key, day) => awards.instance({ key, day }), PLAYERS)
       .filter((day) => {
         const a = this.byId(this.podcastIdFor(day));
-        return !a || a.status === 'error';
+        return needsRewrite(a);
       });
   },
   _watchPodcast() {
@@ -8111,7 +8642,7 @@ Alpine.store('press', {
     const id = this.podcastIdFor(day);
     if (this.busy[id]) return null;
     const existing = this.byId(id);
-    if (!force && existing && existing.status !== 'error') return null;
+    if (!force && !needsRewrite(existing)) return null;
     const l = Alpine.store('league');
     const show = SHOWS.zweiblatt;
     const ref = doc(db, 'press', id);
@@ -8122,7 +8653,7 @@ Alpine.store('press', {
     try {
       const claimed = await runTransaction(db, async (tx) => {
         const snap = await tx.get(ref);
-        if (snap.exists() && !force && snap.data()?.status !== 'error') return false;
+        if (snap.exists() && !force && !needsRewrite(snap.data())) return false;
         tx.set(ref, {
           season: l.season, category: show.category, categories: [show.category, AI_CATEGORY], status: 'pending',
           authorId: null, teamIds: teams, day, title: '', subtitle: '', body: '',
@@ -8137,9 +8668,7 @@ Alpine.store('press', {
         return `${a.label}: ${winners || '—'}`;
       });
       const speakers = show.hosts.map((h) => h.name);
-      const data = await generateJson({
-        apiKey: this.apiKey,
-        model: this._modelOf(model),
+      const data = await this._generate(model, {
         system: this._showSystem(show),
         prompt: buildUserPrompt({
           task: ZWEIBLATT_BRIEF,
@@ -8185,7 +8714,7 @@ Alpine.store('press', {
       .map((season) => ({ season, id: this.newcomerIdFor(season) }))
       .filter(({ id }) => {
         const a = this.byId(id);
-        return !a || a.status === 'error';
+        return needsRewrite(a);
       });
   },
   _watchNewcomers() {
@@ -8205,7 +8734,7 @@ Alpine.store('press', {
     const id = this.newcomerIdFor(season);
     if (this.busy[id]) return null;
     const existing = this.byId(id);
-    if (!force && existing && existing.status !== 'error') return null;
+    if (!force && !needsRewrite(existing)) return null;
 
     const ref = doc(db, 'press', id);
     // Scouting und Transfers sind Scotts Ressort — hier schreibt kein anderer.
@@ -8216,7 +8745,7 @@ Alpine.store('press', {
     try {
       const claimed = await runTransaction(db, async (tx) => {
         const snap = await tx.get(ref);
-        if (snap.exists() && !force && snap.data()?.status !== 'error') return false;
+        if (snap.exists() && !force && !needsRewrite(snap.data())) return false;
         tx.set(ref, {
           season: l.season, category: 'informationen', categories: ['informationen', AI_CATEGORY],
           status: 'pending', authorId: author.id, teamIds: [], day: null, title: '', subtitle: '', body: '',
@@ -8227,9 +8756,7 @@ Alpine.store('press', {
       if (!claimed) return null;
 
       const direction = buildDirection(this.recentArchetypes(), this.directionOpts({ market: 'none', scandal: false }));
-      const data = await generateJson({
-        apiKey: this.apiKey,
-        model: this._modelOf(model),
+      const data = await this._generate(model, {
         system: buildSystem({ author }),
         prompt: buildUserPrompt({
           task: this.promptFor('newcomers'),
@@ -8298,7 +8825,7 @@ Alpine.store('press', {
     return this.marketDaysReady({ released: false })
       .filter((day) => {
         const existing = this.byId(this.marketIdFor(day));
-        return !existing || existing.status === 'error';
+        return needsRewrite(existing);
       })
       .map((day) => ({ day, id: this.marketIdFor(day) }));
   },
@@ -8327,7 +8854,7 @@ Alpine.store('press', {
     const id = this.marketIdFor(day);
     if (this.busy[id]) return null;
     const existing = this.byId(id);
-    if (!force && existing && existing.status !== 'error') return null;
+    if (!force && !needsRewrite(existing)) return null;
 
     const ref = doc(db, 'press', id);
     const author = randomAuthor();
@@ -8337,7 +8864,7 @@ Alpine.store('press', {
     try {
       const claimed = await runTransaction(db, async (tx) => {
         const snap = await tx.get(ref);
-        if (snap.exists() && !force && snap.data()?.status !== 'error') return false;
+        if (snap.exists() && !force && !needsRewrite(snap.data())) return false;
         tx.set(ref, {
           season: Alpine.store('league').season, category: 'informationen', categories: ['informationen', AI_CATEGORY],
           status: 'pending', authorId: author.id, teamIds: [], day, title: '', subtitle: '', body: '',
@@ -8352,9 +8879,7 @@ Alpine.store('press', {
         .filter((md) => md.day === day)
         .flatMap((md) => (md.matches || []).flatMap((m) => [m.home, m.away]));
       const direction = buildDirection(this.recentArchetypes(), this.directionOpts({ market: 'free', scandal: false }));
-      const data = await generateJson({
-        apiKey: this.apiKey,
-        model: this._modelOf(model),
+      const data = await this._generate(model, {
         system: buildSystem({ author }),
         prompt: buildUserPrompt({
           task: this.promptFor('marketUpdate'),
@@ -8425,7 +8950,7 @@ Alpine.store('press', {
     const out = [];
     const open = (id) => {
       const a = this.byId(id);
-      return !a || a.status === 'error';
+      return needsRewrite(a);
     };
     if (open(this.reviewId())) out.push({ kind: 'review', id: this.reviewId(), label: 'Saison-Rückblick' });
     (l.seasonTeams || []).forEach((t) => {
@@ -8470,7 +8995,7 @@ Alpine.store('press', {
     if (!this.hasKey) return null;
     if (this.busy[id]) return null;
     const existing = this.byId(id);
-    if (!force && existing && existing.status !== 'error') return null;
+    if (!force && !needsRewrite(existing)) return null;
 
     const l = Alpine.store('league');
     const ref = doc(db, 'press', id);
@@ -8481,7 +9006,7 @@ Alpine.store('press', {
     try {
       const claimed = await runTransaction(db, async (tx) => {
         const snap = await tx.get(ref);
-        if (snap.exists() && !force && snap.data()?.status !== 'error') return false;
+        if (snap.exists() && !force && !needsRewrite(snap.data())) return false;
         const placeholder = normalizeCategories(category, [AI_CATEGORY]);
         tx.set(ref, {
           season: l.season, category: placeholder.category, categories: placeholder.categories, status: 'pending',
@@ -8493,9 +9018,7 @@ Alpine.store('press', {
       if (!claimed) return null;
 
       const direction = buildDirection(this.recentArchetypes(), this.directionOpts({ scandal: promptKey === 'offseason' }));
-      const data = await generateJson({
-        apiKey: this.apiKey,
-        model: this._modelOf(model),
+      const data = await this._generate(model, {
         system: buildSystem({ author }),
         prompt: buildUserPrompt({
           task: this.promptFor(promptKey),
@@ -8656,6 +9179,9 @@ Alpine.store('press', {
       archetype: data.archetyp ? storyId(data.archetyp) : null,
       storylines,
       source: meta.source || { type: 'manual' },
+      // Womit tatsächlich geschrieben wurde — bei automatischem Ausweichen nicht zwingend
+      // das eingestellte Modell.
+      model: data._model || null,
       status: 'ready',
       error: null,
       createdAt: meta.createdAt || new Date().toISOString(),
@@ -8750,7 +9276,7 @@ Alpine.store('press', {
 
     const id = this.reportIdFor(matchId);
     if (this.busy[id]) return null;
-    if (!force && this.byId(id)) return null;
+    if (!force && !needsRewrite(this.byId(id))) return null;
 
     const ref = doc(db, 'press', id);
     const author = randomAuthor();
@@ -8760,7 +9286,7 @@ Alpine.store('press', {
     try {
       const claimed = await runTransaction(db, async (tx) => {
         const snap = await tx.get(ref);
-        if (snap.exists() && !force && snap.data()?.status !== 'error') return false;
+        if (snap.exists() && !force && !needsRewrite(snap.data())) return false;
         tx.set(ref, {
           season: l.season, category: 'spielbericht', status: 'pending', authorId: author.id,
           teamIds: [result.home, result.away], day: result.day ?? null, title: '', subtitle: '', body: '',
@@ -8771,9 +9297,7 @@ Alpine.store('press', {
       if (!claimed) return null;
 
       const direction = buildDirection(this.recentArchetypes(), this.directionOpts());
-      const data = await generateJson({
-        apiKey: this.apiKey,
-        model: this._modelOf(model),
+      const data = await this._generate(model, {
         system: buildSystem({ author }),
         prompt: buildUserPrompt({
           task: this.promptFor('report'),
@@ -8864,9 +9388,7 @@ Alpine.store('press', {
         'Diese Haltungen gehen jeder anderen Angabe zu Antwortvorschlägen vor.',
       ].join('\n');
 
-      const data = await generateJson({
-        apiKey: this.apiKey,
-        model: this._modelOf(model),
+      const data = await this._generate(model, {
         system: buildSystem({ author: isPk ? null : cast[0], extra: isPk ? 'Du moderierst die Pressekonferenz und formulierst die Fragen der anwesenden Pressevertreter in deren jeweiliger Handschrift.' : '' }),
         prompt: buildUserPrompt({
           task: this.promptFor(slot.slot === 'outlook' ? 'outlookQuestions' : isPk ? 'pkQuestions' : 'interviewQuestions'),
@@ -8966,9 +9488,7 @@ Alpine.store('press', {
         transcript,
       ].filter(Boolean).join('\n');
 
-      const data = await generateJson({
-        apiKey: this.apiKey,
-        model: this._modelOf(model),
+      const data = await this._generate(model, {
         system: buildSystem({ author: lead }),
         prompt: buildUserPrompt({
           task: this.promptFor(isPk ? 'pkArticle' : 'interviewArticle'),
@@ -9128,9 +9648,7 @@ Alpine.store('press', {
     try {
       const league = commissionLeague(src.league, brief);
       const direction = buildDirection(this.recentArchetypes(), this.directionOpts({ scandal: false }));
-      const data = await generateJson({
-        apiKey: this.apiKey,
-        model: this._modelOf(model),
+      const data = await this._generate(model, {
         system: buildSystem({ author }),
         prompt: buildUserPrompt({
           task: this.promptFor('commission'),
@@ -9691,6 +10209,7 @@ Alpine.data('scheduleView', scheduleView);
 Alpine.data('standingsView', standingsView);
 Alpine.data('statsView', statsView);
 Alpine.data('pokemonView', pokemonView);
+Alpine.data('franchiseView', franchiseView);
 Alpine.data('spielerView', spielerView);
 Alpine.data('teambuildingView', teambuildingView);
 Alpine.data('transferView', transferView);

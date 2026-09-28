@@ -671,7 +671,7 @@
       <section x-show="(selectedTeam.pokemon || []).length" class="mt-6 rounded-2xl border border-line bg-panel p-5 sm:p-6">
         <div class="mb-4">
           <h2 class="font-display text-xl font-bold uppercase tracking-wider text-ink">Charakter</h2>
-          <p class="mt-1 text-sm text-mist">Eigenheiten der Pokémon — Stichworte oder ganze Sätze. Die Presse greift sie in Interviews und Beiträgen auf.</p>
+          <p class="mt-1 text-sm text-mist">Eigenheiten der Pokémon — Stichworte oder ganze Sätze. Die Presse greift sie in Interviews und Beiträgen auf. Beide Spieler können sie pflegen, auch beim Gegner; sie hängen am Pokémon und wandern bei einem Wechsel mit.</p>
         </div>
         <ul class="grid grid-cols-1 gap-2 lg:grid-cols-2">
           <template x-for="mon in (selectedTeam.pokemon || [])" :key="'chr-'+mon.name">
@@ -682,7 +682,7 @@
                   <img :src="mon.image" :alt="mon.name" loading="lazy" class="size-9 shrink-0 object-contain" />
                   <span class="min-w-0 truncate text-sm font-semibold text-ink" x-text="mon.name" :title="mon.name"></span>
                 </button>
-                <button type="button" x-show="ownsSelected && traitEdit?.name !== mon.name" @click="openTraitEdit(mon.name)"
+                <button type="button" x-show="canEditTraits && traitEdit?.name !== mon.name" @click="openTraitEdit(mon.name)"
                         class="shrink-0 rounded-lg border border-line px-2 py-1 text-[11px] font-semibold text-mist transition-colors hover:border-flame-500/40 hover:text-flame-400"
                         x-text="monTraitsOf(mon.name).length ? 'Bearbeiten' : 'Hinzufügen'"></button>
               </div>

@@ -252,6 +252,93 @@ export function allTimePokemon(teams, results, pokedex = []) {
   }));
 }
 
+// === Franchises ============================================================
+// Der saisonübergreifende Team-Bereich: ein Franchise ist die Kette der Team-Dokumente
+// mit demselben Namensteil (`s1-heerashai-sv`, `s2-heerashai-sv`).
+
+/** Alle Team-Dokumente eines Franchise, älteste Saison zuerst. */
+export function franchiseTeams(teams, slug) {
+  return (teams || [])
+    .filter((t) => franchiseSlug(t.id) === slug)
+    .sort((a, b) => seasonOfTeam(a) - seasonOfTeam(b));
+}
+
+/**
+ * Saison für Saison: Platz, Bilanz und ob die Saison abgeschlossen war.
+ * [{ season, team, place, of, played, won, draw, lost, points, kills, deaths, diff, finished, champion }]
+ */
+export function franchiseSeasons(teams, results, schedules = {}, slug) {
+  return franchiseTeams(teams, slug).map((team) => {
+    const season = seasonOfTeam(team);
+    const sTeams = teamsOfSeason(teams, season);
+    const table = computeStandings(sTeams, resultsOfSeason(results, season));
+    const i = table.findIndex((r) => r.team.id === team.id);
+    const r = table[i] || { played: 0, won: 0, draw: 0, lost: 0, points: 0, kills: 0, deaths: 0 };
+    const finished = seasonFinished(schedules[seasonPrefix(season)], table);
+    return {
+      season,
+      team,
+      place: i >= 0 && r.played ? i + 1 : null,
+      of: table.length,
+      played: r.played, won: r.won, draw: r.draw, lost: r.lost,
+      points: r.points, kills: r.kills, deaths: r.deaths, diff: r.kills - r.deaths,
+      finished,
+      champion: finished && i === 0 && r.played > 0,
+    };
+  });
+}
+
+const FRANCHISE_MON_NUMS = [
+  'kills', 'deaths', 'matchups', 'battles', 'rosterBattles',
+  'battleWins', 'battleDraws', 'battleLosses', 'matchWins', 'matchDraws', 'matchLosses',
+];
+
+/**
+ * Jedes Pokémon, das je für dieses Franchise gespielt hat oder im Kader stand — mit dem,
+ * was es FÜR DIESES Franchise geleistet hat (result-getrieben, je Saison mit dem
+ * Team-Scope gerechnet und dann zusammengezählt). Ein im Winter abgegebenes Pokémon
+ * bleibt mit seinen Einsätzen bis dahin in der Liste.
+ */
+export function franchisePokemon(teams, results, pokedex = [], slug, { availability = null } = {}) {
+  const byName = Object.fromEntries((pokedex || []).map((p) => [p.name, p]));
+  const chain = franchiseTeams(teams, slug);
+  const latest = chain[chain.length - 1];
+  const nowSet = new Set((latest?.pokemon || []).map((p) => p.name));
+  const merged = {};
+  chain.forEach((team) => {
+    const season = seasonOfTeam(team);
+    const sResults = resultsOfSeason(results, season);
+    const roster = [...(team.pokemon || [])];
+    const have = new Set(roster.map((p) => p.name));
+    sResults.forEach((r) => ['home', 'away'].forEach((side) => {
+      if (r?.[side] !== team.id) return;
+      (r.squads?.[side] || []).forEach((name) => {
+        if (name && !have.has(name)) { have.add(name); roster.push(byName[name] || { name }); }
+      });
+    }));
+    pokemonStats([{ ...team, pokemon: roster }], sResults, pokedex, { scopeTeamId: team.id, availability })
+      .forEach((st) => {
+        const name = st.pokemon?.name;
+        if (!name) return;
+        const m = merged[name] || (merged[name] = {
+          name, pokemon: byName[name] || st.pokemon, seasons: [], current: nowSet.has(name),
+          ...Object.fromEntries(FRANCHISE_MON_NUMS.map((k) => [k, 0])),
+        });
+        FRANCHISE_MON_NUMS.forEach((k) => { m[k] += st[k] || 0; });
+        if (!m.seasons.includes(season)) m.seasons.push(season);
+      });
+  });
+  return Object.values(merged)
+    .map((m) => ({
+      ...m,
+      diff: m.kills - m.deaths,
+      kd: m.deaths ? m.kills / m.deaths : m.kills,
+      killsPerBattle: m.battles ? m.kills / m.battles : 0,
+      winRate: m.battles ? m.battleWins / m.battles : 0,
+    }))
+    .sort((a, b) => b.kills - a.kills || b.battles - a.battles || a.name.localeCompare(b.name));
+}
+
 // === Rekorde ===============================================================
 
 const monMeta = (pokedex, name) => (pokedex || []).find((p) => p.name === name) || null;

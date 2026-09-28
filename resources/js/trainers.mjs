@@ -147,7 +147,7 @@ export function withDismissed(list, trainerId2, untilDay) {
 // === Charakter-Eigenschaften der Pokémon ===================================
 // Wie bei den Trainern, aber als freie Einträge statt kommagetrennt: ein Eintrag
 // darf ein Stichwort oder ein ganzer Satz sein (und damit selbst Kommas tragen).
-// Gespeichert am Team-Dokument unter `monTraits.<Pokémon-Name>`.
+// Gespeichert ligaweit unter `drafts/pokedex.traits.<Pokémon-Name>` (früher am Team-Dokument).
 export const MAX_MON_TRAITS = 12;
 export const MAX_MON_TRAIT_LENGTH = 240;
 
@@ -164,7 +164,73 @@ export function normalizeMonTraits(list) {
   return out;
 }
 
-export function monTraitsOf(team, name) {
+// Seit Saison 2 gehört der Charakter dem POKÉMON, nicht dem Team: beide Spieler pflegen
+// ihn, egal wo es gerade spielt (drafts/pokedex.traits). Die alten Einträge am
+// Team-Dokument bleiben als Rückfall gültig, bis jemand das Pokémon neu bearbeitet.
+// `mon.traits` ist der ligaweite Stand (gesetzt vom league-Store), falls vorhanden.
+export function monTraitsOf(team, name, mon = null) {
+  if (Array.isArray(mon?.traits)) return mon.traits;
   const list = team?.monTraits?.[name];
   return Array.isArray(list) ? list : [];
+}
+
+/**
+ * Der geltende Charakter eines Pokémon: ligaweiter Eintrag, sonst der jüngste
+ * Team-Eintrag (Altbestand, spätere Saison zuerst).
+ * @param {object} global  { <Name>: [...] } aus drafts/pokedex.traits
+ * @param {Array}  teams   alle Teams aller Saisons
+ */
+export function monTraitsFor(name, global = {}, teams = []) {
+  const own = global?.[name];
+  if (Array.isArray(own)) return own;
+  const hit = [...(teams || [])]
+    .filter((t) => Array.isArray(t?.monTraits?.[name]) && t.monTraits[name].length)
+    .sort((a, b) => (b.season || 0) - (a.season || 0))[0];
+  return hit ? hit.monTraits[name] : [];
+}
+
+// === Trainer über alle Saisons ==============================================
+// Der amtierende Trainer zieht mit in die neue Saison (seed-teams.mjs) und steht dort
+// als „vor der Saison" im Amt. Für die Franchise-Historie sind das EINE Amtszeit:
+// endet ein Amt in Saison N offen und beginnt derselbe Trainer in Saison N+1 vor der
+// Saison, wird beides zusammengeführt.
+// `seasonTeams`: [{ season, trainers }] aufsteigend nach Saison.
+export function franchiseTrainerHistory(seasonTeams) {
+  const list = (seasonTeams || []).slice().sort((a, b) => (a.season || 0) - (b.season || 0));
+  const lastSeason = list.length ? list[list.length - 1].season : null;
+  const out = [];
+  list.forEach(({ season, trainers }) => {
+    sortTrainers(trainers || []).forEach((t) => {
+      const open = out.find((e) => e.name === t.name && e.until?.season === season - 1 && e.until.open);
+      if (open && t.fromDay == null) {
+        open.until = { season, day: t.untilDay ?? null, open: t.untilDay == null };
+        open.image = t.image || open.image;
+        open.traits = t.traits?.length ? t.traits : open.traits;
+        open.seasons.push(season);
+        return;
+      }
+      out.push({
+        id: `${season}-${t.id || t.name}`,
+        name: t.name,
+        image: t.image || '',
+        gender: t.gender || '',
+        traits: t.traits || [],
+        from: { season, day: t.fromDay ?? null },
+        until: { season, day: t.untilDay ?? null, open: t.untilDay == null },
+        seasons: [season],
+      });
+    });
+  });
+  const point = (p, isFrom) => {
+    if (isFrom) return `S${p.season} · ${p.day == null ? 'vor der Saison' : `ab Spieltag ${p.day}`}`;
+    if (p.open) return p.season === lastSeason ? 'heute' : `S${p.season} · Saisonende`;
+    return `S${p.season} · Spieltag ${p.day}`;
+  };
+  return out
+    .map((e) => ({
+      ...e,
+      current: e.until.open && e.until.season === lastSeason,
+      period: `${point(e.from, true)} – ${point(e.until, false)}`,
+    }))
+    .reverse();
 }

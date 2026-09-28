@@ -394,14 +394,32 @@
                 <svg viewBox="0 0 24 24" class="size-5" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M4 4h12l4 4v12H4z"/><path d="M8 9h8"/><path d="M8 13h8"/><path d="M8 17h5"/></svg>
               </span>
               <span class="min-w-0 flex-1">
-                <span class="block font-display text-base font-bold uppercase tracking-wider text-ink">Notizen zur Partie</span>
+                <span class="block font-display text-base font-bold uppercase tracking-wider text-ink">Notizen</span>
                 <span class="block truncate text-xs text-mist" x-text="currentPairMatch() ? pairMatchLabel(currentPairMatch()) : 'Keine Partie dieser beiden Teams'"></span>
               </span>
-              <span x-show="matchupNote().trim()" class="mr-1 size-2 shrink-0 rounded-full bg-volt-400" title="Notiz vorhanden"></span>
+              <span x-show="matchupNote().trim() || teamNoteOf(teamAId).trim() || teamNoteOf(teamBId).trim()" class="mr-1 size-2 shrink-0 rounded-full bg-volt-400" title="Notiz vorhanden"></span>
               <svg viewBox="0 0 24 24" class="size-5 shrink-0 text-mist transition-transform" :class="notePanelOpen ? 'rotate-180' : ''" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m6 9 6 6 6-6"/></svg>
             </button>
 
             <div x-show="notePanelOpen" x-cloak class="border-t border-line p-5 sm:p-6">
+              <!-- Team-Notizen beider Teams: dieselben wie im Team-View -->
+              <div class="mb-5 grid gap-4 border-b border-line pb-5 md:grid-cols-2">
+                <template x-for="col in [{k:'a', team: teamA},{k:'b', team: teamB}]" :key="'tn-'+col.k">
+                  <div x-show="col.team" class="min-w-0">
+                    <div class="mb-1.5 flex min-w-0 items-center gap-2">
+                      <img x-show="col.team" :src="col.team ? logoUrl(col.team.logo) : ''" :alt="col.team?.name" class="size-6 shrink-0 rounded object-contain" />
+                      <label class="min-w-0 truncate font-display text-[11px] font-semibold uppercase tracking-wider text-mist" x-text="`Team-Notiz · ${col.team?.name || ''}`"></label>
+                      <span class="shrink-0 rounded-full border border-line px-1.5 py-0.5 text-[9px] font-semibold uppercase tracking-wider text-mist">nur für dich</span>
+                    </div>
+                    <textarea :value="teamNoteOf(col.team?.id)" @input="setTeamNoteOf(col.team?.id, $event.target.value)" rows="5"
+                              :disabled="!$store.notes.available"
+                              :placeholder="$store.notes.available ? 'Stärken, Schwächen, Muster dieses Teams…' : 'Nur mit Anmeldung verfügbar.'"
+                              class="w-full resize-y rounded-xl border border-line bg-elevated px-3.5 py-3 text-sm leading-relaxed text-ink placeholder:text-mist focus:border-flame-500 focus:outline-none disabled:opacity-50"></textarea>
+                  </div>
+                </template>
+                <p class="text-[11px] text-mist md:col-span-2">Dieselben Notizen wie im Team-View — was hier steht, steht auch dort. <span x-show="$store.notes.saving" x-cloak>Speichert…</span></p>
+              </div>
+
               <p x-show="!pairMatches().length" class="text-sm text-mist">
                 Diese beiden Teams treffen im Spielplan nicht aufeinander.
               </p>
