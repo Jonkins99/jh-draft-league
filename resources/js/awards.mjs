@@ -2,7 +2,9 @@
 //
 // Ablauf einer Abstimmung (status):
 //   nominating -> voting -> done
-// Jeder Spieler nominiert 0–3 Optionen. Er kann sie zwischenspeichern und später
+// Jeder Spieler nominiert 0–4 Optionen. Zwischengespeichert werden darf auch mehr
+// (eine Merkliste, aus der später gestrichen wird); erst „Ich bin fertig" verlangt
+// höchstens vier. Er kann sie zwischenspeichern und später
 // weiter ändern, oder „Ich bin fertig" sagen (confirmed[player] = true). Sind BEIDE
 // fertig, springt der Status von selbst auf voting — niemand startet die Abstimmung
 // für den anderen mit. In der Abstimmung
@@ -10,7 +12,7 @@
 // ist die Abstimmung done und die Siegerehrung freigeschaltet.
 
 export const PLAYERS = ['Janik', 'Henrik'];
-export const MAX_NOMINATIONS = 3;
+export const MAX_NOMINATIONS = 4;
 export const VOTE_MIN = 0;
 export const VOTE_MAX = 10;
 
@@ -121,6 +123,53 @@ export function mergedOptions(award) {
 export function remainingNominations(award, player) {
   const n = ((award?.nominations || {})[player] || []).length;
   return Math.max(0, MAX_NOMINATIONS - n);
+}
+
+// Darf diese Liste als endgültige Nominierung abgeschickt werden?
+export function canConfirmNominations(options) {
+  return (options || []).length <= MAX_NOMINATIONS;
+}
+
+// Wie hat ein Pokémon an einem Spieltag abgeschnitten? Grundlage der Hinweise im
+// Nominierungs-Dialog der Spieltag-Awards. Je Pokémon genau ein Match (es spielt
+// an einem Spieltag nur einmal):
+//   { status: 'none' }                      — an diesem Spieltag kein Ergebnis mit ihm
+//   { status: 'out', teamId }               — im Kader, aber nicht im 6er-Aufgebot
+//   { status: 'squad', teamId, battles }    — im Aufgebot; je Kampf
+//        { state: 'open' }                  — Kampf noch nicht fertig
+//        { state: 'bench' }                 — im Aufgebot, aber nicht eingesetzt
+//        { state: 'played', kills, died }   — eingesetzt
+// rosterOf(teamId) liefert die Kadernamen, um „nicht im Aufgebot" von „spielt gar
+// nicht mit" zu unterscheiden.
+export function matchdayPerformance(results, day, name, rosterOf = () => []) {
+  const games = (results || []).filter((r) => r && Number(r.day) === Number(day));
+  for (const r of games) {
+    for (const side of ['home', 'away']) {
+      const squad = r.squads?.[side] || [];
+      if (squad.includes(name)) {
+        const battles = [0, 1, 2].map((i) => {
+          const b = (r.battles || [])[i];
+          if (!b || !b.done) return { state: 'open' };
+          if (!(b.used?.[side] || []).includes(name)) return { state: 'bench' };
+          let kills = 0;
+          let died = false;
+          (b.kills || []).forEach((k) => {
+            if (!k) return;
+            if (k.killer === name && k.killerSide === side && k.victimSide !== side) kills += 1;
+            if (k.victim === name && k.victimSide === side) died = true;
+          });
+          return { state: 'played', kills, died };
+        });
+        return { status: 'squad', teamId: r[side] || null, battles };
+      }
+    }
+  }
+  for (const r of games) {
+    for (const side of ['home', 'away']) {
+      if ((rosterOf(r[side]) || []).includes(name)) return { status: 'out', teamId: r[side] || null };
+    }
+  }
+  return { status: 'none' };
 }
 
 export function hasVoted(award, player) {

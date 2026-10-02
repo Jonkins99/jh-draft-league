@@ -853,3 +853,46 @@
   user-select: none;
   touch-action: manipulation;
 }
+
+.aw-perf {
+  display: inline-grid;
+  place-items: center;
+  min-width: 1.25rem;
+  height: 1.25rem;
+  padding: 0 0.25rem;
+  border-radius: 0.375rem;
+  border: 1px solid var(--color-line);
+  font-family: var(--font-display);
+  font-size: 0.6875rem;
+  font-weight: 800;
+  line-height: 1;
+  font-variant-numeric: tabular-nums;
+  color: var(--color-mist);
+}
+
+.aw-perf--out {
+  border-style: dashed;
+  opacity: 0.75;
+}
+
+.aw-perf--open {
+  opacity: 0.5;
+}
+
+.aw-perf--alive {
+  border-color: color-mix(in srgb, #63bc5a 55%, transparent);
+  background: color-mix(in srgb, #63bc5a 16%, transparent);
+  color: #8fd987;
+}
+
+.aw-perf--dead {
+  border-color: color-mix(in srgb, var(--color-flame-500) 55%, transparent);
+  background: color-mix(in srgb, var(--color-flame-500) 16%, transparent);
+  color: #ff8a6b;
+}
+
+.aw-perf--dead::after {
+  content: "†";
+  margin-left: 0.125rem;
+  font-size: 0.625rem;
+}

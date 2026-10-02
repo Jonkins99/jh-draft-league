@@ -6,7 +6,7 @@
         <h1 class="mt-1 font-display text-4xl font-bold tracking-wide text-ink md:text-5xl" x-text="isAll ? 'Ewige Ehrentafel' : 'Awards'"></h1>
         <p class="mt-2 text-mist" x-text="isAll
           ? 'Alle vergebenen Auszeichnungen über alle Saisons — und wer sie am häufigsten geholt hat.'
-          : 'Nominieren, bewerten, feiern. Beide Spieler schlagen bis zu drei Kandidaten vor, bewerten alle Vorschläge von 0 bis 10 – der Mittelwert entscheidet.'"></p>
+          : 'Nominieren, bewerten, feiern. Beide Spieler schlagen bis zu vier Kandidaten vor, bewerten alle Vorschläge von 0 bis 10 – der Mittelwert entscheidet.'"></p>
       </div>
       <!-- Wessen Stimmen gespeichert werden, ergibt sich aus der Anmeldung. -->
       <div x-show="!isAll" class="flex items-center gap-3 rounded-2xl border border-line bg-panel px-4 py-3">
@@ -255,7 +255,7 @@
               <span class="block w-10 shrink-0" style="aspect-ratio:112/152" x-html="medal(dialog.inst.key)"></span>
               <div class="min-w-0 flex-1">
                 <p class="font-display text-base font-bold leading-tight text-ink" x-text="dialog.inst.def?.label"></p>
-                <p class="text-xs text-mist"><span x-text="subtitle(dialog.inst)"></span> · bis zu <span x-text="3"></span> Vorschläge</p>
+                <p class="text-xs text-mist"><span x-text="subtitle(dialog.inst)"></span> · bis zu <span x-text="maxNoms"></span> Vorschläge</p>
               </div>
               <button type="button" @click="closeDialog()" class="grid size-9 shrink-0 place-items-center rounded-lg text-mist transition-colors hover:text-ink" aria-label="Schließen">
                 <svg viewBox="0 0 24 24" class="size-5" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M6 6l12 12M18 6L6 18"/></svg>
@@ -291,19 +291,41 @@
               <div class="mb-3 flex items-center gap-2 rounded-xl border border-line bg-elevated px-3 py-2">
                 <svg viewBox="0 0 24 24" class="size-4 shrink-0 text-mist" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="7"/><path d="m21 21-4.3-4.3"/></svg>
                 <input x-model="q" type="text" placeholder="Suchen…" class="min-w-0 flex-1 bg-transparent text-sm text-ink placeholder:text-mist focus:outline-none" />
-                <span class="shrink-0 font-display text-xs tabular-nums text-mist" x-text="`${draft.length}/3`"></span>
+                <span class="shrink-0 font-display text-xs tabular-nums" :class="draftOver ? 'font-bold text-flame-400' : 'text-mist'" x-text="`${draft.length}/${maxNoms}`"></span>
+              </div>
+
+              <!-- Spieltag-Awards: Legende zum Abschneiden in den drei Kämpfen -->
+              <div x-show="dialog.inst.day != null && dialog.inst.entity === 'pokemon'"
+                   class="mb-3 flex flex-wrap gap-x-3 gap-y-1 text-[11px] text-mist">
+                <span class="inline-flex items-center gap-1"><span class="aw-perf aw-perf--out"><svg viewBox="0 0 16 16" class="size-3" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><circle cx="8" cy="8" r="5.5"/><path d="m4.2 11.8 7.6-7.6"/></svg></span>nicht im 6er-Aufgebot</span>
+                <span class="inline-flex items-center gap-1"><span class="aw-perf aw-perf--bench"><svg viewBox="0 0 16 16" class="size-3" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><path d="M3 9h10M4.5 9v3.5M11.5 9v3.5M4 6.5h8"/></svg></span>dabei, nicht eingesetzt</span>
+                <span class="inline-flex items-center gap-1"><span class="aw-perf aw-perf--alive">2</span>Kills, überlebt</span>
+                <span class="inline-flex items-center gap-1"><span class="aw-perf aw-perf--dead">1</span>Kills, besiegt</span>
               </div>
 
               <div class="grid grid-cols-1 gap-1.5 sm:grid-cols-2">
                 <template x-for="o in dialogOptions" :key="'opt-'+o.id">
                   <button type="button" @click="toggleDraft(o)"
-                          :disabled="!isDrafted(o.id) && !isPaired(o.id) && draftFull && dialog.inst.entity !== 'pair'"
-                          class="flex items-center gap-2.5 rounded-xl border px-2.5 py-2 text-left transition-colors disabled:opacity-40"
+                          class="flex items-center gap-2.5 rounded-xl border px-2.5 py-2 text-left transition-colors"
                           :class="isDrafted(o.id) || isPaired(o.id) ? 'border-flame-500 bg-flame-500/10' : 'border-line hover:border-flame-500/40'">
                     <img x-show="o.image" :src="o.image" :alt="o.label" loading="lazy" class="size-9 shrink-0 object-contain" />
                     <span class="min-w-0 flex-1">
                       <span class="block truncate text-sm font-semibold text-ink" x-text="o.label"></span>
                       <span class="block truncate text-[11px] text-mist" x-text="o.sub"></span>
+                      <span x-show="o.perf && (o.perf.status === 'out' || o.perf.status === 'squad')"
+                            class="mt-1 flex items-center gap-1" :title="perfTitle(o.perf)" :aria-label="perfTitle(o.perf)">
+                        <template x-if="o.perf && o.perf.status === 'out'">
+                          <span class="aw-perf aw-perf--out"><svg viewBox="0 0 16 16" class="size-3" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><circle cx="8" cy="8" r="5.5"/><path d="m4.2 11.8 7.6-7.6"/></svg></span>
+                        </template>
+                        <template x-for="(b, bi) in (o.perf && o.perf.status === 'squad' ? o.perf.battles : [])" :key="'pf-'+o.id+'-'+bi">
+                          <span class="aw-perf"
+                                :class="b.state === 'played' ? (b.died ? 'aw-perf--dead' : 'aw-perf--alive') : (b.state === 'bench' ? 'aw-perf--bench' : 'aw-perf--open')">
+                            <template x-if="b.state === 'played'"><span x-text="b.kills"></span></template>
+                            <template x-if="b.state === 'bench'"><svg viewBox="0 0 16 16" class="size-3" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><path d="M3 9h10M4.5 9v3.5M11.5 9v3.5M4 6.5h8"/></svg></template>
+                            <template x-if="b.state === 'open'"><span>·</span></template>
+                          </span>
+                        </template>
+                      </span>
                     </span>
                     <svg x-show="isDrafted(o.id) || isPaired(o.id)" viewBox="0 0 24 24" class="size-4 shrink-0 text-flame-400" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"><path d="m5 12 5 5L19 7"/></svg>
                   </button>
@@ -314,7 +336,7 @@
 
             <div class="border-t border-line px-5 py-4">
               <div class="flex flex-col gap-2 sm:flex-row">
-                <button type="button" @click="confirmNoms()" :disabled="busy"
+                <button type="button" @click="confirmNoms()" :disabled="busy || draftOver"
                         class="flex-1 rounded-xl bg-flame-500 px-4 py-3 font-display text-sm font-bold uppercase tracking-wide text-white transition-colors hover:bg-flame-600 disabled:opacity-60">
                   Ich bin fertig
                 </button>
@@ -323,6 +345,8 @@
                   Zwischenspeichern
                 </button>
               </div>
+              <p x-show="draftOver" class="mt-2 text-[11px] font-semibold leading-relaxed text-flame-300"
+                 x-text="`Zum Abschicken höchstens ${maxNoms} — streiche noch ${draft.length - maxNoms}. Zwischenspeichern geht auch mit mehr.`"></p>
               <p class="mt-2 text-[11px] leading-relaxed text-mist">
                 Zwischengespeichertes lässt sich später weiter ändern. Die Abstimmung beginnt, sobald
                 <span class="text-ink" x-text="$store.awards.other"></span> ebenfalls fertig ist.

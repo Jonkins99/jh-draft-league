@@ -253,18 +253,38 @@ DIE PRESSEGÄSTE SIND IM STUDIO, NICHT AM SCHREIBTISCH
 ${PROTOCOL_RULES}`;
 
 export const ZWEIBLATT_BRIEF = `Du schreibst die neue Folge des Podcasts "50 plus Zweiblatt" — den JHDL-Rückblick mit
-Venicro und Chelast nach einem abgeschlossenen Spieltag.
+Venicro und Chelast nach einem abgeschlossenen Spieltag. Der Podcast ist die TAKTIK-Sendung der Liga: Hier wird
+nicht nacherzählt, wer gewonnen hat, sondern WARUM — und was das für die nächsten Spiele heißt.
 
-THEMEN, in dieser Gewichtung:
-1. Vor allem die Besprechung DIESES Spieltags und der genauen Spielverläufe: fachlich und analytisch — Aufgebote,
-   Kills und Deaths, Wendepunkte der einzelnen Kämpfe, Kampfverlauf-Notizen, Tabellenfolgen.
-2. Daneben auch mal aktuelle Skandale und die gerade vergebenen Awards des Spieltags.
+DIE FOLGE HAT ZWEI PFLICHTTEILE, beide gleich ernst zu nehmen:
+
+1. RÜCKBLICK (Metadaten "spieltagRueckblick") — JEDE Partie des abgeschlossenen Spieltags bekommt ihren eigenen
+   Abschnitt, keine wird ausgelassen oder in einem Nebensatz abgehakt. Je Partie:
+   - Aufgebot (6 aus 10): Wer wurde gebracht, wer blieb draußen — und was sagt das über den Matchplan?
+   - Aufstellung je Kampf (4 aus 6): Welche Leads, welche Wechsel zwischen den Kämpfen, wer wurde nachgeschoben?
+   - Wendepunkte aus dem Kampfverlauf: welcher Kill hat einen Kampf gedreht, wer hat überlebt, wer fiel früh?
+   - Was hat taktisch funktioniert, was nicht: Typen-Vorteile, Tempo (Initiative), Rollen (offensiv/defensiv),
+     Feld- und Support-Arbeit. Kampfverlauf-Notizen der Trainer sind Detailquelle.
+2. VORSCHAU (Metadaten "spieltagVorschau") — JEDE Partie des nächsten Spieltags bekommt ihren eigenen Abschnitt.
+   Das ist eine echte Matchup-Analyse, keine Tipprunde:
+   - Welche Pokémon sehen gegen den gegnerischen Kader gut aus (typenDuelle: trifftSehrEffektiv), wer dürfte
+     Probleme bekommen (wirdSehrEffektivGetroffenVon), wer ist gegen wen immun?
+   - Tempo: wer speedet wen aus (schnellste, initiative)?
+   - Welches Aufgebot und welche Leads liegen nahe, welcher Schlüsselspieler muss gestoppt werden, wo liegt die
+     Gefahr einer Überraschung? Bisherige direkte Duelle und Tabellenlage einordnen.
+   - Einschätzungen sind Analyse ("sieht gut aus gegen", "dürfte Probleme bekommen mit"), niemals ein
+     feststehendes Ergebnis.
+   Gibt es keinen nächsten Spieltag (Saisonende), entfällt die Vorschau; dann blicken die beiden auf die
+   Saisonbilanz.
+
+DANEBEN, KURZ: die gerade vergebenen Awards des Spieltags und gelegentlich ein aktueller Aufreger.
 
 AUFTRAG
 - Venicro eröffnet mit genau dem vorgegebenen Satzanfang und beendet ihn mit einer neuen, wahnwitzigen These.
-- Die beiden reiben sich aneinander, bleiben aber in der Sache präzise.
+- Die beiden reiben sich aneinander, bleiben aber in der Sache präzise. Sie sind Taktik-Nerds: Sie nennen
+  Pokémon beim Namen, sprechen über Typen, Initiative, Leads, Doppelkämpfe, Feldkontrolle und Wechsel.
 - Fakten kommen ausschließlich aus den Metadaten. Der Kanon gilt.
-- Ausführlich: Die Folge liest sich in drei bis fünf Minuten.
+- Ausführlich: Die Folge liest sich in fünf bis acht Minuten.
 
 ${PROTOCOL_RULES}`;
 
@@ -297,6 +317,59 @@ export const SHOW_SCHEMA = schemaOf({
   erwaehntePokemon: S.array(S.string(), 'Namen der Pokémon, um die es geht'),
   storylines: STORYLINES,
 }, ['dachzeile', 'titel', 'beitraege', 'storylines']);
+
+// Der Podcast in festen Abschnitten: Eröffnung, je Partie ein Rückblick, je Partie
+// eine Vorschau, Abschluss. Die Abschnitte erzwingen, dass keine Partie fehlt — ein
+// freies Protokoll hat die Vorschau immer wieder auf ein Spiel zusammengekürzt.
+const SEGMENTS = (hint) => S.array(
+  S.object({
+    matchId: S.string('Die matchId der Partie aus den Metadaten'),
+    beitraege: TURNS('Die Wortbeiträge zu genau dieser Partie (mindestens vier)'),
+  }, ['matchId', 'beitraege']),
+  hint,
+);
+
+export const PODCAST_SCHEMA = schemaOf({
+  dachzeile: S.string('Drei bis fünf Wörter über der Überschrift'),
+  titel: S.string('Die Überschrift der Folge'),
+  eroeffnung: TURNS('Eröffnung: Venicros Satzanfang samt These, kurzer Schlagabtausch'),
+  rueckblick: SEGMENTS('Je Partie aus spieltagRueckblick genau ein Abschnitt, in der Reihenfolge der Metadaten'),
+  zwischenteil: TURNS('Kurz: Awards des Spieltags, ggf. ein Aufreger, Überleitung zur Vorschau'),
+  vorschau: SEGMENTS('Je Partie aus spieltagVorschau genau ein Abschnitt (leer, wenn es keinen nächsten Spieltag gibt)'),
+  abschluss: TURNS('Fazit und Verabschiedung'),
+  archetyp: S.string('Schlüssel des Hauptthemas (z. B. ein Skandal-Schlüssel aus der Regie)'),
+  erwaehntePokemon: S.array(S.string(), 'Namen der Pokémon, um die es geht'),
+  storylines: STORYLINES,
+}, ['dachzeile', 'titel', 'eroeffnung', 'rueckblick', 'zwischenteil', 'vorschau', 'abschluss', 'storylines']);
+
+// Alle Wortbeiträge einer Folge in Sendereihenfolge.
+export function podcastRawTurns(data) {
+  const seg = (list) => (Array.isArray(list) ? list : []).flatMap((x) => (Array.isArray(x?.beitraege) ? x.beitraege : []));
+  const flat = (list) => (Array.isArray(list) ? list : []);
+  return [
+    ...flat(data?.eroeffnung),
+    ...seg(data?.rueckblick),
+    ...flat(data?.zwischenteil),
+    ...seg(data?.vorschau),
+    ...flat(data?.abschluss),
+    // Altform: ein freies Protokoll.
+    ...flat(data?.beitraege),
+  ];
+}
+
+// Welche Partien fehlen in der Folge? Eine Partie gilt als besprochen, wenn sie einen
+// eigenen Abschnitt mit mindestens zwei Wortbeiträgen hat.
+export function podcastMissing(data, reviewIds = [], previewIds = []) {
+  const covered = (list) => new Set((Array.isArray(list) ? list : [])
+    .filter((x) => (x?.beitraege || []).filter((t) => String(t?.text || '').trim()).length >= 2)
+    .map((x) => String(x?.matchId || '').trim()));
+  const r = covered(data?.rueckblick);
+  const v = covered(data?.vorschau);
+  return {
+    review: reviewIds.filter((id) => !r.has(id)),
+    preview: previewIds.filter((id) => !v.has(id)),
+  };
+}
 
 // Ein Abschnitt der interaktiven Talkshow: er endet mit einer Frage an den Trainer.
 export const SHOW_PART_SCHEMA = schemaOf({

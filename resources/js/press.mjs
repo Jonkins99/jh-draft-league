@@ -821,6 +821,50 @@ export function articleViewStatus(a, now = Date.now()) {
 // einen einzigen Absatz Text wird verworfen und neu angefragt — sonst entsteht ein
 // „fertiger" Beitrag ohne Inhalt. Antworten ohne diese Felder (Fragen, Gesprächsteile)
 // bleiben unberührt.
+// === Meta-Ebene ==============================================================
+// Die Menschen hinter den Vereinen kommen in der Presse nicht vor — es gibt nur
+// Trainer und einen namenlosen Vorstand (Kanon 15). Diese Namen dürfen weder in den
+// Kontext noch in einen Beitrag.
+export const META_NAMES = ['Janik', 'Henrik'];
+const META_RE = new RegExp(`\\b(?:${META_NAMES.join('|')})s?\\b`, 'i');
+const META_PAIR_RE = new RegExp(`\\b(?:${META_NAMES.join('|')})\\s*(?:und|&|gegen|vs\\.?|/)\\s*(?:${META_NAMES.join('|')})\\b`, 'gi');
+const META_ONE_RE = new RegExp(`\\b(?:${META_NAMES.join('|')})(s?)\\b`, 'gi');
+
+/** Kommt einer der Namen im Text vor? */
+export function mentionsMeta(text) {
+  return META_RE.test(String(text ?? ''));
+}
+
+/** Die Namen durch den Vorstand ersetzen — für Kontext-Material, nicht für Prosa. */
+export function scrubMeta(text) {
+  return String(text ?? '')
+    .replace(META_PAIR_RE, 'die Vorstände')
+    .replace(META_ONE_RE, (_, gen) => (gen ? 'des Vorstands' : 'der Vorstand'));
+}
+
+/** Alle Zeichenketten eines (JSON-)Objekts säubern. */
+export function scrubMetaDeep(value) {
+  if (typeof value === 'string') return scrubMeta(value);
+  if (Array.isArray(value)) return value.map(scrubMetaDeep);
+  if (value && typeof value === 'object') {
+    return Object.fromEntries(Object.entries(value).map(([k, v]) => [k, scrubMetaDeep(v)]));
+  }
+  return value;
+}
+
+/** Enthält eine Modell-Antwort (Beitrag oder Sendung) einen der Namen? */
+export function answerMentionsMeta(data) {
+  if (!data || typeof data !== 'object') return false;
+  const texts = [];
+  const walk = (v) => {
+    if (typeof v === 'string') texts.push(v);
+    else if (Array.isArray(v)) v.forEach(walk);
+    else if (v && typeof v === 'object') Object.values(v).forEach(walk);
+  };
+  walk(data);
+  return texts.some(mentionsMeta);
+}
+
 export function hasArticleContent(data) {
   if (!data || typeof data !== 'object') return false;
   if ('titel' in data && !String(data.titel || '').trim()) return false;

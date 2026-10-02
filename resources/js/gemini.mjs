@@ -437,7 +437,7 @@ export async function generateJson(opts) {
         try {
           const data = await attemptGenerate({ ...opts, apiKey: c.key, model: c.model, maxOutputTokens: grown, thinking });
           if (accept && !accept(data)) {
-            throw new GeminiError('Die Antwort war leer (kein Titel, kein Text).', { retryable: true, model: c.model });
+            throw new GeminiError('Die Antwort war unbrauchbar (leer, unvollständig oder gegen eine feste Vorgabe).', { retryable: true, model: c.model });
           }
           if (opts?.onSuccess) { try { opts.onSuccess({ model: c.model, keyIndex: c.keyIndex }); } catch (e) { /* nur Anzeige */ } }
           return data;

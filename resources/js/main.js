@@ -1,14 +1,14 @@
 import Alpine from 'alpinejs';
 import { db } from './firebase.js';
 import { collection, doc, getDoc, onSnapshot, writeBatch, arrayUnion, setDoc, deleteDoc, runTransaction } from 'firebase/firestore';
-import { battleStats, mergeResult, computeStandings, pokemonStats, placementHistory, speedTiers, speedCases, clampSp, applySpeedMod, typeMultiplier, ALL_TYPES, pokemonProfile, defensiveChart, offensiveChart, playerDuel, showdownExport, teamBattleTotals, isMega, baseFormOf, pokezoneUrl, draftPicks, transferAvailability } from './scoring.mjs';
+import { battleStats, mergeResult, computeStandings, pokemonStats, placementHistory, speedTiers, speedCases, clampSp, applySpeedMod, typeMultiplier, ALL_TYPES, pokemonProfile, defensiveChart, offensiveChart, playerDuel, showdownExport, teamBattleTotals, isMega, baseFormOf, pokezoneUrl, draftPicks, transferAvailability, availableOn } from './scoring.mjs';
 import {
   exportDataset, buildScheduleExport, buildBattleDetailsExport, buildStandingsExport,
   buildRankingExport, buildTeamsExport, buildDraftpoolExport, buildDraftOrderExport,
 } from './export.mjs';
 import { fetchEloRows, readEloCache, writeEloCache, resolveEloName, unresolvedEloNames } from './elo.mjs';
 import {
-  PLAYERS, MAX_NOMINATIONS, MATCHDAY_AWARDS, SEASON_AWARDS, AWARD_BY_KEY,
+  PLAYERS, MAX_NOMINATIONS, canConfirmNominations, matchdayPerformance, MATCHDAY_AWARDS, SEASON_AWARDS, AWARD_BY_KEY,
   awardDocId, optionId, mergedOptions, remainingNominations, hasVoted, nextStatus,
   voteResults, awardWinner, awardWinners, spoilerNote, awardableDays, MATCHDAY_AWARDS_FROM,
   seasonTiers, tierInSeason, completedMatchdays, awaitingPlayer,
@@ -60,13 +60,13 @@ import {
   collectStorylines, sanitizeHtml, paragraphsToHtml, excerpt, readingMinutes,
   formatDate, formatDateTime, sortArticles, articleMatchesFilter, storyId, commissionLeague,
   interviewCandidates, pickInterviewGuests, matchLines,
-  isStalePending, needsRewrite, articleViewStatus, hasArticleContent, pickPreview,
+  isStalePending, needsRewrite, articleViewStatus, hasArticleContent, pickPreview, matchSequence, answerMentionsMeta,
 } from './press.mjs';
-import { buildContext, isReference } from './press-context.mjs';
+import { buildContext, isReference, nextOpenDay } from './press-context.mjs';
 import {
   SHOWS, CAVALANZAS, showOf, showByline, lanzTriggerGame, lanzAnswerTarget, lanzLineup,
   podcastReadyDays, showParagraphs, transcriptText, cleanTurns,
-  LANZ_BRIEF, ZWEIBLATT_BRIEF, SHOW_SCHEMA, SHOW_PART_SCHEMA,
+  LANZ_BRIEF, ZWEIBLATT_BRIEF, SHOW_SCHEMA, SHOW_PART_SCHEMA, PODCAST_SCHEMA, podcastRawTurns, podcastMissing,
 } from './press-shows.mjs';
 import {
   DEFAULT_PROMPTS, PROMPT_DEFS, buildSystem, buildUserPrompt, buildDirection,
@@ -184,6 +184,7 @@ const OFFSEASON_ARTICLES = 5;
 // Beides gerätelokal — die Animation zeigt, was SEIT DEM LETZTEN BESUCH passiert ist.
 // Gewählter Saison-Bereich: eine Saisonnummer oder 'all' (saisonübergreifend).
 const SEASON_KEY = 'jhdl-season-v1'; // { scope }
+const DRAFT_HIDE_TAKEN_KEY = 'jhdl-draft-hide-taken-v1'; // { on: bool }
 
 const ELO_PREV_KEY = 'jhdl-elo-prev-v1';   // { [name]: { elo, tier } }
 const ELO_DIFF_KEY = 'jhdl-elo-lastdiff-v1'; // { at, tierChanges, up, down, changed, total }
@@ -1257,6 +1258,8 @@ function draftBoard() {
     // Vorbereitung. Der Draftplan hängt als eigene Komponente darunter.
     tab: 'board',
     q: '',
+    // Bereits gedraftete Pokémon im Pool ausblenden (gerätelokal gemerkt).
+    hideTaken: !!loadJson(DRAFT_HIDE_TAKEN_KEY).on,
     candidate: null,
     busy: false,
     // Vertragsverlängerung: das im Dialog gewählte Pokémon, bis bestätigt wird.
@@ -1469,14 +1472,25 @@ function draftBoard() {
           (p.name_en || '').toLowerCase().includes(term) ||
           (p.types || []).some((t) => t.toLowerCase().includes(term)),
       );
+      const taken = this.hideTaken ? this.draftedNames : null;
       return TIER_ORDER.map((tier) => ({
         tier,
-        mons: filtered.filter((p) => p.tier === tier),
+        mons: filtered.filter((p) => p.tier === tier && !(taken && taken.has(p.name))),
       })).filter((g) => g.mons.length > 0);
+    },
+    toggleHideTaken() {
+      this.hideTaken = !this.hideTaken;
+      saveJson(DRAFT_HIDE_TAKEN_KEY, { on: this.hideTaken });
+    },
+    get takenCount() {
+      return this.league.pokemon.filter((p) => this.draftedNames.has(p.name)).length;
     },
 
     isTaken(p) {
       return this.draftedNames.has(p.name);
+    },
+    ownerName(p) {
+      return this.league.seasonTeams.find((t) => (t.pokemon || []).some((x) => x.name === p.name))?.name || '';
     },
 
     // Am Zug ist immer ein bestimmtes Team — ziehen darf nur, wem es gehört.
@@ -3156,7 +3170,7 @@ function statsView() {
       const l = this.league;
       const speed = l.pokemon;
       const raw = this.isAll
-        ? allTimePokemon(l.teams, l.allResults, l.pokemon)
+        ? allTimePokemon(l.teams, l.allResults, l.pokemon, { season: l.season })
         : pokemonStats(l.seasonTeams, l.results, l.pokemon, { availability: l.availability });
       const rows = raw.map((s) => ({
         ...s,
@@ -3164,8 +3178,10 @@ function statsView() {
       }));
       return withElo(rows, this.$store.elo.rows);
     },
+    // Auch saisonübergreifend nur die Vereine der aktuellen Saison: Ein Pokémon hängt
+    // dort am heutigen Verein oder ist frei (allTimePokemon).
     get filterTeams() {
-      return this.isAll ? this.league.teams : this.league.seasonTeams;
+      return this.league.seasonTeams;
     },
     get hasFilters() {
       return !!(this.fType || this.fTier || this.fTeam);
@@ -5697,9 +5713,14 @@ function awardsView() {
       const league = this.league;
       let names = [];
       if (inst.day != null) {
+        // Auch wer nicht im Aufgebot stand, ist Kandidat — die Enttäuschung des
+        // Spieltags kann gerade das Pokémon sein, das draußen blieb.
         const set = new Set();
         (league.results || []).filter((r) => r.day === inst.day).forEach((r) => {
-          ['home', 'away'].forEach((side) => (r.squads?.[side] || []).forEach((n) => set.add(n)));
+          ['home', 'away'].forEach((side) => {
+            (r.squads?.[side] || []).forEach((n) => set.add(n));
+            this.rosterOnDay(r[side], inst.day).forEach((n) => set.add(n));
+          });
         });
         names = [...set];
       } else if (inst.teamId) {
@@ -5722,6 +5743,36 @@ function awardsView() {
       const t = this.league.seasonTeams.find((x) => (x.pokemon || []).some((p) => p.name === name));
       return t?.name || 'Frei';
     },
+    // Kader eines Teams an einem Spieltag: der heutige ohne die erst im Winter
+    // Geholten, dazu die im Winter Abgegebenen, solange sie noch dazugehörten.
+    rosterOnDay(teamId, day) {
+      if (!teamId) return [];
+      const avail = this.league.availability;
+      const names = (this.teamById(teamId)?.pokemon || []).map((p) => p.name);
+      (this.league.transfer?.removed || []).forEach((r) => {
+        if (r?.teamId === teamId && r.name && !names.includes(r.name)) names.push(r.name);
+      });
+      return names.filter((n) => availableOn(avail, teamId, n, day));
+    },
+    // Abschneiden eines Pokémon am Spieltag der Abstimmung (nur Spieltag-Awards).
+    perfOf(name, inst) {
+      if (!inst || inst.day == null || inst.entity !== 'pokemon') return null;
+      const day = inst.day;
+      const results = (this.league.results || []).filter((r) => r.day === day);
+      return matchdayPerformance(results, day, name, (teamId) => this.rosterOnDay(teamId, day));
+    },
+    perfTitle(perf) {
+      if (!perf) return '';
+      if (perf.status === 'out') return 'Nicht im 6er-Aufgebot';
+      if (perf.status !== 'squad') return '';
+      return perf.battles.map((b, i) => {
+        const n = `Kampf ${i + 1}: `;
+        if (b.state === 'open') return `${n}noch offen`;
+        if (b.state === 'bench') return `${n}im Aufgebot, nicht eingesetzt`;
+        const k = `${b.kills} ${b.kills === 1 ? 'Kill' : 'Kills'}`;
+        return `${n}${k}, ${b.died ? 'besiegt' : 'überlebt'}`;
+      }).join(' · ');
+    },
     optionsFor(inst) {
       if (inst.entity === 'team') {
         return this.league.seasonTeams.map((t) => ({ id: t.id, label: t.name, image: this.logoUrl(t.logo), sub: t.player }));
@@ -5743,6 +5794,7 @@ function awardsView() {
       }
       return this.monUniverse(inst).map((m) => ({
         id: m.name, label: m.name, image: m.image || '', sub: this.monTeamName(m.name),
+        perf: inst.day != null ? this.perfOf(m.name, inst) : null,
       }));
     },
     get dialogOptions() {
@@ -5767,7 +5819,10 @@ function awardsView() {
       });
       this.dialog = null;
     },
-    get draftFull() { return this.draft.length >= MAX_NOMINATIONS; },
+    // Mehr als MAX_NOMINATIONS darf gesammelt werden; „Ich bin fertig" verlangt
+    // dann erst das Streichen.
+    get maxNoms() { return MAX_NOMINATIONS; },
+    get draftOver() { return !canConfirmNominations(this.draft); },
     isDrafted(id) { return this.draft.some((d) => d.id === id); },
     isPaired(id) { return this.pair.some((p) => p.id === id); },
     // Auswahl umschalten. Duo-Awards sammeln zwei Pokémon zu einer Option.
@@ -5780,7 +5835,7 @@ function awardsView() {
         if (next.length < 2) { this.pair = next; return; }
         const id = optionId('pair', next.map((p) => p.id));
         this.pair = [];
-        if (this.draft.some((d) => d.id === id) || this.draftFull) return;
+        if (this.draft.some((d) => d.id === id)) return;
         // Beide Sprites merken, damit die Siegerehrung das Duo auch als Duo zeigt.
         this.draft = [...this.draft, {
           id, label: id, sub: 'Duo',
@@ -5790,7 +5845,6 @@ function awardsView() {
         return;
       }
       if (this.isDrafted(opt.id)) { this.draft = this.draft.filter((d) => d.id !== opt.id); return; }
-      if (this.draftFull) return;
       this.draft = [...this.draft, { id: opt.id, label: opt.label, image: opt.image || '', sub: opt.sub || '' }];
     },
     removeDraft(id) { this.draft = this.draft.filter((d) => d.id !== id); },
@@ -5798,7 +5852,7 @@ function awardsView() {
     // „Ich bin fertig": die eigene Seite ist abgeschlossen. Sind beide fertig, beginnt
     // die Abstimmung von selbst — niemand startet sie mehr aktiv für den anderen.
     async confirmNoms() {
-      if (this.busy || !this.dialog) return;
+      if (this.busy || !this.dialog || this.draftOver) return;
       this.busy = true;
       try {
         await this.store.confirmNominations(this.dialog.inst, this.draft);
@@ -5948,6 +6002,8 @@ function presseView() {
     // Offene Bausteinauswahl im Editor: der gewählte Baustein und die Suche darin.
     tileKind: '',
     tileQuery: '',
+    // Erstes Pokémon eines Zweier-Bausteins (Vergleich, Marktwert-Duell).
+    tilePair: '',
     // Modellwahl für den nächsten Anlauf, je gescheitertem Beitrag bzw. Termin.
     // Bewusst nur in der Ansicht: sie überlebt keinen Wechsel und ändert die
     // Voreinstellung im Zahnrad nicht.
@@ -6116,9 +6172,48 @@ function presseView() {
         seasonTeams: l.seasonTeams,
         results: l.allResults,
         availability: l.availability,
+        season: seasonOfId(a.id),
+        schedules: l.allSchedules,
         storylines: this.press.storylines,
         logoBase: './img/teams/',
         squadValue: (team) => squadMarketValue(team.pokemon || [], this.$store.elo.index()),
+        findArticle: (key) => this.teaserFor(key, a.id),
+      });
+    },
+    // Ein anderer Beitrag als Lesetipp: Id, Titel oder eindeutiger Titelanfang.
+    teaserFor(key, selfId) {
+      const k = normKey(key);
+      if (!k) return null;
+      const list = (this.press.articles || []).filter((x) => x && x.id !== selfId && x.status === 'ready' && x.title);
+      let hit = list.find((x) => normKey(x.id) === k) || list.find((x) => normKey(x.title) === k);
+      if (!hit && k.length >= 6) {
+        const near = list.filter((x) => normKey(x.title).startsWith(k));
+        if (near.length === 1) hit = near[0];
+      }
+      if (!hit) return null;
+      const show = showOf(hit);
+      const byline = show ? show.title : (authorById(hit.authorId)?.name || 'Redaktion');
+      return {
+        id: hit.id,
+        title: hit.title,
+        subtitle: hit.subtitle || '',
+        excerpt: excerpt(hit, 140),
+        byline,
+        date: formatDate(hit.publishedAt),
+        image: (show ? show.image : authorById(hit.authorId)?.image) || '',
+      };
+    },
+    onBodyClick(e) {
+      const link = e.target.closest?.('[data-article-id]');
+      if (!link) return;
+      e.preventDefault();
+      const id = link.getAttribute('data-article-id');
+      if (!id || !this.press.byId(id)) return;
+      this.openId = id;
+      this.$nextTick(() => {
+        const pop = document.getElementById('press-article');
+        pop?.scrollTo?.({ top: 0 });
+        pop?.querySelectorAll?.('*').forEach((el) => { if (el.scrollTop) el.scrollTop = 0; });
       });
     },
     goTeam(id) {
@@ -6274,6 +6369,7 @@ function presseView() {
       if (kind === 'bild') return this.insertImageTile();
       this.tileKind = this.tileKind === kind ? '' : kind;
       this.tileQuery = '';
+      this.tilePair = '';
     },
     // Die Auswahl zum gewählten Baustein: Pokémon, Team oder Partie.
     get tileOptions() {
@@ -6283,8 +6379,32 @@ function presseView() {
       const q = normKey(this.tileQuery);
       const hit = (row) => !q || normKey(`${row.value} ${row.label} ${row.sub || ''}`).includes(q);
       let rows = [];
-      if (source === 'mon') {
-        rows = this.league.pokemon.map((m) => ({ value: m.name, label: m.name, sub: m.tier ? `Tier ${m.tier}` : '', image: m.image }));
+      if (source === 'mon' || source === 'monpair') {
+        rows = this.league.pokemon
+          .filter((m) => m.name !== this.tilePair)
+          .map((m) => ({ value: m.name, label: m.name, sub: m.tier ? `Tier ${m.tier}` : '', image: m.image }));
+      } else if (source === 'ranking') {
+        rows = [
+          ['kills', 'Meiste Kills'], ['deaths', 'Meiste Deaths'], ['kd', 'Beste K/D'], ['einsaetze', 'Meiste Einsätze'],
+          ['ueberleben', 'Überlebenskünstler'], ['siegquote', 'Beste Siegquote'], ['marktwert', 'Höchste Marktwerte'],
+        ].map(([value, label]) => ({ value, label, sub: 'Top 5' }));
+      } else if (source === 'article') {
+        rows = (this.press.articles || [])
+          .filter((a) => a.status === 'ready' && a.title)
+          .sort((a, b) => String(b.publishedAt || '').localeCompare(String(a.publishedAt || '')))
+          .map((a) => ({ value: a.id, label: a.title, sub: a.day != null ? `Spieltag ${a.day}` : '' }));
+      } else if (source === 'battle') {
+        (this.league.results || [])
+          .filter((r) => (r.battles || []).some((b) => b?.done))
+          .sort((a, b) => (b.day || 0) - (a.day || 0))
+          .forEach((r) => (r.battles || []).forEach((b, i) => {
+            if (!b?.done) return;
+            rows.push({
+              value: `${r.id} | ${i + 1}`,
+              label: `${this.teamById(r.home)?.name || r.home} – ${this.teamById(r.away)?.name || r.away}`,
+              sub: `Spieltag ${r.day} · Kampf ${i + 1}`,
+            });
+          }));
       } else if (source === 'team') {
         rows = this.league.seasonTeams.map((t) => ({ value: t.id, label: t.name, sub: t.player, image: this.logoUrl(t.logo) }));
         if (kind === 'tabelle') rows.unshift({ value: 'top', label: 'Tabellenspitze', sub: 'die ersten drei Plätze' });
@@ -6296,6 +6416,15 @@ function presseView() {
           label: `${a.name} – ${b.name}`,
           sub: `${a.player} · ${b.player}`,
         })));
+      } else if (source === 'match' && kind === 'vorschau') {
+        const byId = Object.fromEntries((this.league.results || []).map((r) => [r.id, r]));
+        rows = matchSequence(this.league.schedule)
+          .filter((m) => !isMatchComplete(byId[m.id]))
+          .map((m) => ({
+            value: m.id,
+            label: `${this.teamById(m.home)?.name || m.home} – ${this.teamById(m.away)?.name || m.away}`,
+            sub: `Spieltag ${m.day}`,
+          }));
       } else if (source === 'match') {
         rows = (this.league.results || [])
           .filter((r) => isMatchComplete(r) && (kind === 'ergebnis' || r.videoUrl))
@@ -6310,9 +6439,18 @@ function presseView() {
     },
     insertTile(key) {
       if (!this.tileKind || !key) return;
-      this.rteInsertLines([`[${this.tileKind}: ${key}]`]);
+      const source = TILE_MENU.find((k) => k.kind === this.tileKind)?.source;
+      // Zweier-Bausteine: erst das eine Pokémon merken, dann das zweite wählen.
+      if (source === 'monpair' && !this.tilePair) {
+        this.tilePair = key;
+        this.tileQuery = '';
+        return;
+      }
+      const full = source === 'monpair' ? `${this.tilePair} | ${key}` : key;
+      this.rteInsertLines([`[${this.tileKind}: ${full}]`]);
       this.tileKind = '';
       this.tileQuery = '';
+      this.tilePair = '';
     },
     insertImageTile() {
       const url = window.prompt('Bild-Adresse (URL) für eine Bildkachel:', 'https://');
@@ -7713,18 +7851,20 @@ Alpine.store('awards', {
     );
   },
 
-  // Nominierungen zwischenspeichern (Dialog bleibt offen).
+  // Nominierungen zwischenspeichern. Hier ist mehr als MAX_NOMINATIONS erlaubt —
+  // die Merkliste wird erst beim Abschicken auf das Limit gekürzt.
   async saveNominations(inst, options) {
-    await this._write(inst, { nominations: { [this.me]: options.slice(0, MAX_NOMINATIONS) } });
+    await this._write(inst, { nominations: { [this.me]: [...options] } });
   },
   // „Ich bin fertig". Sobald beide Spieler das gesagt haben, springt der Status von
   // selbst auf `voting` — ein Knopf, der die Abstimmung für beide startet, wäre eine
   // Entscheidung über den Kopf des anderen hinweg.
   async confirmNominations(inst, options) {
+    if (!canConfirmNominations(options)) throw new Error(`Höchstens ${MAX_NOMINATIONS} Nominierungen.`);
     const confirmed = { ...inst.confirmed, [this.me]: true };
     const status = nextStatus({ ...inst, confirmed, status: 'nominating' });
     await this._write(inst, {
-      nominations: { [this.me]: options.slice(0, MAX_NOMINATIONS) },
+      nominations: { [this.me]: [...options] },
       confirmed: { [this.me]: true },
       status,
     });
@@ -7929,7 +8069,9 @@ const pressQuota = new QuotaBook({
   load: () => loadJson(PRESS_QUOTA_KEY),
   save: (entries) => saveJson(PRESS_QUOTA_KEY, entries),
 });
-const acceptNonEmpty = (data) => hasArticleContent(data);
+// Leer ist unbrauchbar — und ein Text, der die Menschen hinter den Vereinen beim Namen
+// nennt, auch (Kanon 15). Beides löst einen neuen Anlauf aus.
+const acceptNonEmpty = (data) => hasArticleContent(data) && !answerMentionsMeta(data);
 // Vorschaubilder der Beiträge (pickPreview) — außerhalb der Reaktivität, sonst löste
 // das Befüllen beim Rendern selbst ein neues Rendern aus.
 const pressPreviewCache = new Map();
@@ -8668,22 +8810,40 @@ Alpine.store('press', {
         return `${a.label}: ${winners || '—'}`;
       });
       const speakers = show.hosts.map((h) => h.name);
+      // Rückblick auf JEDE Partie dieses Spieltags, Vorschau auf JEDE des nächsten.
+      const nextDay = nextOpenDay(l.schedule, l.results, day);
+      const nameOf = (id) => l.teams.find((t) => t.id === id)?.name || id;
+      const fixtures = (d) => matchSequence(l.schedule).filter((m) => m.day === d);
+      const reviewList = fixtures(day);
+      const previewList = nextDay != null ? fixtures(nextDay) : [];
+      const listing = (list) => list.map((m, i) => `${i + 1}. ${nameOf(m.home)} gegen ${nameOf(m.away)} (matchId ${m.id})`).join('\n');
+      const previewTeams = previewList.flatMap((m) => [m.home, m.away]);
       const data = await this._generate(model, {
         system: this._showSystem(show),
         prompt: buildUserPrompt({
           task: ZWEIBLATT_BRIEF,
           direction: this._showDirection({ scandal: false }),
-          context: this.contextFor({ teamIds: teams, day }),
+          context: this.contextFor({ teamIds: [...new Set([...teams, ...previewTeams])], day, reviewDay: day, previewDay: nextDay }),
           addendum: [
             `DIE HOSTS: ${speakers.join(' und ')}. Venicro eröffnet.`,
             `SPIELTAG ${day} IST ABGESCHLOSSEN. Die Awards dieses Spieltags:\n${awardLines.join('\n')}`,
-            'UMFANG: 30 bis 45 Wortbeiträge.',
+            `RÜCKBLICK — jede dieser Partien bekommt einen eigenen Abschnitt in "rueckblick":\n${listing(reviewList)}`,
+            nextDay != null
+              ? `VORSCHAU AUF SPIELTAG ${nextDay} — jede dieser Partien bekommt einen eigenen Abschnitt in "vorschau", mit Matchup-Analyse aus "spieltagVorschau":\n${listing(previewList)}`
+              : 'VORSCHAU: Es gibt keinen weiteren Spieltag in dieser Saison — "vorschau" bleibt leer, stattdessen ein Blick auf die Saisonbilanz im Zwischenteil.',
+            'UMFANG: je Partie vier bis acht Wortbeiträge, insgesamt 45 bis 80. Schwerpunkt ist die Taktik.',
           ].join('\n\n'),
         }),
-        schema: SHOW_SCHEMA,
-        maxOutputTokens: 16384,
+        schema: PODCAST_SCHEMA,
+        // Fehlt eine Partie, wird neu angefragt — die Vollständigkeit ist der Sinn der Folge.
+        accept: (d) => {
+          if (!acceptNonEmpty(d)) return false;
+          const miss = podcastMissing(d, reviewList.map((m) => m.id), previewList.map((m) => m.id));
+          return !miss.review.length && !miss.preview.length;
+        },
+        maxOutputTokens: 24576,
       });
-      const turns = cleanTurns(data.beitraege, speakers);
+      const turns = cleanTurns(podcastRawTurns(data), speakers);
       if (turns.length < 8) throw new Error('Die Folge kam zu kurz zurück.');
       return await this._publishShow(show, id, data, turns, { day, teamIds: teams, source, createdAt });
     } catch (e) {

@@ -14,7 +14,10 @@ import { schemaOf, S } from './gemini.mjs';
 
 // === Was das Modell über die Liga wissen muss ==============================
 export const LEAGUE_PRIMER = `SO FUNKTIONIERT DIE JH DRAFT LEAGUE:
-- Zwei Spieler, Janik und Henrik, führen je vier Teams. Acht Teams insgesamt, eine Tabelle.
+- Acht Teams (Vereine), eine Tabelle. Jeder Verein hat einen TRAINER und einen VORSTAND. Der
+  Vorstand ist eine nicht näher beschriebene Vereinsführung ohne Namen und ohne Gesichter: Er
+  entscheidet über Kader, Draft, Transfers und Trainer. Mehr gibt es über ihn nicht zu wissen.
+  Wer hinter den Vereinen steht, ist eine Ebene, über die die Presse NICHT berichtet (Regel 15).
 - Jedes Team hat einen Kader aus 10 Pokémon, die vor der Saison gedraftet wurden. Jedes Pokémon
   gehört genau einem Team und ist ligaweit einmalig.
 - Tier (S, A, B, C, D) und Draft-Kosten beschreiben die ERWARTUNG an ein Pokémon: S ist teuer und
@@ -39,14 +42,13 @@ export const LEAGUE_PRIMER = `SO FUNKTIONIERT DIE JH DRAFT LEAGUE:
   fallen ("Eigenverschulden") — dafür gibt es dem Gegner keinen Kill, aber es ist ein Death.
 - Jedes Team hat einen TRAINER. Trainer kämpfen nicht, sie verantworten Aufstellung und Auftreten,
   geben Interviews und haben eine ausgeschriebene Persönlichkeit. Trainer können im Laufe der
-  Saison wechseln — das entscheiden aber ausschließlich die Spieler, niemals die Presse.
+  Saison wechseln — das entscheidet aber ausschließlich der Vorstand des Vereins, niemals die Presse.
 - Mitten in der Saison, genau zwischen Hin- und Rückrunde, liegt das WINTERTRANSFERFENSTER: Je Team
   dürfen dort bis zu 2 Pokémon abgegeben und aus dem freien Pool ersetzt werden. Danach ist es zu.
   In der Rückrunde wechselt KEIN Pokémon mehr das Team — bis zum Draft der nächsten Saison.
 - DER DRAFT ZWISCHEN ZWEI SAISONS. Ab Saison 2 wird die Reihenfolge nicht ausgelost: Der
   Tabellenerste der Vorsaison zieht zuerst, der Sechste als Sechster. Die Plätze 7 und 8 steigen ab
-  und werden durch neue Teams ersetzt; ein Aufsteiger gehört immer dem Spieler, dessen Team
-  abgestiegen ist, und zieht an Position 7 oder 8.
+  und werden durch neue Teams (Aufsteiger) ersetzt, die an Position 7 oder 8 ziehen.
 - VERTRAGSVERLÄNGERUNGEN. Jedes Team, das die Vorsaison überstanden hat, darf bis zu fünf Pokémon
   aus seinem alten Kader zurückholen — eines je Tier (S, A, B, C, D). Zu Beginn jeder Draft-Runde
   bekommt es die Gelegenheit, eine davon einzulösen; wer verlängert, zieht sofort und hat seinen Zug
@@ -59,7 +61,7 @@ export const LEAGUE_PRIMER = `SO FUNKTIONIERT DIE JH DRAFT LEAGUE:
 - Nach jedem Spieltag und am Saisonende werden Awards vergeben (z. B. Pokémon des Spieltags,
   Größte Enttäuschung).`;
 
-// Der Kanon: Dinge, die in dieser Liga nur die beiden Spieler entscheiden dürfen.
+// Der Kanon: Dinge, die in dieser Liga nur die Vereine selbst entscheiden dürfen.
 // Die Presse darf sie fordern, vermuten, befeuern — aber nie als geschehen behaupten.
 export const CANON_RULES = `UNVERRÜCKBARE REGELN (Kanon):
 1. Du BERICHTEST über eine Welt, du veränderst sie nicht. Diese Dinge dürfen NIEMALS als Tatsache
@@ -70,7 +72,7 @@ export const CANON_RULES = `UNVERRÜCKBARE REGELN (Kanon):
 2. All das darf sehr wohl VORKOMMEN — aber ausschließlich als Gerücht, Forderung, Spekulation,
    Drohung, anonyme Andeutung oder als Frage. Formuliere solche Stellen erkennbar im Konjunktiv,
    als Zitat oder als Behauptung Dritter. Genau daraus entstehen die Geschichten, aus denen die
-   Spieler später echte Konsequenzen ziehen können.
+   Vereine später echte Konsequenzen ziehen können.
 3. Fakten sind heilig: Ergebnisse, Tabellenstände, Punkte, Kills, Deaths, Einsatzzahlen, Tier,
    Marktwerte, Elo, Spieltagsnummern, Namen von Teams, Pokémon und Trainern kommen AUSSCHLIESSLICH
    aus den Metadaten. Nichts hinzuerfinden, nichts hochrechnen, was nicht in den Daten steht.
@@ -133,6 +135,15 @@ export const CANON_RULES = `UNVERRÜCKBARE REGELN (Kanon):
      mit Zahlen, und ohne dich mit Ausreden abspeisen zu lassen.
    - Alles dazwischen ("ausgewogen") misst du am Gesamtbild.
    Nenne die Statuswerte selbst sparsam; sie sind Begründung, nicht Inhalt.
+15. ES GIBT KEINE SPIELER, NUR TRAINER UND VORSTAND. Die Liga hat eine Meta-Ebene — die Leute, die
+   die Vereine in Wahrheit führen. Sie kommen in der Presse NICHT vor: keine Vornamen, keine
+   "Spieler", keine "Manager", kein "Duell hinter dem Duell", keine Lager von je vier Teams. Wer
+   Entscheidungen über Kader, Aufstellung, Draft, Transfers oder Trainer trifft, ist entweder der
+   TRAINER (Aufstellung, Taktik, Auftreten) oder der VORSTAND des jeweiligen Vereins (Kader, Draft,
+   Transfers, Trainerfragen). Der Vorstand bleibt anonym: "der Vorstand", "die Vereinsführung",
+   "aus dem Vorstand heißt es" — nie mit Namen. Notizen zum Kampfverlauf stammen "aus dem
+   Trainerstab". Redaktionelle Beiträge, die solche Namen enthalten, liest du als Hintergrund, aber
+   übernimmst die Namen nicht.
 15. MARKTWERTE SIND WÜRZE, NICHT DAS HAUPTGERICHT. Die Regie legt je Text fest, ob sie überhaupt
    vorkommen dürfen ("MARKTWERTE" in der Regie). Das Gefälle zwischen teurem und billigem Kader ist
    ein Motiv unter vielen und darf nicht zur Standardgeschichte werden. Erzähle über Leistung,
@@ -210,7 +221,7 @@ export const STORY_ARCHETYPES = [
   { key: 'starimtief', label: 'Der Star im Tief', hint: 'Ein teures S- oder A-Tier bleibt weit unter seinen Erwartungen.' },
   { key: 'titelrennen', label: 'Das Titelrennen', hint: 'Tabellenmathematik, direkte Duelle, der Druck des Favoriten.' },
   { key: 'tabellenkeller', label: 'Der Tabellenkeller', hint: 'Unten wird es eng, Stolz und Schadenbegrenzung.' },
-  { key: 'bruderduell', label: 'Janik gegen Henrik', hint: 'Das Duell hinter dem Duell: die beiden Spieler und ihre je vier Teams.' },
+  { key: 'vorstand', label: 'Der Vorstand', hint: 'Aus der Vereinsführung dringt etwas nach außen — Geduld, Unruhe, ein Machtwort.' },
   { key: 'underdog', label: 'Der Überflieger aus dem Nichts', hint: 'Ein C- oder D-Tier liefert ab und stellt die Draft-Logik in Frage.' },
   { key: 'loyalitaet', label: 'Die Loyalitätsfrage', hint: 'Wie sehr steht ein Pokémon oder Trainer wirklich hinter dem Team?' },
   { key: 'kuriosum', label: 'Das Kuriosum', hint: 'Ein absurdes Detail, ein Aberglaube, ein Ritual, eine Statistik-Merkwürdigkeit.' },
@@ -295,6 +306,25 @@ function sample(list, n) {
   return out;
 }
 
+// Erweiterte Bausteine, die die Regie je Text vorschlägt — damit die großen Grafiken
+// nicht nur im Katalog stehen, sondern tatsächlich auftauchen. `market` heißt: nur,
+// wenn Marktwerte im Text erlaubt sind.
+export const ADVANCED_TILES = [
+  { kind: 'vergleich', text: '[vergleich: <Pokémon> | <Pokémon>] — zwei Pokémon, die sich in diesem Text gegenüberstehen' },
+  { kind: 'kampf', text: '[kampf: <Match-Id> | <Kampf>] — der Kampf, der das Spiel entschieden hat' },
+  { kind: 'form', text: '[form: <Team-Id>] — die Formkurve des Vereins, um den es geht' },
+  { kind: 'kader', text: '[kader: <Team-Id>] — der Kader, wenn es um Aufstellung, Rollen oder Draft geht' },
+  { kind: 'rangliste', text: '[rangliste: kills|kd|ueberleben|siegquote|einsaetze|deaths] — die Bestenliste als Maßstab' },
+  { kind: 'vorschau', text: '[vorschau: <Match-Id>] — die nächste Partie des Vereins, wenn der Text nach vorn blickt' },
+  { kind: 'artikel', text: '[artikel: <Titel eines früheren Beitrags>] — Lesetipp, wenn eine Geschichte fortgeschrieben wird' },
+  { kind: 'marktwertduell', market: true, text: '[marktwertduell: <Pokémon> | <Pokémon>] — zwei Wertkurven im Vergleich' },
+];
+
+export function tileSuggestion(marketAllowed, rand = Math.random) {
+  const pool = ADVANCED_TILES.filter((t) => !t.market || marketAllowed);
+  return pool[Math.floor(rand() * pool.length)] || null;
+}
+
 // Die Marktwert-Vorgabe der Regie. 'free' = Marktwerte sind das Thema (Update),
 // 'none' = kein Wort dazu (Neuzugänge ohne Wert), 'auto' = gewürfelt.
 export function marketRule(mode = 'auto', rand = Math.random) {
@@ -342,7 +372,9 @@ export function buildDirection(recentArchetypes = [], opts = {}) {
   const suggestions = sample(pool, 4);
   const marketDirective = marketRule(market, rand);
   const scandal = scandalPick({ allowed: scandalAllowed, recent: recentList, seasonArchetypes, rand });
+  const tileTip = tileSuggestion(marketDirective.allowed, rand);
   return {
+    tile: tileTip?.kind || null,
     tone,
     opening,
     constraints,
@@ -363,6 +395,9 @@ export function buildDirection(recentArchetypes = [], opts = {}) {
         ? `ZULETZT SCHON ERZÄHLT (nicht wiederholen): ${[...recent].join(', ')}`
         : 'Bisher wurde noch nichts erzählt — setze den ersten Akzent.',
       marketDirective.text,
+      tileTip
+        ? `BAUSTEIN-VORSCHLAG FÜR DIESEN TEXT: ${tileTip.text}. Setze ihn als eigenen Absatz, wenn die Daten ihn tragen — sonst wähle einen anderen erweiterten Baustein.`
+        : '',
       scandal
         ? [
           `SKANDAL-ANGEBOT (darfst du nutzen, musst du nicht): ${scandal.hint}`,
@@ -457,7 +492,7 @@ AUFTRAG
   des Verlierers, passend zu ihrer hinterlegten Persönlichkeit. Gern auch eine Stimme aus dem
   Umfeld oder ein Pokémon, das "durch seinen Trainer ausrichten lässt".
 - Greife laufende Geschichten aus den letzten Beiträgen auf und schreibe sie einen Schritt weiter,
-  statt jedes Mal neu anzufangen. Wenn ein redaktioneller Beitrag der Spieler etwas gesetzt hat,
+  statt jedes Mal neu anzufangen. Wenn ein Beitrag der Redaktionsleitung etwas gesetzt hat,
   nimm es als gegeben und baue darauf auf.
 - Eröffne wo möglich einen neuen Konflikt oder eine Frage, an der sich der nächste Spieltag
   abarbeiten kann.
@@ -566,7 +601,7 @@ auch zwischen den Partien stattfindet.
 AUFTRAG
 - Such dir EIN Thema und bleib dabei. Gute Themen: eine laufende Geschichte, die einen neuen Beat
   braucht; ein Pokémon, über das noch niemand geschrieben hat; eine Zahl, die niemandem aufgefallen
-  ist; ein Vergleich zweier Teams; ein Trainer unter Druck; das Spielerduell Janik gegen Henrik;
+  ist; ein Vergleich zweier Teams; ein Trainer unter Druck; ein Vorstand, der die Geduld verliert;
   ein Blick auf den restlichen Spielplan.
 - Nimm laufende Geschichten auf und schreibe sie weiter, statt jedes Mal neu anzufangen. Wenn es
   nichts fortzuschreiben gibt, eröffne bewusst eine neue.
@@ -637,7 +672,7 @@ einer ganzen Spielzeit.
 AUFTRAG
 - Erzähle die Saison in KAPITELN. Jedes Kapitel bekommt eine Zwischenüberschrift mit "## ".
   Ein tragfähiger Aufbau: der Auftakt und die Erwartungen · die Wendepunkte · die Teams von unten
-  nach oben oder entlang ihrer Geschichten · die Spieler Janik und Henrik im direkten Duell ·
+  nach oben oder entlang ihrer Geschichten · die Trainer der Saison ·
   die Pokémon der Saison (und die Enttäuschungen) · der Titel und wie er entschieden wurde ·
   ein Ausblick auf Transferfenster und Draft.
 - Nimm JEDE Geschichte auf, die im Laufe der Saison eröffnet wurde, und sage, wie sie ausgegangen
@@ -754,6 +789,25 @@ seinem Absatz, ohne weiteren Text davor oder dahinter, und in genau dieser Schre
 - [rivalität: <Team-Id> | <Team-Id>] -> Bilanz zweier Vereine über ALLE Saisons, ihre heißesten
                                   Duelle und die Geschichten zwischen ihnen — für Vorberichte,
                                   Mindgames und Duelle mit Vorgeschichte
+ERWEITERTE BAUSTEINE (größere Grafiken — je Beitrag höchstens zwei davon):
+- [vergleich: <Pokémon> | <Pokémon>] -> zwei Pokémon Zahl gegen Zahl mit Balken (Kills, Deaths,
+                                  K/D, Kämpfe, Quoten) — für Duelle um einen Kaderplatz, zwei
+                                  Stars im direkten Vergleich, Erwartung gegen Wirkung
+- [marktwertduell: <Pokémon> | <Pokémon>] -> zwei Marktwertkurven in einem Diagramm (nur, wenn
+                                  Marktwerte in diesem Text erlaubt sind)
+- [kampf: <Match-Id> | <1-3>]   -> EIN Kampf im Detail: beide Aufstellungen, wer fiel, die
+                                  Reihenfolge der Kills — für den entscheidenden Kampf eines Spiels
+- [form: <Team-Id>]             -> die letzten fünf Spiele als Siegesserie und der Tabellenverlauf —
+                                  für Krisen, Serien, Aufholjagden
+- [kader: <Team-Id>]            -> alle zehn Pokémon eines Vereins mit Tier und Bilanz — für
+                                  Kaderanalysen, Zeugnisse, Draft- und Transferthemen
+- [rangliste: <kills|deaths|kd|einsaetze|ueberleben|siegquote|marktwert>] -> die Top fünf der
+                                  Saison — als Maßstab für eine Leistung
+- [vorschau: <Match-Id>]        -> eine ANSTEHENDE Partie: Tabellenplätze, Form beider Teams, wer per
+                                  Typ die meisten Gegner trifft — für Vorberichte und Ausblicke
+                                  (Match-Ids kommender Partien stehen unter "naechsteSpiele"/Spielplan)
+- [artikel: <Beitrags-Titel>]   -> Lesetipp: Anriss eines früheren Beitrags aus "letzteBerichte",
+                                  exakt mit dessen Titel — wenn dein Text eine Geschichte fortsetzt
 Team-Ids, Pokémon-Namen und Match-Ids stehen in den Metadaten und werden EXAKT übernommen.
 SETZE BAUSTEINE REGELMÄSSIG — zwei bis drei je Beitrag sind der Normalfall, nicht die Ausnahme,
 und das gilt für JEDE Textsorte: Spielbericht, freier Beitrag, Nachbericht zu Interview oder
@@ -762,7 +816,11 @@ vier je Beitrag, und immer dort, wo der Text sie trägt: der Marktwert neben der
 jemand sei zu teuer; die Verlaufskurve, wenn es um Auf- oder Abstieg eines Wertes geht; die
 Statistik-Kachel als Beleg für „trägt das Team" oder „bleibt blass"; der Tabellenausschnitt,
 wenn es um Platz, Abstand oder Abstiegskampf geht; die Ergebniskachel nach der Schilderung der
-Partie. Verschiedene Beiträge sollen verschiedene Kacheln wählen — nicht jedes Mal dieselbe.
+Partie; der direkte Vergleich, wenn zwei Pokémon gegeneinander stehen; der Kampf im Detail,
+wenn ein einzelner Kampf das Spiel entschieden hat; die Formkurve bei Serien und Krisen; die
+Vorschau im Ausblick; der Lesetipp, wenn eine Geschichte weitergeht. Verschiedene Beiträge
+sollen verschiedene Kacheln wählen — nicht jedes Mal dieselbe. Die Regie schlägt dir je Text
+einen erweiterten Baustein vor; setze ihn, wenn die Daten ihn hergeben.
 Ein Baustein ersetzt nie das, was du zu sagen hast: Was in der Kachel steht, muss im Text nicht
 noch einmal buchstabiert werden, aber die Kachel allein ist kein Absatz.
 Ist zum Match ein Video hinterlegt (Metadatenfeld "video"), setze [video: <Match-Id>] in den
@@ -797,7 +855,7 @@ export function buildSystem({ author, extra = '' } = {}) {
       + 'ausgeschrieben stehen.',
     'ABWECHSLUNG. Das Gefälle zwischen teuren und billigen Kadern ist das bequemste Motiv dieser Liga — und deshalb '
       + 'das verbrauchteste. Such zuerst anderswo: Charaktere und ihre Eigenheiten, Rivalitäten, Taktik und Typen, '
-      + 'Initiative, Serien, Kurioses, das Umfeld, die Spieler Janik und Henrik. Kleine Skandale gibt es nur, wenn die '
+      + 'Initiative, Serien, Kurioses, das Umfeld, Trainer und Vorstände. Kleine Skandale gibt es nur, wenn die '
       + 'Regie sie anbietet.',
     TILE_RULES,
     extra,

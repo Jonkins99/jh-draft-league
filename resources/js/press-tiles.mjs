@@ -34,14 +34,17 @@
 import { formatMarket, formatMarketDelta, marketValue, historyPoints } from './market.mjs';
 import { currentTrainer } from './trainers.mjs';
 import { videoEmbed } from './video.mjs';
-import { battleStats, computeStandings, pokemonStats } from './scoring.mjs';
+import { battleStats, computeStandings, pokemonStats, placementHistory, typeMultiplier } from './scoring.mjs';
 import { rivalry, splitPair } from './career.mjs';
 
 /** Die Bausteine, die es gibt — auch die Liste für den Prompt. */
 // „rivalitaet" ist dieselbe Kachel wie „rivalität" — ohne Umlaut getippt.
-export const TILE_KINDS = ['marktwert', 'verlauf', 'statistik', 'team', 'trainer', 'ergebnis', 'tabelle', 'video', 'bild', 'rivalität', 'rivalitaet'];
+export const TILE_KINDS = [
+  'marktwert', 'verlauf', 'statistik', 'team', 'trainer', 'ergebnis', 'tabelle', 'video', 'bild', 'rivalität', 'rivalitaet',
+  'marktwertduell', 'vergleich', 'kampf', 'artikel', 'form', 'kader', 'rangliste', 'vorschau',
+];
 
-const TILE_RE = /^\s*\[\s*(marktwert|verlauf|statistik|team|trainer|ergebnis|tabelle|video|bild|rivalität|rivalitaet)\s*:\s*([^\]]+?)\s*\]\s*$/i;
+const TILE_RE = new RegExp(`^\\s*\\[\\s*(${TILE_KINDS.join('|')})\\s*:\\s*([^\\]]+?)\\s*\\]\\s*$`, 'i');
 
 /**
  * Dieselben Bausteine, beschriftet — die Auswahlleiste im Editor. `source` sagt, woher
@@ -59,6 +62,14 @@ export const TILE_MENU = [
   { kind: 'video', label: 'Video', hint: 'das Video zum Spiel', source: 'match' },
   { kind: 'bild', label: 'Bild', hint: 'ein Bild über seine Adresse', source: 'url' },
   { kind: 'rivalität', label: 'Rivalität', hint: 'Bilanz zweier Vereine über alle Saisons', source: 'pair' },
+  { kind: 'marktwertduell', label: 'Marktwert-Duell', hint: 'zwei Marktwertkurven in einem Diagramm', source: 'monpair' },
+  { kind: 'vergleich', label: 'Vergleich', hint: 'zwei Pokémon Zahl gegen Zahl', source: 'monpair' },
+  { kind: 'kampf', label: 'Kampf', hint: 'ein Kampf im Detail: Aufstellung, Verlauf, Überlebende', source: 'battle' },
+  { kind: 'artikel', label: 'Lesetipp', hint: 'Anriss eines anderen Beitrags', source: 'article' },
+  { kind: 'form', label: 'Formkurve', hint: 'letzte fünf Spiele und Tabellenverlauf eines Vereins', source: 'team' },
+  { kind: 'kader', label: 'Kader', hint: 'alle zehn Pokémon eines Vereins mit Tier und Bilanz', source: 'team' },
+  { kind: 'rangliste', label: 'Bestenliste', hint: 'Top fünf: kills, deaths, kd, einsaetze, ueberleben, siegquote, marktwert', source: 'ranking' },
+  { kind: 'vorschau', label: 'Vorschau', hint: 'eine anstehende Partie: Tabelle, Form, Typen-Vorteile', source: 'match' },
 ];
 
 /** `[marktwert: Glurak]` -> { kind: 'marktwert', key: 'Glurak' }, sonst null. */
@@ -176,7 +187,7 @@ function teamTile(key, { teams, seasonTeams, logoBase, squadValue }) {
   return `<figure class="press-tile press-tile-team">
     ${team.logo ? `<img src="${esc(logoBase)}${esc(team.logo)}" alt="${esc(team.name)}" loading="lazy" />` : ''}
     <figcaption>
-      <span class="press-tile-label">${esc(team.player || 'Verein')}</span>
+      <span class="press-tile-label">Verein</span>
       <span class="press-tile-name">${esc(team.name)}</span>
       ${value ? `<span class="press-tile-value">${esc(formatMarket(value))}</span><span class="press-tile-sub">Kaderwert</span>` : ''}
     </figcaption>
@@ -304,28 +315,46 @@ function historyTile(key, { pokedex, eloIndex }) {
   </figure>`;
 }
 
+// Saisonnummer aus einer Dokument-ID (`s2-d3-m0` -> 2); ohne Präfix Saison 1.
+function seasonOf(id) {
+  const m = /^s(\d+)-/i.exec(String(id || ''));
+  return m ? Number(m[1]) : 1;
+}
+
+// Die Ergebnisse, auf die sich ein Beitrag bezieht: die seiner Saison, wenn sie
+// bekannt ist — eine Bilanz aus Saison 1 gehört nicht in einen Bericht aus Saison 2.
+function resultsOfSeason(results, season) {
+  const list = (results || []).filter(Boolean);
+  if (!Number.isFinite(season)) return list;
+  return list.filter((r) => seasonOf(r.id) === season);
+}
+
 // Die harten Zahlen eines Pokémon — damit ein Satz über „trägt das Team" belegt ist.
-function statTile(key, { pokedex, results, availability }) {
+// Gerechnet result-getrieben über alle Teams (ohne Kader-Universum), damit auch ein
+// abgegebenes Pokémon seine Zahlen behält.
+function statTile(key, { pokedex, results, availability, season }) {
   const mon = findMon(pokedex, key);
   if (!mon) return null;
-  const row = pokemonStats(results || [], [mon], { availability })[0];
-  if (!row || !row.battles) return null;
+  const scoped = resultsOfSeason(results, season);
+  const row = pokemonStats([], scoped, pokedex, { availability }).find((x) => x.pokemon?.name === mon.name);
+  const battles = row?.battles || 0;
   const cells = [
-    ['Kills', row.kills],
-    ['Deaths', row.deaths],
-    ['K/D', row.kd.toFixed(2).replace('.', ',')],
-    ['Kämpfe', row.battles],
-    ['Siegquote', `${Math.round((row.battleWinPct || 0) * 100)} %`],
-    ['Überlebt', `${Math.round((row.survivalRate || 0) * 100)} %`],
+    ['Kills', row?.kills || 0],
+    ['Deaths', row?.deaths || 0],
+    ['K/D', (row?.kd || 0).toFixed(2).replace('.', ',')],
+    ['Kämpfe', battles],
+    ['Siegquote', battles ? `${Math.round((row.battleWinPct || 0) * 100)} %` : '–'],
+    ['Überlebt', battles ? `${Math.round((row.survivalRate || 0) * 100)} %` : '–'],
   ];
   return `<figure class="press-tile press-tile-stats">
     ${mon.image ? `<img src="${esc(mon.image)}" alt="${esc(mon.name)}" loading="lazy" />` : ''}
     <figcaption>
-      <span class="press-tile-label">Bilanz</span>
+      <span class="press-tile-label">Bilanz${Number.isFinite(season) ? ` · Saison ${esc(season)}` : ''}</span>
       <span class="press-tile-name">${esc(mon.name)}</span>
       <span class="press-stat-grid">
         ${cells.map(([l, v]) => `<span class="press-stat"><span class="press-stat-num">${esc(v)}</span><span class="press-stat-label">${esc(l)}</span></span>`).join('')}
       </span>
+      ${battles ? '' : '<span class="press-tile-sub">noch ohne Einsatz</span>'}
     </figcaption>
   </figure>`;
 }
@@ -405,6 +434,429 @@ function rivalryTile(key, { teams, seasonTeams, results, logoBase, storylines })
   </figure>`;
 }
 
+// === Erweiterte Bausteine ===================================================
+// Acht Kacheln, die mehr zeigen als eine Zahl: zwei Marktwertkurven gegeneinander,
+// zwei Pokémon im direkten Vergleich, ein einzelner Kampf in allen Einzelheiten, der
+// Anriss eines anderen Beitrags, die Form eines Vereins, sein Kader, eine Bestenliste
+// und die Vorschau auf eine Partie.
+
+const PAIR_SPLIT_RE = /\s*(?:\||,|;|\bgegen\b|\bvs\.?)\s*/i;
+
+// `A | B` -> ['A', 'B'] (zwei nicht leere Teile), sonst null.
+function twoKeys(key) {
+  const parts = String(key || '').split(PAIR_SPLIT_RE).map((x) => x.trim()).filter(Boolean);
+  return parts.length === 2 ? parts : null;
+}
+
+// Match-Id der Partie im Spielplan: `s<N>-d<Tag>-m<Index>`.
+function scheduleMatches(schedules, season) {
+  const sched = schedules?.[`s${season}`] || null;
+  const out = [];
+  (sched?.matchdays || []).forEach((md) => (md.matches || []).forEach((m, i) => {
+    out.push({ id: `s${season}-d${md.day}-m${i}`, day: md.day, home: m.home, away: m.away });
+  }));
+  return out;
+}
+
+function battleSummary(r, side) {
+  let w = 0; let l = 0; let k = 0; let d = 0; let played = 0;
+  (r?.battles || []).forEach((b) => {
+    if (!b?.done) return;
+    played++;
+    const s = battleStats(b);
+    if (s.winner === side) w++;
+    else if (s.winner !== 'draw') l++;
+    k += side === 'home' ? s.homeKills : s.awayKills;
+    d += side === 'home' ? s.homeDeaths : s.awayDeaths;
+  });
+  return { w, l, k, d, played };
+}
+
+function monImg(mon, cls = '') {
+  return mon?.image ? `<img src="${esc(mon.image)}" alt="${esc(mon.name)}" loading="lazy"${cls ? ` class="${cls}"` : ''} />` : '';
+}
+
+function logoImg(team, logoBase) {
+  return team?.logo ? `<img src="${esc(logoBase)}${esc(team.logo)}" alt="${esc(team.name)}" loading="lazy" />` : '';
+}
+
+// --- 1. Zwei Marktwertkurven -------------------------------------------------
+function marketDuelTile(key, { pokedex, eloIndex }) {
+  const pair = twoKeys(key);
+  if (!pair) return null;
+  const mons = pair.map((k) => findMon(pokedex, k));
+  if (mons.some((m) => !m) || mons[0].name === mons[1].name) return null;
+  const series = mons.map((m) => historyPoints(eloIndex?.[m.name]).filter((h) => h.value > 0));
+  if (series.some((s) => s.length < 2)) return null;
+  const W = 320;
+  const H = 110;
+  const n = Math.max(series[0].length, series[1].length);
+  const logs = series.flat().map((h) => Math.log(h.value));
+  const lo = Math.min(...logs);
+  const hi = Math.max(...logs);
+  const span = hi - lo || 1;
+  const colors = ['#e3350d', '#4d90d5'];
+  const paths = series.map((pts, si) => {
+    const xy = pts.map((h, i) => ({
+      x: 6 + (i / Math.max(1, n - 1)) * (W - 12),
+      y: H - 10 - ((Math.log(h.value) - lo) / span) * (H - 22),
+    }));
+    const d = xy.map((p, i) => `${i ? 'L' : 'M'}${p.x.toFixed(1)} ${p.y.toFixed(1)}`).join(' ');
+    const last = xy[xy.length - 1];
+    return `<path d="${d}" fill="none" stroke="${colors[si]}" stroke-width="2.2" stroke-linejoin="round" stroke-linecap="round" />
+      <circle cx="${last.x.toFixed(1)}" cy="${last.y.toFixed(1)}" r="3.5" fill="${colors[si]}" />`;
+  }).join('');
+  const legend = mons.map((m, i) => {
+    const pts = series[i];
+    const first = pts[0];
+    const last = pts[pts.length - 1];
+    return `<span class="press-duel-leg" style="--c:${colors[i]}">
+      ${monImg(m)}
+      <span class="press-duel-leg-text">
+        <span class="press-duel-leg-name">${esc(m.name)}</span>
+        <span class="press-duel-leg-value">${esc(formatMarket(last.value))}</span>
+        <span class="press-tile-sub">${esc(formatMarketDelta(last.value - first.value))} seit ${esc(first.short || first.label || 'Start')}</span>
+      </span>
+    </span>`;
+  }).join('');
+  return `<figure class="press-tile press-tile-mduel">
+    <span class="press-tile-label">Marktwert-Duell</span>
+    <span class="press-duel-legend">${legend}</span>
+    <svg viewBox="0 0 ${W} ${H}" preserveAspectRatio="none" aria-hidden="true">${paths}</svg>
+  </figure>`;
+}
+
+// --- 2. Zwei Pokémon im direkten Vergleich -----------------------------------
+function compareTile(key, { pokedex, results, availability, season, eloIndex }) {
+  const pair = twoKeys(key);
+  if (!pair) return null;
+  const mons = pair.map((k) => findMon(pokedex, k));
+  if (mons.some((m) => !m) || mons[0].name === mons[1].name) return null;
+  const stats = pokemonStats([], resultsOfSeason(results, season), pokedex, { availability });
+  const rows = mons.map((m) => stats.find((x) => x.pokemon?.name === m.name) || null);
+  const val = (i, f) => (rows[i] ? f(rows[i]) : 0);
+  const market = (i) => {
+    const row = eloIndex?.[mons[i].name];
+    return row ? marketValue(row.elo) : null;
+  };
+  const lines = [
+    ['Kills', (i) => val(i, (r) => r.kills), (v) => v],
+    ['Deaths', (i) => val(i, (r) => r.deaths), (v) => v, true],
+    ['K/D', (i) => val(i, (r) => r.kd), (v) => v.toFixed(2).replace('.', ',')],
+    ['Kämpfe', (i) => val(i, (r) => r.battles), (v) => v],
+    ['Siegquote', (i) => val(i, (r) => r.battleWinPct), (v) => `${Math.round(v * 100)} %`],
+    ['Überlebt', (i) => val(i, (r) => (r.battles ? r.survivalRate : 0)), (v) => `${Math.round(v * 100)} %`],
+  ];
+  const mA = market(0);
+  const mB = market(1);
+  if (mA && mB) lines.push(['Marktwert', (i) => (i ? mB : mA), (v) => formatMarket(v)]);
+  const body = lines.map(([label, get, fmt, lowerWins]) => {
+    const a = Number(get(0)) || 0;
+    const b = Number(get(1)) || 0;
+    const max = Math.max(a, b) || 1;
+    const better = a === b ? 0 : (lowerWins ? (a < b ? -1 : 1) : (a > b ? -1 : 1));
+    return `<span class="press-cmp-row">
+      <span class="press-cmp-val${better === -1 ? ' is-best' : ''}">${esc(fmt(a))}</span>
+      <span class="press-cmp-bar is-left"><span style="width:${Math.round((a / max) * 100)}%"></span></span>
+      <span class="press-cmp-label">${esc(label)}</span>
+      <span class="press-cmp-bar"><span style="width:${Math.round((b / max) * 100)}%"></span></span>
+      <span class="press-cmp-val${better === 1 ? ' is-best' : ''}">${esc(fmt(b))}</span>
+    </span>`;
+  }).join('');
+  return `<figure class="press-tile press-tile-cmp">
+    <span class="press-tile-label">Direkter Vergleich${Number.isFinite(season) ? ` · Saison ${esc(season)}` : ''}</span>
+    <span class="press-cmp-head">
+      <span class="press-cmp-mon">${monImg(mons[0])}<span>${esc(mons[0].name)}</span></span>
+      <span class="press-cmp-vs">vs</span>
+      <span class="press-cmp-mon">${monImg(mons[1])}<span>${esc(mons[1].name)}</span></span>
+    </span>
+    <span class="press-cmp-rows">${body}</span>
+  </figure>`;
+}
+
+// --- 3. Ein Kampf im Detail --------------------------------------------------
+function battleTile(key, { results, teams, pokedex, logoBase }) {
+  const raw = String(key || '');
+  const m = /^(.*?)(?:\s*(?:\||,|#|kampf)\s*(\d))?\s*$/i.exec(raw.trim());
+  const r = findResult(results, m?.[1] || raw);
+  if (!r) return null;
+  const done = (r.battles || []).map((b, i) => ({ b, i })).filter((x) => x.b?.done);
+  if (!done.length) return null;
+  const want = m?.[2] ? Number(m[2]) - 1 : null;
+  const pick = want != null ? done.find((x) => x.i === want) : null;
+  const { b, i } = pick || done[done.length - 1];
+  const home = looseFind(teams, r.home, (t) => t.id);
+  const away = looseFind(teams, r.away, (t) => t.id);
+  const s = battleStats(b);
+  const mon = (name) => findMon(pokedex, name) || { name };
+  const fallen = new Set((b.kills || []).filter(Boolean).map((k) => `${k.victimSide}|${k.victim}`));
+  const lineup = (side) => (b.used?.[side] || []).map((name) => {
+    const x = mon(name);
+    const down = fallen.has(`${side}|${name}`);
+    return `<span class="press-bt-mon${down ? ' is-down' : ''}" title="${esc(name)}${down ? ' — besiegt' : ' — überlebt'}">${monImg(x)}<span>${esc(name)}</span></span>`;
+  }).join('');
+  const nameOf = (side) => (side === 'home' ? home?.name : away?.name) || '?';
+  const log = (b.kills || []).filter(Boolean).map((k, n) => {
+    const self = k.killerSide != null && k.killerSide === k.victimSide;
+    const who = k.killer ? `${esc(k.killer)}` : 'unbekannt';
+    return `<span class="press-bt-step"><span class="press-bt-n">${n + 1}</span><span>${self ? `<strong>${esc(k.victim)}</strong> fällt durch den eigenen Partner ${who}` : `${who} besiegt <strong>${esc(k.victim)}</strong>`} <em>(${esc(nameOf(k.victimSide))})</em></span></span>`;
+  }).join('');
+  const winner = s.winner === 'draw' ? 'Unentschieden' : `Sieg ${nameOf(s.winner)}`;
+  return `<figure class="press-tile press-tile-battle">
+    <span class="press-tile-label">Spieltag ${esc(r.day ?? '?')} · Kampf ${i + 1}</span>
+    <span class="press-bt-head">
+      <span class="press-bt-side">${logoImg(home, logoBase)}<span>${esc(home?.name || '?')}</span></span>
+      <span class="press-bt-score">${s.homeSurvivors}<span>:</span>${s.awaySurvivors}</span>
+      <span class="press-bt-side">${logoImg(away, logoBase)}<span>${esc(away?.name || '?')}</span></span>
+    </span>
+    <span class="press-bt-lines">
+      <span class="press-bt-line">${lineup('home')}</span>
+      <span class="press-bt-line">${lineup('away')}</span>
+    </span>
+    ${log ? `<span class="press-bt-log"><span class="press-rival-head">Kampfverlauf</span>${log}</span>` : ''}
+    <figcaption class="press-tile-sub">${esc(winner)} · Überlebende ${s.homeSurvivors}:${s.awaySurvivors} · Kills ${s.homeKills}:${s.awayKills}</figcaption>
+  </figure>`;
+}
+
+// --- 4. Anriss eines anderen Beitrags ----------------------------------------
+function articleTile(key, { findArticle }) {
+  if (typeof findArticle !== 'function') return null;
+  const a = findArticle(key);
+  if (!a) return null;
+  return `<figure class="press-tile press-tile-teaser">
+    <a class="press-teaser" href="#" data-article-id="${esc(a.id)}">
+      ${a.image ? `<img src="${esc(a.image)}" alt="" loading="lazy" />` : ''}
+      <span class="press-teaser-text">
+        <span class="press-tile-label">Lesen Sie auch${a.subtitle ? ` · ${esc(a.subtitle)}` : ''}</span>
+        <span class="press-tile-name">${esc(a.title)}</span>
+        ${a.excerpt ? `<span class="press-teaser-excerpt">${esc(a.excerpt)}</span>` : ''}
+        <span class="press-tile-sub">${esc([a.byline, a.date].filter(Boolean).join(' · '))}</span>
+      </span>
+    </a>
+  </figure>`;
+}
+
+// --- 5. Formkurve eines Vereins ----------------------------------------------
+function formTile(key, { teams, seasonTeams, results, season, logoBase }) {
+  const team = findTeam(key, { teams, seasonTeams });
+  if (!team) return null;
+  const teamSeason = seasonOf(team.id);
+  const scoped = resultsOfSeason(results, Number.isFinite(teamSeason) ? teamSeason : season);
+  const games = scoped
+    .filter((r) => (r.home === team.id || r.away === team.id) && (r.battles || []).some((b) => b?.done))
+    .sort((a, b) => (a.day || 0) - (b.day || 0));
+  if (!games.length) return null;
+  const chips = games.slice(-5).map((r) => {
+    const side = r.home === team.id ? 'home' : 'away';
+    const opp = looseFind(teams, side === 'home' ? r.away : r.home, (t) => t.id);
+    const x = battleSummary(r, side);
+    const res = x.w > x.l ? 'S' : x.l > x.w ? 'N' : 'U';
+    return `<span class="press-form-chip is-${res}" title="Spieltag ${esc(r.day)} · ${esc(opp?.name || '?')} · ${x.w}:${x.l}">
+      ${logoImg(opp, logoBase)}
+      <span class="press-form-res">${res}</span>
+      <span class="press-form-score">${x.w}:${x.l}</span>
+    </span>`;
+  }).join('');
+  const sTeams = (teams || []).filter((t) => seasonOf(t.id) === seasonOf(team.id));
+  const hist = placementHistory(sTeams, scoped).series[team.id] || [];
+  let spark = '';
+  if (hist.length >= 2) {
+    const W = 320;
+    const H = 70;
+    const max = Math.max(sTeams.length, 2);
+    const xy = hist.map((h, i) => ({
+      x: 8 + (i / (hist.length - 1)) * (W - 16),
+      y: 8 + ((h.place - 1) / (max - 1)) * (H - 16),
+    }));
+    const d = xy.map((p, i) => `${i ? 'L' : 'M'}${p.x.toFixed(1)} ${p.y.toFixed(1)}`).join(' ');
+    const color = /^#[0-9a-f]{6}$/i.test(team.color || '') ? team.color : '#ffcb05';
+    spark = `<svg viewBox="0 0 ${W} ${H}" preserveAspectRatio="none" aria-hidden="true">
+      <line x1="0" x2="${W}" y1="8" y2="8" stroke="currentColor" opacity="0.15" />
+      <line x1="0" x2="${W}" y1="${H - 8}" y2="${H - 8}" stroke="currentColor" opacity="0.15" />
+      <path d="${d}" fill="none" stroke="${color}" stroke-width="2.4" stroke-linejoin="round" stroke-linecap="round" />
+      ${xy.map((p) => `<circle cx="${p.x.toFixed(1)}" cy="${p.y.toFixed(1)}" r="2.6" fill="${color}" />`).join('')}
+    </svg>`;
+  }
+  const now = hist[hist.length - 1]?.place;
+  return `<figure class="press-tile press-tile-form">
+    <span class="press-form-top">
+      ${logoImg(team, logoBase)}
+      <span>
+        <span class="press-tile-label">Formkurve</span>
+        <span class="press-tile-name">${esc(team.name)}</span>
+      </span>
+      ${now ? `<span class="press-form-place"><span>${now}.</span>Platz</span>` : ''}
+    </span>
+    <span class="press-form-chips">${chips}</span>
+    ${spark ? `<span class="press-form-spark">${spark}<span class="press-tile-sub">Tabellenplatz nach jedem Spieltag</span></span>` : ''}
+  </figure>`;
+}
+
+// --- 6. Der Kader eines Vereins ----------------------------------------------
+const TIER_RANK = { S: 0, A: 1, B: 2, C: 3, D: 4 };
+
+function squadTile(key, { teams, seasonTeams, results, pokedex, availability, eloIndex, logoBase, squadValue }) {
+  const team = findTeam(key, { teams, seasonTeams });
+  if (!team || !(team.pokemon || []).length) return null;
+  const stats = pokemonStats([team], resultsOfSeason(results, seasonOf(team.id)), pokedex, { scopeTeamId: team.id, availability });
+  const byName = Object.fromEntries(stats.map((x) => [x.pokemon?.name, x]));
+  const list = [...team.pokemon].sort((a, b) => (TIER_RANK[a.tier] ?? 9) - (TIER_RANK[b.tier] ?? 9) || String(a.name).localeCompare(String(b.name)));
+  const cells = list.map((p) => {
+    const mon = findMon(pokedex, p.name) || p;
+    const st = byName[p.name] || {};
+    const row = eloIndex?.[p.name];
+    return `<span class="press-squad-mon" title="${esc(p.name)}">
+      ${monImg(mon)}
+      <span class="press-squad-tier is-${esc(String(p.tier || '').toLowerCase())}">${esc(p.tier || '?')}</span>
+      <span class="press-squad-name">${esc(p.name)}</span>
+      <span class="press-squad-meta">${st.kills || 0} K · ${st.battles || 0} Kä${row ? ` · ${esc(formatMarket(marketValue(row.elo)))}` : ''}</span>
+    </span>`;
+  }).join('');
+  const value = typeof squadValue === 'function' ? squadValue(team) : null;
+  return `<figure class="press-tile press-tile-squad">
+    <span class="press-form-top">
+      ${logoImg(team, logoBase)}
+      <span>
+        <span class="press-tile-label">Kader</span>
+        <span class="press-tile-name">${esc(team.name)}</span>
+      </span>
+      ${value ? `<span class="press-form-place"><span>${esc(formatMarket(value))}</span>Kaderwert</span>` : ''}
+    </span>
+    <span class="press-squad-grid">${cells}</span>
+  </figure>`;
+}
+
+// --- 7. Bestenliste ----------------------------------------------------------
+const RANKINGS = {
+  kills: { label: 'Meiste Kills', get: (r) => r.kills, fmt: (v) => `${v}`, min: 1 },
+  deaths: { label: 'Meiste Deaths', get: (r) => r.deaths, fmt: (v) => `${v}`, min: 1 },
+  kd: { label: 'Beste K/D (ab 3 Kämpfen)', get: (r) => (r.battles >= 3 ? r.kd : -1), fmt: (v) => v.toFixed(2).replace('.', ','), min: 0 },
+  einsaetze: { label: 'Meiste Einsätze', get: (r) => r.battles, fmt: (v) => `${v}`, min: 1 },
+  ueberleben: { label: 'Überlebenskünstler (ab 3 Kämpfen)', get: (r) => (r.battles >= 3 ? r.survivalRate : -1), fmt: (v) => `${Math.round(v * 100)} %`, min: 0 },
+  siegquote: { label: 'Beste Siegquote (ab 3 Kämpfen)', get: (r) => (r.battles >= 3 ? r.battleWinPct : -1), fmt: (v) => `${Math.round(v * 100)} %`, min: 0 },
+  marktwert: { label: 'Höchste Marktwerte', market: true },
+};
+const RANKING_ALIASES = {
+  kill: 'kills', toetungen: 'kills', tode: 'deaths', death: 'deaths', kd: 'kd', kdquote: 'kd',
+  einsatz: 'einsaetze', kaempfe: 'einsaetze', ueberlebt: 'ueberleben', ueberlebensrate: 'ueberleben',
+  siege: 'siegquote', siegrate: 'siegquote', marktwerte: 'marktwert', wert: 'marktwert',
+};
+
+function rankingTile(key, { pokedex, results, availability, season, eloIndex, teams, seasonTeams }) {
+  const k = normKey(key);
+  const which = RANKINGS[k] ? k : RANKING_ALIASES[k];
+  const def = RANKINGS[which];
+  if (!def) return null;
+  const owners = {};
+  (seasonTeams || []).forEach((t) => (t.pokemon || []).forEach((p) => { owners[p.name] = t; }));
+  let rows;
+  if (def.market) {
+    const pool = (seasonTeams || []).length ? Object.keys(owners) : Object.keys(eloIndex || {});
+    rows = pool
+      .map((name) => ({ name, v: eloIndex?.[name] ? marketValue(eloIndex[name].elo) : 0 }))
+      .filter((x) => x.v > 0)
+      .sort((a, b) => b.v - a.v)
+      .slice(0, 5)
+      .map((x) => ({ ...x, text: formatMarket(x.v) }));
+  } else {
+    rows = pokemonStats([], resultsOfSeason(results, season), pokedex, { availability })
+      .map((r) => ({ name: r.pokemon?.name, v: def.get(r) }))
+      .filter((x) => x.name && x.v >= def.min && x.v >= 0)
+      .sort((a, b) => b.v - a.v || a.name.localeCompare(b.name))
+      .slice(0, 5)
+      .map((x) => ({ ...x, text: def.fmt(x.v) }));
+  }
+  if (!rows.length) return null;
+  const items = rows.map((x, i) => {
+    const mon = findMon(pokedex, x.name) || { name: x.name };
+    const team = owners[x.name] || null;
+    return `<span class="press-rank-row${i === 0 ? ' is-top' : ''}">
+      <span class="press-table-place">${i + 1}</span>
+      ${monImg(mon)}
+      <span class="press-rank-name"><span>${esc(x.name)}</span><span class="press-tile-sub">${esc(team?.name || 'frei')}</span></span>
+      <span class="press-rank-val">${esc(x.text)}</span>
+    </span>`;
+  }).join('');
+  return `<figure class="press-tile press-tile-rank">
+    <span class="press-tile-label">${esc(def.label)}${Number.isFinite(season) ? ` · Saison ${esc(season)}` : ''}</span>
+    ${items}
+  </figure>`;
+}
+
+// --- 8. Vorschau auf eine Partie ---------------------------------------------
+function previewTile(key, { teams, results, schedules, season, pokedex, logoBase }) {
+  const k = normKey(key);
+  if (!k) return null;
+  const seasons = Object.keys(schedules || {}).map((p) => Number(String(p).replace(/^s/, ''))).filter(Number.isFinite);
+  let match = null;
+  for (const sn of [season, ...seasons].filter(Number.isFinite)) {
+    match = scheduleMatches(schedules, sn).find((m) => normKey(m.id) === k || normKey(franchisePart(m.id)) === k) || null;
+    if (match) break;
+  }
+  if (!match) return null;
+  const sn = seasonOf(match.id);
+  const home = looseFind(teams, match.home, (t) => t.id);
+  const away = looseFind(teams, match.away, (t) => t.id);
+  if (!home || !away) return null;
+  const scoped = resultsOfSeason(results, sn);
+  const before = scoped.filter((r) => r.day != null && r.day < match.day);
+  const sTeams = (teams || []).filter((t) => seasonOf(t.id) === sn);
+  const table = computeStandings(sTeams, before);
+  const place = (id) => {
+    const i = table.findIndex((r) => r.team.id === id);
+    return i < 0 ? null : { place: i + 1, points: table[i].points };
+  };
+  const form = (team) => scoped
+    .filter((r) => r.day != null && r.day < match.day && (r.home === team.id || r.away === team.id) && (r.battles || []).some((b) => b?.done))
+    .sort((a, b) => (a.day || 0) - (b.day || 0))
+    .slice(-5)
+    .map((r) => {
+      const x = battleSummary(r, r.home === team.id ? 'home' : 'away');
+      return x.w > x.l ? 'S' : x.l > x.w ? 'N' : 'U';
+    });
+  const dex = (name) => findMon(pokedex, name) || { name, types: [] };
+  const hits = (a, d) => Math.max(1, ...(a.types || []).map((t) => typeMultiplier(t, d.types || [])));
+  const edges = (own, opp) => (own.pokemon || [])
+    .map((p) => {
+      const mon = dex(p.name);
+      const n = (opp.pokemon || []).filter((o) => hits(mon, dex(o.name)) >= 2).length;
+      return { mon, n };
+    })
+    .filter((x) => x.n > 0)
+    .sort((a, b) => b.n - a.n || String(a.mon.name).localeCompare(String(b.mon.name)))
+    .slice(0, 3);
+  const h2h = scoped.filter((r) => r.id !== match.id
+    && ((r.home === home.id && r.away === away.id) || (r.home === away.id && r.away === home.id))
+    && (r.battles || []).some((b) => b?.done));
+  const side = (team) => {
+    const p = place(team.id);
+    const f = form(team);
+    const e = edges(team, team.id === home.id ? away : home);
+    return `<span class="press-pv-side">
+      ${logoImg(team, logoBase)}
+      <span class="press-pv-team">${esc(team.name)}</span>
+      ${p ? `<span class="press-tile-sub">${p.place}. Platz · ${p.points} Pkt.</span>` : ''}
+      ${f.length ? `<span class="press-pv-form">${f.map((x) => `<span class="press-form-dot is-${x}">${x}</span>`).join('')}</span>` : ''}
+      ${e.length ? `<span class="press-pv-edges">${e.map((x) => `<span class="press-pv-edge" title="${esc(x.mon.name)} trifft ${x.n} gegnerische Pokémon sehr effektiv">${monImg(x.mon)}<span>×${x.n}</span></span>`).join('')}</span>` : ''}
+    </span>`;
+  };
+  const h2hText = h2h.length
+    ? h2h.map((r) => {
+      const x = battleSummary(r, r.home === home.id ? 'home' : 'away');
+      return `Spieltag ${r.day}: ${x.w}:${x.l}`;
+    }).join(' · ')
+    : 'erstes Duell dieser Saison';
+  return `<figure class="press-tile press-tile-preview">
+    <span class="press-tile-label">Vorschau · Spieltag ${esc(match.day)}</span>
+    <span class="press-pv-row">
+      ${side(home)}
+      <span class="press-score-sep">vs</span>
+      ${side(away)}
+    </span>
+    <figcaption class="press-tile-sub">Bisher (aus Sicht ${esc(home.name)}): ${esc(h2hText)} · Sprites: wer die meisten Gegner per Typ sehr effektiv trifft</figcaption>
+  </figure>`;
+}
+
 const BUILDERS = {
   marktwert: monTile,
   verlauf: historyTile,
@@ -417,6 +869,14 @@ const BUILDERS = {
   bild: imageTile,
   'rivalität': rivalryTile,
   rivalitaet: rivalryTile,
+  marktwertduell: marketDuelTile,
+  vergleich: compareTile,
+  kampf: battleTile,
+  artikel: articleTile,
+  form: formTile,
+  kader: squadTile,
+  rangliste: rankingTile,
+  vorschau: previewTile,
 };
 
 /**

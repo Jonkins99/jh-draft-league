@@ -7,7 +7,7 @@
 //
 // Framework-frei: nur scoring/awards/trainers/press, kein Alpine, kein Firebase.
 
-import { battleStats, computeStandings, pokemonStats, transferAvailability } from './scoring.mjs';
+import { battleStats, computeStandings, pokemonStats, transferAvailability, typeMultiplier, availableOn } from './scoring.mjs';
 import { newcomersOfSeason } from './seasons.mjs';
 import { RENEWAL_TIERS, RELEGATION_FROM_PLACE, renewalState } from './draft.mjs';
 import { AWARD_BY_KEY, awardWinners } from './awards.mjs';
@@ -16,7 +16,7 @@ import { statBlock } from './basestats.mjs';
 import { showOf } from './press-shows.mjs';
 import {
   activeStorylines, collectStorylines, authorById, categoryLabel,
-  matchSequence, isMatchComplete, plainText, seasonComplete, categoriesOf,
+  matchSequence, isMatchComplete, plainText, seasonComplete, categoriesOf, scrubMetaDeep,
 } from './press.mjs';
 import {
   marketValue, formatMarket, formatMarketDelta, formatPercent,
@@ -140,7 +140,6 @@ export function standingsBlock(seasonTeams, results, schedule = null) {
       platz: i + 1,
       team: r.team.name,
       teamId: r.team.id,
-      spieler: r.team.player,
       matches: r.played,
       punkte: r.points,
       offeneMatches: offen,
@@ -239,8 +238,6 @@ export function matchBlock(result, teams, day) {
     heimId: result.home,
     auswaerts: away?.name || result.away,
     auswaertsId: result.away,
-    spielerHeim: home?.player || null,
-    spielerAuswaerts: away?.player || null,
     endstand: `${homeWins}:${awayWins}`,
     sieger: homeWins > awayWins ? home?.name : awayWins > homeWins ? away?.name : 'unentschieden',
     aufgebotHeim: result.squads?.home || [],
@@ -272,6 +269,7 @@ function formBlock(teamId, results, teams, limit = 5) {
       });
       return {
         spieltag: r.day,
+        matchId: r.id || null,
         gegner: opp?.name || '?',
         heimspiel: own === 'home',
         ergebnis: `${w}:${l}`,
@@ -368,7 +366,6 @@ export function teamBlock(team, { teams, results, schedule, pokedex, eloRows, aw
   return {
     name: team.name,
     id: team.id,
-    spieler: team.player,
     tabellenplatz: row?.platz ?? null,
     punkte: row?.punkte ?? 0,
     killDifferenz: row?.killDifferenz ?? 0,
@@ -499,9 +496,138 @@ export function upcomingFor(teamId, schedule, results, teams, limit = 3) {
     .slice(0, limit)
     .map((m) => ({
       spieltag: m.day,
+      matchId: m.id,
       gegner: teamById(teams, m.home === teamId ? m.away : m.home)?.name || '?',
       heimspiel: m.home === teamId,
     }));
+}
+
+// === Spieltag im Ganzen (Podcast) ==========================================
+// Alle Partien eines abgeschlossenen Spieltags mit Aufgebot, Aufstellung und
+// Kampfverlauf — der Podcast bespricht jedes Spiel einzeln, nicht nur das eine im Fokus.
+export function dayReviewBlock(day, schedule, results, teams) {
+  const byId = Object.fromEntries((results || []).map((r) => [r.id, r]));
+  const matches = matchSequence(schedule).filter((m) => m.day === day);
+  if (!matches.length) return null;
+  return matches.map((m) => {
+    const r = byId[m.id];
+    if (!r || !(r.battles || []).some((b) => b && b.done)) {
+      return { matchId: m.id, heim: teamById(teams, m.home)?.name || m.home, auswaerts: teamById(teams, m.away)?.name || m.away, gespielt: false };
+    }
+    return { ...matchBlock(r, teams, day), gespielt: true };
+  });
+}
+
+// Der nächste Spieltag, der noch Partien ohne vollständiges Ergebnis hat.
+export function nextOpenDay(schedule, results, afterDay) {
+  const byId = Object.fromEntries((results || []).map((r) => [r.id, r]));
+  const open = matchSequence(schedule)
+    .filter((m) => m.day > afterDay && !isMatchComplete(byId[m.id]))
+    .map((m) => m.day);
+  return open.length ? Math.min(...open) : null;
+}
+
+// Wie gut sieht ein Pokémon gegen den gegnerischen Kader aus? Nur über die Typen
+// gerechnet (eigene Typen als STAB-Angriffe) — eine Näherung, kein Schadensrechner:
+// Attacken außerhalb der eigenen Typen und Fähigkeiten kennt der Block nicht.
+function typeEdges(own, opp) {
+  const hits = (attacker, defender) => Math.max(1, ...(attacker.types || []).map((t) => typeMultiplier(t, defender.types || [])));
+  return own.map((mon) => {
+    const trifft = opp.filter((o) => hits(mon, o) >= 2).map((o) => o.name);
+    const getroffen = opp.filter((o) => hits(o, mon) >= 2).map((o) => o.name);
+    const immunGegen = opp
+      .filter((o) => (o.types || []).length && (o.types || []).every((t) => typeMultiplier(t, mon.types || []) === 0))
+      .map((o) => o.name);
+    return { pokemon: mon.name, trifftSehrEffektiv: trifft, wirdSehrEffektivGetroffenVon: getroffen, immunGegenStabVon: immunGegen };
+  });
+}
+
+/**
+ * Die Vorschau auf einen Spieltag: je Partie beide Kader mit Typen, Rolle, Initiative
+ * und Bilanz, dazu die Typen-Duelle und die bisherigen direkten Begegnungen. Das ist
+ * das Material, aus dem der Podcast die Matchups liest — wer gegen wen gut aussieht,
+ * wer Probleme bekommen dürfte, wer wen ausspeedet.
+ */
+export function previewBlock(day, { schedule, results, teams, pokedex, availability = null }) {
+  if (day == null) return null;
+  const matches = matchSequence(schedule).filter((m) => m.day === day);
+  if (!matches.length) return null;
+  const dex = Object.fromEntries((pokedex || []).map((x) => [x.name, x]));
+  const table = standingsBlock(teamsOfSeason(teams, matches), results, schedule);
+  const rowOf = (id) => table.find((r) => r.teamId === id) || null;
+
+  const squadOf = (team) => {
+    if (!team) return [];
+    const stats = pokemonStats([team], results, pokedex, { scopeTeamId: team.id, availability });
+    const byName = Object.fromEntries(stats.map((x) => [x.pokemon?.name, x]));
+    return (team.pokemon || [])
+      .filter((p) => availableOn(availability, team.id, p.name, day))
+      .map((p) => {
+        const mon = { ...p, ...(dex[p.name] || {}) };
+        const st = byName[p.name] || {};
+        return {
+          name: p.name,
+          types: mon.types || [],
+          tier: mon.tier ?? p.tier ?? null,
+          initiative: mon.base_speed ?? null,
+          rolle: statBlock(mon)?.rolle || null,
+          kills: st.kills || 0,
+          deaths: st.deaths || 0,
+          kaempfe: st.battles || 0,
+        };
+      });
+  };
+
+  return matches.map((m) => {
+    const home = teamById(teams, m.home);
+    const away = teamById(teams, m.away);
+    const sh = squadOf(home);
+    const sa = squadOf(away);
+    const fastest = (list) => [...list]
+      .filter((x) => Number.isFinite(x.initiative))
+      .sort((a, b) => b.initiative - a.initiative)
+      .slice(0, 3)
+      .map((x) => `${x.name} (${x.initiative})`);
+    const duels = (results || [])
+      .filter((r) => r && r.id !== m.id
+        && ((r.home === m.home && r.away === m.away) || (r.home === m.away && r.away === m.home))
+        && (r.battles || []).some((b) => b && b.done))
+      .map((r) => {
+        const mb = matchBlock(r, teams, r.day);
+        return { spieltag: r.day, heim: mb.heim, auswaerts: mb.auswaerts, endstand: mb.endstand, sieger: mb.sieger };
+      });
+    const view = (x) => ({ name: x.name, typen: x.types, tier: x.tier, initiative: x.initiative, rolle: x.rolle, kills: x.kills, deaths: x.deaths, kaempfe: x.kaempfe });
+    return {
+      spieltag: day,
+      matchId: m.id,
+      heim: home?.name || m.home,
+      heimId: m.home,
+      auswaerts: away?.name || m.away,
+      auswaertsId: m.away,
+      tabelle: {
+        heim: rowOf(m.home) ? { platz: rowOf(m.home).platz, punkte: rowOf(m.home).punkte } : null,
+        auswaerts: rowOf(m.away) ? { platz: rowOf(m.away).platz, punkte: rowOf(m.away).punkte } : null,
+      },
+      bisherigeDuelleDieseSaison: duels,
+      kaderHeim: sh.map(view),
+      kaderAuswaerts: sa.map(view),
+      schnellsteHeim: fastest(sh),
+      schnellsteAuswaerts: fastest(sa),
+      typenDuelleHeim: typeEdges(sh, sa),
+      typenDuelleAuswaerts: typeEdges(sa, sh),
+      hinweis: 'Typen-Duelle sind aus den eigenen Typen (als STAB-Angriffe) gerechnet — eine Näherung. '
+        + 'Coverage-Attacken, Fähigkeiten und Items kennt der Block nicht; formuliere Matchup-Einschätzungen '
+        + 'deshalb als Analyse („sieht gut aus gegen", „dürfte Probleme bekommen mit"), nicht als Gewissheit. '
+        + 'Aufgebot (6 aus 10) und Aufstellung (4 je Kampf) stehen VOR dem Spiel nicht fest.',
+    };
+  });
+}
+
+// Die Saison-Teams, zu denen die Partien gehören (für die Tabelle der Vorschau).
+function teamsOfSeason(teams, matches) {
+  const sample = teamById(teams, matches[0]?.home);
+  const season = Number.isFinite(sample?.season) ? sample.season : 1;
+  return (teams || []).filter((t) => (Number.isFinite(t.season) ? t.season : 1) === season);
 }
 
 // Wo steht die Saison? Daraus leitet das Modell ab, ob es um den Titel, um nichts
@@ -580,7 +706,7 @@ export function referenceBlock(articles, limit = REFERENCE_LIMIT) {
       kategorie: categoryLabel(a.category),
       autor: autorOf(a),
       spieltag: a.day ?? null,
-      vonDerRedaktionDerSpieler: categoriesOf(a).includes('redaktion'),
+      vonDerRedaktionsleitung: categoriesOf(a).includes('redaktion'),
       inhalt: plainText(a.body).slice(0, 2600),
     }));
 }
@@ -599,7 +725,7 @@ export function newsBlock(articles, teamId, limit = NEWS_TEAM_LIMIT) {
       kategorie: categoryLabel(a.category),
       autor: autorOf(a),
       spieltag: a.day ?? null,
-      vonDerRedaktionDerSpieler: a.category === 'redaktion',
+      vonDerRedaktionsleitung: a.category === 'redaktion',
       inhalt: plainText(a.body).slice(0, 900),
     }));
 }
@@ -660,14 +786,19 @@ export function buildContext(src, focus = {}) {
   // Kaderfenster des Wintertransfers: Grundlage aller prozentualen Kennzahlen.
   const availability = transferAvailability(src.transfer, src.schedule);
 
-  return {
+  // Die Menschen hinter den Vereinen kommen in der Presse nicht vor (Kanon 15) — auch
+  // nicht über alte Beiträge, Storylines oder Notizen, die ihre Namen noch tragen.
+  return scrubMetaDeep({
     saison: seasonBlock(src.schedule, src.results),
     tabelle: standingsBlock(seasonTeams, src.results, src.schedule),
     tabelleHinweis: 'Ein offenes Match bringt bis zu 3 Punkte. Entschieden ist ein Platz erst, wenn ihn '
       + 'kein Verfolger mehr erreichen kann — weder nach Punkten (maximalPunkte) noch, bei Gleichstand, '
       + 'nach Kill-Differenz. Bis dahin wird nichts als feststehend behauptet.',
-    spielerDuell: playerDuelBlock(seasonTeams, src.results),
     match: result ? matchBlock(result, src.teams, focus.day) : null,
+    spieltagRueckblick: focus.reviewDay != null ? dayReviewBlock(focus.reviewDay, src.schedule, src.results, src.teams) : null,
+    spieltagVorschau: focus.previewDay != null
+      ? previewBlock(focus.previewDay, { schedule: src.schedule, results: src.results, teams: src.teams, pokedex: src.pokedex, availability })
+      : null,
     // Von den Spielern selbst notierter Kampfverlauf — die einzige Quelle mit Details
     // aus dem Kampf, die über die reinen Zahlen hinausgeht.
     kampfverlauf: battleLogBlock(src.battleLogs, focus),
@@ -693,7 +824,7 @@ export function buildContext(src, focus = {}) {
     saisonabschluss: focus.seasonEnd
       ? seasonEndBlock(seasonTeams, src.results, src.schedule, src.articles, season)
       : null,
-  };
+  });
 }
 
 // Der von den Spielern notierte Kampfverlauf zum Match im Fokus — und, damit sich
@@ -701,7 +832,7 @@ export function buildContext(src, focus = {}) {
 function battleLogBlock(logs, focus = {}) {
   const list = logs || [];
   const entriesOf = (log) => Object.entries(log?.entries || {})
-    .map(([spieler, e]) => ({ spieler, text: String(e?.text || '').trim() }))
+    .map(([, e]) => ({ quelle: 'aus dem Trainerstab', text: String(e?.text || '').trim() }))
     .filter((e) => e.text);
 
   const current = focus.matchId ? list.find((l) => l.id === focus.matchId) : null;
@@ -717,25 +848,11 @@ function battleLogBlock(logs, focus = {}) {
   const zumMatch = current ? entriesOf(current) : [];
   if (!zumMatch.length && !weitere.length) return null;
   return {
-    hinweis: 'Von den Spielern selbst notiert (auch per Sprachnotiz). Fakten, keine Wertung — '
+    hinweis: 'Notizen aus dem Trainerstab. Fakten, keine Wertung — '
       + 'als Detailquelle nutzbar, aber nicht wörtlich übernehmen.',
     zumMatch,
     weitere,
   };
-}
-
-// Janik gegen Henrik — das eigentliche Duell hinter den acht Teams.
-function playerDuelBlock(seasonTeams, results) {
-  const table = standingsBlock(seasonTeams, results);
-  const sum = (player) => table.filter((r) => r.spieler === player).reduce(
-    (acc, r) => ({
-      punkte: acc.punkte + r.punkte,
-      killDifferenz: acc.killDifferenz + r.killDifferenz,
-      bestePlatzierung: Math.min(acc.bestePlatzierung, r.platz),
-    }),
-    { punkte: 0, killDifferenz: 0, bestePlatzierung: 99 },
-  );
-  return { Janik: sum('Janik'), Henrik: sum('Henrik') };
 }
 
 // Die auffälligsten Pokémon der Liga — als Maßstab, an dem eine Leistung gemessen

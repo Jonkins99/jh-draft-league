@@ -232,8 +232,19 @@ export function allTimePlayers(teams, results, schedules = {}) {
  * Angaben, die erst im Langzeitvergleich entstehen (in wie vielen Saisons ein
  * Pokémon gespielt hat und für wie viele Franchises).
  */
-export function allTimePokemon(teams, results, pokedex = []) {
-  const base = pokemonStats(teams, results, pokedex);
+// opts.season — die aktuelle Saison: Das angezeigte Team eines Pokémon ist dann sein
+// Verein in DIESER Saison. Wer jetzt nicht im Kader steht, ist „frei" (team: null) —
+// ohne den Schnitt hinge ein nicht gedraftetes Pokémon am Verein einer Vorsaison.
+export function allTimePokemon(teams, results, pokedex = [], opts = {}) {
+  const raw = pokemonStats(teams, results, pokedex);
+  const season = Number(opts.season);
+  const owner = {};
+  if (Number.isFinite(season)) {
+    teamsOfSeason(teams, season).forEach((t) => (t.pokemon || []).forEach((p) => { if (p?.name) owner[p.name] = t; }));
+  }
+  const base = Number.isFinite(season)
+    ? raw.map((s) => ({ ...s, team: owner[s.pokemon?.name] || null }))
+    : raw;
   const seasonsOf = {};
   const clubsOf = {};
   (results || []).forEach((r) => {

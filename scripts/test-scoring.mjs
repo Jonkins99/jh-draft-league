@@ -36,7 +36,7 @@ import {
   PLAYERS as AUTH_PLAYERS, userId, playerOf, otherPlayer, createCredential,
   verifyCredential, isValidSession, encryptJson, decryptJson, ownsTeam, teamIdsOf,
 } from '../resources/js/auth.mjs';
-import { buildContext } from '../resources/js/press-context.mjs';
+import { buildContext, previewBlock, dayReviewBlock, nextOpenDay } from '../resources/js/press-context.mjs';
 import { buildFinaleScript, SCENE_MS } from '../resources/js/finale.mjs';
 import { CEREMONY_VARIANTS, pickCeremonyVariant, VARIANT_BY_KEY } from '../resources/js/ceremony.mjs';
 import { buildDirection, buildSystem, DEFAULT_PROMPTS } from '../resources/js/press-prompts.mjs';
@@ -53,7 +53,7 @@ import {
   findTiles, stripTiles, normKey, findMon, findTeam, findResult,
   parsePipeRow, parsePipeTable, pipeTableHtml,
 } from '../resources/js/press-tiles.mjs';
-import { buildRecords, newcomersOfSeason } from '../resources/js/seasons.mjs';
+import { buildRecords, newcomersOfSeason, allTimePokemon } from '../resources/js/seasons.mjs';
 import {
   RENEWAL_TIERS, previousRosters, renewalState, hasOpenRenewal, renewalTurn,
   currentPick as draftCurrentPick, buildDraftOrder, snakeOrder, renewedIn,
@@ -68,17 +68,19 @@ import {
 } from '../resources/js/draftplan.mjs';
 import {
   SHOWS, showOf, showByline, lanzTriggerGame, lanzAnswerTarget, lanzLineup, podcastReadyDays,
-  turnParagraph, showParagraphs, cleanTurns, SHOW_SCHEMA,
+  turnParagraph, showParagraphs, cleanTurns, SHOW_SCHEMA, PODCAST_SCHEMA, podcastRawTurns, podcastMissing,
 } from '../resources/js/press-shows.mjs';
 import { teamForm, formFromTimeline, formSparkSvg, careerStations, rivalry, splitPair } from '../resources/js/career.mjs';
 import { statsOf, statTotal, statPercent, statRole, statBlock, roleLabel, monRole, normalizeRoleOverride } from '../resources/js/basestats.mjs';
-import { completedMatchdays, awaitingPlayer } from '../resources/js/awards.mjs';
+import { completedMatchdays, awaitingPlayer, MAX_NOMINATIONS, canConfirmNominations, matchdayPerformance } from '../resources/js/awards.mjs';
 import { normalizeMonTraits, monTraitsOf, monTraitsFor, MAX_MON_TRAITS } from '../resources/js/trainers.mjs';
 import {
   commissionLeague, interviewCandidates, pickInterviewGuests, matchLines, isMatchComplete as pressMatchComplete,
+  mentionsMeta, scrubMeta, scrubMetaDeep, answerMentionsMeta,
 } from '../resources/js/press.mjs';
 import {
   ANSWER_STANCES, STANCE_KEYS, pickStances, scandalPick, marketRule, SCANDALS, isScandal, QUESTIONS_SCHEMA,
+  ADVANCED_TILES, tileSuggestion, CANON_RULES, LEAGUE_PRIMER,
 } from '../resources/js/press-prompts.mjs';
 
 let passed = 0;
@@ -1305,7 +1307,10 @@ test('Ein Baustein steht allein im Absatz und nennt seine Art', () => {
   assert.deepEqual(parseTile('  [ergebnis:s1-d3-m0] '), { kind: 'ergebnis', key: 's1-d3-m0' });
   assert.equal(parseTile('Davor noch Text [video: s1-d3-m0]'), null);
   assert.equal(parseTile('[unbekannt: x]'), null);
-  assert.deepEqual(TILE_KINDS, ['marktwert', 'verlauf', 'statistik', 'team', 'trainer', 'ergebnis', 'tabelle', 'video', 'bild', 'rivalität', 'rivalitaet']);
+  assert.deepEqual(TILE_KINDS, [
+    'marktwert', 'verlauf', 'statistik', 'team', 'trainer', 'ergebnis', 'tabelle', 'video', 'bild', 'rivalität', 'rivalitaet',
+    'marktwertduell', 'vergleich', 'kampf', 'artikel', 'form', 'kader', 'rangliste', 'vorschau',
+  ]);
   assert.deepEqual(parseTile('[tabelle: top]'), { kind: 'tabelle', key: 'top' });
 });
 
@@ -2324,6 +2329,173 @@ test('Franchise: Saisons, Pokémon, Trainer und Kaderwert über alle Saisons', (
   assert.equal(pts[0].known, 2);
   assert.equal(pts[1].known, 1);
   assert.equal(franchiseSquadHistory(franchiseTeams(teams, 'c'), index, stops).length, 0);
+});
+
+test('Nominierungen: vier zum Abschicken, mehr zum Zwischenspeichern', () => {
+  assert.equal(MAX_NOMINATIONS, 4);
+  assert.ok(canConfirmNominations([1, 2, 3, 4]));
+  assert.ok(!canConfirmNominations([1, 2, 3, 4, 5]));
+  assert.ok(canConfirmNominations([]));
+});
+
+test('matchdayPerformance unterscheidet Kader, Aufgebot, Bank und Einsatz', () => {
+  const results = [{
+    day: 3, home: 's1-a', away: 's1-b',
+    squads: { home: ['A1', 'A2', 'A3', 'A4', 'A5', 'A6'], away: ['B1', 'B2', 'B3', 'B4', 'B5', 'B6'] },
+    battles: [
+      { done: true, used: { home: ['A1', 'A2', 'A3', 'A4'], away: ['B1', 'B2', 'B3', 'B4'] },
+        kills: [
+          { victimSide: 'away', victim: 'B1', killerSide: 'home', killer: 'A1' },
+          { victimSide: 'away', victim: 'B2', killerSide: 'home', killer: 'A1' },
+          { victimSide: 'home', victim: 'A1', killerSide: 'away', killer: 'B3' },
+          { victimSide: 'home', victim: 'A2', killerSide: 'home', killer: 'A1' },
+        ] },
+      { done: true, used: { home: ['A2', 'A3', 'A4', 'A5'], away: ['B1', 'B2', 'B3', 'B4'] }, kills: [] },
+      { done: false },
+    ],
+  }];
+  const roster = { 's1-a': ['A1', 'A2', 'A3', 'A4', 'A5', 'A6', 'A7'], 's1-b': [] };
+  const a1 = matchdayPerformance(results, 3, 'A1', (id) => roster[id]);
+  assert.equal(a1.status, 'squad');
+  assert.equal(a1.teamId, 's1-a');
+  // Der Kill am eigenen Partner zählt nicht.
+  assert.deepEqual(a1.battles, [{ state: 'played', kills: 2, died: true }, { state: 'bench' }, { state: 'open' }]);
+  assert.deepEqual(matchdayPerformance(results, 3, 'A2', (id) => roster[id]).battles[0], { state: 'played', kills: 0, died: true });
+  assert.deepEqual(matchdayPerformance(results, 3, 'A7', (id) => roster[id]), { status: 'out', teamId: 's1-a' });
+  assert.deepEqual(matchdayPerformance(results, 3, 'Z', (id) => roster[id]), { status: 'none' });
+  assert.deepEqual(matchdayPerformance(results, 4, 'A1'), { status: 'none' });
+});
+
+// === Presse: Bausteine, Podcast, Meta-Ebene =================================
+const pxDex = [
+  { name: 'Briduradon', types: ['Stahl', 'Drache'], tier: 'A', image: 'b.png', base_speed: 85 },
+  { name: 'Glurak', types: ['Feuer', 'Flug'], tier: 'S', image: 'g.png', base_speed: 100 },
+  { name: 'Turtok', types: ['Wasser'], tier: 'B', image: 't.png', base_speed: 78 },
+  { name: 'Bisaflor', types: ['Pflanze', 'Gift'], tier: 'C', image: 'f.png', base_speed: 80 },
+];
+const pxTeams = [
+  { id: 's2-a', season: 2, name: 'Alpha', player: 'Janik', logo: 'a.png', pokemon: [{ name: 'Briduradon', tier: 'A' }, { name: 'Bisaflor', tier: 'C' }] },
+  { id: 's2-b', season: 2, name: 'Beta', player: 'Henrik', logo: 'b.png', pokemon: [{ name: 'Glurak', tier: 'S' }, { name: 'Turtok', tier: 'B' }] },
+];
+const pxResults = [{
+  id: 's2-d1-m0', day: 1, home: 's2-a', away: 's2-b',
+  squads: { home: ['Briduradon', 'Bisaflor'], away: ['Glurak', 'Turtok'] },
+  battles: [
+    { done: true, winner: 'home', score: { home: 2, away: 0 }, used: { home: ['Briduradon', 'Bisaflor'], away: ['Glurak', 'Turtok'] },
+      kills: [
+        { victimSide: 'away', victim: 'Glurak', killerSide: 'home', killer: 'Briduradon' },
+        { victimSide: 'away', victim: 'Turtok', killerSide: 'home', killer: 'Briduradon' },
+      ] },
+    { done: true, winner: 'away', score: { home: 0, away: 1 }, used: { home: ['Briduradon', 'Bisaflor'], away: ['Glurak', 'Turtok'] },
+      kills: [{ victimSide: 'home', victim: 'Bisaflor', killerSide: 'away', killer: 'Glurak' }, { victimSide: 'home', victim: 'Briduradon', killerSide: 'away', killer: 'Glurak' }] },
+    { done: true, winner: 'home', score: { home: 1, away: 0 }, used: { home: ['Briduradon'], away: ['Glurak'] },
+      kills: [{ victimSide: 'away', victim: 'Glurak', killerSide: 'home', killer: 'Briduradon' }] },
+  ],
+}];
+const pxSchedule = { matchdays: [
+  { day: 1, leg: 'hin', matches: [{ home: 's2-a', away: 's2-b' }] },
+  { day: 2, leg: 'rueck', matches: [{ home: 's2-b', away: 's2-a' }] },
+] };
+pxSchedule.season = 2;
+
+test('statistik-Kachel rechnet über die Ergebnisse (Briduradon)', () => {
+  const html = tileHtml(parseTile('[statistik: Briduradon]'), { pokedex: pxDex, results: pxResults, season: 2 });
+  assert.ok(html, 'Kachel entsteht');
+  assert.match(html, /Briduradon/);
+  assert.match(html, /<span class="press-stat-num">3<\/span><span class="press-stat-label">Kills/);
+  assert.match(html, /Saison 2/);
+  // Ohne Einsatz trotzdem eine Kachel statt eines stillen Fehlschlags.
+  assert.match(tileHtml(parseTile('[statistik: Turtok]'), { pokedex: pxDex, results: [], season: 2 }), /noch ohne Einsatz/);
+});
+
+test('Erweiterte Bausteine: Vergleich, Kampf, Form, Kader, Bestenliste, Vorschau, Lesetipp, Marktwert-Duell', () => {
+  const src = { pokedex: pxDex, results: pxResults, teams: pxTeams, seasonTeams: pxTeams, season: 2, schedules: { s2: pxSchedule } };
+  assert.match(tileHtml(parseTile('[vergleich: Briduradon | Glurak]'), src), /press-tile-cmp/);
+  assert.equal(tileHtml(parseTile('[vergleich: Briduradon]'), src), null);
+  const battle = tileHtml(parseTile('[kampf: s2-d1-m0 | 2]'), src);
+  assert.match(battle, /Kampf 2/);
+  assert.match(battle, /is-down/);
+  assert.match(tileHtml(parseTile('[kampf: d1-m0]'), src), /Kampf 3/);
+  const form = tileHtml(parseTile('[form: s2-a]'), src);
+  assert.match(form, /press-form-chip is-S/);
+  assert.match(tileHtml(parseTile('[kader: s2-b]'), src), /Glurak/);
+  const rank = tileHtml(parseTile('[rangliste: kills]'), src);
+  assert.match(rank, /Briduradon/);
+  assert.equal(tileHtml(parseTile('[rangliste: quatsch]'), src), null);
+  const pv = tileHtml(parseTile('[vorschau: s2-d2-m0]'), src);
+  assert.match(pv, /Spieltag 2/);
+  assert.match(pv, /Beta/);
+  const teaser = tileHtml(parseTile('[artikel: Ein Titel]'), { findArticle: (k) => (k === 'Ein Titel' ? { id: 'x1', title: 'Ein Titel', excerpt: 'Kurz' } : null) });
+  assert.match(teaser, /data-article-id="x1"/);
+  const eloIndex = {
+    Briduradon: { elo: 1500, history: [{ label: 'S2 Pre', elo: 1450 }, { label: 'S2 MD1', elo: 1500 }] },
+    Glurak: { elo: 1600, history: [{ label: 'S2 Pre', elo: 1650 }, { label: 'S2 MD1', elo: 1600 }] },
+  };
+  assert.match(tileHtml(parseTile('[marktwertduell: Briduradon | Glurak]'), { ...src, eloIndex }), /Marktwert-Duell/);
+  // Jeder neue Baustein steht auch im Editor-Menü und in der Regie.
+  ['marktwertduell', 'vergleich', 'kampf', 'artikel', 'form', 'kader', 'rangliste', 'vorschau'].forEach((k) => {
+    assert.ok(TILE_MENU.some((m) => m.kind === k), k);
+    assert.ok(ADVANCED_TILES.some((m) => m.kind === k), k);
+  });
+  assert.ok(ADVANCED_TILES.every((t) => !t.market || tileSuggestion(true, () => 0.99)));
+  assert.notEqual(tileSuggestion(false, () => 0.999)?.kind, 'marktwertduell');
+  assert.ok(buildDirection([], { rand: () => 0.1 }).text.includes('BAUSTEIN-VORSCHLAG'));
+});
+
+test('Podcast: Rückblick und Vorschau decken jede Partie ab', () => {
+  assert.equal(nextOpenDay(pxSchedule, pxResults, 1), 2);
+  assert.equal(nextOpenDay(pxSchedule, pxResults, 2), null);
+  const review = dayReviewBlock(1, pxSchedule, pxResults, pxTeams);
+  assert.equal(review.length, 1);
+  assert.equal(review[0].gespielt, true);
+  assert.equal(review[0].kaempfe.length, 3);
+  const preview = previewBlock(2, { schedule: pxSchedule, results: pxResults, teams: pxTeams, pokedex: pxDex });
+  assert.equal(preview.length, 1);
+  assert.equal(preview[0].heim, 'Beta');
+  assert.equal(preview[0].bisherigeDuelleDieseSaison.length, 1);
+  const glurak = preview[0].typenDuelleHeim.find((x) => x.pokemon === 'Glurak');
+  assert.ok(glurak.trifftSehrEffektiv.includes('Bisaflor'));
+  const ctx = buildContext({ season: 2, teams: pxTeams, results: pxResults, schedule: pxSchedule, pokedex: pxDex }, { teamIds: ['s2-a'], reviewDay: 1, previewDay: 2 });
+  assert.ok(ctx.spieltagRueckblick && ctx.spieltagVorschau);
+  const turn = (sprecher, text) => ({ sprecher, text });
+  const data = {
+    eroeffnung: [turn('Venicro', 'Hallo')],
+    rueckblick: [{ matchId: 's2-d1-m0', beitraege: [turn('Venicro', 'a'), turn('Chelast', 'b')] }],
+    zwischenteil: [],
+    vorschau: [{ matchId: 's2-d2-m0', beitraege: [turn('Chelast', 'c')] }],
+    abschluss: [turn('Chelast', 'Tschüss')],
+  };
+  assert.deepEqual(podcastMissing(data, ['s2-d1-m0'], ['s2-d2-m0']), { review: [], preview: ['s2-d2-m0'] });
+  assert.equal(podcastRawTurns(data).length, 5);
+  assert.ok(PODCAST_SCHEMA.required.includes('vorschau'));
+});
+
+test('Meta-Ebene: keine Spielernamen in Kontext und Beiträgen', () => {
+  assert.ok(mentionsMeta('Henriks Team'));
+  assert.ok(!mentionsMeta('Henrikson'));
+  assert.equal(scrubMeta('Janik gegen Henrik'), 'die Vorstände');
+  assert.deepEqual(scrubMetaDeep({ a: ['Janik sagt'], n: 3 }), { a: ['der Vorstand sagt'], n: 3 });
+  assert.ok(answerMentionsMeta({ titel: 'x', absaetze: ['Janik hat entschieden'] }));
+  assert.ok(!answerMentionsMeta({ titel: 'x', absaetze: ['Der Vorstand hat entschieden'] }));
+  const ctx = buildContext({
+    season: 2, teams: pxTeams, results: pxResults, schedule: pxSchedule, pokedex: pxDex,
+    articles: [{ id: 'r1', status: 'ready', title: 'Janik gegen Henrik', body: '<p>Henrik schäumt.</p>', category: 'redaktion', publishedAt: '2026-01-01' }],
+  }, { teamIds: ['s2-a'], matchId: 's2-d1-m0', day: 1 });
+  const json = JSON.stringify(ctx);
+  assert.ok(!/Janik|Henrik/.test(json), 'kein Spielername im Kontext');
+  assert.ok(!('spielerDuell' in ctx));
+  assert.match(CANON_RULES, /15\. ES GIBT KEINE SPIELER/);
+  assert.ok(!/Janik|Henrik/.test(LEAGUE_PRIMER));
+});
+
+test('allTimePokemon: nicht gedraftete Pokémon sind saisonübergreifend frei', () => {
+  const teams = [
+    { id: 's1-a', season: 1, name: 'A1', pokemon: [{ name: 'Glurak' }, { name: 'Turtok' }] },
+    { id: 's2-a', season: 2, name: 'A2', pokemon: [{ name: 'Glurak' }] },
+  ];
+  const rows = allTimePokemon(teams, [], [], { season: 2 });
+  assert.equal(rows.find((r) => r.pokemon.name === 'Glurak').team.id, 's2-a');
+  assert.equal(rows.find((r) => r.pokemon.name === 'Turtok').team, null);
 });
 
 console.log(`\n${passed} Tests bestanden.`);

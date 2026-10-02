@@ -1,7 +1,23 @@
 # Changelog
 
-## Press: reliability of the Gemini desk
+## Awards: four nominations and matchday form
+- **Four instead of three.** Each player may now nominate up to four candidates per award.
+- **Park more, send four.** "Zwischenspeichern" keeps any number of candidates as a shortlist; "Ich bin fertig" is only enabled once the list is down to four (the store refuses more as well).
+- **How did they do on the matchday?** In the nomination dialog of matchday awards every Pokémon shows its three battles at a glance: not in the six-man squad (dashed circle), in the squad but not used (bench), or used with its kill count — green if it survived, red with a cross if it fell. Pokémon of the playing teams who were not brought are now nominatable too.
 
+## Press
+- **Stat tiles work again.** `[statistik: …]` called `pokemonStats` with the arguments in the wrong order and therefore never rendered; it now counts result-driven over the article's season and also renders for a Pokémon without appearances.
+- **Eight advanced tiles.** `[vergleich: A | B]` (head-to-head bars), `[marktwertduell: A | B]` (two market curves), `[kampf: <match> | <n>]` (one battle in detail: line-ups, who fell, kill sequence), `[artikel: <title>]` (teaser that opens the other piece), `[form: <team>]` (last five games plus table path), `[kader: <team>]` (all ten Pokémon with tier and record), `[rangliste: kills|deaths|kd|einsaetze|ueberleben|siegquote|marktwert]` (top five) and `[vorschau: <match>]` (upcoming game: table, form, type edges). All are in the editor toolbar; the direction suggests one advanced tile per text so the desk uses them on its own. Context now carries match ids for recent and upcoming games.
+- **No players, only trainers and the board.** Janik and Henrik are a meta level the press never reports on: a new canon rule, a rewritten league primer, no player fields or player duel in the metadata, names scrubbed from older articles and storylines in the context, and any answer that still names them is rejected and requested again. Decisions are attributed to the trainer or to an anonymous club board ("Vorstand").
+- **"50 plus Zweiblatt" covers every game.** The podcast now gets the full review of every match of the finished matchday and a matchup preview of every match of the next one (rosters, roles, speed, type edges, head-to-head). The answer is structured per match; an episode that skips a game is requested again. Focus: tactics and strategy.
+
+## All seasons
+- **Undrafted means free.** In the cross-season statistics a Pokémon is shown with its club of the current season, or as "Frei" — no longer with the club of a past season. The team filter lists the current clubs.
+
+## Draft
+- **Hide drafted Pokémon.** A switch in the pool hides every Pokémon already taken this season, during and after the draft (remembered per device). After the draft, taken Pokémon are dimmed and show their club.
+
+## Press: reliability of the Gemini desk
 - **Automatic fallback across models.** Every Flash model has its own free daily quota (about 20 requests). When the chosen model hits its limit or is overloaded, the desk moves on by itself: 3.8 → 3.7 → 3.6 → 3.5 Flash → 3 Flash Preview → 2.5 Flash, and — if enabled — the Lite models with about 500 requests a day as the last reserve. Both switches live in the access tab. The model that actually wrote a piece is stored on the article (`model`).
 - **Several API keys.** The access tab takes up to six keys (with optional labels, reorderable, each tested on its own). On a quota error the desk tries the same model on the next key before stepping down to the next model. Quota counts per Google project, so a second key only helps if it comes from another project or account.
 - **Quota book.** A 429 is classified as daily or per-minute limit (from Google's `QuotaFailure`/`RetryInfo`). Daily limits block that key/model combination until midnight Pacific time (9:00 German time), minute limits for a few seconds — exhausted combinations are no longer asked again for every piece. The access tab lists what is blocked until when and can reset it. Only if nothing but minute limits are left does the desk wait once and try again.
