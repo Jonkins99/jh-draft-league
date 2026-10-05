@@ -1,5 +1,19 @@
 # Changelog
 
+## Press: read aloud
+- **Listen instead of read.** Every finished article has a "Vorlesen" button. It speaks with the voices the device already has (Web Speech API) — free, no account, no key. The best German voice is picked automatically (Edge "Natural" voices, "Google Deutsch", Apple Premium/Enhanced first, novelty voices last); voice and speed (0.8× to 1.5×) can be changed while listening and are remembered per device.
+- **Follows along.** The paragraph being spoken is highlighted and scrolled into view; a sticky bar offers pause, paragraph back/forward and stop. Tiles, tables and images are skipped. Text is spoken in short pieces so Chrome no longer cuts off after 15 seconds, and pause works on phones as well.
+- **Shows with a cast.** Talk show and podcast transcripts give each speaker their own voice where the device has enough; otherwise speakers share one at a different pitch and are named on every change.
+
+## Awards: provisional ratings
+- **Rate while nominating.** Every candidate in the nomination dialog can get a provisional 0–10 rating, saved with "Zwischenspeichern" and "Ich bin fertig". The voting dialog starts from it (marked "vorläufig") and it can still be changed; an already submitted vote always wins.
+
+## Market values
+- **New top of the scale.** Elo 2100 is now worth 150 Mio. €, 2250 200 Mio. € and 2400 250 Mio. €. All past values follow automatically: market values are always computed from the Elo history, never stored.
+
+## Home screen
+- **Several apps from one GitHub account.** The web manifest now has its own `id`, `start_url` and `scope` and is shipped unhashed next to `index.html` together with its icons, so another GitHub Pages app of the same account no longer counts as "already installed".
+
 ## Awards: four nominations and matchday form
 - **Four instead of three.** Each player may now nominate up to four candidates per award.
 - **Park more, send four.** "Zwischenspeichern" keeps any number of candidates as a shortlist; "Ich bin fertig" is only enabled once the list is down to four (the store refuses more as well).

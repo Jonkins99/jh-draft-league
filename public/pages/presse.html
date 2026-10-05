@@ -348,7 +348,7 @@ match /settings/{doc} { allow read, write: if true; }</code></pre>
 
   <!-- ============================ BEITRAG LESEN ============================= -->
   <div popover id="press-article" class="modal-pop w-[52rem] max-w-[calc(100vw-1.5rem)] rounded-3xl border border-line bg-panel text-ink"
-       @toggle="if ($event.newState === 'closed') openId = null">
+       @toggle="if ($event.newState === 'closed') { readStop(); openId = null }">
     <template x-if="article">
       <div class="max-h-[88vh] overflow-y-auto @container">
         <div class="press-wall relative flex items-end gap-4 overflow-hidden rounded-t-3xl border-b border-line px-5 pt-6 sm:px-8">
@@ -393,9 +393,63 @@ match /settings/{doc} { allow read, write: if true; }</code></pre>
               <span x-text="fmtDateTime(article.publishedAt)"></span><br>
               <span x-text="`${minutesOf(article)} Min. Lesezeit`"></span>
             </p>
+            <button type="button" x-show="speakOk && viewStatus(article) === 'ready'" @click="readToggle(article)"
+                    :aria-pressed="readingThis(article)"
+                    class="inline-flex w-full items-center justify-center gap-2 rounded-xl border px-3 py-2 font-display text-xs font-bold uppercase tracking-wider transition-colors sm:w-auto"
+                    :class="readingThis(article) ? 'border-flame-500/60 bg-flame-500/10 text-flame-400' : 'border-line text-mist hover:text-flame-400'">
+              <svg x-show="!readingThis(article) || speak.status === 'paused'" viewBox="0 0 24 24" class="size-4" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M11 5 6 9H2v6h4l5 4V5Z"/><path d="M15.5 8.5a5 5 0 0 1 0 7M19 5a10 10 0 0 1 0 14"/></svg>
+              <svg x-show="readingThis(article) && speak.status === 'playing'" viewBox="0 0 24 24" class="size-4" fill="currentColor"><rect x="6" y="5" width="4" height="14" rx="1"/><rect x="14" y="5" width="4" height="14" rx="1"/></svg>
+              <span x-text="!readingThis(article) ? 'Vorlesen' : speak.status === 'playing' ? 'Pause' : 'Weiter'"></span>
+            </button>
           </div>
 
           <div class="press-body" x-html="articleBody" @click="onBodyClick($event)"></div>
+
+          <div x-show="readingThis(article)" x-transition.opacity
+               class="sticky bottom-3 z-10 mt-6 rounded-2xl border border-line bg-elevated/95 p-2 shadow-xl backdrop-blur">
+            <div class="mb-2 h-1 overflow-hidden rounded-full bg-line/60">
+              <div class="h-full rounded-full bg-flame-500 transition-[width] duration-300" :style="`width:${speakProgress()}%`"></div>
+            </div>
+            <div class="flex flex-wrap items-center gap-1.5">
+              <button type="button" @click="readSkip(-1)" aria-label="Absatz zurück"
+                      class="grid size-10 place-items-center rounded-xl text-mist transition-colors hover:bg-void/60 hover:text-ink">
+                <svg viewBox="0 0 24 24" class="size-4" fill="currentColor"><path d="M6 5h2v14H6zM20 5v14L9 12z"/></svg>
+              </button>
+              <button type="button" @click="readToggle(article)" :aria-label="speak.status === 'playing' ? 'Pause' : 'Weiter'"
+                      class="grid size-10 place-items-center rounded-xl bg-flame-500 text-white transition-colors hover:bg-flame-600">
+                <svg x-show="speak.status === 'playing'" viewBox="0 0 24 24" class="size-4" fill="currentColor"><rect x="6" y="5" width="4" height="14" rx="1"/><rect x="14" y="5" width="4" height="14" rx="1"/></svg>
+                <svg x-show="speak.status !== 'playing'" viewBox="0 0 24 24" class="size-4" fill="currentColor"><path d="M7 4v16l13-8z"/></svg>
+              </button>
+              <button type="button" @click="readSkip(1)" aria-label="Absatz vor"
+                      class="grid size-10 place-items-center rounded-xl text-mist transition-colors hover:bg-void/60 hover:text-ink">
+                <svg viewBox="0 0 24 24" class="size-4" fill="currentColor"><path d="M16 5h2v14h-2zM4 5v14l11-7z"/></svg>
+              </button>
+              <button type="button" @click="readStop()" aria-label="Vorlesen beenden"
+                      class="grid size-10 place-items-center rounded-xl text-mist transition-colors hover:bg-void/60 hover:text-flame-400">
+                <svg viewBox="0 0 24 24" class="size-4" fill="currentColor"><rect x="6" y="6" width="12" height="12" rx="1.5"/></svg>
+              </button>
+              <div class="ml-auto flex min-w-0 flex-wrap items-center gap-1.5">
+                <label class="sr-only" for="press-speak-rate">Tempo</label>
+                <select id="press-speak-rate" @change="setSpeakRate($event.target.value)"
+                        class="h-10 rounded-xl border border-line bg-void px-2 text-xs text-ink">
+                  <template x-for="r in speakRates" :key="'sr-'+r">
+                    <option :value="r" :selected="r === speakRate" x-text="`${String(r).replace('.', ',')}×`"></option>
+                  </template>
+                </select>
+                <template x-if="speakVoices.length > 1">
+                  <div class="min-w-0">
+                    <label class="sr-only" for="press-speak-voice">Stimme</label>
+                    <select id="press-speak-voice" @change="setSpeakVoice($event.target.value)"
+                            class="h-10 w-40 max-w-full truncate rounded-xl border border-line bg-void px-2 text-xs text-ink sm:w-52">
+                      <template x-for="(v, i) in speakVoices" :key="'sv-'+v.uri">
+                        <option :value="v.uri" :selected="speakVoice ? v.uri === speakVoice : i === 0" x-text="v.name"></option>
+                      </template>
+                    </select>
+                  </div>
+                </template>
+              </div>
+            </div>
+          </div>
 
           <div x-show="(article.teamIds || []).length || (article.pokemonNames || []).length" class="mt-8 border-t border-line pt-5">
             <p class="mb-3 font-display text-[11px] font-bold uppercase tracking-[0.22em] text-mist">Im Text</p>

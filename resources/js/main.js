@@ -11,7 +11,7 @@ import {
   PLAYERS, MAX_NOMINATIONS, canConfirmNominations, matchdayPerformance, MATCHDAY_AWARDS, SEASON_AWARDS, AWARD_BY_KEY,
   awardDocId, optionId, mergedOptions, remainingNominations, hasVoted, nextStatus,
   voteResults, awardWinner, awardWinners, spoilerNote, awardableDays, MATCHDAY_AWARDS_FROM,
-  seasonTiers, tierInSeason, completedMatchdays, awaitingPlayer,
+  seasonTiers, tierInSeason, completedMatchdays, awaitingPlayer, normalizePrevote, initialVotes,
 } from './awards.mjs';
 import { awardSvg, awardColor } from './award-visuals.mjs';
 import {
@@ -86,6 +86,7 @@ import {
   blankLog, logText, logUpdatedAt, hasLog, logAuthors, logToText,
 } from './notes.mjs';
 import { draftPlanView } from './draftplan-view.mjs';
+import { rankVoices, pickVoice, buildSegments, assignSpeakerVoices, createReader, speakerOf, RATES as SPEAK_RATES } from './speech.mjs';
 import { teamForm, formFromTimeline, formLabel, formSparkSvg, careerStations } from './career.mjs';
 import {
   BASE_STATS, statsOf, statTotal, statPercent, statTone, roleLabel, monRole, normalizeRoleOverride, ROLE_OPTIONS, SIDE_OPTIONS,
@@ -173,6 +174,7 @@ const PRESS_KEY = 'jhdl-press-key-v1';           // { key, keys: [{ key, label }
 // Welcher Schlüssel ist mit welchem Modell bis wann erschöpft (QuotaBook, gemini.mjs)?
 const PRESS_QUOTA_KEY = 'jhdl-press-quota-v1';
 const PRESS_FILTER_KEY = 'jhdl-press-filter-v1'; // { category, teamId, q }
+const PRESS_VOICE_KEY = 'jhdl-press-voice-v1'; // { voice: voiceURI, rate }
 // Freie Beiträge je Spieltag — freigeschaltet mit dem 1., 2. und 3. fertigen Match.
 const RANDOM_ARTICLES_PER_DAY = 3;
 // Freie Beiträge der Pause zwischen zwei Saisons. Sie werden nicht auf einen Schlag
@@ -5464,6 +5466,8 @@ function awardsView() {
     draft: [],     // Nominierungen des eigenen Spielers im Dialog
     pair: [],      // Zwischenauswahl für Duo-Awards (2 Pokémon)
     votes: {},     // { optionId: 0…10 }
+    pre: {},       // vorläufige Bewertung beim Nominieren: { optionId: 0…10 | null }
+    votePre: {},   // im Abstimmungs-Dialog: Optionen, deren Wert aus der vorläufigen Bewertung stammt
     q: '',
     busy: false,
     _cer: null,
@@ -5808,6 +5812,7 @@ function awardsView() {
     openNominate(inst) {
       this.dialog = { mode: 'nominate', inst };
       this.draft = [...(inst.nominations?.[this.me] || [])];
+      this.pre = { ...(inst.prevotes?.[this.me] || {}) };
       this.pair = [];
       this.q = '';
       this.$nextTick(() => document.getElementById('award-nominate')?.showPopover());
@@ -5848,6 +5853,17 @@ function awardsView() {
       this.draft = [...this.draft, { id: opt.id, label: opt.label, image: opt.image || '', sub: opt.sub || '' }];
     },
     removeDraft(id) { this.draft = this.draft.filter((d) => d.id !== id); },
+    preOf(id) { return normalizePrevote(this.pre[id]); },
+    setPre(id, value) { this.pre = { ...this.pre, [id]: normalizePrevote(value) }; },
+    clearPre(id) { this.pre = { ...this.pre, [id]: null }; },
+    // Nur die Bewertungen der Optionen, die noch auf der Liste stehen. Gestrichene und
+    // zurückgenommene stehen als null drin — der Merge-Schreibzugriff löscht sonst nichts.
+    prevotesForSave() {
+      const out = {};
+      Object.keys(this.pre).forEach((id) => { out[id] = null; });
+      this.draft.forEach((d) => { out[d.id] = this.preOf(d.id); });
+      return out;
+    },
 
     // „Ich bin fertig": die eigene Seite ist abgeschlossen. Sind beide fertig, beginnt
     // die Abstimmung von selbst — niemand startet sie mehr aktiv für den anderen.
@@ -5855,7 +5871,7 @@ function awardsView() {
       if (this.busy || !this.dialog || this.draftOver) return;
       this.busy = true;
       try {
-        await this.store.confirmNominations(this.dialog.inst, this.draft);
+        await this.store.confirmNominations(this.dialog.inst, this.draft, this.prevotesForSave());
         const both = this.store.byId(this.dialog.inst.id)?.status === 'voting';
         window.dispatchEvent(new CustomEvent('toast', {
           detail: { msg: both ? 'Beide fertig — die Abstimmung läuft.' : `Fertig — jetzt fehlt ${this.store.other}.` },
@@ -5870,7 +5886,7 @@ function awardsView() {
       if (this.busy || !this.dialog) return;
       this.busy = true;
       try {
-        await this.store.saveNominations(this.dialog.inst, this.draft);
+        await this.store.saveNominations(this.dialog.inst, this.draft, this.prevotesForSave());
         window.dispatchEvent(new CustomEvent('toast', { detail: { msg: 'Zwischengespeichert.' } }));
         this.closeDialog();
       } catch (e) { console.error(e); }
@@ -5880,9 +5896,9 @@ function awardsView() {
     // --- Abstimmungs-Dialog ---
     openVote(inst) {
       this.dialog = { mode: 'vote', inst };
-      const own = inst.votes?.[this.me] || {};
-      const opts = mergedOptions(inst);
-      this.votes = Object.fromEntries(opts.map((o) => [o.id, Number.isFinite(own[o.id]) ? own[o.id] : 5]));
+      const { votes, fromPrevote } = initialVotes(mergedOptions(inst), inst.votes?.[this.me], inst.prevotes?.[this.me]);
+      this.votes = votes;
+      this.votePre = fromPrevote;
       this.$nextTick(() => document.getElementById('award-vote')?.showPopover());
     },
     get voteOptions() {
@@ -5890,6 +5906,7 @@ function awardsView() {
     },
     setVote(id, value) {
       this.votes = { ...this.votes, [id]: Math.max(0, Math.min(10, Math.round(Number(value) || 0))) };
+      if (this.votePre[id]) this.votePre = { ...this.votePre, [id]: false };
     },
     voteColor(v) {
       if (v >= 8) return '#63bc5a';
@@ -5984,8 +6001,147 @@ function escapeText(value) {
     .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
 }
 
+// Vorlesen der Presse (speech.mjs). Die Steuerung liegt außerhalb der Reaktivität —
+// es gibt immer nur EINEN Beitrag, der gerade gesprochen wird; der View hält nur den Zustand.
+let pressReader = null;
+let pressReaderSink = null;
+const SPEAK_BLOCKS = 'p, li, h2, h3, h4, blockquote';
+
+function speechAvailable() {
+  return typeof window !== 'undefined' && 'speechSynthesis' in window && 'SpeechSynthesisUtterance' in window;
+}
+
+// Lesbare Absätze im gerenderten Textkörper: nur die innersten Blöcke, keine Bausteine
+// (alle Kacheln, Tabellen und Bilder sind <figure>).
+function readableBlocks(root) {
+  if (!root) return [];
+  return [...root.querySelectorAll(SPEAK_BLOCKS)]
+    .filter((el) => !el.closest('figure') && !el.querySelector(SPEAK_BLOCKS) && el.textContent.trim());
+}
+
+// „**Name:** Text" als Protokollzeile — nur wenn der Absatz mit dem fetten Namen beginnt.
+function blockSpeaker(el) {
+  const first = el.firstElementChild;
+  if (!first || !/^(STRONG|B)$/.test(first.tagName)) return null;
+  const lead = el.textContent.trimStart();
+  if (!lead.startsWith(first.textContent.trim())) return null;
+  return speakerOf(lead);
+}
+
+function readAloudMixin() {
+  return {
+    speakOk: speechAvailable(),
+    speak: { status: 'idle', index: 0, total: 0, block: null, articleId: null },
+    speakRate: 1,
+    speakVoice: '',
+    speakVoices: [],
+    speakRates: SPEAK_RATES,
+
+    speakInit() {
+      if (!this.speakOk) return;
+      const saved = loadJson(PRESS_VOICE_KEY);
+      this.speakVoice = saved.voice || '';
+      this.speakRate = SPEAK_RATES.includes(saved.rate) ? saved.rate : 1;
+      const refresh = () => {
+        this.speakVoices = rankVoices(window.speechSynthesis.getVoices())
+          .map((v) => ({ uri: v.voiceURI, name: v.name.replace(/^Microsoft\s+/, '').replace(/\s*-\s*(German|Deutsch).*$/i, '') }));
+      };
+      refresh();
+      window.speechSynthesis.addEventListener?.('voiceschanged', refresh);
+      this._speakVoicesOff = () => window.speechSynthesis.removeEventListener?.('voiceschanged', refresh);
+    },
+    speakDestroy() {
+      this._speakVoicesOff?.();
+      if (pressReaderSink === this) this.readStop();
+    },
+    speakPersist() {
+      saveJson(PRESS_VOICE_KEY, { voice: this.speakVoice, rate: this.speakRate });
+    },
+    _speakSink(state) {
+      this.speak = { ...this.speak, ...state };
+      if (state.status === 'idle') this.speak.articleId = null;
+      this._speakMark();
+    },
+    _speakRoot() { return document.querySelector('#press-article .press-body'); },
+    // Markiert den gesprochenen Absatz und holt ihn ins Bild. Die Blöcke werden jedes Mal
+    // neu gesucht: der Textkörper kann zwischendurch neu gerendert worden sein.
+    _speakMark() {
+      const blocks = readableBlocks(this._speakRoot());
+      blocks.forEach((el, i) => {
+        const on = this.speak.status !== 'idle' && i === this.speak.block;
+        el.classList.toggle('is-reading', on);
+        if (on && this.speak.status === 'playing') el.scrollIntoView({ block: 'nearest', behavior: 'smooth' });
+      });
+    },
+    readingThis(a) { return !!a && this.speak.articleId === a.id && this.speak.status !== 'idle'; },
+    readAloud(a) {
+      if (!this.speakOk || !a) return;
+      const synth = window.speechSynthesis;
+      if (!pressReader) {
+        pressReader = createReader({
+          synth,
+          Utterance: window.SpeechSynthesisUtterance,
+          onChange: (state) => pressReaderSink?._speakSink(state),
+        });
+      }
+      pressReaderSink = this;
+      const els = readableBlocks(this._speakRoot());
+      const raw = els.map((el) => ({ el, sp: blockSpeaker(el) }));
+      // Eine Sendung oder ein Wortprotokoll: mindestens drei Zeilen von mindestens zwei Sprechern.
+      const speakers = raw.map((r) => r.sp?.speaker).filter(Boolean);
+      const protocol = speakers.length >= 3 && new Set(speakers).size >= 2;
+      const blocks = raw.map(({ el, sp }) => (protocol && sp
+        ? { text: sp.text, speaker: sp.speaker }
+        : { text: el.textContent }));
+      const voices = rankVoices(synth.getVoices());
+      const main = pickVoice(synth.getVoices(), this.speakVoice);
+      const cast = protocol ? assignSpeakerVoices(speakers, voices, main) : { map: {}, shared: new Set() };
+      const by = this.byline(a);
+      const byline = showOf(a) ? by?.name : by?.name ? `Von ${by.name}` : '';
+      const segs = buildSegments({ title: a.title, subtitle: a.subtitle, byline }, blocks, {
+        announce: (sp) => cast.shared.has(sp),
+      });
+      if (!segs.length) return;
+      this.speak = { ...this.speak, articleId: a.id };
+      pressReader.play(segs, {
+        rate: this.speakRate,
+        voice: main,
+        voiceFor: (sp) => cast.map[sp] || null,
+      });
+    },
+    readToggle(a) {
+      if (!pressReader || !this.readingThis(a)) return this.readAloud(a);
+      if (this.speak.status === 'playing') pressReader.pause();
+      else pressReader.resume();
+    },
+    readSkip(delta) { pressReader?.skip(delta); },
+    readStop() {
+      if (pressReader && pressReaderSink === this) pressReader.stop();
+    },
+    setSpeakRate(rate) {
+      this.speakRate = Number(rate) || 1;
+      this.speakPersist();
+      pressReader?.update({ rate: this.speakRate });
+    },
+    setSpeakVoice(uri) {
+      this.speakVoice = uri;
+      this.speakPersist();
+      if (!pressReader || this.speak.status === 'idle') return;
+      // Gilt ab dem laufenden Stück; die Sprecher einer Sendung behalten ihre Stimmen
+      // bis zum nächsten Durchlauf.
+      const voice = pickVoice(window.speechSynthesis.getVoices(), uri);
+      pressReader.update({ voice });
+    },
+    speakProgress() {
+      const { index, total } = this.speak;
+      return total ? Math.round(((index + 1) / total) * 100) : 0;
+    },
+  };
+}
+
 function presseView() {
   return {
+    ...readAloudMixin(),
     tab: 'newsroom',
     fCat: '',
     fTeam: '',
@@ -6020,7 +6176,9 @@ function presseView() {
       if (nav?.teamId) { this.fTeam = nav.teamId; this.pickTeam = nav.teamId; nav.teamId = null; }
       // Eine neue Auswahl beginnt wieder oben.
       ['fCat', 'fTeam', 'q'].forEach((key) => this.$watch(key, () => { this.shown = PRESS_PAGE_FIRST; }));
+      this.speakInit();
     },
+    destroy() { this.speakDestroy(); },
 
     get press() { return this.$store.press; },
     get league() { return this.$store.league; },
@@ -6150,12 +6308,14 @@ function presseView() {
     showMore() { this.shown += PRESS_PAGE_STEP; },
 
     openArticle(id) {
+      if (this.openId !== id) this.readStop();
       this.openId = id;
       this.$nextTick(() => document.getElementById('press-article')?.showPopover());
     },
     closeArticle() {
       const el = document.getElementById('press-article');
       if (el && el.matches(':popover-open')) el.hidePopover();
+      this.readStop();
       this.openId = null;
     },
     get article() { return this.openId ? this.press.byId(this.openId) : null; },
@@ -7829,6 +7989,7 @@ Alpine.store('awards', {
       nominations: raw?.nominations || {},
       confirmed: raw?.confirmed || {},
       votes: raw?.votes || {},
+      prevotes: raw?.prevotes || {},
       voted: raw?.voted || {},
       seen: raw?.seen || {},
     };
@@ -7853,18 +8014,24 @@ Alpine.store('awards', {
 
   // Nominierungen zwischenspeichern. Hier ist mehr als MAX_NOMINATIONS erlaubt —
   // die Merkliste wird erst beim Abschicken auf das Limit gekürzt.
-  async saveNominations(inst, options) {
-    await this._write(inst, { nominations: { [this.me]: [...options] } });
+  // `prevotes` ist die vorläufige Bewertung je Option — sie belegt später den
+  // Abstimmungs-Dialog vor und bleibt dort änderbar.
+  async saveNominations(inst, options, prevotes = null) {
+    await this._write(inst, {
+      nominations: { [this.me]: [...options] },
+      ...(prevotes ? { prevotes: { [this.me]: prevotes } } : {}),
+    });
   },
   // „Ich bin fertig". Sobald beide Spieler das gesagt haben, springt der Status von
   // selbst auf `voting` — ein Knopf, der die Abstimmung für beide startet, wäre eine
   // Entscheidung über den Kopf des anderen hinweg.
-  async confirmNominations(inst, options) {
+  async confirmNominations(inst, options, prevotes = null) {
     if (!canConfirmNominations(options)) throw new Error(`Höchstens ${MAX_NOMINATIONS} Nominierungen.`);
     const confirmed = { ...inst.confirmed, [this.me]: true };
     const status = nextStatus({ ...inst, confirmed, status: 'nominating' });
     await this._write(inst, {
       nominations: { [this.me]: [...options] },
+      ...(prevotes ? { prevotes: { [this.me]: prevotes } } : {}),
       confirmed: { [this.me]: true },
       status,
     });

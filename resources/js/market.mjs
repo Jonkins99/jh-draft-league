@@ -20,7 +20,9 @@ export const MARKET_ANCHORS = [
   [1700, 30_000_000],
   [1800, 50_000_000],
   [1900, 100_000_000],
-  [2100, 200_000_000],
+  [2100, 150_000_000],
+  [2250, 200_000_000],
+  [2400, 250_000_000],
 ];
 
 const LOG_ANCHORS = MARKET_ANCHORS.map(([elo, value]) => [elo, Math.log10(value)]);

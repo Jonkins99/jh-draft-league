@@ -263,20 +263,35 @@
             </div>
 
             <div class="min-h-0 flex-1 overflow-y-auto px-5 py-4">
-              <!-- Bereits gewählte Vorschläge -->
-              <div class="mb-3 flex flex-wrap gap-2">
+              <!-- Bereits gewählte Vorschläge, je mit optionaler vorläufiger Bewertung -->
+              <div class="mb-3 space-y-2">
+                <p x-show="draft.length" class="text-[11px] text-mist">Vorläufige Bewertung (optional) — sie steht in der Abstimmung schon drin und lässt sich dort noch ändern.</p>
                 <template x-for="d in draft" :key="'dr-'+d.id">
-                  <button type="button" @click="removeDraft(d.id)"
-                          class="inline-flex items-center gap-2 rounded-xl border border-flame-500/50 bg-flame-500/10 px-2 py-1.5 text-sm text-flame-200 transition-colors hover:bg-flame-500/20"
-                          :title="`${d.label} entfernen`">
-                    <span class="flex items-center">
-                      <template x-for="(src, si) in (d.images && d.images.length ? d.images : (d.image ? [d.image] : []))" :key="'ci-'+d.id+'-'+si">
-                        <img :src="src" alt="" class="size-6 object-contain" :class="si ? '-ml-2' : ''" />
-                      </template>
-                    </span>
-                    <span class="max-w-[12rem] truncate" x-text="d.label"></span>
-                    <svg viewBox="0 0 24 24" class="size-3.5" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"><path d="M6 6l12 12M18 6L6 18"/></svg>
-                  </button>
+                  <div class="rounded-xl border border-flame-500/40 bg-flame-500/5 px-2.5 py-2">
+                    <div class="flex items-center gap-2">
+                      <span class="flex shrink-0 items-center">
+                        <template x-for="(src, si) in (d.images && d.images.length ? d.images : (d.image ? [d.image] : []))" :key="'ci-'+d.id+'-'+si">
+                          <img :src="src" alt="" class="size-7 object-contain" :class="si ? '-ml-2' : ''" />
+                        </template>
+                      </span>
+                      <span class="min-w-0 flex-1 truncate text-sm font-semibold text-flame-200" x-text="d.label"></span>
+                      <button type="button" x-show="preOf(d.id) != null" @click="clearPre(d.id)"
+                              class="grid size-9 shrink-0 place-items-center rounded-lg font-display text-base font-black tabular-nums"
+                              :style="`color:${voteColor(preOf(d.id))};background:${voteColor(preOf(d.id))}1f`"
+                              :title="'Vorläufige Bewertung zurücknehmen'" :aria-label="`Vorläufige Bewertung ${preOf(d.id)} zurücknehmen`"
+                              x-text="preOf(d.id)"></button>
+                      <span x-show="preOf(d.id) == null" class="shrink-0 rounded-lg border border-dashed border-line px-2 py-1 text-[11px] text-mist">ohne Wertung</span>
+                      <button type="button" @click="removeDraft(d.id)"
+                              class="grid size-9 shrink-0 place-items-center rounded-lg text-mist transition-colors hover:text-flame-400"
+                              :aria-label="`${d.label} entfernen`">
+                        <svg viewBox="0 0 24 24" class="size-4" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"><path d="M6 6l12 12M18 6L6 18"/></svg>
+                      </button>
+                    </div>
+                    <input type="range" min="0" max="10" step="1" :value="preOf(d.id) ?? 5"
+                           @input="setPre(d.id, $event.target.value)"
+                           class="mt-1.5 h-6 w-full accent-flame-500" :class="preOf(d.id) == null ? 'opacity-40' : ''"
+                           :aria-label="`Vorläufige Bewertung für ${d.label}`" />
+                  </div>
                 </template>
                 <p x-show="!draft.length" class="text-sm text-mist">Noch nichts nominiert – 0 Vorschläge sind erlaubt.</p>
               </div>
@@ -387,6 +402,7 @@
                     <div class="min-w-0 flex-1">
                       <p class="truncate text-sm font-semibold text-ink" x-text="o.label"></p>
                       <p class="truncate text-[11px] text-mist" x-text="`vorgeschlagen von ${o.by.join(' & ')}`"></p>
+                      <p x-show="votePre[o.id]" class="text-[11px] font-semibold text-volt-400">vorläufig beim Nominieren vergeben</p>
                     </div>
                     <span class="grid size-10 shrink-0 place-items-center rounded-lg font-display text-lg font-black tabular-nums"
                           :style="`color:${voteColor(votes[o.id] ?? 5)};background:${voteColor(votes[o.id] ?? 5)}1f`"

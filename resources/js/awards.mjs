@@ -130,6 +130,30 @@ export function canConfirmNominations(options) {
   return (options || []).length <= MAX_NOMINATIONS;
 }
 
+// Vorläufige Bewertung aus dem Nominierungs-Dialog: 0…10 oder null (keine).
+export function normalizePrevote(v) {
+  if (v == null || v === '') return null;
+  const n = Math.round(Number(v));
+  if (!Number.isFinite(n)) return null;
+  return Math.max(VOTE_MIN, Math.min(VOTE_MAX, n));
+}
+
+// Die Vorbelegung des Abstimmungs-Dialogs je Option: die eigene abgegebene Bewertung,
+// sonst die vorläufige aus dem Nominieren, sonst `fallback`. `fromPrevote` sagt,
+// welche Optionen ihren Wert aus der vorläufigen Bewertung haben.
+export function initialVotes(options, own = {}, pre = {}, fallback = 5) {
+  const votes = {};
+  const fromPrevote = {};
+  (options || []).forEach((o) => {
+    const mine = Number.isFinite(own?.[o.id]) ? own[o.id] : null;
+    const early = normalizePrevote(pre?.[o.id]);
+    if (mine != null) votes[o.id] = mine;
+    else if (early != null) { votes[o.id] = early; fromPrevote[o.id] = true; }
+    else votes[o.id] = fallback;
+  });
+  return { votes, fromPrevote };
+}
+
 // Wie hat ein Pokémon an einem Spieltag abgeschnitten? Grundlage der Hinweise im
 // Nominierungs-Dialog der Spieltag-Awards. Je Pokémon genau ein Match (es spielt
 // an einem Spieltag nur einmal):

@@ -72,7 +72,8 @@ import {
 } from '../resources/js/press-shows.mjs';
 import { teamForm, formFromTimeline, formSparkSvg, careerStations, rivalry, splitPair } from '../resources/js/career.mjs';
 import { statsOf, statTotal, statPercent, statRole, statBlock, roleLabel, monRole, normalizeRoleOverride } from '../resources/js/basestats.mjs';
-import { completedMatchdays, awaitingPlayer, MAX_NOMINATIONS, canConfirmNominations, matchdayPerformance } from '../resources/js/awards.mjs';
+import { completedMatchdays, awaitingPlayer, MAX_NOMINATIONS, canConfirmNominations, matchdayPerformance, normalizePrevote, initialVotes } from '../resources/js/awards.mjs';
+import { voiceScore, rankVoices, pickVoice, splitChunks, speakerOf, buildSegments, assignSpeakerVoices, createReader, MAX_CHUNK } from '../resources/js/speech.mjs';
 import { normalizeMonTraits, monTraitsOf, monTraitsFor, MAX_MON_TRAITS } from '../resources/js/trainers.mjs';
 import {
   commissionLeague, interviewCandidates, pickInterviewGuests, matchLines, isMatchComplete as pressMatchComplete,
@@ -1475,7 +1476,7 @@ test('Der Kaderverlauf summiert zu jedem Zeitpunkt die damaligen Pokémon', () =
   const cut = 1;
   const pts = squadHistory((stop, i) => rosterAtIndex(team, transfer, i, cut), index, stops);
   // Vorher Alt+Weg = 2 Mio, nachher Alt+Neu = 2 Mio — mit dem heutigen Kader wären
-  // es vorher 1 Mio + 200 Mio gewesen.
+  // es vorher 1 Mio + 150 Mio gewesen.
   assert.equal(pts[0].value, 2_000_000);
   assert.equal(pts[1].value, 2_000_000);
 });
@@ -2496,6 +2497,103 @@ test('allTimePokemon: nicht gedraftete Pokémon sind saisonübergreifend frei', 
   const rows = allTimePokemon(teams, [], [], { season: 2 });
   assert.equal(rows.find((r) => r.pokemon.name === 'Glurak').team.id, 's2-a');
   assert.equal(rows.find((r) => r.pokemon.name === 'Turtok').team, null);
+});
+
+// === Awards: vorläufige Bewertung =========================================
+test('Die vorläufige Bewertung belegt die Abstimmung vor, die eigene Stimme geht vor', () => {
+  assert.equal(normalizePrevote(null), null);
+  assert.equal(normalizePrevote(''), null);
+  assert.equal(normalizePrevote(12), 10);
+  assert.equal(normalizePrevote('7'), 7);
+  const options = [{ id: 'A' }, { id: 'B' }, { id: 'C' }];
+  const { votes, fromPrevote } = initialVotes(options, { A: 3 }, { A: 9, B: 8, C: null });
+  assert.deepEqual(votes, { A: 3, B: 8, C: 5 });
+  assert.deepEqual(fromPrevote, { B: true });
+  assert.deepEqual(initialVotes(options, undefined, undefined).votes, { A: 5, B: 5, C: 5 });
+});
+
+// === Vorlesen ==============================================================
+test('Vorlesen: deutsche Stimmen werden nach Güte sortiert, Effektstimmen fallen ab', () => {
+  const voices = [
+    { name: 'English', lang: 'en-US', voiceURI: 'en' },
+    { name: 'Anna', lang: 'de-DE', voiceURI: 'anna' },
+    { name: 'Microsoft Katja Online (Natural) - German (Germany)', lang: 'de-DE', voiceURI: 'katja' },
+    { name: 'Google Deutsch', lang: 'de-DE', voiceURI: 'google' },
+    { name: 'Grandma (Deutsch (Deutschland))', lang: 'de_DE', voiceURI: 'grandma' },
+  ];
+  assert.equal(voiceScore(voices[0]), -1);
+  const ranked = rankVoices(voices).map((v) => v.voiceURI);
+  assert.deepEqual(ranked.slice(0, 3), ['katja', 'google', 'anna']);
+  assert.equal(ranked.at(-1), 'grandma');
+  assert.equal(pickVoice(voices, 'anna').voiceURI, 'anna');
+  assert.equal(pickVoice(voices, 'weg').voiceURI, 'katja');
+  assert.equal(pickVoice([], 'x'), null);
+});
+
+test('Vorlesen: Text wird an Satzgrenzen in kurze Stücke zerlegt', () => {
+  assert.deepEqual(splitChunks('Erster Satz. Zweiter Satz!'), ['Erster Satz. Zweiter Satz!']);
+  const long = Array.from({ length: 40 }, (_, i) => `Satz Nummer ${i} ist da.`).join(' ');
+  const chunks = splitChunks(long);
+  assert.ok(chunks.length > 1);
+  chunks.forEach((c) => assert.ok(c.length <= MAX_CHUNK, c));
+  assert.equal(chunks.join(' '), long);
+  const run = `${'Wort, '.repeat(80)}Ende.`;
+  splitChunks(run).forEach((c) => assert.ok(c.length <= MAX_CHUNK));
+  assert.deepEqual(splitChunks('   '), []);
+});
+
+test('Vorlesen: Protokollzeilen und Sprecher', () => {
+  assert.deepEqual(speakerOf('Cavalanzas: Herzlich willkommen.'), { speaker: 'Cavalanzas', text: 'Herzlich willkommen.' });
+  assert.equal(speakerOf('Ein ganz normaler Satz. Mit Punkt: und Doppelpunkt'), null);
+  const segs = buildSegments({ title: 'Titel', subtitle: 'Dach', byline: 'Von Scott' }, [
+    { text: 'Hallo.', speaker: 'A' }, { text: 'Weiter.', speaker: 'A' }, { text: 'Antwort.', speaker: 'B' },
+  ], { announce: (sp) => sp === 'B' });
+  assert.deepEqual(segs.map((s) => s.text), ['Dach.', 'Titel.', 'Von Scott.', 'Hallo.', 'Weiter.', 'B: Antwort.']);
+  assert.deepEqual(segs.map((s) => s.block), [-1, -1, -1, 0, 1, 2]);
+  const v = [{ name: 'x' }, { name: 'y' }];
+  const two = assignSpeakerVoices(['A', 'B', 'A'], v);
+  assert.notEqual(two.map.A.voice, two.map.B.voice);
+  assert.equal(two.shared.size, 0);
+  const three = assignSpeakerVoices(['A', 'B', 'C'], v, v[1]);
+  assert.equal(three.map.A.voice, v[1]);
+  assert.equal(three.map.C.voice, v[1]);
+  assert.notEqual(three.map.C.pitch, three.map.A.pitch);
+  assert.equal(three.shared.size, 3);
+});
+
+test('Vorlesen: Steuerung spricht nacheinander, pausiert über cancel und springt absatzweise', () => {
+  const spoken = [];
+  let current = null;
+  const synth = {
+    speak(u) { spoken.push(u.text); current = u; },
+    cancel() { current = null; },
+  };
+  class Utterance { constructor(text) { this.text = text; } }
+  const states = [];
+  const r = createReader({ synth, Utterance, onChange: (s) => states.push(s) });
+  const segs = [
+    { text: 'a1', block: 0 }, { text: 'a2', block: 0 }, { text: 'b1', block: 1 }, { text: 'c1', block: 2 },
+  ];
+  r.play(segs, { rate: 1.25 });
+  assert.equal(current.rate, 1.25);
+  current.onend();
+  assert.deepEqual(spoken, ['a1', 'a2']);
+  r.pause();
+  assert.equal(r.status, 'paused');
+  r.resume();
+  assert.deepEqual(spoken, ['a1', 'a2', 'a2']);
+  r.skip(1);
+  assert.equal(spoken.at(-1), 'b1');
+  r.skip(-1);
+  assert.equal(spoken.at(-1), 'a1');
+  const stale = current;
+  r.skip(1);
+  stale.onend();
+  assert.equal(spoken.at(-1), 'b1', 'ein abgebrochenes Stück stößt nichts mehr an');
+  current.onend();
+  current.onend();
+  assert.equal(r.status, 'idle');
+  assert.equal(states.at(-1).status, 'idle');
 });
 
 console.log(`\n${passed} Tests bestanden.`);

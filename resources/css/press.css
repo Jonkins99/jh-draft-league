@@ -24,6 +24,14 @@
   color: var(--color-flame-400);
 }
 
+.press-body .is-reading {
+  border-radius: 0.5rem;
+  background: color-mix(in srgb, var(--color-flame-500) 12%, transparent);
+  box-shadow: 0 0 0 0.35rem color-mix(in srgb, var(--color-flame-500) 12%, transparent);
+  color: var(--color-ink);
+  transition: background-color 0.25s, box-shadow 0.25s;
+}
+
 .press-body h2,
 .press-body h3,
 .press-body h4 {
