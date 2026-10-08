@@ -154,7 +154,7 @@
 
 .cer-body {
   display: grid;
-  place-items: center;
+  place-items: safe center;
   min-height: 0;
   overflow-x: clip;
   overflow-y: auto;
@@ -317,6 +317,12 @@
   width: 100%;
   max-width: 40rem;
   margin-inline: auto;
+}
+
+@media (max-width: 39.99rem) {
+  .cer-top .cer-card--first {
+    order: -1;
+  }
 }
 
 @media (min-width: 40rem) {
@@ -879,20 +885,56 @@
   opacity: 0.5;
 }
 
-.aw-perf--alive {
-  border-color: color-mix(in srgb, #63bc5a 55%, transparent);
-  background: color-mix(in srgb, #63bc5a 16%, transparent);
-  color: #8fd987;
+.aw-perf--k0 {
+  color: var(--color-mist);
 }
 
-.aw-perf--dead {
-  border-color: color-mix(in srgb, var(--color-flame-500) 55%, transparent);
-  background: color-mix(in srgb, var(--color-flame-500) 16%, transparent);
-  color: #ff8a6b;
+.aw-perf--k1 {
+  border-color: color-mix(in srgb, var(--color-volt-400) 35%, transparent);
+  background: color-mix(in srgb, var(--color-volt-400) 8%, transparent);
+  color: #f3dc8a;
 }
 
-.aw-perf--dead::after {
+.aw-perf--k2 {
+  border-color: color-mix(in srgb, var(--color-volt-400) 60%, transparent);
+  background: color-mix(in srgb, var(--color-volt-400) 18%, transparent);
+  color: #ffd84d;
+}
+
+.aw-perf--k3 {
+  border-color: var(--color-volt-400);
+  background: color-mix(in srgb, var(--color-volt-400) 32%, transparent);
+  color: #fff3c2;
+  box-shadow: 0 0 0.6rem -0.1rem rgb(255 203 5 / 0.55);
+}
+
+.aw-perf--stood,
+.aw-perf--fell {
+  position: relative;
+}
+
+.aw-perf--stood::after,
+.aw-perf--fell::after {
+  position: absolute;
+  top: -0.3rem;
+  right: -0.3rem;
+  display: grid;
+  width: 0.7rem;
+  height: 0.7rem;
+  place-items: center;
+  border-radius: 9999px;
+  background: var(--color-panel);
+  font-size: 0.5rem;
+  line-height: 1;
+}
+
+.aw-perf--stood::after {
+  content: "";
+  box-shadow: inset 0 0 0 0.2rem #63bc5a;
+}
+
+.aw-perf--fell::after {
   content: "†";
-  margin-left: 0.125rem;
-  font-size: 0.625rem;
+  color: var(--color-mist);
+  box-shadow: inset 0 0 0 1px var(--color-line);
 }

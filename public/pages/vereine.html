@@ -204,6 +204,138 @@
         </div>
       </section>
 
+      <!-- Alle Ergebnisse, das jüngste zuerst -->
+      <section class="mt-6 rounded-2xl border border-line bg-panel p-5 sm:p-6">
+        <div class="mb-4 flex flex-wrap items-baseline justify-between gap-x-4 gap-y-1">
+          <h2 class="font-display text-xl font-bold uppercase tracking-wider text-ink">Ergebnisse</h2>
+          <p x-show="resultRows.length" class="text-sm text-mist" x-text="`${resultRows.length} ${resultRows.length === 1 ? 'Match' : 'Matches'} über alle Saisons`"></p>
+        </div>
+        <p x-show="!resultRows.length" class="rounded-xl border border-line bg-elevated/40 px-3 py-3 text-sm text-mist">Noch kein Match gespielt.</p>
+        <ul x-show="resultRows.length" class="grid gap-1.5">
+          <template x-for="r in shownResults" :key="'fr-'+r.id">
+            <li>
+              <button type="button" @click="openResult(r)"
+                      class="flex w-full min-w-0 items-center gap-3 rounded-xl border border-line bg-elevated/40 px-3 py-2 text-left transition-colors hover:border-flame-500/40">
+                <span class="grid size-8 shrink-0 place-items-center rounded-lg border font-display text-sm font-black"
+                      :class="outcomeClass(r.outcome)" x-text="outcomeLabel(r.outcome)"></span>
+                <span class="w-16 shrink-0 font-display text-[11px] font-bold uppercase leading-tight tracking-wider text-mist">
+                  <span class="block" x-text="`Saison ${r.season}`"></span>
+                  <span class="block font-semibold normal-case tracking-normal" x-text="r.day != null ? `Spieltag ${r.day}` : ''"></span>
+                </span>
+                <img x-show="teamById(r.opponentId)?.logo" :src="logoUrl(teamById(r.opponentId)?.logo)" alt="" loading="lazy" class="size-8 shrink-0 object-contain" />
+                <span class="min-w-0 flex-1">
+                  <span class="block truncate text-sm font-semibold text-ink">
+                    <span class="text-mist" x-text="r.side === 'home' ? 'vs' : '@'"></span>
+                    <span x-text="teamById(r.opponentId)?.name || r.opponentId"></span>
+                  </span>
+                  <span class="block truncate text-[11px] text-mist">
+                    <span x-text="`Kills ${r.kills} : ${r.deaths}`"></span>
+                    <span x-text="` · Diff ${fmtDiff(r.diff)}`"></span>
+                    <span x-show="!r.complete" class="ml-1 font-bold uppercase tracking-wider text-flame-300" x-text="`· ${r.battles}/3 Kämpfe`"></span>
+                    <span x-show="teamById(r.teamId) && teamById(r.teamId).name !== team.name" x-text="` · als ${teamById(r.teamId)?.name}`"></span>
+                  </span>
+                </span>
+                <span class="shrink-0 font-display text-xl font-black tabular-nums text-ink" x-text="`${r.own}:${r.other}`"></span>
+              </button>
+            </li>
+          </template>
+        </ul>
+        <div x-show="resultRows.length > 12" class="mt-4 flex justify-center">
+          <button type="button" @click="showAllResults = !showAllResults"
+                  class="rounded-xl border border-line px-4 py-2 font-display text-xs font-bold uppercase tracking-wider text-mist transition-colors hover:border-flame-500/40 hover:text-flame-400"
+                  x-text="showAllResults ? 'Weniger zeigen' : `Alle ${resultRows.length} zeigen`"></button>
+        </div>
+      </section>
+
+      <!-- Auszeichnungen: Team, Pokémon im Verein, Bilanz -->
+      <section class="mt-6 rounded-2xl border border-line bg-panel p-5 sm:p-6">
+        <div class="mb-4 flex flex-wrap items-center justify-between gap-3">
+          <h2 class="font-display text-xl font-bold uppercase tracking-wider text-ink">Auszeichnungen</h2>
+          <div class="flex rounded-xl border border-line bg-elevated/40 p-0.5" role="tablist">
+            <template x-for="t in [{ k: 'team', l: 'Team' }, { k: 'pokemon', l: 'Pokémon' }, { k: 'bilanz', l: 'Bilanz' }]" :key="'at-'+t.k">
+              <button type="button" role="tab" @click="awardTab = t.k" :aria-selected="awardTab === t.k"
+                      class="rounded-lg px-3 py-1.5 font-display text-xs font-bold uppercase tracking-wider transition-colors"
+                      :class="awardTab === t.k ? 'bg-flame-500 text-white' : 'text-mist hover:text-ink'" x-text="t.l"></button>
+            </template>
+          </div>
+        </div>
+
+        <!-- Kennzahlen -->
+        <div class="mb-4 grid grid-cols-2 gap-2 sm:grid-cols-4">
+          <template x-for="k in [
+              { l: 'Gesamt', v: awards.summary.total },
+              { l: 'Team & Matches', v: awards.summary.team + awards.summary.match },
+              { l: 'Pokémon im Verein', v: awards.summary.pokemon },
+              { l: 'Ehrungen / Rügen', v: `${awards.summary.positive} / ${awards.summary.negative}` },
+            ]" :key="'as-'+k.l">
+            <div class="rounded-xl border border-line bg-elevated/40 px-3 py-2">
+              <p class="font-display text-[10px] font-semibold uppercase tracking-wider text-mist" x-text="k.l"></p>
+              <p class="font-display text-xl font-bold tabular-nums text-ink" x-text="k.v"></p>
+            </div>
+          </template>
+        </div>
+
+        <p x-show="!awards.entries.length" class="rounded-xl border border-line bg-elevated/40 px-3 py-3 text-sm text-mist">Noch keine Auszeichnung — oder die Siegerehrung wartet noch.</p>
+
+        <!-- Team -->
+        <div x-show="awardTab === 'team' && awards.entries.length">
+          <p x-show="!awardTeamEntries.length" class="rounded-xl border border-line bg-elevated/40 px-3 py-3 text-sm text-mist">Noch kein Team-Award. Die Pokémon des Vereins haben aber schon welche — siehe „Pokémon".</p>
+          <ul class="grid gap-1.5 md:grid-cols-2">
+            <template x-for="e in awardTeamEntries" :key="'ate-'+e.docId+'-'+e.winner.id">
+              <li class="flex min-w-0 items-center gap-3 rounded-xl border bg-elevated/40 px-3 py-2"
+                  :class="e.tone === 'negative' ? 'border-line' : 'border-volt-400/30'">
+                <span class="grid size-9 shrink-0 place-items-center rounded-lg font-display text-[10px] font-black"
+                      :class="e.tone === 'negative' ? 'bg-elevated text-mist' : 'bg-volt-400/15 text-volt-400'" x-text="e.short || '★'"></span>
+                <span class="min-w-0 flex-1">
+                  <span class="block truncate text-sm font-semibold text-ink" x-text="e.label"></span>
+                  <span class="block truncate text-[11px] text-mist" x-text="e.scope === 'match' ? `${awardWhen(e)} · ${e.winner.label}` : awardWhen(e)"></span>
+                </span>
+              </li>
+            </template>
+          </ul>
+        </div>
+
+        <!-- Pokémon -->
+        <div x-show="awardTab === 'pokemon' && awards.entries.length">
+          <p x-show="!awards.byMon.length" class="rounded-xl border border-line bg-elevated/40 px-3 py-3 text-sm text-mist">Kein Pokémon wurde im Trikot dieses Vereins ausgezeichnet.</p>
+          <ul class="grid gap-2 md:grid-cols-2">
+            <template x-for="m in awards.byMon" :key="'atm-'+m.name">
+              <li class="rounded-xl border border-line bg-elevated/40 p-2.5">
+                <button type="button" @click="goMon(m.name)" class="flex w-full min-w-0 items-center gap-2.5 text-left transition-colors hover:text-flame-400">
+                  <img x-show="m.image" :src="m.image" :alt="m.name" loading="lazy" class="size-10 shrink-0 object-contain" />
+                  <span class="min-w-0 flex-1">
+                    <span class="block truncate font-semibold text-ink" x-text="m.name"></span>
+                    <span class="block text-[11px] text-mist" x-text="`${m.n} ${m.n === 1 ? 'Auszeichnung' : 'Auszeichnungen'}${m.negative ? ` · davon ${m.negative} ${m.negative === 1 ? 'Rüge' : 'Rügen'}` : ''}`"></span>
+                  </span>
+                  <span class="font-display text-2xl font-black tabular-nums text-volt-400" x-text="m.positive"></span>
+                </button>
+                <div class="mt-2 flex flex-wrap gap-1">
+                  <template x-for="a in m.awards" :key="'atma-'+m.name+'-'+a.docId">
+                    <span class="rounded-md border px-1.5 py-0.5 text-[10px] font-semibold"
+                          :class="a.tone === 'negative' ? 'border-line text-mist' : 'border-volt-400/40 bg-volt-400/10 text-volt-400'"
+                          :title="`${a.label} · ${awardWhen(a)}`" x-text="`${a.short || a.label} · ${a.day != null ? `S${a.season} ST${a.day}` : `S${a.season}`}`"></span>
+                  </template>
+                </div>
+              </li>
+            </template>
+          </ul>
+        </div>
+
+        <!-- Bilanz je Auszeichnung -->
+        <div x-show="awardTab === 'bilanz' && awards.entries.length">
+          <ul class="grid gap-1.5 sm:grid-cols-2 lg:grid-cols-3">
+            <template x-for="k in awards.byKey" :key="'atk-'+k.key">
+              <li class="flex items-center gap-3 rounded-xl border border-line bg-elevated/40 px-3 py-2">
+                <span class="grid size-9 shrink-0 place-items-center rounded-lg font-display text-[10px] font-black"
+                      :class="k.tone === 'negative' ? 'bg-elevated text-mist' : 'bg-volt-400/15 text-volt-400'" x-text="k.short || '★'"></span>
+                <span class="min-w-0 flex-1 truncate text-sm font-semibold text-ink" x-text="k.label"></span>
+                <span class="font-display text-xl font-black tabular-nums text-ink" x-text="`${k.n}×`"></span>
+              </li>
+            </template>
+          </ul>
+        </div>
+      </section>
+
       <!-- Kaderwert über alle Saisons -->
       <section x-show="$store.elo.rows.length" class="mt-6 rounded-2xl border border-line bg-panel p-5 sm:p-6">
         <div class="mb-4 flex flex-wrap items-baseline justify-between gap-x-4 gap-y-1">

@@ -674,7 +674,7 @@ match /settings/{doc} { allow read, write: if true; }</code></pre>
                 </template>
                 <span class="mx-1 h-5 w-px bg-line"></span>
                 <template x-for="b in [{t:'h3', l:'H2'},{t:'h4', l:'H3'},{t:'p', l:'Text'},{t:'blockquote', l:'Zitat'}]" :key="'rbl-'+b.t">
-                  <button type="button" @click="rteBlock(b.t)"
+                  <button type="button" @mousedown.prevent @click="rteBlock(b.t)" :title="b.t === 'p' ? 'Normaler Text – beendet auch ein Zitat' : b.t === 'blockquote' ? 'Zitat an/aus' : ''"
                           class="rounded-lg border border-line px-2 py-1.5 text-xs font-semibold text-mist transition-colors hover:text-flame-400" x-text="b.l"></button>
                 </template>
                 <span class="mx-1 h-5 w-px bg-line"></span>
@@ -692,11 +692,11 @@ match /settings/{doc} { allow read, write: if true; }</code></pre>
 
               <!-- Bausteine: dieselben Kacheln, die die Redaktion setzt -->
               <div class="border-b border-line p-2">
-                <div class="flex flex-wrap items-center gap-1">
-                  <span class="mr-1 font-display text-[10px] font-bold uppercase tracking-wider text-mist">Baustein</span>
+                <div class="press-tilebar flex items-center gap-1 overflow-x-auto overscroll-x-contain pb-1 pr-6">
+                  <span class="sticky left-0 z-10 mr-1 shrink-0 bg-elevated pr-1 font-display text-[10px] font-bold uppercase tracking-wider text-mist">Baustein</span>
                   <template x-for="k in tileKinds" :key="'tk-'+k.kind">
                     <button type="button" @click="toggleTilePicker(k.kind)" :title="k.hint"
-                            class="rounded-lg border px-2 py-1.5 text-xs font-semibold transition-colors"
+                            class="shrink-0 whitespace-nowrap rounded-lg border px-2 py-1.5 text-xs font-semibold transition-colors"
                             :class="tileKind === k.kind ? 'border-flame-500/60 bg-flame-500/10 text-flame-400' : 'border-line text-mist hover:text-flame-400'"
                             x-text="k.label"></button>
                   </template>
@@ -902,17 +902,105 @@ match /settings/{doc} { allow read, write: if true; }</code></pre>
             </template>
           </div>
 
-          <!-- Podium: bei der PK stehen alle drei, der Fragende tritt vor -->
-          <div class="mb-6 flex items-end justify-center gap-3 sm:gap-6">
-            <template x-for="a in stageAuthors" :key="'cast-'+a.id">
-              <div class="flex flex-col items-center transition-all duration-300"
-                   :class="a.id === stageAsker.id ? 'opacity-100' : 'opacity-35 grayscale'">
-                <img :src="a.image" :alt="a.name"
-                     class="press-portrait rounded-2xl border bg-elevated transition-all duration-300"
-                     :class="a.id === stageAsker.id ? 'size-24 border-flame-500/60 sm:size-32' : 'size-16 border-line sm:size-20'" />
-                <p class="mt-2 font-display text-xs font-bold text-ink" x-text="a.name"></p>
-                <p class="text-[10px] uppercase tracking-wider text-mist" x-text="a.outlet"></p>
-              </div>
+          <!-- Kulisse: Interview vor der Werbewand bzw. Pressekonferenz am Podium.
+               presse-entwurf.html holt sich genau diesen Block über [data-press-scene]. -->
+          <div data-press-scene x-data="{ get sc() { return stageScene() } }" class="mb-6">
+            <template x-if="sc">
+              <figure class="ps" :class="[`ps--${sc.kind}`, `ps--guest-${sc.guest.kind}`]" :style="`--team: ${sc.team.color}`"
+                      :aria-label="sc.kind === 'pk' ? `Pressekonferenz mit ${sc.guest.name}` : `Interview mit ${sc.guest.name}`">
+                <div class="ps-frame">
+                  <template x-if="sc.kind === 'interview'">
+                    <div class="ps-layer">
+                      <div class="ps-arena" aria-hidden="true">
+                        <span class="ps-arena-stands"></span>
+                        <span class="ps-arena-field"></span>
+                        <span class="ps-arena-light ps-arena-light--l"></span>
+                        <span class="ps-arena-light ps-arena-light--r"></span>
+                      </div>
+                      <div class="ps-backdrop" aria-hidden="true">
+                        <template x-for="(l, i) in sc.wall" :key="'bw-'+i+'-'+l.key">
+                          <span class="ps-backdrop-cell" :class="l.team && 'is-team'"><img :src="l.src" :alt="l.name" loading="lazy" /></span>
+                        </template>
+                      </div>
+                      <div class="ps-guest">
+                        <img x-show="sc.guest.image" :src="sc.guest.image" :alt="sc.guest.name" class="ps-guest-img" :class="`is-${sc.guest.kind}`" />
+                      </div>
+                      <div class="ps-handmic" aria-hidden="true">
+                        <span class="ps-arm"></span>
+                        <span class="ps-mic">
+                          <span class="ps-mic-head"></span>
+                          <span class="ps-mic-flag" x-text="sc.asker?.mic || 'JHDL'"></span>
+                          <span class="ps-mic-handle"></span>
+                        </span>
+                      </div>
+                      <div x-show="sc.asker" class="ps-asker">
+                        <img :src="sc.asker?.image" alt="" />
+                        <span>
+                          <small>Fragt</small>
+                          <b x-text="sc.asker?.name"></b>
+                          <small x-text="sc.asker?.outlet"></small>
+                        </span>
+                      </div>
+                    </div>
+                  </template>
+
+                  <template x-if="sc.kind === 'pk'">
+                    <div class="ps-layer">
+                      <div class="ps-led" aria-hidden="true">
+                        <template x-for="(row, r) in sc.rows" :key="'led-'+r">
+                          <div class="ps-led-row" :class="r % 2 && 'is-rev'">
+                            <div class="ps-led-track">
+                              <template x-for="(l, i) in row.concat(row)" :key="'lc-'+r+'-'+i">
+                                <span class="ps-led-cell" :class="l.team && 'is-team'"><img :src="l.src" alt="" loading="lazy" /></span>
+                              </template>
+                            </div>
+                          </div>
+                        </template>
+                      </div>
+                      <div class="ps-guest ps-guest--pk">
+                        <img x-show="sc.guest.image" :src="sc.guest.image" :alt="sc.guest.name" class="ps-guest-img" :class="`is-${sc.guest.kind}`" />
+                      </div>
+                      <div class="ps-table" aria-hidden="true">
+                        <div class="ps-mics">
+                          <template x-for="(m, i) in sc.mics" :key="'mic-'+i">
+                            <span class="ps-standmic" :style="`--mic: ${m.color}; --tilt: ${(i - (sc.mics.length - 1) / 2) * -7}deg`">
+                              <span class="ps-mic-head"></span>
+                              <span class="ps-mic-flag" x-text="m.label"></span>
+                              <span class="ps-standmic-pole"></span>
+                            </span>
+                          </template>
+                        </div>
+                        <span class="ps-nameplate" x-text="sc.guest.name"></span>
+                        <div class="ps-table-top"></div>
+                        <div class="ps-table-front">
+                          <img x-show="sc.team.logo" :src="sc.team.logo" alt="" />
+                          <span>Pressekonferenz</span>
+                        </div>
+                      </div>
+                      <div class="ps-audience">
+                        <template x-for="seat in sc.seats" :key="'seat-'+seat.index">
+                          <div class="ps-seat" :class="seat.reporter?.asking && 'is-asking'">
+                            <img class="ps-seat-person" :src="seatSprite(seat.reporter)" @error="backMissing($el, seat.reporter)" :alt="seat.reporter?.asking ? `${seat.reporter.name} fragt` : seat.reporter?.name" loading="lazy" />
+                            <span class="ps-seat-chair"></span>
+                          </div>
+                        </template>
+                      </div>
+                      <span class="ps-flashes" aria-hidden="true"></span>
+                    </div>
+                  </template>
+
+                  <figcaption class="ps-lower">
+                    <span class="ps-lower-tag" x-text="sc.kind === 'pk' ? 'Pressekonferenz' : 'Interview'"></span>
+                    <span class="ps-lower-main">
+                      <img x-show="sc.team.logo" :src="sc.team.logo" alt="" />
+                      <span>
+                        <b x-text="sc.guest.name"></b>
+                        <small x-text="sc.team.name"></small>
+                      </span>
+                    </span>
+                  </figcaption>
+                </div>
+              </figure>
             </template>
           </div>
 
@@ -935,7 +1023,9 @@ match /settings/{doc} { allow read, write: if true; }</code></pre>
           <div class="mx-auto mt-8 grid max-w-3xl gap-3">
             <template x-for="(o, i) in (stageQuestion.options || [])" :key="'opt-'+stage.index+'-'+i">
               <button type="button" @click="answerWith(o)"
-                      class="group rounded-2xl border border-line bg-panel/80 p-4 text-left backdrop-blur transition-colors hover:border-flame-500/50 hover:bg-panel">
+                      class="group rounded-2xl border p-4 text-left backdrop-blur transition-colors hover:border-flame-500/50 hover:bg-panel"
+                      :class="isChosenOption(o) ? 'border-flame-500/70 bg-flame-500/10' : 'border-line bg-panel/80'">
+                <span x-show="isChosenOption(o)" class="mb-1 block font-display text-[10px] font-bold uppercase tracking-wider text-flame-400">Deine bisherige Antwort</span>
                 <p class="press-break text-sm leading-relaxed text-ink" x-text="`„${o.text}“`"></p>
               </button>
             </template>
@@ -947,6 +1037,8 @@ match /settings/{doc} { allow read, write: if true; }</code></pre>
               <div class="mt-2 flex flex-wrap items-center gap-2">
                 <button type="button" @click="answerCustom()" :disabled="(stage.custom || '').trim().length < 2"
                         class="rounded-xl bg-flame-500 px-4 py-2 font-display text-xs font-bold uppercase tracking-wider text-white transition-colors hover:bg-flame-600 disabled:opacity-40">So antworten</button>
+                <button type="button" x-show="stageQuestion && answerFor(stageQuestion.id)" @click="keepAnswer()"
+                        class="rounded-xl border border-flame-500/50 px-3 py-2 font-display text-xs font-bold uppercase tracking-wider text-flame-300 transition-colors hover:bg-flame-500/10">Antwort behalten</button>
                 <button type="button" x-show="stage.index > 0" @click="stageBack()"
                         class="rounded-xl border border-line px-3 py-2 font-display text-xs font-bold uppercase tracking-wider text-mist transition-colors hover:text-flame-400">Eine Frage zurück</button>
                 <span class="ml-auto text-[11px] text-mist" x-text="`Frage ${stage.index + 1} von ${(session?.questions || []).length}`"></span>

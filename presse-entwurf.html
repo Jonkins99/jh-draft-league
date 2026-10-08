@@ -1,0 +1,158 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Pressetermine – Probelauf · JH Draft League</title>
+  <link rel="stylesheet" href="./resources/css/style.css">
+  <meta name="robots" content="noindex,nofollow" />
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Roboto:ital,wght@0,100..900;1,100..900&display=swap" rel="stylesheet">
+</head>
+<body class="min-h-screen bg-void font-sans text-ink antialiased selection:bg-flame-500/30">
+  <div class="pointer-events-none fixed inset-0 -z-10 bg-[radial-gradient(75%_45%_at_88%_-8%,rgba(227,53,13,0.12),transparent_60%)]"></div>
+
+  <main class="mx-auto max-w-6xl px-4 py-10 md:px-8" x-data="sceneDemo">
+    <header class="mb-6 max-w-3xl">
+      <p class="font-display text-xs font-semibold uppercase tracking-[0.3em] text-flame-400">Probelauf</p>
+      <h1 class="mt-1 font-display text-4xl font-bold tracking-wide text-ink md:text-5xl">Pressetermine</h1>
+      <p class="mt-4 leading-relaxed text-mist">
+        Die Kulisse von Interview und Pressekonferenz — dasselbe Markup wie im Presse-View, nur mit
+        ausgedachtem Termin. Team, Gast und Fragesteller lassen sich durchschalten; die Breiten-Knöpfe
+        zeigen die Darstellung auf Handy und Tablet.
+      </p>
+    </header>
+
+    <div class="mb-6 grid gap-3 rounded-2xl border border-line bg-panel/60 p-4 sm:grid-cols-2 lg:grid-cols-4">
+      <label class="grid gap-1 text-[11px] uppercase tracking-wider text-mist">
+        Termin
+        <select x-model="kind" class="rounded-xl border border-line bg-elevated px-2 py-2 text-sm normal-case tracking-normal text-ink">
+          <option value="interview">Interview</option>
+          <option value="pk">Pressekonferenz</option>
+        </select>
+      </label>
+      <label class="grid gap-1 text-[11px] uppercase tracking-wider text-mist">
+        Verein
+        <select x-model="teamId" class="rounded-xl border border-line bg-elevated px-2 py-2 text-sm normal-case tracking-normal text-ink">
+          <template x-for="t in teams" :key="t.id">
+            <option :value="t.id" :selected="t.id === teamId" x-text="t.name"></option>
+          </template>
+        </select>
+      </label>
+      <label class="grid gap-1 text-[11px] uppercase tracking-wider text-mist">
+        Gast
+        <select x-model="guestKey" class="rounded-xl border border-line bg-elevated px-2 py-2 text-sm normal-case tracking-normal text-ink">
+          <template x-for="g in guests" :key="g.key">
+            <option :value="g.key" :selected="g.key === guestKey" x-text="`${g.name} (${g.kind === 'trainer' ? 'Trainer' : 'Pokémon'})`"></option>
+          </template>
+        </select>
+      </label>
+      <div class="grid gap-1 text-[11px] uppercase tracking-wider text-mist">
+        Ansicht
+        <div class="flex gap-1">
+          <template x-for="w in widths" :key="w.key">
+            <button type="button" @click="width = w.key"
+                    class="flex-1 rounded-xl border px-2 py-2 text-xs normal-case tracking-normal"
+                    :class="width === w.key ? 'border-flame-500 bg-flame-500/15 text-ink' : 'border-line bg-elevated text-mist'"
+                    x-text="w.label"></button>
+          </template>
+        </div>
+      </div>
+      <div class="flex flex-wrap items-center gap-2 sm:col-span-2 lg:col-span-4">
+        <button type="button" @click="index = (index + 1) % reporters.length"
+                class="rounded-xl bg-flame-500 px-4 py-2 font-display text-xs font-bold uppercase tracking-wider text-white hover:bg-flame-600">Nächste Frage</button>
+        <button type="button" @click="session = 'demo-' + Date.now().toString(36)"
+                class="rounded-xl border border-line px-3 py-2 font-display text-xs font-bold uppercase tracking-wider text-mist hover:text-flame-400">Neuer Termin (Wand neu mischen)</button>
+        <span class="text-xs text-mist" x-text="`Frage ${index + 1} von ${reporters.length} · fragt ${stageAsker.name}`"></span>
+      </div>
+    </div>
+
+    <div class="mx-auto transition-[max-width] duration-300" :style="`max-width: ${widths.find((w) => w.key === width).max}`">
+      <div data-mount></div>
+      <div class="press-typein mx-auto max-w-3xl">
+        <p class="text-center font-display text-[11px] font-bold uppercase tracking-[0.25em] text-flame-400">Nachgehakt</p>
+        <blockquote class="press-break mt-3 text-center font-display text-xl font-bold leading-snug tracking-wide text-ink sm:text-2xl">
+          „Drei Spiele, ein Punkt: Wie lange hält der Vorstand das noch aus?“
+        </blockquote>
+        <p class="mt-3 text-center text-xs text-mist" x-text="`${stageAsker.name}, ${stageAsker.outlet} · an ${guest.name}`"></p>
+      </div>
+    </div>
+  </main>
+
+  <script type="module">
+    import Alpine from 'alpinejs';
+    import { buildScene, seatSprite, backMissing } from './resources/js/press-scene.mjs';
+    import { PRESS_AUTHORS } from './resources/js/press.mjs';
+
+    const TEAMS = [
+      { id: 's2-heerashai-sv', name: 'Heerashai SV', logo: 'heerashai-sv.png', color: '#1f7ac2' },
+      { id: 's2-fc-chelze', name: 'FC Chelze', logo: 'fc-chelze.png', color: '#c0392b' },
+      { id: 's2-ac-arboliva', name: 'AC Arboliva', logo: 'ac-arboliva.png', color: '#3f9a4c' },
+      { id: 's2-toxicroak-rangers', name: 'Toxicroak Rangers', logo: 'toxicroak-rangers.png', color: '#7b4bb5' },
+      { id: 's2-beast-force-pc', name: 'Beast Force PC', logo: 'beast-force-pc.png', color: '#d4a017' },
+      { id: 's2-einkraft-frankfurt', name: 'Einkraft Frankfurt', logo: 'einkraft-frankfurt.png', color: '#202733' },
+      { id: 's2-fc-bayern-myriador', name: 'FC Bayern Myriador', logo: 'fc-bayern-myriador.png', color: '#d62839' },
+      { id: 's2-royal-union-pingoleon', name: 'Royal Union Pingoleon', logo: 'royal-union-pingoleon.png', color: '#2e4a8f' },
+    ];
+    const pokemon = await fetch('./data/pokemon.json').then((r) => r.json()).catch(() => []);
+    const mons = ['Azumarill', 'Mega-Glurak Y', 'Pikachu', 'Garados', 'Knakrack']
+      .map((n) => pokemon.find((p) => p.name === n)).filter(Boolean)
+      .map((p) => ({ key: `p-${p.name}`, name: p.name, image: p.image, kind: 'pokemon' }));
+    const GUESTS = [
+      { key: 't-valerie', name: 'Valerie', image: 'https://www.pokewiki.de/images/4/4c/VS_Valerie_2_Masters.png', kind: 'trainer' },
+      { key: 't-perenus', name: 'Perenus', image: 'https://www.pokewiki.de/images/1/1c/VS_Perenus_2_Masters.png', kind: 'trainer' },
+      { key: 't-kombu', name: 'Kombu', image: 'https://www.pokewiki.de/images/7/70/VS_Kombu_KAPU.png', kind: 'trainer' },
+      ...mons,
+    ];
+
+    Alpine.data('sceneDemo', () => ({
+      kind: 'pk',
+      teamId: TEAMS[0].id,
+      guestKey: GUESTS[0].key,
+      index: 0,
+      session: 'demo-1',
+      width: 'full',
+      widths: [
+        { key: 'phone', label: 'Handy', max: '390px' },
+        { key: 'tablet', label: 'Tablet', max: '820px' },
+        { key: 'full', label: 'Desktop', max: '100%' },
+      ],
+      teams: TEAMS,
+      guests: GUESTS,
+      get team() { return TEAMS.find((t) => t.id === this.teamId) || TEAMS[0]; },
+      get guest() { return GUESTS.find((g) => g.key === this.guestKey) || GUESTS[0]; },
+      get reporters() {
+        const ids = this.kind === 'pk' ? ['alba', 'piaudo', 'lebelle'] : ['margit'];
+        return ids.map((id) => PRESS_AUTHORS.find((a) => a.id === id)).filter(Boolean);
+      },
+      get stageAsker() { return this.reporters[this.index % this.reporters.length]; },
+      seatSprite(r) { return seatSprite(r); },
+      backMissing(img, r) { backMissing(img, r); },
+      stageScene() {
+        return buildScene({
+          kind: this.kind,
+          sessionId: `${this.session}-${this.kind}`,
+          clubKey: this.team.id.replace(/^s\d+-/, ''),
+          team: { name: this.team.name, logo: `./img/teams/${this.team.logo}`, color: this.team.color },
+          guest: this.guest,
+          reporters: this.reporters.map((a) => ({ id: a.id, name: a.name, image: a.image, outlet: a.outlet })),
+          audience: PRESS_AUTHORS.map((a) => ({ id: a.id, name: a.name, image: a.image, outlet: a.outlet })),
+          askerId: this.stageAsker?.id,
+        });
+      },
+    }));
+
+    // Das Markup kommt aus dem echten Partial, damit hier nie eine zweite Wahrheit entsteht.
+    const partial = await fetch('./pages/presse.html').then((r) => r.text());
+    const doc = new DOMParser().parseFromString(partial, 'text/html');
+    // Die Kulisse steckt im Partial in <template x-if>-Blöcken — deren Inhalt liegt in .content.
+    const find = (root) => root.querySelector('[data-press-scene]')
+      || [...root.querySelectorAll('template')].map((t) => find(t.content)).find(Boolean) || null;
+    const scene = find(doc);
+    document.querySelector('[data-mount]').appendChild(document.importNode(scene, true));
+
+    Alpine.start();
+  </script>
+</body>
+</html>

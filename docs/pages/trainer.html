@@ -1,0 +1,195 @@
+<div x-data="trainerMarketView">
+  <header class="mb-6 flex flex-wrap items-end justify-between gap-4">
+    <div class="min-w-0">
+      <p class="font-display text-xs font-semibold uppercase tracking-[0.3em] text-flame-400">Alle Saisons</p>
+      <h1 class="mt-1 font-display text-4xl font-bold tracking-wide text-ink md:text-5xl">Trainermarkt</h1>
+      <p class="mt-2 max-w-2xl text-mist">Jeder Trainer, der je an einer Seitenlinie stand, dazu alle, die auf ein Angebot warten. Die Zahlen zeigen, was die Teams in ihrer Amtszeit geholt haben. Verpflichtet wird im Team-Bereich der Saison.</p>
+    </div>
+    <button type="button" x-show="canEdit" @click="openForm()"
+            class="inline-flex shrink-0 items-center gap-2 rounded-xl bg-flame-500 px-4 py-2.5 font-display text-sm font-bold uppercase tracking-wide text-white transition-colors hover:bg-flame-600">
+      <svg viewBox="0 0 24 24" class="size-4" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"><path d="M12 5v14M5 12h14"/></svg>
+      Trainer anlegen
+    </button>
+  </header>
+
+  <div x-show="!loaded" class="py-12 text-center text-mist">Lade Trainer…</div>
+
+  <div x-show="loaded">
+    <!-- Filter, Suche, Sortierung -->
+    <div class="mb-5 flex flex-col gap-3 lg:flex-row lg:items-center">
+      <div class="-mx-1 flex gap-1.5 overflow-x-auto px-1 pb-1">
+        <template x-for="f in [
+            { k: 'all', l: 'Alle', n: counts.all },
+            { k: 'office', l: 'Im Amt', n: counts.office },
+            { k: 'free', l: 'Vereinslos', n: counts.free },
+            { k: 'pool', l: 'Noch nie im Amt', n: counts.pool },
+          ]" :key="'tf-'+f.k">
+          <button type="button" @click="filter = f.k"
+                  class="inline-flex shrink-0 items-center gap-1.5 rounded-xl border px-3 py-2 font-display text-xs font-bold uppercase tracking-wider transition-colors"
+                  :class="filter === f.k ? 'border-flame-500 bg-flame-500/15 text-ink' : 'border-line bg-panel text-mist hover:text-ink'">
+            <span x-text="f.l"></span>
+            <span class="rounded-md bg-elevated px-1.5 py-0.5 tabular-nums text-mist" x-text="f.n"></span>
+          </button>
+        </template>
+      </div>
+      <div class="flex flex-1 gap-2 lg:justify-end">
+        <label class="flex min-w-0 flex-1 items-center gap-2 rounded-xl border border-line bg-panel px-3 py-2 lg:max-w-xs">
+          <svg viewBox="0 0 24 24" class="size-4 shrink-0 text-mist" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="11" cy="11" r="7"/><path d="m21 21-4.3-4.3"/></svg>
+          <input x-model="q" type="search" placeholder="Name, Verein, Eigenschaft…" class="min-w-0 flex-1 bg-transparent text-sm text-ink placeholder:text-mist focus:outline-none" />
+        </label>
+        <select x-model="sortKey" aria-label="Sortierung"
+                class="shrink-0 rounded-xl border border-line bg-panel px-2 py-2 text-sm text-ink">
+          <template x-for="o in sortOptions" :key="'ts-'+o.key">
+            <option :value="o.key" :selected="o.key === sortKey" x-text="o.label"></option>
+          </template>
+        </select>
+      </div>
+    </div>
+
+    <p x-show="!rows.length" class="rounded-2xl border border-line bg-panel px-4 py-6 text-center text-sm text-mist">Kein Trainer passt zu dieser Auswahl.</p>
+
+    <div class="grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-3">
+      <template x-for="t in rows" :key="'tm-'+t.key">
+        <article class="flex min-w-0 flex-col overflow-hidden rounded-2xl border bg-panel transition-colors"
+                 :class="t.office ? 'border-volt-400/35' : 'border-line'"
+                 :style="t.office ? `--team:${teamColorOf(t.office.teamId)}` : ''">
+          <div class="relative flex min-w-0 items-end gap-4 p-4 pb-3"
+               :style="t.office ? `background: linear-gradient(135deg, color-mix(in srgb, var(--team) 22%, transparent), transparent 70%)` : ''">
+            <div class="relative grid size-24 shrink-0 place-items-end overflow-hidden rounded-2xl border border-line bg-elevated">
+              <img x-show="t.image" :src="t.image" :alt="t.name" loading="lazy" class="size-full object-cover object-top" />
+              <svg x-show="!t.image" viewBox="0 0 24 24" class="m-auto size-10 text-mist" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="8.5" r="3.6"/><path d="M4.5 20a7.5 7.5 0 0 1 15 0"/></svg>
+            </div>
+            <div class="min-w-0 flex-1">
+              <h2 class="truncate font-display text-2xl font-bold tracking-wide text-ink" x-text="t.name" :title="t.name"></h2>
+              <template x-if="t.office">
+                <button type="button" @click="goTeam(t.office.teamId)"
+                        class="mt-1 inline-flex max-w-full items-center gap-1.5 rounded-full border border-volt-400/40 bg-volt-400/10 py-0.5 pl-0.5 pr-2.5 text-xs font-semibold text-volt-400 transition-colors hover:bg-volt-400/20">
+                  <img x-show="t.office.logo" :src="logoUrl(t.office.logo)" alt="" class="size-5 shrink-0 object-contain" />
+                  <span class="truncate" x-text="`Im Amt · ${t.office.teamName}`"></span>
+                </button>
+              </template>
+              <span x-show="!t.office" class="mt-1 inline-flex rounded-full border border-line bg-elevated px-2.5 py-0.5 text-xs font-semibold text-mist"
+                    x-text="t.stints.length ? 'Vereinslos' : 'Wartet auf das erste Angebot'"></span>
+              <p class="mt-1 text-[11px] uppercase tracking-wider text-mist"
+                 x-text="t.stints.length ? `${t.stints.length} ${t.stints.length === 1 ? 'Amtszeit' : 'Amtszeiten'} · ${t.clubs} ${t.clubs === 1 ? 'Verein' : 'Vereine'} · ${t.seasons.map((s) => `S${s}`).join(' ')}` : 'Neu auf dem Markt'"></p>
+            </div>
+          </div>
+
+          <p x-show="t.traits.length" class="line-clamp-2 px-4 text-xs leading-relaxed text-mist" x-text="t.traits.join(' · ')" :title="t.traits.join(', ')"></p>
+
+          <!-- Bilanz der Teams in seiner Amtszeit -->
+          <dl x-show="t.totals.matches" class="mx-4 mt-3 grid grid-cols-4 gap-px overflow-hidden rounded-xl border border-line bg-line text-center">
+            <template x-for="k in [
+                { l: 'Matches', v: t.totals.matches },
+                { l: 'S-U-N', v: `${t.totals.won}-${t.totals.draw}-${t.totals.lost}` },
+                { l: 'Pkt/Match', v: fmtNum(t.totals.pointsPerMatch) },
+                { l: 'Kampf-Siege', v: fmtPct(t.totals.battleWinRate) },
+              ]" :key="'tk-'+t.key+'-'+k.l">
+              <div class="bg-elevated/60 px-1 py-2">
+                <dt class="font-display text-[9px] font-semibold uppercase tracking-wider text-mist" x-text="k.l"></dt>
+                <dd class="font-display text-base font-bold tabular-nums text-ink" x-text="k.v"></dd>
+              </div>
+            </template>
+          </dl>
+          <p x-show="t.stints.length && !t.totals.matches" class="mx-4 mt-3 rounded-xl border border-line bg-elevated/40 px-3 py-2 text-xs text-mist">Noch kein Match in seiner Amtszeit gespielt.</p>
+
+          <div class="mt-auto flex items-center gap-2 px-4 pb-4 pt-3">
+            <button type="button" x-show="t.stints.length" @click="toggle(t.key)" :aria-expanded="open === t.key"
+                    class="inline-flex items-center gap-1 rounded-lg border border-line px-2.5 py-1.5 font-display text-[11px] font-bold uppercase tracking-wider text-mist transition-colors hover:text-ink">
+              <span x-text="open === t.key ? 'Stationen ausblenden' : 'Stationen'"></span>
+              <svg viewBox="0 0 24 24" class="size-3.5 transition-transform" :class="open === t.key && 'rotate-180'" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"><path d="m6 9 6 6 6-6"/></svg>
+            </button>
+            <span x-show="t.totals.matches" class="text-[11px] tabular-nums text-mist" x-text="`Kills ${t.totals.kills} : ${t.totals.deaths} (${fmtDiff(t.totals.diff)})`"></span>
+            <span class="ml-auto flex gap-1.5" x-show="canEdit && !t.stints.length">
+              <button type="button" @click="openForm(t)"
+                      class="rounded-lg border border-line px-2.5 py-1.5 font-display text-[11px] font-bold uppercase tracking-wider text-mist transition-colors hover:text-flame-400">Bearbeiten</button>
+              <button type="button" @click="removeFromPool(t)" aria-label="Vom Trainermarkt entfernen"
+                      class="grid size-8 place-items-center rounded-lg border border-line text-mist transition-colors hover:border-flame-500/50 hover:text-flame-400">
+                <svg viewBox="0 0 24 24" class="size-4" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 7h16M10 11v6M14 11v6M6 7l1 13h10l1-13M9 7V4h6v3"/></svg>
+              </button>
+            </span>
+          </div>
+
+          <!-- Stationen -->
+          <ol x-show="open === t.key" x-cloak class="border-t border-line bg-void/30 px-4 py-3">
+            <template x-for="s in t.stints" :key="'st-'+t.key+'-'+s.id">
+              <li class="relative border-l border-line py-2 pl-4">
+                <span class="absolute -left-[5px] top-3.5 size-2.5 rounded-full border-2 border-panel"
+                      :style="`background:${s.active ? '#ffcb05' : teamColorOf(s.teamId)}`"></span>
+                <button type="button" @click="goTeam(s.teamId)" class="flex min-w-0 items-center gap-2 text-left transition-colors hover:text-flame-400">
+                  <img x-show="s.logo" :src="logoUrl(s.logo)" alt="" loading="lazy" class="size-6 shrink-0 object-contain" />
+                  <span class="truncate text-sm font-semibold text-ink" x-text="s.teamName"></span>
+                  <span x-show="s.active" class="shrink-0 rounded bg-volt-400/15 px-1.5 py-0.5 font-display text-[9px] font-bold uppercase tracking-wider text-volt-400">aktuell</span>
+                </button>
+                <p class="text-[11px] text-mist" x-text="s.period"></p>
+                <p x-show="s.stats.matches" class="mt-0.5 text-[11px] tabular-nums text-mist"
+                   x-text="`${s.stats.matches} Matches · ${s.stats.won}-${s.stats.draw}-${s.stats.lost} · ${fmtNum(s.stats.pointsPerMatch)} Pkt/Match · Kills ${s.stats.kills}:${s.stats.deaths}`"></p>
+              </li>
+            </template>
+          </ol>
+        </article>
+      </template>
+    </div>
+  </div>
+
+  <!-- Neuer Trainer im Pool -->
+  <div popover="manual" id="trainer-pool-form"
+       class="modal-pop w-[30rem] max-w-[calc(100vw-2rem)] rounded-2xl border border-line bg-panel p-0 text-ink">
+    <template x-if="form">
+      <div>
+        <div class="flex items-center justify-between gap-3 border-b border-line px-5 py-4">
+          <p class="font-display text-lg font-bold uppercase tracking-wider text-ink" x-text="form.poolId ? 'Trainer bearbeiten' : 'Trainer anlegen'"></p>
+          <button type="button" @click="closeForm()" class="grid size-8 place-items-center rounded-lg text-mist transition-colors hover:text-flame-400" aria-label="Schließen">
+            <svg viewBox="0 0 24 24" class="size-5" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M18 6 6 18M6 6l12 12"/></svg>
+          </button>
+        </div>
+        <div class="max-h-[70vh] space-y-4 overflow-y-auto p-5">
+          <label class="block">
+            <span class="mb-1.5 block font-display text-xs font-semibold uppercase tracking-wider text-mist">Name</span>
+            <input x-model="form.name" type="text" placeholder="z. B. Lauro"
+                   class="w-full rounded-xl border border-line bg-elevated px-3 py-2.5 text-ink placeholder:text-mist/60 focus:border-flame-500 focus:outline-none" />
+            <span x-show="formClash" class="mt-1.5 block text-xs text-flame-300" x-text="`${formClash?.name} gibt es schon auf dem Markt.`"></span>
+          </label>
+          <label class="block">
+            <span class="mb-1.5 block font-display text-xs font-semibold uppercase tracking-wider text-mist">Bild-URL</span>
+            <input x-model="form.image" type="url" inputmode="url" placeholder="https://… z. B. ein VS-Bild aus dem PokéWiki"
+                   class="w-full rounded-xl border border-line bg-elevated px-3 py-2.5 text-ink placeholder:text-mist/60 focus:border-flame-500 focus:outline-none" />
+          </label>
+          <div x-show="form.image" class="flex items-center gap-3">
+            <img :src="form.image" alt="Vorschau" class="size-20 rounded-xl border border-line bg-elevated object-cover object-top" />
+            <span class="text-xs text-mist">Vorschau</span>
+          </div>
+          <div>
+            <span class="mb-1.5 block font-display text-xs font-semibold uppercase tracking-wider text-mist">Geschlecht</span>
+            <div class="flex flex-wrap gap-2">
+              <template x-for="g in genders" :key="'pg-'+g.key">
+                <button type="button" @click="form.gender = g.key"
+                        class="rounded-lg border px-3 py-1.5 text-sm font-semibold transition-colors"
+                        :class="form.gender === g.key ? 'border-flame-500 bg-flame-500/10 text-flame-300' : 'border-line text-mist hover:text-ink'"
+                        x-text="g.label"></button>
+              </template>
+            </div>
+          </div>
+          <label class="block">
+            <span class="mb-1.5 block font-display text-xs font-semibold uppercase tracking-wider text-mist">Persönlichkeit</span>
+            <textarea x-model="form.traits" rows="3" placeholder="Kommagetrennt, z. B. ruhig, künstlerisch, vergesslich"
+                      class="w-full resize-y rounded-xl border border-line bg-elevated px-3 py-2.5 text-sm text-ink placeholder:text-mist/60 focus:border-flame-500 focus:outline-none"></textarea>
+            <span class="mt-2 flex flex-wrap gap-1.5">
+              <template x-for="tr in formTraits" :key="'pft-'+tr">
+                <span class="rounded-lg border border-line bg-elevated/60 px-2 py-1 text-xs text-mist" x-text="tr"></span>
+              </template>
+            </span>
+          </label>
+          <p class="text-xs leading-relaxed text-mist">Der Trainer steht danach vereinslos auf dem Markt. Verpflichtet wird er im Team-Bereich einer Saison über „Trainer ernennen" — dort lässt er sich aus dem Markt übernehmen.</p>
+        </div>
+        <div class="flex gap-3 border-t border-line px-5 py-4">
+          <button type="button" @click="closeForm()"
+                  class="flex-1 rounded-xl border border-line px-4 py-2.5 font-semibold text-mist transition-colors hover:text-ink">Abbrechen</button>
+          <button type="button" @click="saveForm()" :disabled="!formValid || busy"
+                  class="flex-1 rounded-xl bg-flame-500 px-4 py-2.5 font-display font-bold uppercase tracking-wide text-white transition-colors hover:bg-flame-600 disabled:opacity-60"
+                  x-text="form.poolId ? 'Speichern' : 'Anlegen'"></button>
+        </div>
+      </div>
+    </template>
+  </div>
+</div>

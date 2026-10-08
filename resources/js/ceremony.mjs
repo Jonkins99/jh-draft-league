@@ -389,6 +389,17 @@ export function runCeremony(root, data, opts = {}) {
     timers.push(setTimeout(resolve, ms));
   });
 
+  // Nur der Bühnenmittelteil scrollt — nie die Seite dahinter.
+  const bodyEl = root.querySelector('.cer-body');
+  const focusInBody = (el, smooth) => {
+    if (!bodyEl || !el) return;
+    const box = bodyEl.getBoundingClientRect();
+    const r = el.getBoundingClientRect();
+    if (r.top >= box.top && r.bottom <= box.bottom) return;
+    const top = bodyEl.scrollTop + (r.top - box.top) - Math.max(0, (box.height - r.height) / 2);
+    bodyEl.scrollTo({ top: Math.max(0, top), behavior: smooth && !reduceMotion() ? 'smooth' : 'auto' });
+  };
+
   const revealSlot = (i, animate = true) => {
     const el = slotEls[i];
     if (!el) return;
@@ -418,6 +429,9 @@ export function runCeremony(root, data, opts = {}) {
       }))
       .join('');
     if (animate) celebrate(stage, variant.burst);
+    // Mobil stehen die Karten untereinander: der Sieger muss ins Bild, nicht Platz 2.
+    const winner = topHost.querySelector('.cer-card--first');
+    if (winner) requestAnimationFrame(() => focusInBody(winner, animate));
     noteEl.style.visibility = 'visible';
     closeEl.style.visibility = 'visible';
     finished = true;
@@ -461,6 +475,7 @@ export function runCeremony(root, data, opts = {}) {
       const i = rows.indexOf(steps[s][0]);
       if (i < 0) continue;
       slotEls[i].dataset.state = 'next';
+      focusInBody(slotEls[i], true);
       await sleep(t.tease * slow);
       if (stopped) return;
       stage.dataset.beat = 'hold';

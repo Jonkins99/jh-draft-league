@@ -1,6 +1,6 @@
 import Alpine from 'alpinejs';
 import { db } from './firebase.js';
-import { collection, doc, getDoc, onSnapshot, writeBatch, arrayUnion, setDoc, deleteDoc, runTransaction } from 'firebase/firestore';
+import { collection, doc, getDoc, onSnapshot, writeBatch, arrayUnion, setDoc, deleteDoc, deleteField, runTransaction } from 'firebase/firestore';
 import { battleStats, mergeResult, computeStandings, pokemonStats, placementHistory, speedTiers, speedCases, clampSp, applySpeedMod, typeMultiplier, ALL_TYPES, pokemonProfile, defensiveChart, offensiveChart, playerDuel, showdownExport, teamBattleTotals, isMega, baseFormOf, pokezoneUrl, draftPicks, transferAvailability, availableOn } from './scoring.mjs';
 import {
   exportDataset, buildScheduleExport, buildBattleDetailsExport, buildStandingsExport,
@@ -24,7 +24,7 @@ import {
   SEASON_ALL, seasonPrefix, seasonOfId, seasonOfTeam, franchiseSlug, seasonsFrom,
   teamsOfSeason, resultsOfSeason, allTimeTable, seasonSummaries, allTimePlayers,
   allTimePokemon, buildRecords, awardLeaderboard, newcomersOfSeason,
-  franchiseTeams, franchiseSeasons, franchisePokemon,
+  franchiseTeams, franchiseSeasons, franchisePokemon, franchiseResults, franchiseAwards, pokemonOwnerOn,
 } from './seasons.mjs';
 import {
   RENEWAL_TIERS, previousRosters, renewalState, hasOpenRenewal, renewalTurn,
@@ -57,20 +57,23 @@ import {
   randomAuthor, randomAuthors, pressSlots, slotLabel, typeLabel, isMatchComplete, isPressReleased, matchDocId,
   bonusRoundComplete, bonusRoundProgress, bonusSlotsFor, bonusRoundDay, pressFromDay,
   outlookSlotFor, outlookSessionId, outlookProgress, seasonComplete, OUTLOOK_QUESTIONS,
-  collectStorylines, sanitizeHtml, paragraphsToHtml, excerpt, readingMinutes,
+  collectStorylines, sanitizeHtml, paragraphsToHtml, excerpt, readingMinutes, plainText,
   formatDate, formatDateTime, sortArticles, articleMatchesFilter, storyId, commissionLeague,
   interviewCandidates, pickInterviewGuests, matchLines,
   isStalePending, needsRewrite, articleViewStatus, hasArticleContent, pickPreview, matchSequence, answerMentionsMeta,
 } from './press.mjs';
 import { buildContext, isReference, nextOpenDay } from './press-context.mjs';
+import { buildScene, seatSprite, backMissing } from './press-scene.mjs';
+import { trainerDirectory, normalizePoolTrainer, trainerKey } from './trainer-market.mjs';
 import {
-  SHOWS, CAVALANZAS, showOf, showByline, lanzTriggerGame, lanzAnswerTarget, lanzLineup,
+  SHOWS, CAVALANZAS, showOf, showByline, lanzTriggerGames, lanzId, previousLanz, lanzHadTrainer, lanzAnswerTarget, lanzLineup,
   podcastReadyDays, showParagraphs, transcriptText, cleanTurns,
   LANZ_BRIEF, ZWEIBLATT_BRIEF, SHOW_SCHEMA, SHOW_PART_SCHEMA, PODCAST_SCHEMA, podcastRawTurns, podcastMissing,
 } from './press-shows.mjs';
 import {
   DEFAULT_PROMPTS, PROMPT_DEFS, buildSystem, buildUserPrompt, buildDirection,
   ARTICLE_SCHEMA, ARTICLE_SCHEMA_WITH_CATEGORY, ARTICLE_SCHEMA_FREE_CATEGORY, ARTICLE_SCHEMA_COMMISSION, QUESTIONS_SCHEMA,
+  EDITORIAL_STORYLINE_BRIEF, EDITORIAL_STORYLINE_SCHEMA,
   pickStances, stanceBrief, STANCE_KEYS, STANCE_BY_KEY, marketRule, scandalPick,
 } from './press-prompts.mjs';
 import {
@@ -107,6 +110,7 @@ const ICONS = {
   award: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="9" r="6"/><path d="M8.2 14.2 6.5 21l5.5-2.8L17.5 21l-1.7-6.8"/></svg>`,
   stats: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M4 19V5"/><path d="M4 19h16"/><rect x="7" y="11" width="3" height="5" rx="0.5"/><rect x="12" y="7" width="3" height="9" rx="0.5"/><rect x="17" y="13" width="3" height="3" rx="0.5"/></svg>`,
   press: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M4 5h13a1 1 0 0 1 1 1v12a2 2 0 0 0 2 2H5a2 2 0 0 1-2-2V6a1 1 0 0 1 1-1z"/><path d="M18 9h2a1 1 0 0 1 1 1v8"/><path d="M7 9h7"/><path d="M7 13h7"/><path d="M7 17h4"/></svg>`,
+  coach: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="7" r="3.5"/><path d="M5 21v-1.5A6.5 6.5 0 0 1 11.5 13h1a6.5 6.5 0 0 1 6.5 6.5V21"/><path d="m12 13 1.6 3.2L12 21l-1.6-4.8z"/></svg>`,
   record: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M8 3h8v5a4 4 0 0 1-8 0z"/><path d="M8 5H5v2a3 3 0 0 0 3 3"/><path d="M16 5h3v2a3 3 0 0 1-3 3"/><path d="M12 12v4"/><path d="M9 20h6"/><path d="M10 16h4l1 4H9z"/></svg>`,
 };
 
@@ -1070,13 +1074,15 @@ function app() {
         rekorde: { key: 'rekorde', label: 'Rekorde', file: './pages/rekorde.html', icon: ICONS.record },
         // Saisonübergreifend: die Teams als Franchises über alle Saisons.
         vereine: { key: 'vereine', label: 'Teams', file: './pages/vereine.html', icon: ICONS.teams },
+        // Saisonübergreifend: der Trainermarkt.
+        trainer: { key: 'trainer', label: 'Trainer', file: './pages/trainer.html', icon: ICONS.coach },
       };
       const l = this.$store.league;
       // Saisonübergreifend gibt es nur, was über Saisongrenzen hinweg Sinn ergibt:
       // Spielplan, Teambuilding, Teams, Draft und Transfer gehören immer zu genau
       // einer Saison und fallen deshalb weg; dafür kommen die Rekorde dazu.
       if (this.$store.season?.isAll) {
-        return ['tabelle', 'vereine', 'stats', 'presse', 'awards', 'spieler', 'rekorde'].map((k) => byKey[k]);
+        return ['tabelle', 'vereine', 'trainer', 'stats', 'presse', 'awards', 'spieler', 'rekorde'].map((k) => byKey[k]);
       }
       const keys = ['tabelle', 'spieltag', 'teambuilding', 'teams', 'stats', 'presse', 'awards', 'spieler', 'draft'];
       if (l.draft?.status === 'done') keys.push('transfer');
@@ -1154,6 +1160,9 @@ function app() {
       this.closeMobileNav();
       this.$store.league.ensureNotifyPermission?.();
 
+      // Zwei Ladevorgänge kurz nacheinander (z. B. Saisonwechsel und direkt danach ein
+      // Sprung): es gewinnt der zuletzt angestoßene, nicht der zuletzt fertige.
+      const token = (this._loadToken = (this._loadToken || 0) + 1);
       let html;
       try {
         const res = await fetch(item.file, { cache: 'no-cache' });
@@ -1162,6 +1171,7 @@ function app() {
       } catch (e) {
         html = `<div class="rounded-2xl border border-line bg-panel p-8 text-mist">Diese Ansicht konnte nicht geladen werden. Bitte die Seite neu laden.</div>`;
       }
+      if (token !== this._loadToken) return;
 
       const swap = () => {
         const view = this.$refs.view;
@@ -2255,6 +2265,15 @@ function teamsView() {
     },
     get trainerFormValid() {
       return !!this.trainerForm?.name?.trim();
+    },
+    // Vereinslose Trainer vom Trainermarkt — ein Griff füllt das Formular.
+    get marketTrainers() {
+      return this.league.trainerDirectory.filter((t) => !t.office);
+    },
+    takeFromMarket(key) {
+      const t = this.marketTrainers.find((x) => x.key === key);
+      if (!t || !this.trainerForm) return;
+      Object.assign(this.trainerForm, { name: t.name, image: t.image || '', gender: t.gender || 'd', traits: (t.traits || []).join(', ') });
     },
     get trainerFormTraits() {
       return (this.trainerForm?.traits || '').split(',').map((t) => t.trim()).filter(Boolean);
@@ -4837,7 +4856,8 @@ function teambuildingView() {
         window.dispatchEvent(new CustomEvent('toast', { detail: { msg: 'Im Moveset ist keine Initiative hinterlegt.' } }));
         return;
       }
-      this.modSave(name, { ...this.modGet(name), sp: parsed.sp.spe, nat: parsed.up === 'spe' ? 'up' : parsed.down === 'spe' ? 'down' : 'both' });
+      // Das Wesen kommt mit: „32+" zeigt nur Init+, „0-" nur Init−, ohne Zeichen nur neutral.
+      this.modSave(name, { ...this.modGet(name), sp: parsed.sp.spe, nat: parsed.up === 'spe' ? 'up' : parsed.down === 'spe' ? 'down' : 'neutral' });
       window.dispatchEvent(new CustomEvent('toast', { detail: { msg: `Initiative von ${name} aus dem Moveset übernommen.` } }));
     },
     // Ob für dieses Pokémon überhaupt ein Init-Wert im Moveset steht.
@@ -5104,6 +5124,128 @@ function teambuildingView() {
 }
 
 // === Teams saisonübergreifend (Franchises) =================================
+// Nur im Bereich „Alle Saisons": der Trainermarkt. Jeder Trainer, der je im Amt war
+// oder im Pool angelegt wurde, mit Status, Amtszeiten und dem, was seine Teams in
+// seiner Zeit geholt haben (trainer-market.mjs). Neue Trainer entstehen im Pool;
+// verpflichtet werden sie weiterhin im Team-View der Saison.
+function trainerMarketView() {
+  return {
+    q: '',
+    filter: 'all',
+    sortKey: 'office',
+    open: null,
+    form: null,
+    busy: false,
+
+    get league() { return this.$store.league; },
+    get loaded() { return this.league.teamsLoaded && this.league.resultsLoaded; },
+    get canEdit() { return !!this.$store.auth?.player; },
+    logoUrl(file) { return file ? `./img/teams/${file}` : ''; },
+    fmtNum(v, d = 2) { return Number.isFinite(v) ? v.toFixed(d).replace('.', ',') : '—'; },
+    fmtPct(v) { return Number.isFinite(v) ? `${Math.round(v * 100)} %` : '—'; },
+    fmtDiff(v) { return v > 0 ? `+${v}` : String(v); },
+    teamColorOf(teamId) {
+      const t = this.league.teams.find((x) => x.id === teamId);
+      return t ? teamColor(t) : '#98a2b3';
+    },
+
+    get directory() { return this.league.trainerDirectory; },
+    get counts() {
+      const d = this.directory;
+      return {
+        all: d.length,
+        office: d.filter((t) => t.office).length,
+        free: d.filter((t) => !t.office).length,
+        pool: d.filter((t) => !t.stints.length).length,
+      };
+    },
+    get sortOptions() {
+      return [
+        { key: 'office', label: 'Im Amt zuerst' },
+        { key: 'name', label: 'Name' },
+        { key: 'matches', label: 'Meiste Matches' },
+        { key: 'ppm', label: 'Punkte je Match' },
+        { key: 'rate', label: 'Siegquote' },
+        { key: 'clubs', label: 'Meiste Vereine' },
+      ];
+    },
+    get rows() {
+      const q = this.q.trim().toLowerCase();
+      const list = this.directory.filter((t) => {
+        if (this.filter === 'office' && !t.office) return false;
+        if (this.filter === 'free' && t.office) return false;
+        if (this.filter === 'pool' && t.stints.length) return false;
+        if (!q) return true;
+        return t.name.toLowerCase().includes(q)
+          || t.traits.some((x) => x.toLowerCase().includes(q))
+          || t.stints.some((s) => s.teamName.toLowerCase().includes(q));
+      });
+      const by = {
+        office: (a, b) => (!!b.office - !!a.office) || b.totals.matches - a.totals.matches || a.name.localeCompare(b.name),
+        name: (a, b) => a.name.localeCompare(b.name),
+        matches: (a, b) => b.totals.matches - a.totals.matches || a.name.localeCompare(b.name),
+        ppm: (a, b) => (b.totals.pointsPerMatch ?? -1) - (a.totals.pointsPerMatch ?? -1) || b.totals.matches - a.totals.matches,
+        rate: (a, b) => (b.totals.battleWinRate ?? -1) - (a.totals.battleWinRate ?? -1) || b.totals.matches - a.totals.matches,
+        clubs: (a, b) => b.clubs - a.clubs || b.totals.matches - a.totals.matches,
+      }[this.sortKey] || (() => 0);
+      return [...list].sort(by);
+    },
+    toggle(key) { this.open = this.open === key ? null : key; },
+    goTeam(teamId) {
+      if (teamId) this.$dispatch('navigate', { key: 'vereine', teamId });
+    },
+    stintLabel(s) {
+      return s.from.season === s.until.season ? `Saison ${s.from.season}` : `Saison ${s.from.season}–${s.until.season}`;
+    },
+
+    // --- Pool: anlegen, bearbeiten, entfernen --------------------------------
+    openForm(t = null) {
+      // Wer schon im Amt war, wird im Team-View der Saison gepflegt — hier nur der Pool.
+      if (!this.canEdit || (t && t.stints.length)) return;
+      this.form = t
+        ? { poolId: t.poolId || null, name: t.name, image: t.image, gender: t.gender || 'd', traits: (t.traits || []).join(', ') }
+        : { poolId: null, name: '', image: '', gender: 'd', traits: '' };
+      this.$nextTick(() => document.getElementById('trainer-pool-form')?.showPopover());
+    },
+    closeForm() {
+      const el = document.getElementById('trainer-pool-form');
+      if (el && el.matches(':popover-open')) el.hidePopover();
+      this.form = null;
+    },
+    get genders() { return GENDERS; },
+    get formTraits() {
+      return (this.form?.traits || '').split(',').map((x) => x.trim()).filter(Boolean);
+    },
+    get formClash() {
+      const key = trainerKey(this.form?.name);
+      if (!key || key === this.form?.poolId) return null;
+      return this.directory.find((t) => t.key === key && t.key !== this.form?.poolId) || null;
+    },
+    get formValid() {
+      return !!this.form?.name?.trim() && !this.formClash;
+    },
+    async saveForm() {
+      if (!this.formValid || this.busy) return;
+      this.busy = true;
+      try {
+        const id = await this.league.savePoolTrainer(this.form);
+        window.dispatchEvent(new CustomEvent('toast', { detail: { msg: this.form.poolId ? 'Trainer aktualisiert.' : `${this.form.name.trim()} steht jetzt auf dem Trainermarkt.` } }));
+        this.closeForm();
+        this.open = id;
+      } catch (e) {
+        console.error('Trainer konnte nicht gespeichert werden:', e);
+        window.dispatchEvent(new CustomEvent('toast', { detail: { msg: 'Der Trainer konnte nicht gespeichert werden.' } }));
+      }
+      this.busy = false;
+    },
+    async removeFromPool(t) {
+      if (!this.canEdit || !t?.poolId || t.stints.length) return;
+      if (!window.confirm(`${t.name} vom Trainermarkt entfernen?`)) return;
+      await this.league.removePoolTrainer(t.poolId);
+    },
+  };
+}
+
 // Nur im Bereich „Alle Saisons": jedes Franchise mit seiner Langzeitbilanz, ohne
 // Kaderliste. Die Detailansicht zeigt Saison für Saison, alle Trainer, jedes Pokémon,
 // das je für den Verein gespielt hat, und den Kaderwert über alle Saisons.
@@ -5115,8 +5257,12 @@ function franchiseView() {
     monSortKey: 'kills',
     monSortDir: 'desc',
     showAllMons: false,
+    showAllResults: false,
+    awardTab: 'team',
     _tableKey: null,
     _tableCache: null,
+    _awardsKey: null,
+    _awardsCache: null,
 
     init() {
       this.$store.elo.ensureLoaded();
@@ -5218,6 +5364,7 @@ function franchiseView() {
       this.withTransition(() => {
         this.slug = slug;
         this.showAllMons = false;
+        this.showAllResults = false;
         window.scrollTo({ top: 0 });
       });
     },
@@ -5282,6 +5429,49 @@ function franchiseView() {
       return col.fmt ? col.fmt(v) : v ?? '—';
     },
     seasonsLabel(list) { return (list || []).map((n) => `S${n}`).join(' · '); },
+
+    // --- Ergebnisse über alle Saisons ----------------------------------------
+    teamById(id) { return this.league.teams.find((t) => t.id === id) || null; },
+    get resultRows() {
+      return this.slug ? franchiseResults(this.league.allResults, this.slug) : [];
+    },
+    get shownResults() {
+      return this.showAllResults ? this.resultRows : this.resultRows.slice(0, 12);
+    },
+    outcomeLabel(o) { return o === 'won' ? 'S' : o === 'lost' ? 'N' : 'U'; },
+    outcomeClass(o) {
+      return o === 'won' ? 'bg-emerald-500/15 text-emerald-300 border-emerald-500/40'
+        : o === 'lost' ? 'bg-flame-500/10 text-flame-300 border-flame-500/40'
+          : 'bg-elevated text-mist border-line';
+    },
+    openResult(r) {
+      // Der Spielplan zeigt eine Saison — für ein altes Match erst dorthin wechseln.
+      this.$store.season.set(r.season);
+      this.$nextTick(() => this.$dispatch('navigate', { key: 'spieltag', matchId: r.id }));
+    },
+
+    // --- Auszeichnungen ------------------------------------------------------
+    // Nur Ehrungen, deren Siegerehrung der Angemeldete schon gesehen hat — dieselbe
+    // Spoiler-Regel wie bei den Pins.
+    get awards() {
+      const docs = this.$store.awards?.docs || [];
+      const me = this.$store.awards?.me;
+      const l = this.league;
+      const key = `${this.slug}|${me}|${docs.length}|${docs.filter((d) => d.status === 'done').length}|${(l.allResults || []).length}|${l.teams.length}`;
+      if (this._awardsKey !== key) {
+        this._awardsKey = key;
+        const resultById = new Map((l.allResults || []).map((r) => [r.id, r]));
+        const ctx = { teams: l.teams, results: l.allResults, availability: l.availability };
+        this._awardsCache = this.slug ? franchiseAwards(docs.filter((d) => d?.seen?.[me]), this.slug, {
+          ownerOf: (name, season, day) => pokemonOwnerOn(ctx, name, season, day),
+          matchTeams: (id) => { const r = resultById.get(id); return r ? [r.home, r.away] : []; },
+          pokedex: l.pokemon,
+        }) : null;
+      }
+      return this._awardsCache || { entries: [], summary: { total: 0, team: 0, match: 0, pokemon: 0, positive: 0, negative: 0 }, byKey: [], byMon: [] };
+    },
+    get awardTeamEntries() { return this.awards.entries.filter((e) => e.scope !== 'pokemon'); },
+    awardWhen(e) { return e.day != null ? `S${e.season} · Spieltag ${e.day}` : `Saison ${e.season}`; },
 
     // --- Marktwert über alle Saisons ---------------------------------------
     // Der Verlauf läuft hier über ALLE Saisonspalten des Sheets; jeder Zeitpunkt wird
@@ -6433,7 +6623,63 @@ function presseView() {
     // Jede Eingabe sofort in den Entwurf spiegeln: so kann der Text auch dann nicht
     // verloren gehen, wenn das Feld zwischendurch neu aufgebaut wird.
     syncEditor(el) {
-      if (this.composer && el) this.composer.body = el.innerHTML;
+      if (!this.composer || !el) return;
+      this.rteEnsureTail(el);
+      this.composer.body = el.innerHTML;
+    },
+    // Hinter einem Zitat, einer Liste oder Überschrift am Textende muss es immer
+    // einen leeren Absatz geben — sonst kommt der Cursor nie mehr dahinter.
+    rteEnsureTail(el) {
+      const last = el.lastElementChild;
+      if (last && /^(BLOCKQUOTE|UL|OL|H3|H4|FIGURE)$/.test(last.tagName)) {
+        const p = document.createElement('p');
+        p.appendChild(document.createElement('br'));
+        el.appendChild(p);
+      }
+    },
+    // Der Block um den Cursor, sofern er im Editor liegt.
+    rteClosest(selector) {
+      const el = this.$refs.editor;
+      const node = window.getSelection()?.anchorNode;
+      if (!el || !node || !el.contains(node)) return null;
+      const start = node.nodeType === 1 ? node : node.parentElement;
+      const hit = start?.closest(selector);
+      return hit && el.contains(hit) && hit !== el ? hit : null;
+    },
+    rteCaretInto(node, atEnd = false) {
+      const range = document.createRange();
+      range.selectNodeContents(node);
+      range.collapse(!atEnd);
+      const sel = window.getSelection();
+      sel.removeAllRanges();
+      sel.addRange(range);
+    },
+    // Ein Zitat auflösen: Absätze darin bleiben Absätze, loser Text wird einer.
+    rteUnquote(quote) {
+      const frag = document.createDocumentFragment();
+      let loose = null;
+      let focus = null;
+      [...quote.childNodes].forEach((n) => {
+        if (n.nodeType === 1 && /^(P|H3|H4|UL|OL|FIGURE)$/.test(n.tagName)) {
+          loose = null;
+          frag.appendChild(n);
+          focus = focus || n;
+          return;
+        }
+        if (!loose) {
+          loose = document.createElement('p');
+          frag.appendChild(loose);
+          focus = focus || loose;
+        }
+        loose.appendChild(n);
+      });
+      if (!focus) {
+        focus = document.createElement('p');
+        focus.appendChild(document.createElement('br'));
+        frag.appendChild(focus);
+      }
+      quote.replaceWith(frag);
+      this.rteCaretInto(focus, true);
     },
     closeComposer() {
       const el = document.getElementById('press-composer');
@@ -6476,13 +6722,41 @@ function presseView() {
       document.execCommand(cmd, false, value);
       this.syncEditor(this.$refs.editor);
     },
+    // Ein zweiter Klick auf denselben Blocktyp schaltet zurück auf normalen Text —
+    // beim Zitat über das Auflösen, weil formatBlock es nicht zuverlässig verlässt.
     rteBlock(tag) {
-      this.rte('formatBlock', tag);
+      this.$refs.editor?.focus();
+      const quote = this.rteClosest('blockquote');
+      if (quote && (tag === 'blockquote' || tag === 'p')) {
+        this.rteUnquote(quote);
+        this.syncEditor(this.$refs.editor);
+        return;
+      }
+      const same = tag !== 'p' && this.rteClosest(tag);
+      this.rte('formatBlock', same ? 'p' : tag);
     },
     // Enter in einem Textknoten ohne Blockumgebung erzeugt sonst nur ein <br>.
     // Ein vorgeschalteter Absatz sorgt dafür, dass ein einzelnes Enter reicht.
     rteEnter(event) {
       if (event.shiftKey) return;
+      // Enter in einer leeren Zeile am Ende eines Zitats verlässt das Zitat.
+      const quote = this.rteClosest('blockquote');
+      if (quote) {
+        const line = this.rteClosest('p, div') || null;
+        const text = (line && quote.contains(line) ? line : quote).textContent.replace(/\u200b/g, '').trim();
+        const isLast = !line || line === quote.lastElementChild || !quote.contains(line);
+        if (!text || (isLast && line && !line.textContent.trim())) {
+          event.preventDefault();
+          if (line && quote.contains(line) && quote.children.length > 1) line.remove();
+          const p = document.createElement('p');
+          p.appendChild(document.createElement('br'));
+          quote.after(p);
+          if (!quote.textContent.trim()) quote.remove();
+          this.rteCaretInto(p);
+          this.syncEditor(this.$refs.editor);
+          return;
+        }
+      }
       let block = '';
       try { block = document.queryCommandValue('formatBlock') || ''; } catch (e) {}
       if (!block || block.toLowerCase() === 'div') {
@@ -6637,7 +6911,8 @@ function presseView() {
         const input = {
           ...this.composer,
           category: this.composer.categories[0],
-          body: this.$refs.editor?.innerHTML || this.composer.body,
+          // Der Leerabsatz hinter einem Zitat ist nur Schreibhilfe (rteEnsureTail).
+          body: (this.$refs.editor?.innerHTML || this.composer.body || '').replace(/(<p>(<br\s*\/?>)?<\/p>\s*)+$/i, ''),
         };
         const id = this.composer.aiEdit
           ? await this.press.updateArticle(input)
@@ -6795,6 +7070,30 @@ function presseView() {
     get stageAsker() {
       return this.stageQuestion ? authorById(this.stageQuestion.authorId) : authorById(this.session?.authorIds?.[0]);
     },
+    // Pressebank der PK: Rückenansicht, wenn es eine gibt (press-scene.mjs).
+    seatSprite(r) { return seatSprite(r); },
+    backMissing(img, r) { backMissing(img, r); },
+    stageScene() {
+      const slot = this.stage?.slot;
+      const s = this.session;
+      if (!slot || !s?.role) return null;
+      const team = this.teamById(slot.teamId);
+      const asker = this.stageAsker;
+      const key = [slot.id, asker?.id, s.role.name, s.role.image, team?.color, (s.authorIds || []).join()].join('|');
+      if (!pressSceneCache.has(key)) {
+        pressSceneCache.set(key, buildScene({
+          kind: slot.type === 'pk' ? 'pk' : 'interview',
+          sessionId: slot.id,
+          clubKey: franchiseSlug(slot.teamId),
+          team: { name: team?.name || '', logo: this.teamLogo(slot.teamId), color: team ? teamColor(team) : '#e3350d' },
+          guest: { name: s.role.name, image: s.role.image, kind: s.role.kind === 'trainer' ? 'trainer' : 'pokemon' },
+          reporters: this.stageAuthors.map((a) => ({ id: a.id, name: a.name, image: a.image, outlet: a.outlet })),
+          audience: PRESS_AUTHORS.map((a) => ({ id: a.id, name: a.name, image: a.image, outlet: a.outlet })),
+          askerId: asker?.id,
+        }));
+      }
+      return pressSceneCache.get(key);
+    },
     // Rollen zur Auswahl. Die Pressekonferenz richtet sich grundsätzlich an den
     // Trainer; zum Interview bittet die Redaktion eins bis drei Gesichter, über die
     // gerade geredet wird (press.mjs: interviewCandidates / pickInterviewGuests).
@@ -6861,11 +7160,13 @@ function presseView() {
       const q = this.stageQuestion;
       if (!q || !this.stage) return;
       this.stage.answers = [...this.stage.answers.filter((a) => a.questionId !== q.id), { questionId: q.id, ...answer }];
-      this.stage.custom = '';
+      if (this.stage.drafts) delete this.stage.drafts[q.id];
       if (this.stage.index < (this.session?.questions?.length || 3) - 1) {
         this.stage.index += 1;
+        this.restoreCustom();
         return;
       }
+      this.stage.custom = '';
       this.stage.phase = 'writing';
       const articleId = await this.press.submitAnswers(this.stage.slot.id, this.stage.answers);
       if (!this.stage) return;
@@ -6876,8 +7177,29 @@ function presseView() {
         this.stage.phase = 'error';
       }
     },
+    // Zurückblättern verwirft nichts: Ein angefangener Text bleibt je Frage als Entwurf
+    // liegen, eine schon gegebene eigene Antwort steht wieder im Feld.
     stageBack() {
-      if (this.stage && this.stage.index > 0) this.stage.index -= 1;
+      if (!this.stage || this.stage.index <= 0) return;
+      const q = this.stageQuestion;
+      if (q) this.stage.drafts = { ...(this.stage.drafts || {}), [q.id]: this.stage.custom || '' };
+      this.stage.index -= 1;
+      this.restoreCustom();
+    },
+    restoreCustom() {
+      const q = this.stageQuestion;
+      const given = q ? this.answerFor(q.id) : null;
+      const draft = q ? this.stage.drafts?.[q.id] : undefined;
+      this.stage.custom = draft ?? (given?.custom ? given.text : '');
+    },
+    // Die schon gegebene Antwort unverändert behalten und weiterblättern.
+    keepAnswer() {
+      const given = this.stageQuestion ? this.answerFor(this.stageQuestion.id) : null;
+      if (given) this.pushAnswer({ text: given.text, stance: given.stance, custom: given.custom });
+    },
+    isChosenOption(o) {
+      const given = this.stageQuestion ? this.answerFor(this.stageQuestion.id) : null;
+      return !!given && !given.custom && given.text === o.text;
     },
     answerFor(qid) {
       return this.stage?.answers.find((a) => a.questionId === qid) || null;
@@ -7743,6 +8065,46 @@ Alpine.store('league', {
     }, { merge: true });
   },
 
+  // === Trainermarkt (drafts/trainerpool) ===================================
+  // Trainer, die noch nie im Amt waren, brauchen einen Ort: den Pool. Er liegt wie
+  // drafts/pokedex unter `drafts`, kommt über denselben Listener herein und braucht
+  // keine neue Regel. Gemergt je Eintrag, damit zwei Geräte einander nichts löschen.
+  get trainerPool() {
+    return this._drafts.trainerpool?.trainers || EMPTY_POOL;
+  },
+  // Zwischengespeichert, solange Teams, Ergebnisse und Pool dieselben Objekte sind —
+  // jeder Snapshot ersetzt sie, damit ist der Speicher nie veraltet.
+  get trainerDirectory() {
+    const teams = this.teams;
+    const results = this.allResults;
+    const pool = this.trainerPool;
+    const c = trainerDirCache;
+    if (!c || c.teams !== teams || c.results !== results || c.pool !== pool) {
+      trainerDirCache = { teams, results, pool, value: trainerDirectory({ teams, results, pool }) };
+    }
+    return trainerDirCache.value;
+  },
+  async savePoolTrainer(raw) {
+    const entry = normalizePoolTrainer(raw);
+    if (!entry.id) throw new Error('Ohne Namen lässt sich kein Trainer anlegen.');
+    const prev = this.trainerPool[raw?.poolId || entry.id] || {};
+    const data = {
+      ...entry,
+      createdAt: prev.createdAt || new Date().toISOString(),
+      createdBy: prev.createdBy || Alpine.store('auth')?.player || null,
+      updatedAt: new Date().toISOString(),
+    };
+    const write = { trainers: { [entry.id]: data } };
+    // Umbenannt: der alte Schlüssel fällt weg.
+    if (raw?.poolId && raw.poolId !== entry.id) write.trainers[raw.poolId] = deleteField();
+    await setDoc(doc(db, 'drafts', 'trainerpool'), write, { merge: true });
+    return entry.id;
+  },
+  async removePoolTrainer(id) {
+    if (!id) return;
+    await setDoc(doc(db, 'drafts', 'trainerpool'), { trainers: { [id]: deleteField() } }, { merge: true });
+  },
+
   // === Trainer ==============================================================
   // Trainer liegen als Array im Team-Dokument; ein Wechsel ist damit ein einziger
   // Schreibvorgang und braucht weder eigene Collection noch eigene Regel.
@@ -8242,6 +8604,12 @@ const acceptNonEmpty = (data) => hasArticleContent(data) && !answerMentionsMeta(
 // Vorschaubilder der Beiträge (pickPreview) — außerhalb der Reaktivität, sonst löste
 // das Befüllen beim Rendern selbst ein neues Rendern aus.
 const pressPreviewCache = new Map();
+// Kulisse des laufenden Termins (press-scene.mjs) — ebenfalls außerhalb der
+// Reaktivität, damit Werbewand und Pressebank nicht bei jedem Rendern neu entstehen.
+const pressSceneCache = new Map();
+// Trainermarkt (league.trainerDirectory) — außerhalb der Reaktivität.
+let trainerDirCache = null;
+const EMPTY_POOL = Object.freeze({});
 
 // Beschreibt dem Modell, wann der Termin stattfindet — die Auftaktrunde liegt
 // außerhalb des normalen Rhythmus und braucht ihre eigene Einordnung.
@@ -8508,10 +8876,14 @@ Alpine.store('press', {
     // abgeschlossenen Spiel dieses Spieltags.
     const freshDays = [...new Set(fresh.map((id) => (l.results || []).find((r) => r.id === id)?.day).filter((d) => d != null))];
     freshDays.forEach((day) => { setTimeout(() => this.fillRandomArticles(day).catch(() => {}), 1500); });
-    // Cava LANZ: einmal je Spieltag, nach dem zweiten oder dritten freigegebenen Spiel.
-    freshDays
-      .filter((day) => this.completedOnDay(day) >= lanzTriggerGame(l.season, day))
-      .forEach((day) => { setTimeout(() => this.generateLanz(day).catch(() => {}), 9000); });
+    // Cava LANZ: zweimal je Spieltag, nach zwei der ersten drei freigegebenen Spiele.
+    // Die zweite Ausgabe startet später, damit die erste ihre Besetzung schon belegt hat.
+    freshDays.forEach((day) => {
+      const done = this.completedOnDay(day);
+      lanzTriggerGames(l.season, day).forEach((game, i) => {
+        if (done >= game) setTimeout(() => this.generateLanz(day, { edition: i + 1 }).catch(() => {}), 9000 + i * 20000);
+      });
+    });
   },
 
   // Wie viele Matches eines Spieltags sind fertig? Für die Automatik zählt nur, was
@@ -8629,7 +9001,7 @@ Alpine.store('press', {
   // Reine Gesprächsprotokolle ohne Autor (press-shows.mjs). Cava LANZ läuft je Spieltag
   // einmal; sitzt ein Trainer in der Runde, entsteht die Sendung Abschnitt für Abschnitt
   // im Termin-Bereich, und der Besitzer des Teams antwortet selbst.
-  lanzIdFor(day) { return `${this.prefix}-lanz-d${day}`; },
+  lanzIdFor(day, edition = 1) { return lanzId(this.prefix, day, edition); },
   podcastIdFor(day) { return `${this.prefix}-zweiblatt-d${day}`; },
 
   _showSystem(show, guests = []) {
@@ -8669,6 +9041,14 @@ Alpine.store('press', {
       recent.length ? `ZULETZT SCHON ERZÄHLT (nicht wiederholen): ${recent.join(', ')}` : '',
     ].filter(Boolean).join('\n');
   },
+  // Zwei Ausgaben je Spieltag: die zweite soll die erste nicht nacherzählen.
+  _lanzEditionNote(day, edition = 1) {
+    if (edition < 2) return '';
+    const first = this.byId(this.lanzIdFor(day, edition - 1));
+    const title = first?.status === 'ready' && first.title ? ` Die vorige lief unter dem Titel "${first.title}".` : '';
+    return `AUSGABE ${edition} ZU SPIELTAG ${day}: Es ist bereits die ${edition}. Sendung zu diesem Spieltag.${title} `
+      + 'Greife neue Themen auf oder führe die Debatte mit neuem Stand weiter — nicht dasselbe noch einmal erzählen.';
+  },
   _dayTeams(day) {
     const l = Alpine.store('league');
     return [...new Set((l.schedule?.matchdays || [])
@@ -8703,9 +9083,9 @@ Alpine.store('press', {
   },
 
   /** Cava LANZ zu einem Spieltag — als fertiger Beitrag oder als offener Termin. */
-  async generateLanz(day, { force = false, model = null } = {}) {
+  async generateLanz(day, { force = false, model = null, edition = 1 } = {}) {
     if (!this.hasKey || day == null) return null;
-    const id = this.lanzIdFor(day);
+    const id = this.lanzIdFor(day, edition);
     if (this.busy[id]) return null;
     const existing = this.byId(id);
     if (!force && !needsRewrite(existing)) return null;
@@ -8721,9 +9101,11 @@ Alpine.store('press', {
       const tr = currentTrainer(t.trainers || []);
       return tr ? { teamId: t.id, name: tr.name, image: tr.image || '', traits: tr.traits || [] } : null;
     }).filter(Boolean);
-    const lineup = lanzLineup(PRESS_AUTHORS, trainers);
+    // Nach einer reinen Presserunde sitzt beim nächsten Mal garantiert ein Trainer dabei.
+    const before = previousLanz(this.articles, { season: l.season, day, edition });
+    const lineup = lanzLineup(PRESS_AUTHORS, trainers, Math.random, { forceTrainer: !!before && !lanzHadTrainer(before) });
     const trainer = lineup.guests.find((g) => g.kind === 'trainer') || null;
-    const source = { type: 'lanz', day, guests: lineup.guests, sessionId: trainer ? id : null };
+    const source = { type: 'lanz', day, edition, guests: lineup.guests, sessionId: trainer ? id : null };
     this.busy = { ...this.busy, [id]: true };
     try {
       const claimed = await runTransaction(db, async (tx) => {
@@ -8765,6 +9147,7 @@ Alpine.store('press', {
           addendum: [
             `DIE RUNDE: ${speakers.join(', ')}. Cavalanzas moderiert, eröffnet und beendet die Sendung.`,
             this._dayStatus(day),
+            this._lanzEditionNote(day, edition),
             'UMFANG: 30 bis 45 Wortbeiträge.',
           ].filter(Boolean).join('\n\n'),
         }),
@@ -8806,6 +9189,7 @@ Alpine.store('press', {
           addendum: [
             `DIE RUNDE: Cavalanzas (Moderation), ${press?.name}, Trainer ${trainer?.name}.`,
             this._dayStatus(s.day),
+            first ? this._lanzEditionNote(s.day, this.byId(s.articleId)?.source?.edition || 1) : '',
             'DIESE SENDUNG ENTSTEHT LIVE UND IN ABSCHNITTEN. Du schreibst jetzt NUR den nächsten Abschnitt.',
             `Der Trainer ${trainer?.name} antwortet selbst — schreibe für ihn KEINEN einzigen Wortbeitrag.`,
             first
@@ -9557,7 +9941,7 @@ Alpine.store('press', {
       case 'newcomers': return this.generateNewcomers(src.season, opts);
       case 'lanz': return src.sessionId && this.sessionById(src.sessionId)
         ? this.retryLanzSession(src.sessionId, model)
-        : this.generateLanz(src.day, opts);
+        : this.generateLanz(src.day, { ...opts, edition: src.edition || 1 });
       case 'zweiblatt': return this.generatePodcast(src.day, opts);
       case 'pk':
       case 'interview': return this.retrySession(src.sessionId, model);
@@ -9802,6 +10186,10 @@ Alpine.store('press', {
         `BEFRAGT WURDE: ${session.role?.kind === 'trainer' ? `Trainer ${session.role?.name}` : `das Pokémon ${session.role?.name}`}`
           + `${session.role?.traits?.length ? ` (${session.role.traits.join(', ')})` : ''}.`,
         `ANWESENDE PRESSEVERTRETER: ${(session.authorIds || []).map((x) => authorById(x).name).join(', ')}.`,
+        answers.some((a) => a.custom)
+          ? 'FREI FORMULIERTE ANTWORTEN: Sie sind Originalton (Kanon 16). Zitiere sie in exakt dieser Schreibweise — '
+            + 'Wortspiele, verdrehte Wörter und eigenwillige Schreibung sind Absicht, keine Fehler.'
+          : '',
         session.scandal
           ? `SKANDAL: Die Fragen durften den Vorfall "${session.scandal}" aufgreifen. Ist er Thema des Beitrags, setze "archetyp" auf "${session.scandal}".`
           : '',
@@ -9870,7 +10258,7 @@ Alpine.store('press', {
     const existing = input.id ? this.byId(input.id) : null;
     const body = sanitizeHtml(input.body || '');
     const cats = normalizeCategories(input.category || 'news', input.categories || []);
-    await setDoc(doc(db, 'press', id), {
+    const data = {
       season: Alpine.store('league')?.season || 1,
       category: cats.category,
       categories: cats.categories,
@@ -9880,18 +10268,62 @@ Alpine.store('press', {
       body,
       authorId: input.authorId || PRESS_AUTHORS[0].id,
       teamIds: input.teamIds || [],
-      pokemonNames: [],
+      // Die Einordnung der Redaktion übersteht eine Korrektur des Textes.
+      pokemonNames: existing?.pokemonNames || [],
       day: input.day ?? null,
       archetype: null,
-      storylines: [],
+      storylines: existing?.storylines || [],
       source: { type: 'manual' },
       status: 'ready',
       error: null,
       createdAt: existing?.createdAt || new Date().toISOString(),
       publishedAt: existing?.publishedAt || new Date().toISOString(),
       updatedAt: new Date().toISOString(),
-    });
+    };
+    await setDoc(doc(db, 'press', id), data);
+    // Ein neuer Beitrag geht an die Redaktion, die ihn in die Erzählstränge einordnet.
+    // Welche Geschichte daraus wird, entscheidet sie — nicht der Verfasser.
+    if (!existing?.storylines?.length) this._editorialStorylines(id, data).catch(() => {});
     return id;
+  },
+
+  // Storylines zu einem redaktionellen Beitrag der Spieler: laufende Stränge
+  // fortschreiben oder neue eröffnen. Der Text selbst bleibt unangetastet; gemergt
+  // werden nur Storylines und erwähnte Pokémon.
+  async _editorialStorylines(id, a) {
+    if (!this.hasKey || !a || this.busy[`story:${id}`]) return;
+    this.busy = { ...this.busy, [`story:${id}`]: true };
+    try {
+      const text = plainText(a.body || '');
+      const data = await this._generate(null, {
+        system: buildSystem({ extra: 'Du schreibst in diesem Auftrag KEINEN Text, sondern ordnest einen fertigen Beitrag ein.' }),
+        prompt: buildUserPrompt({
+          task: EDITORIAL_STORYLINE_BRIEF,
+          context: this.contextFor({ teamIds: a.teamIds || [], day: a.day ?? null }),
+          addendum: [
+            'DER BEITRAG:',
+            a.subtitle ? `Dachzeile: ${a.subtitle}` : '',
+            `Überschrift: ${a.title}`,
+            text,
+          ].filter(Boolean).join('\n'),
+        }),
+        schema: EDITORIAL_STORYLINE_SCHEMA,
+        accept: (d) => Array.isArray(d?.storylines) && !answerMentionsMeta(d),
+        maxOutputTokens: 4096,
+      });
+      const shaped = this._articleDoc({ ...data, titel: a.title, absaetze: [] }, { teamIds: a.teamIds || [] });
+      await setDoc(doc(db, 'press', id), {
+        storylines: shaped.storylines,
+        pokemonNames: shaped.pokemonNames,
+        storylinesModel: data._model || null,
+      }, { merge: true });
+    } catch (e) {
+      console.error('Storylines zum Beitrag nicht ermittelt:', e);
+    } finally {
+      const next = { ...this.busy };
+      delete next[`story:${id}`];
+      this.busy = next;
+    }
   },
 
   // Korrektur eines bestehenden (auch KI-geschriebenen) Beitrags. Gemergt, damit
@@ -10537,6 +10969,7 @@ Alpine.data('standingsView', standingsView);
 Alpine.data('statsView', statsView);
 Alpine.data('pokemonView', pokemonView);
 Alpine.data('franchiseView', franchiseView);
+Alpine.data('trainerMarketView', trainerMarketView);
 Alpine.data('spielerView', spielerView);
 Alpine.data('teambuildingView', teambuildingView);
 Alpine.data('transferView', transferView);

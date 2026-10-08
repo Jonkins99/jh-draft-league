@@ -53,7 +53,9 @@ import {
   findTiles, stripTiles, normKey, findMon, findTeam, findResult,
   parsePipeRow, parsePipeTable, pipeTableHtml,
 } from '../resources/js/press-tiles.mjs';
-import { buildRecords, newcomersOfSeason, allTimePokemon } from '../resources/js/seasons.mjs';
+import { buildRecords, newcomersOfSeason, allTimePokemon, franchiseResults, franchiseAwards, pokemonOwnerOn } from '../resources/js/seasons.mjs';
+import { trainerDirectory, normalizePoolTrainer, trainerKey } from '../resources/js/trainer-market.mjs';
+import { buildScene, sponsorWall, clubSponsors, micLabel, pressSeats, SPONSOR_LOGOS, backSprite, seatSprite, backMissing } from '../resources/js/press-scene.mjs';
 import {
   RENEWAL_TIERS, previousRosters, renewalState, hasOpenRenewal, renewalTurn,
   currentPick as draftCurrentPick, buildDraftOrder, snakeOrder, renewedIn,
@@ -67,7 +69,7 @@ import {
   pathSummary,
 } from '../resources/js/draftplan.mjs';
 import {
-  SHOWS, showOf, showByline, lanzTriggerGame, lanzAnswerTarget, lanzLineup, podcastReadyDays,
+  SHOWS, showOf, showByline, lanzTriggerGames, lanzId, previousLanz, lanzHadTrainer, lanzAnswerTarget, lanzLineup, podcastReadyDays,
   turnParagraph, showParagraphs, cleanTurns, SHOW_SCHEMA, PODCAST_SCHEMA, podcastRawTurns, podcastMissing,
 } from '../resources/js/press-shows.mjs';
 import { teamForm, formFromTimeline, formSparkSvg, careerStations, rivalry, splitPair } from '../resources/js/career.mjs';
@@ -2046,8 +2048,18 @@ test('Regie: Marktwerte selten, Skandale selten und die Prügelei einmal je Sais
 });
 
 test('Sendungen: Termine, Besetzung und Protokoll', () => {
-  for (let d = 1; d <= 20; d++) assert.ok([2, 3].includes(lanzTriggerGame(2, d)));
-  assert.equal(lanzTriggerGame(2, 5), lanzTriggerGame(2, 5));
+  // Zwei Ausgaben je Spieltag: zwei verschiedene der ersten drei Spiele, aufsteigend.
+  const seen = new Set();
+  for (let d = 1; d <= 30; d++) {
+    const games = lanzTriggerGames(2, d);
+    assert.equal(games.length, 2);
+    assert.ok(games[0] < games[1] && games.every((g) => [1, 2, 3].includes(g)));
+    seen.add(games.join());
+  }
+  assert.ok(seen.size > 1);
+  assert.deepEqual(lanzTriggerGames(2, 5), lanzTriggerGames(2, 5));
+  assert.equal(lanzId('s2', 4), 's2-lanz-d4');
+  assert.equal(lanzId('s2', 4, 2), 's2-lanz-d4-2');
   assert.ok([3, 4].includes(lanzAnswerTarget()));
   const authors = [{ id: 'a', name: 'A' }, { id: 'b', name: 'B' }, { id: 'c', name: 'C' }];
   const trainers = [{ teamId: 's2-x', name: 'Coach X' }];
@@ -2060,6 +2072,21 @@ test('Sendungen: Termine, Besetzung und Protokoll', () => {
   assert.equal(pressOnly.guests.length, 2);
   assert.notEqual(pressOnly.guests[0].id, pressOnly.guests[1].id);
   assert.equal(lanzLineup(authors, [], seq([0, 0])).interactive, false);
+  // Zwei Drittel mit Trainer; nach einer reinen Presserunde garantiert.
+  assert.equal(lanzLineup(authors, trainers, seq([0, 0.6, 0])).interactive, true);
+  assert.equal(lanzLineup(authors, trainers, seq([0, 0.7, 0])).interactive, false);
+  assert.equal(lanzLineup(authors, trainers, seq([0, 0.99, 0]), { forceTrainer: true }).interactive, true);
+  const lanzArts = [
+    { season: 2, source: { type: 'lanz', day: 3, edition: 2, guests: [{ kind: 'press' }, { kind: 'press' }] } },
+    { season: 2, source: { type: 'lanz', day: 3, guests: [{ kind: 'press' }, { kind: 'trainer' }] } },
+    { season: 2, source: { type: 'lanz', day: 4, guests: [{ kind: 'press' }, { kind: 'trainer' }] } },
+    { season: 2, source: { type: 'zweiblatt', day: 3 } },
+  ];
+  const prev = previousLanz(lanzArts, { season: 2, day: 4, edition: 1 });
+  assert.equal(prev.source.edition, 2);
+  assert.equal(lanzHadTrainer(prev), false);
+  assert.equal(lanzHadTrainer(previousLanz(lanzArts, { season: 2, day: 3, edition: 2 })), true);
+  assert.equal(previousLanz(lanzArts, { season: 2, day: 3, edition: 1 }), null);
   // Das Protokoll: Sprecher fett mit Doppelpunkt, das Sendungsbild vorneweg.
   assert.equal(turnParagraph({ speaker: 'Cavalanzas', text: 'Punkt.' }), '**Cavalanzas:** Punkt.');
   const paras = showParagraphs(SHOWS.lanz, [{ speaker: 'Cavalanzas', text: 'Guten Abend.' }]);
@@ -2594,6 +2621,142 @@ test('Vorlesen: Steuerung spricht nacheinander, pausiert über cancel und spring
   current.onend();
   assert.equal(r.status, 'idle');
   assert.equal(states.at(-1).status, 'idle');
+});
+
+
+// === Franchise: Ergebnisse und Auszeichnungen ===============================
+test('franchiseResults: alle Saisons, jüngstes zuerst, aus Sicht des Vereins', () => {
+  const won = (w) => ({ done: true, winner: w, score: { home: 1, away: 1 }, kills: [] });
+  const results = [
+    { id: 's1-d1-m0', day: 1, home: 's1-a', away: 's1-b', battles: [won('home'), won('home'), won('away')] },
+    { id: 's2-d3-m1', day: 3, home: 's2-b', away: 's2-a', battles: [won('home'), won('home'), { done: false }] },
+    { id: 's1-d2-m0', day: 2, home: 's1-c', away: 's1-b', battles: [won('home')] },
+    { id: 's1-d4-m0', day: 4, home: 's1-a', away: 's1-c', battles: [] },
+  ];
+  const rows = franchiseResults(results, 'a');
+  assert.deepEqual(rows.map((r) => r.id), ['s2-d3-m1', 's1-d1-m0']);
+  assert.equal(rows[0].outcome, 'lost');
+  assert.equal(rows[0].own, 0);
+  assert.equal(rows[0].other, 2);
+  assert.equal(rows[0].complete, false);
+  assert.equal(rows[1].outcome, 'won');
+  assert.equal(rows[1].opponentId, 's1-b');
+});
+
+test('franchiseAwards: Team-Awards, Pokémon im Verein und Bilanz', () => {
+  const teams = [
+    { id: 's1-a', pokemon: [{ name: 'Pika' }] },
+    { id: 's1-b', pokemon: [{ name: 'Glu' }, { name: 'Neu' }] },
+  ];
+  const results = [{ id: 's1-d2-m0', day: 2, home: 's1-a', away: 's1-b', squads: { home: ['Glu'], away: [] } }];
+  const availability = { 's1-a|Glu': { from: null, until: 3 }, 's1-b|Glu': { from: 4, until: null } };
+  const ctx = { teams, results, availability };
+  // An Spieltag 2 lief Glu für A auf, am Saisonende gehört es B.
+  assert.equal(pokemonOwnerOn(ctx, 'Glu', 1, 2), 's1-a');
+  assert.equal(pokemonOwnerOn(ctx, 'Glu', 1, null), 's1-b');
+  assert.equal(pokemonOwnerOn(ctx, 'Glu', 1, 1), 's1-a');
+  const vote = (id) => ({ nominations: { Janik: [{ id, label: id }] }, votes: { Janik: { [id]: 9 }, Henrik: { [id]: 9 } } });
+  const docs = [
+    { id: 's1-mon-of-day-d2', key: 'mon-of-day', entity: 'pokemon', day: 2, status: 'done', ...vote('Glu') },
+    { id: 's1-best-mon', key: 'best-mon', entity: 'pokemon', status: 'done', ...vote('Glu') },
+    { id: 's1-best-offense', key: 'best-offense', entity: 'team', status: 'done', ...vote('s1-a') },
+    { id: 's1-team-mvp-s1-a', key: 'team-mvp', entity: 'pokemon', teamId: 's1-a', status: 'done', ...vote('Pika') },
+    { id: 's1-flop-of-day-d1', key: 'flop-of-day', entity: 'pokemon', day: 1, status: 'done', ...vote('Pika') },
+    { id: 's1-best-match', key: 'best-match', entity: 'match', status: 'done', ...vote('s1-d2-m0') },
+    { id: 's1-surprise', key: 'surprise', entity: 'pokemon', status: 'voting', ...vote('Pika') },
+  ];
+  const out = franchiseAwards(docs, 'a', {
+    ownerOf: (n, s, d) => pokemonOwnerOn(ctx, n, s, d),
+    matchTeams: (id) => (id === 's1-d2-m0' ? ['s1-a', 's1-b'] : []),
+  });
+  assert.equal(out.summary.team, 1);
+  assert.equal(out.summary.match, 1);
+  assert.equal(out.summary.pokemon, 3);
+  assert.equal(out.summary.negative, 1);
+  const glu = out.byMon.find((m) => m.name === 'Glu');
+  assert.equal(glu.n, 1);
+  assert.equal(out.byMon.find((m) => m.name === 'Pika').n, 2);
+  const b = franchiseAwards(docs, 'b', { ownerOf: (n, s, d) => pokemonOwnerOn(ctx, n, s, d) });
+  assert.deepEqual(b.entries.map((e) => e.key), ['best-mon']);
+});
+
+test('Pressekulisse: Sponsoren je Verein, Wand, Pressebank', () => {
+  assert.ok(SPONSOR_LOGOS.length >= 40);
+  const a = clubSponsors('heerashai-sv');
+  assert.equal(a.length, 12);
+  assert.deepEqual(a, clubSponsors('heerashai-sv'));
+  assert.notDeepEqual(a.map((x) => x.key), clubSponsors('fc-chelze').map((x) => x.key));
+  const groups = {};
+  a.forEach((x) => { if (x.group) groups[x.group] = (groups[x.group] || 0) + 1; });
+  assert.ok(Object.values(groups).every((n) => n <= 2));
+  const wall = sponsorWall({ clubKey: 'heerashai-sv', seed: 'x', count: 30, teamLogo: 'logo.png', teamEvery: 6 });
+  assert.equal(wall.length, 30);
+  assert.equal(wall.filter((w) => w.team).length, 5);
+  for (let i = 1; i < wall.length; i++) assert.notEqual(wall[i].key, wall[i - 1].key);
+  assert.ok(wall.every((w) => w.team || a.some((x) => w.key === x.key)));
+  assert.equal(micLabel('Liga-TV'), 'LIGA-TV');
+  assert.equal(micLabel('Ligamagazin „Ewige Flamme“'), 'EF');
+  // Jeder Pressevertreter bekommt einen Stuhl, die Fragenden sitzen in der Mitte.
+  const audience = ['a', 'b', 'c', 'd', 'e', 'f', 'g', 'h'].map((id) => ({ id }));
+  const seats = pressSeats(audience, { askers: ['c', 'f', 'h'], seed: 's' });
+  assert.equal(seats.length, 8);
+  assert.ok(seats.every((x) => x.reporter));
+  assert.deepEqual(seats.slice(2, 6).map((x) => x.reporter.id).filter((id) => ['c', 'f', 'h'].includes(id)).sort(), ['c', 'f', 'h']);
+  assert.deepEqual(pressSeats(audience, { askers: ['c'], seed: 's' }), pressSeats(audience, { askers: ['c'], seed: 's' }));
+  const pk = buildScene({ kind: 'pk', sessionId: 's', clubKey: 'heerashai-sv', reporters: [{ id: 'x', outlet: 'Liga-TV' }, { id: 'y', outlet: 'A' }], audience: [{ id: 'x' }, { id: 'y' }, { id: 'z' }], askerId: 'y' });
+  assert.equal(pk.rows.length, 3);
+  assert.equal(pk.mics.length, 3);
+  assert.equal(pk.seats.length, 3);
+  assert.equal(pk.seats.find((x) => x.reporter?.id === 'y').reporter.asking, true);
+  assert.equal(pk.seats.filter((x) => x.reporter.asking).length, 1);
+  // Rückenansicht der Pressebank: erst versuchen, nach einem Ladefehler die Vorderseite.
+  assert.equal(backSprite('./img/press/alba.png'), './img/press/back/alba.png');
+  assert.equal(backSprite('https://x/y.png'), '');
+  const alba = { image: './img/press/alba.png' };
+  assert.equal(seatSprite(alba), './img/press/back/alba.png');
+  const img = { src: './img/press/back/alba.png', getAttribute() { return this.src; } };
+  backMissing(img, alba);
+  assert.equal(img.src, './img/press/alba.png');
+  assert.equal(seatSprite(alba), './img/press/alba.png');
+  assert.equal(seatSprite({ image: 'https://x/y.png' }), 'https://x/y.png');
+  const iv = buildScene({ kind: 'interview', sessionId: 's', reporters: [{ id: 'x', outlet: 'Liga-TV' }] });
+  assert.equal(iv.asker.id, 'x');
+  assert.equal(iv.seats.length, 0);
+});
+
+test('Trainermarkt: Personen über Vereine und Saisons, Amt, Bilanz, Pool', () => {
+  const won = (w) => ({ done: true, winner: w, score: { home: 1, away: 1 }, kills: [{ victimSide: 'away', killerSide: 'home', victim: 'x', killer: 'y' }] });
+  const teams = [
+    { id: 's1-a', name: 'A', trainers: [{ id: 't1', name: 'Kombu', fromDay: null, untilDay: 2 }, { id: 't2', name: 'Valerie', fromDay: 3, untilDay: null }] },
+    { id: 's1-b', name: 'B', trainers: [{ id: 't3', name: 'Perenus', fromDay: null, untilDay: null }] },
+    { id: 's2-a', name: 'A', trainers: [{ id: 't4', name: 'Valerie', fromDay: null, untilDay: null }] },
+    { id: 's2-c', name: 'C', trainers: [{ id: 't5', name: 'Kombu', fromDay: null, untilDay: null }] },
+  ];
+  const results = [
+    { id: 's1-d1-m0', day: 1, home: 's1-a', away: 's1-b', battles: [won('home'), won('home'), won('away')] },
+    { id: 's1-d3-m0', day: 3, home: 's1-a', away: 's1-b', battles: [won('away'), won('away'), won('away')] },
+    { id: 's2-d1-m0', day: 1, home: 's2-a', away: 's2-c', battles: [won('home'), won('home'), won('home')] },
+  ];
+  const dir = trainerDirectory({ teams, results, pool: { lauro: { name: 'Lauro', image: 'l.png' } } });
+  const by = Object.fromEntries(dir.map((t) => [t.key, t]));
+  // Valerie: S1 ab Spieltag 3 und S2 — EINE Amtszeit, im Amt bei A.
+  assert.equal(by.valerie.stints.length, 1);
+  assert.equal(by.valerie.office.teamId, 's2-a');
+  assert.equal(by.valerie.totals.matches, 2);
+  assert.equal(by.valerie.totals.won, 1);
+  assert.equal(by.valerie.totals.lost, 1);
+  // Kombu: zwei Vereine, im Amt bei C, eine Niederlage mit C.
+  assert.equal(by.kombu.clubs, 2);
+  assert.equal(by.kombu.office.teamId, 's2-c');
+  assert.equal(by.kombu.totals.matches, 2);
+  // Perenus: Verein ohne Saison 2 — vereinslos.
+  assert.equal(by.perenus.office, null);
+  assert.equal(by.perenus.totals.matches, 2);
+  assert.ok(by.lauro.inPool && !by.lauro.stints.length && by.lauro.image === 'l.png');
+  assert.equal(dir[0].office != null, true);
+  assert.equal(trainerKey('Perenus  II'), 'perenus-ii');
+  assert.deepEqual(normalizePoolTrainer({ name: ' Lauro ', traits: 'ruhig, klug', gender: 'männlich' }),
+    { id: 'lauro', name: 'Lauro', image: '', gender: 'm', traits: ['ruhig', 'klug'] });
 });
 
 console.log(`\n${passed} Tests bestanden.`);

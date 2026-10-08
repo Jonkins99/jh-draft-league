@@ -147,7 +147,14 @@ export const CANON_RULES = `UNVERRÜCKBARE REGELN (Kanon):
 15. MARKTWERTE SIND WÜRZE, NICHT DAS HAUPTGERICHT. Die Regie legt je Text fest, ob sie überhaupt
    vorkommen dürfen ("MARKTWERTE" in der Regie). Das Gefälle zwischen teurem und billigem Kader ist
    ein Motiv unter vielen und darf nicht zur Standardgeschichte werden. Erzähle über Leistung,
-   Charakter, Taktik, Rivalitäten, Umfeld, Kurioses — und nur ab und zu über Geld.`;
+   Charakter, Taktik, Rivalitäten, Umfeld, Kurioses — und nur ab und zu über Geld.
+16. ANTWORTEN DER BEFRAGTEN SIND ORIGINALTON. Was ein Trainer oder Pokémon im Termin selbst gesagt
+   hat, wird Zeichen für Zeichen übernommen — nichts glätten, nichts "korrigieren". Wortspiele,
+   absichtlich verdrehte Wörter, eingebaute Namensbestandteile, eigenwillige Groß- und
+   Kleinschreibung, Dialekt und Lautmalerei sind GEWOLLT und gehören zur Figur (Beispiel: ein
+   Azumarill, das "Es ist azulut verständlich, dass ich mich dAzu äußern soll" sagt, meint genau
+   das). Was wie ein Tippfehler aussieht, ist im Zweifel ein Witz. Du darfst kürzen und einbetten,
+   aber nie ein Wort in der Schreibweise verändern. Gern darf der Text das Wortspiel aufgreifen.`;
 
 // === Regie: Tonlage ========================================================
 // Gewichtung statt Gleichverteilung — die Liga soll überwiegend ernst genommen werden,
@@ -930,6 +937,26 @@ export const ARTICLE_SCHEMA_COMMISSION = schemaOf({
   erwaehntePokemon: S.array(S.string(), 'Namen der Pokémon, um die es im Text geht'),
   storylines: STORYLINE_SCHEMA,
 }, ['dachzeile', 'titel', 'kategorie', 'absaetze', 'storylines']);
+
+// Einordnung eines Beitrags, den ein Redakteur selbst geschrieben hat: nur die
+// Erzählstränge, kein eigener Text. Fest verdrahtet — kein änderbarer Auftrag.
+export const EDITORIAL_STORYLINE_BRIEF = `Ein Redakteur hat den unten stehenden Beitrag selbst geschrieben und
+veröffentlicht. Du schreibst NICHTS um und keinen eigenen Text. Deine einzige Aufgabe: Ordne den Beitrag
+in die Erzählstränge der Liga ein.
+
+AUFTRAG
+- Prüfe die laufenden Storylines in den Metadaten. Knüpft der Beitrag an eine an, schreibe sie fort:
+  bestehende id behalten, Status und Stand so setzen, wie die Geschichte NACH diesem Beitrag steht.
+- Eröffnet der Beitrag eine neue Geschichte, lege sie mit neuer id an. Auch ein Detail am Rand kann der
+  Keim einer neuen Geschichte sein — die Redaktion entscheidet, was daraus wird.
+- Ein bis vier Storylines. Der Inhalt des Beitrags ist für diese Einordnung gesetzt, auch wenn er
+  Gerüchte oder Behauptungen enthält; die Kanon-Regeln gelten für deinen "stand"-Text.
+- Nenne in "erwaehntePokemon" die Pokémon, um die es im Beitrag geht (Namen exakt wie in den Metadaten).`;
+
+export const EDITORIAL_STORYLINE_SCHEMA = schemaOf({
+  erwaehntePokemon: S.array(S.string(), 'Namen der Pokémon, um die es im Beitrag geht'),
+  storylines: STORYLINE_SCHEMA,
+}, ['storylines']);
 
 export const QUESTIONS_SCHEMA = schemaOf({
   fragen: S.array(

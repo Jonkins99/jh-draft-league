@@ -311,11 +311,12 @@
 
               <!-- Spieltag-Awards: Legende zum Abschneiden in den drei Kämpfen -->
               <div x-show="dialog.inst.day != null && dialog.inst.entity === 'pokemon'"
-                   class="mb-3 flex flex-wrap gap-x-3 gap-y-1 text-[11px] text-mist">
+                   class="mb-3 flex flex-wrap gap-x-4 gap-y-1.5 text-[11px] text-mist">
                 <span class="inline-flex items-center gap-1"><span class="aw-perf aw-perf--out"><svg viewBox="0 0 16 16" class="size-3" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><circle cx="8" cy="8" r="5.5"/><path d="m4.2 11.8 7.6-7.6"/></svg></span>nicht im 6er-Aufgebot</span>
                 <span class="inline-flex items-center gap-1"><span class="aw-perf aw-perf--bench"><svg viewBox="0 0 16 16" class="size-3" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><path d="M3 9h10M4.5 9v3.5M11.5 9v3.5M4 6.5h8"/></svg></span>dabei, nicht eingesetzt</span>
-                <span class="inline-flex items-center gap-1"><span class="aw-perf aw-perf--alive">2</span>Kills, überlebt</span>
-                <span class="inline-flex items-center gap-1"><span class="aw-perf aw-perf--dead">1</span>Kills, besiegt</span>
+                <span class="inline-flex items-center gap-1"><span class="aw-perf aw-perf--k1">1</span><span class="aw-perf aw-perf--k3">3</span>Kills je Kampf</span>
+                <span class="inline-flex items-center gap-1"><span class="aw-perf aw-perf--k2 aw-perf--stood">2</span>überlebt</span>
+                <span class="inline-flex items-center gap-1"><span class="aw-perf aw-perf--k2 aw-perf--fell">2</span>besiegt</span>
               </div>
 
               <div class="grid grid-cols-1 gap-1.5 sm:grid-cols-2">
@@ -328,13 +329,13 @@
                       <span class="block truncate text-sm font-semibold text-ink" x-text="o.label"></span>
                       <span class="block truncate text-[11px] text-mist" x-text="o.sub"></span>
                       <span x-show="o.perf && (o.perf.status === 'out' || o.perf.status === 'squad')"
-                            class="mt-1 flex items-center gap-1" :title="perfTitle(o.perf)" :aria-label="perfTitle(o.perf)">
+                            class="mt-1.5 flex items-center gap-2" :title="perfTitle(o.perf)" :aria-label="perfTitle(o.perf)">
                         <template x-if="o.perf && o.perf.status === 'out'">
                           <span class="aw-perf aw-perf--out"><svg viewBox="0 0 16 16" class="size-3" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><circle cx="8" cy="8" r="5.5"/><path d="m4.2 11.8 7.6-7.6"/></svg></span>
                         </template>
                         <template x-for="(b, bi) in (o.perf && o.perf.status === 'squad' ? o.perf.battles : [])" :key="'pf-'+o.id+'-'+bi">
                           <span class="aw-perf"
-                                :class="b.state === 'played' ? (b.died ? 'aw-perf--dead' : 'aw-perf--alive') : (b.state === 'bench' ? 'aw-perf--bench' : 'aw-perf--open')">
+                                :class="b.state === 'played' ? `aw-perf--k${Math.min(3, b.kills)} ${b.died ? 'aw-perf--fell' : 'aw-perf--stood'}` : (b.state === 'bench' ? 'aw-perf--bench' : 'aw-perf--open')">
                             <template x-if="b.state === 'played'"><span x-text="b.kills"></span></template>
                             <template x-if="b.state === 'bench'"><svg viewBox="0 0 16 16" class="size-3" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><path d="M3 9h10M4.5 9v3.5M11.5 9v3.5M4 6.5h8"/></svg></template>
                             <template x-if="b.state === 'open'"><span>·</span></template>

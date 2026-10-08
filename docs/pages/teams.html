@@ -751,6 +751,16 @@
             </div>
 
             <div class="max-h-[70vh] space-y-4 overflow-y-auto p-5">
+              <label x-show="!trainerForm.id && marketTrainers.length" class="block">
+                <span class="mb-1.5 block font-display text-xs font-semibold uppercase tracking-wider text-mist">Vom Trainermarkt</span>
+                <select @change="takeFromMarket($event.target.value)"
+                        class="w-full rounded-xl border border-line bg-elevated px-3 py-2.5 text-sm text-ink focus:border-flame-500 focus:outline-none">
+                  <option value="">Vereinslosen Trainer übernehmen …</option>
+                  <template x-for="t in marketTrainers" :key="'mt-'+t.key">
+                    <option :value="t.key" x-text="t.stints.length ? `${t.name} · zuletzt ${t.stints[0].teamName}` : `${t.name} · neu`"></option>
+                  </template>
+                </select>
+              </label>
               <label class="block">
                 <span class="mb-1.5 block font-display text-xs font-semibold uppercase tracking-wider text-mist">Name</span>
                 <input x-model="trainerForm.name" type="text" placeholder="z. B. Valerie"

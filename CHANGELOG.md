@@ -1,5 +1,33 @@
 # Changelog
 
+## Press: interviews and press conferences on set
+- **A real set.** Interviews now take place in front of a translucent sponsor backdrop with a Pokémon battlefield behind it; the reporter in the corner reaches a single handheld mic (flag with the outlet's initials) in from the bottom right, held low in front of the guest; a TV lower third names guest and club. Press conferences put the guest behind a podium in the club colour with low mics and a name card, in front of a slowly moving LED wall of sponsor logos; the whole press desk sits opposite on chairs (every reporter's portrait, not only the three asking) and whoever asks the current question stands up and is lit. Reporters are shown from behind when a back sprite exists (`img/press/back/<same file name>`), otherwise from the front.
+- **PokéJobs sponsors.** 57 company logos from the PokéJobs (PokéWiki) ship with the app (`public/img/sponsors/`). Every club has its own sponsor circle (stable across seasons), each appointment shuffles it, and the club crest appears between the sponsors now and then.
+- **Scales with the screen.** The set is drawn in container units and switches to a taller layout on phones (fewer seats, bigger mics).
+- **Preview.** `presse-entwurf.html` (dev server) shows both settings with switchable club, guest, asker and phone/tablet/desktop width — using the real markup from the press view.
+- **Going back keeps the answer.** Returning to an earlier question restores the own answer (or the half-typed draft) in the text field and marks a chosen prepared answer; "Antwort behalten" moves on without answering again.
+
+## Press: smaller updates
+- **Cava LANZ twice per matchday.** Two episodes per matchday, after two of the first three released games (drawn per matchday, same on every device). A trainer is invited two thirds of the time; after an episode with two journalists the next one always has a trainer. The second episode knows the first and picks other topics.
+- **Own articles join the storylines.** When a player publishes an article, the desk files it into the running storylines (continues them or opens new ones). Which storyline that is cannot be chosen — the desk decides. The text itself is never changed.
+- **Puns stay puns.** Answers given by players in interviews, press conferences and talk shows are original sound: wordplay, twisted words and odd spelling ("azulut") are kept letter by letter (new canon rule 16).
+- **Editor.** The tile toolbar is one scrollable row instead of a tall block. "Zitat" toggles a quote off again, "Text" leaves a quote, Enter on an empty line ends a quote, and there is always an empty paragraph after a quote at the end so the cursor can get behind it.
+
+## Awards
+- **Winner in view on phones.** The ceremony scrolls its own stage to the slot being revealed and, at the end, to the winner; on phones the winner card comes first. The stage no longer cuts off its top when the content is taller than the screen.
+- **Kills first.** Matchday form badges are coloured by kills (grey for none, gold getting brighter up to three and more); survived or fallen is only a small corner mark (green dot / grey cross) instead of a red badge.
+
+## Teams across all seasons
+- **Results.** Every match of the club over all seasons, newest first, with outcome, score, kills and opponent; a tap opens the match in its season.
+- **Awards.** Team awards and awarded matches, every award a Pokémon won while playing for the club (owner on the matchday, or at season end for season awards) and the club's own Most Valuable Pokémon, plus totals per award and honours vs. rebukes. Only ceremonies the signed-in player has already seen are shown.
+
+## Trainer market (new, all seasons)
+- **Every trainer in one place.** A new view "Trainer" lists every trainer who ever coached a club and everyone waiting in the pool: in office (with club) or without a club, stations over all clubs and seasons (a stint carried into the next season is one stint) and what the teams achieved during each stint (matches, W-D-L, points per match, battle win rate, kills).
+- **New trainers.** Trainers can be created with name, image URL, gender and personality; they wait on the market (`drafts/trainerpool`) until a club appoints them. The appoint dialog in the team view can take a trainer straight from the market.
+
+## Teambuilder
+- **Nature comes along.** Taking the speed from a set into the speed tier list also sets which nature is shown: "32+" only Init+, "0-" only Init−, without a sign only neutral.
+
 ## Press: read aloud
 - **Listen instead of read.** Every finished article has a "Vorlesen" button. It speaks with the voices the device already has (Web Speech API) — free, no account, no key. The best German voice is picked automatically (Edge "Natural" voices, "Google Deutsch", Apple Premium/Enhanced first, novelty voices last); voice and speed (0.8× to 1.5×) can be changed while listening and are remembered per device.
 - **Follows along.** The paragraph being spoken is highlighted and scrolled into view; a sticky bar offers pause, paragraph back/forward and stop. Tiles, tables and images are skipped. Text is spoken in short pieces so Chrome no longer cuts off after 15 seconds, and pause works on phones as well.

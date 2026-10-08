@@ -128,10 +128,16 @@ export function showByline(show) {
 }
 
 // === Termine ===============================================================
-// Cava LANZ läuft einmal je Spieltag — nach dem zweiten ODER dritten freigegebenen
-// Spiel, auf jedem Gerät gleich ausgelost.
-export function lanzTriggerGame(season, day) {
-  return seededFloat(hashSeed(`lanz:${season}:${day}`)) < 0.5 ? 2 : 3;
+// Cava LANZ läuft zweimal je Spieltag — nach zwei der drei ersten freigegebenen
+// Spiele, auf jedem Gerät gleich ausgelost. Liefert die beiden Auslöser aufsteigend.
+export const LANZ_EDITIONS = 2;
+export function lanzTriggerGames(season, day) {
+  const skip = Math.floor(seededFloat(hashSeed(`lanz:${season}:${day}`)) * 3) + 1;
+  return [1, 2, 3].filter((g) => g !== skip);
+}
+// Ausgabe 1 behält die alte ID, damit bestehende Sendungen ihren Platz behalten.
+export function lanzId(prefix, day, edition = 1) {
+  return edition > 1 ? `${prefix}-lanz-d${day}-${edition}` : `${prefix}-lanz-d${day}`;
 }
 
 // Mit wie vielen Wortbeiträgen des Trainers die Runde endet: drei oder vier.
@@ -140,16 +146,18 @@ export function lanzAnswerTarget(rand = Math.random) {
 }
 
 /**
- * Die Runde zu Gast bei Cavalanzas: ein Pressevertreter, dazu mit gleicher
- * Wahrscheinlichkeit ein zweiter Pressevertreter oder ein Trainer.
+ * Die Runde zu Gast bei Cavalanzas: ein Pressevertreter, dazu zu zwei Dritteln ein
+ * Trainer, sonst ein zweiter Pressevertreter. Nach einer reinen Presserunde sitzt
+ * beim nächsten Mal garantiert ein Trainer dabei (`forceTrainer`).
  * @param {Array} authors  der Redaktionspool
  * @param {Array} trainers [{ teamId, name, image, traits }] — amtierende Trainer
  */
-export function lanzLineup(authors = [], trainers = [], rand = Math.random) {
+export const LANZ_TRAINER_CHANCE = 2 / 3;
+export function lanzLineup(authors = [], trainers = [], rand = Math.random, { forceTrainer = false } = {}) {
   const pool = [...authors];
   const take = () => pool.splice(Math.floor(rand() * pool.length), 1)[0];
   const first = take();
-  const withTrainer = trainers.length > 0 && rand() < 0.5;
+  const withTrainer = trainers.length > 0 && (forceTrainer || rand() < LANZ_TRAINER_CHANCE);
   if (withTrainer) {
     const t = trainers[Math.floor(rand() * trainers.length)];
     return {
@@ -165,6 +173,22 @@ export function lanzLineup(authors = [], trainers = [], rand = Math.random) {
     interactive: false,
     guests: [first, second].filter(Boolean).map((a) => ({ kind: 'press', id: a.id, name: a.name })),
   };
+}
+
+// Die Ausgabe direkt vor (season, day, edition) unter den bekannten Sendungen —
+// sortiert nach Saison, Spieltag und Ausgabe. Grundlage der Trainer-Garantie.
+export function previousLanz(articles, { season, day, edition = 1 }) {
+  const rank = (s, d, e) => (s * 1000 + d) * 10 + e;
+  const self = rank(season, day, edition);
+  return (articles || [])
+    .filter((a) => a?.source?.type === 'lanz' && a.source.day != null)
+    .map((a) => ({ a, r: rank(a.season ?? season, a.source.day, a.source.edition || 1) }))
+    .filter((x) => x.r < self)
+    .sort((x, y) => y.r - x.r)[0]?.a || null;
+}
+// Hatte eine Ausgabe einen Trainer zu Gast?
+export function lanzHadTrainer(article) {
+  return (article?.source?.guests || []).some((g) => g.kind === 'trainer');
 }
 
 // Der Podcast läuft, sobald alle Spieltag-Awards vergeben UND beide Siegerehrungen

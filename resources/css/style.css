@@ -3,6 +3,7 @@
 @import "./font/font.css";
 @import "./awards.css";
 @import "./press.css";
+@import "./press-scene.css";
 @import "./market.css";
 @import "./finale.css";
 @import "./draftplan.css";
@@ -11,6 +12,7 @@
 @source "../../awards-entwurf.html";
 @source "../../marktwert-entwurf.html";
 @source "../../draftplan-entwurf.html";
+@source "../../presse-entwurf.html";
 @source "../../public/pages/*.html";
 @source "../js/*.{js,mjs}";
 

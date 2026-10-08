@@ -14,7 +14,7 @@
 
 import { battleStats, computeStandings, pokemonStats } from './scoring.mjs';
 import { marketValue, historyPoints } from './market.mjs';
-import { awardWinner, awardTone, AWARD_BY_KEY } from './awards.mjs';
+import { awardWinner, awardWinners, awardTone, AWARD_BY_KEY } from './awards.mjs';
 
 /** Der Bereichsschlüssel der saisonübergreifenden Ansicht. */
 export const SEASON_ALL = 'all';
@@ -791,4 +791,156 @@ export function awardLeaderboard(awardDocs, pokedex = [], teams = []) {
   });
   const sort = (obj) => Object.values(obj).sort((a, b) => b.n - a.n || a.label.localeCompare(b.label));
   return { pokemon: sort(buckets.pokemon), team: sort(buckets.team), match: sort(buckets.match) };
+}
+
+/**
+ * Alle Ergebnisse eines Franchise über alle Saisons, das jüngste zuerst. Gezählt
+ * wird nur, was mindestens einen fertigen Kampf hat; `complete` sagt, ob alle drei
+ * gespielt sind.
+ */
+export function franchiseResults(results, slug) {
+  return (results || []).map((r) => {
+    if (!r) return null;
+    const side = franchiseSlug(r.home) === slug ? 'home' : franchiseSlug(r.away) === slug ? 'away' : null;
+    if (!side) return null;
+    const opp = side === 'home' ? 'away' : 'home';
+    let own = 0;
+    let other = 0;
+    let kills = 0;
+    let deaths = 0;
+    let done = 0;
+    (r.battles || []).forEach((b) => {
+      if (!b?.done) return;
+      const st = battleStats(b);
+      done += 1;
+      own += st[`${side}Points`];
+      other += st[`${opp}Points`];
+      kills += st[`${side}Kills`];
+      deaths += st[`${side}Deaths`];
+    });
+    if (!done) return null;
+    return {
+      id: r.id,
+      season: seasonOfId(r.id),
+      day: r.day ?? null,
+      side,
+      teamId: r[side],
+      opponentId: r[opp],
+      own,
+      other,
+      kills,
+      deaths,
+      diff: kills - deaths,
+      battles: done,
+      complete: done >= 3,
+      outcome: own > other ? 'won' : own < other ? 'lost' : 'draw',
+      videoUrl: r.videoUrl || null,
+    };
+  }).filter(Boolean).sort((a, b) => b.season - a.season || (b.day ?? 0) - (a.day ?? 0) || String(b.id).localeCompare(String(a.id)));
+}
+
+/**
+ * Wem gehörte ein Pokémon in einer Saison an einem Spieltag? Zuerst zählt, für wen
+ * es an diesem Spieltag aufgelaufen ist (result-getrieben, wie die Statistik);
+ * sonst der Kader — mit dem Transferfenster als Grenze. `day = null` (Saison-Award)
+ * nimmt den Kader am Saisonende.
+ * @param {object} o  { teams, results, availability }
+ */
+export function pokemonOwnerOn({ teams = [], results = [], availability = {} } = {}, name, season, day = null) {
+  if (day != null) {
+    for (const r of results || []) {
+      if (!r || seasonOfId(r.id) !== season || Number(r.day) !== Number(day)) continue;
+      for (const side of ['home', 'away']) {
+        if ((r.squads?.[side] || []).includes(name)) return r[side];
+      }
+    }
+  }
+  const seasonTeams = (teams || []).filter((t) => seasonOfTeam(t) === season);
+  const inWindow = (t) => {
+    const w = availability?.[`${t.id}|${name}`];
+    if (!w) return true;
+    if (day == null) return w.until == null;
+    return (w.from == null || day >= w.from) && (w.until == null || day <= w.until);
+  };
+  const holder = seasonTeams.find((t) => (t.pokemon || []).some((p) => p.name === name) && inWindow(t));
+  if (holder) return holder.id;
+  const before = seasonTeams.find((t) => availability?.[`${t.id}|${name}`] && inWindow(t));
+  return before?.id || null;
+}
+
+/**
+ * Die Auszeichnungen eines Franchise, das jüngste zuerst:
+ *  - `team`    — Team-Awards, die der Verein selbst gewonnen hat (Beste Offensive …)
+ *  - `match`   — ausgezeichnete Matches mit Beteiligung des Vereins
+ *  - `pokemon` — Awards an Pokémon, die zu dem Zeitpunkt für den Verein spielten,
+ *                dazu der vereinseigene Most Valuable Pokémon
+ * Dazu die Bilanz: Summen je Art, Ehrungen gegen Rügen, je Award und je Pokémon.
+ * @param {Array} awardDocs
+ * @param {string} slug
+ * @param {object} o  { ownerOf(name, season, day) -> teamId, matchTeams(id) -> [home, away], pokedex }
+ */
+export function franchiseAwards(awardDocs, slug, { ownerOf = () => null, matchTeams = () => [], pokedex = [] } = {}) {
+  const entries = [];
+  (awardDocs || []).forEach((d) => {
+    if (!d || d.status !== 'done') return;
+    const def = AWARD_BY_KEY[d.key];
+    const season = seasonOfId(d.id);
+    const day = d.day ?? null;
+    const tone = awardTone(d.key);
+    const base = { docId: d.id, key: d.key, label: def?.label || d.key, short: def?.short || '', tone, season, day };
+    awardWinners(d).forEach((w) => {
+      const id = String(w.id || w.label || '');
+      if (!id) return;
+      const entity = d.entity || def?.entity || 'pokemon';
+      if (entity === 'team') {
+        if (franchiseSlug(id) === slug) entries.push({ ...base, scope: 'team', winner: { id, label: w.label || id, image: w.image || null }, mons: [] });
+        return;
+      }
+      if (entity === 'match') {
+        if ((matchTeams(id) || []).some((t) => franchiseSlug(t) === slug)) {
+          entries.push({ ...base, scope: 'match', winner: { id, label: w.label || id, image: w.image || null }, mons: [] });
+        }
+        return;
+      }
+      const names = entity === 'pair' ? id.split(' + ').filter(Boolean) : [id];
+      const own = def?.perTeam
+        ? (franchiseSlug(d.teamId) === slug ? names : [])
+        : names.filter((n) => franchiseSlug(ownerOf(n, season, day) || '') === slug);
+      if (!own.length) return;
+      entries.push({
+        ...base,
+        scope: 'pokemon',
+        winner: { id, label: w.label || id, image: entity === 'pokemon' ? monMeta(pokedex, names[0])?.image || w.image || null : null },
+        mons: own,
+      });
+    });
+  });
+  entries.sort((a, b) => b.season - a.season || (b.day ?? 999) - (a.day ?? 999) || a.label.localeCompare(b.label));
+
+  const byKey = {};
+  const byMon = {};
+  entries.forEach((e) => {
+    const k = byKey[e.key] || (byKey[e.key] = { key: e.key, label: e.label, short: e.short, tone: e.tone, n: 0 });
+    k.n += 1;
+    e.mons.forEach((name) => {
+      const m = byMon[name] || (byMon[name] = { name, image: monMeta(pokedex, name)?.image || null, n: 0, positive: 0, negative: 0, awards: [] });
+      m.n += 1;
+      m[e.tone] += 1;
+      m.awards.push(e);
+    });
+  });
+  const count = (scope) => entries.filter((e) => e.scope === scope).length;
+  return {
+    entries,
+    summary: {
+      total: entries.length,
+      team: count('team'),
+      match: count('match'),
+      pokemon: count('pokemon'),
+      positive: entries.filter((e) => e.tone === 'positive').length,
+      negative: entries.filter((e) => e.tone === 'negative').length,
+    },
+    byKey: Object.values(byKey).sort((a, b) => b.n - a.n || a.label.localeCompare(b.label)),
+    byMon: Object.values(byMon).sort((a, b) => b.n - a.n || b.positive - a.positive || a.name.localeCompare(b.name)),
+  };
 }
