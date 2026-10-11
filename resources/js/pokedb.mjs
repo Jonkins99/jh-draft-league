@@ -139,3 +139,120 @@ export function mergePokedex(base = [], dbMons = {}) {
 export function pokedexForSeason(all, season) {
   return (all || []).filter((m) => availableIn(m, season));
 }
+
+// === Tiers je Saison ==========================================================
+// pokemon.json kennt nur EIN Tier: das der jüngsten Einstufung. Vor jedem Draft wird
+// der Pool neu eingestuft (scripts/apply-tiers.mjs) — danach wüsste keine Ansicht mehr,
+// in welchem Tier ein Pokémon in einer früheren Saison stand. Die Zweite Liga braucht
+// genau das: ein Kader der Saison 1 folgt den Tiers der Saison 1.
+//
+// `drafts/seasontiers` hält deshalb je Saison eine Momentaufnahme:
+//   { s1: { <monKey>: { name, tier, cost } }, s2: { … }, taken: { s2: <ISO> } }
+// `taken` heißt „automatisch aufgenommen, solange der Pool dieser Saison galt". Einzelne
+// Einträge kommen von Hand dazu (Pokémon-Ansicht) und gehen der Aufnahme vor.
+
+export const SEASON_TIERS_DOC = 'seasontiers';
+// Untergrenze jedes Punktebands (S 20–17, A 16–13, B 12–9, C 8–5, D 4–1).
+export const TIER_BANDS = { S: 17, A: 13, B: 9, C: 5, D: 1 };
+
+export function seasonTierKey(season) {
+  return `s${Number(season) || 1}`;
+}
+
+/**
+ * Punkte beim Tierwechsel mitnehmen: gleiche Stufe INNERHALB des neuen Bands (wie
+ * apply-tiers.mjs). Ohne bekannte Punkte bleibt es bei null.
+ */
+export function rebandCost(cost, from, to) {
+  const c = Number(cost);
+  if (!TIER_BANDS[to]) return Number.isFinite(c) ? c : null;
+  if (!Number.isFinite(c) || !TIER_BANDS[from]) return TIER_BANDS[to];
+  if (from === to) return c;
+  const step = Math.max(0, Math.min(3, c - TIER_BANDS[from]));
+  return TIER_BANDS[to] + step;
+}
+
+/** Momentaufnahme eines Pools im Speicherformat. */
+export function snapshotTiers(pokedex = []) {
+  const out = {};
+  (pokedex || []).forEach((p) => {
+    if (!p?.name || !MON_TIERS.includes(p.tier)) return;
+    out[monKey(p.name)] = { name: p.name, tier: p.tier, cost: Number.isFinite(Number(p.cost)) ? Number(p.cost) : null };
+  });
+  return out;
+}
+
+/**
+ * Den Pool auf die Tiers einer Saison umstellen. Reihenfolge der Quellen:
+ * 1. Eintrag der Momentaufnahme (`snapshot`, von Hand oder automatisch),
+ * 2. Kader der ersten Liga dieser Saison (`rosterTiers`, Name -> Tier) — gezogen wurde
+ *    mit dem Tier der Saison,
+ * 3. die Stammdaten.
+ * `tierSource` sagt, woher das Tier stammt ('snapshot' | 'roster' | 'base').
+ */
+export function applySeasonTiers(pokedex = [], snapshot = {}, rosterTiers = {}) {
+  const snap = snapshot || {};
+  const roster = rosterTiers || {};
+  return (pokedex || []).map((p) => {
+    const hit = snap[monKey(p.name)];
+    if (hit && MON_TIERS.includes(hit.tier)) {
+      const cost = Number.isFinite(Number(hit.cost)) && hit.cost !== null ? Number(hit.cost) : rebandCost(p.cost, p.tier, hit.tier);
+      return hit.tier === p.tier && cost === p.cost ? { ...p, tierSource: 'snapshot' } : { ...p, tier: hit.tier, cost, tierSource: 'snapshot' };
+    }
+    const t = roster[p.name];
+    if (MON_TIERS.includes(t) && t !== p.tier) return { ...p, tier: t, cost: rebandCost(p.cost, p.tier, t), tierSource: 'roster' };
+    if (MON_TIERS.includes(t)) return { ...p, tierSource: 'roster' };
+    return { ...p, tierSource: 'base' };
+  });
+}
+
+/**
+ * Eine eingefügte Tierliste lesen. Angenommen werden
+ * - der Inhalt einer pokemon.json (Liste mit `name`, `tier`, optional `cost`) und
+ * - Zeilen „Name  Tier  [Punkte]" — getrennt durch Tab, Semikolon, Komma oder `|`.
+ * Namen werden gegen `names` aufgelöst (exakt, sonst über monKey); was nicht passt,
+ * steht in `unknown`.
+ */
+export function parseTierList(text = '', names = []) {
+  const byKey = new Map((names || []).map((n) => [monKey(n), n]));
+  const resolve = (raw) => {
+    const n = String(raw || '').replace(/\s+/g, ' ').trim();
+    if (!n) return null;
+    if ((names || []).includes(n)) return n;
+    return byKey.get(monKey(n)) || null;
+  };
+  const entries = {};
+  const unknown = [];
+  const add = (rawName, rawTier, rawCost) => {
+    const tier = String(rawTier || '').trim().toUpperCase();
+    if (!MON_TIERS.includes(tier)) return false;
+    const name = resolve(rawName);
+    if (!name) { unknown.push(String(rawName || '').trim()); return true; }
+    const c = Number(String(rawCost ?? '').trim());
+    entries[monKey(name)] = { name, tier, cost: String(rawCost ?? '').trim() !== '' && Number.isFinite(c) ? Math.round(c) : null };
+    return true;
+  };
+  const src = String(text || '').trim();
+  let json = null;
+  if (src.startsWith('[') || src.startsWith('{')) {
+    try { json = JSON.parse(src); } catch (e) { json = null; }
+  }
+  if (json) {
+    const list = Array.isArray(json) ? json : Object.values(json);
+    list.forEach((m) => { if (m && typeof m === 'object') add(m.name, m.tier, m.cost); });
+  } else {
+    src.split(/\r?\n/).forEach((line) => {
+      let cells = line.split(/\t|;|\||,/).map((c) => c.trim()).filter(Boolean);
+      let ti = cells.findIndex((c, i) => i > 0 && MON_TIERS.includes(c.toUpperCase()));
+      // Nur Leerzeichen: das LETZTE Tier-Kürzel trennt Name und Tier („Mega-Glurak Y S 20").
+      if (ti < 0) {
+        cells = line.trim().split(/\s+/);
+        ti = cells.map((c) => MON_TIERS.includes(c.toUpperCase())).lastIndexOf(true);
+        if (ti < 1) return;
+      }
+      const cost = cells.slice(ti + 1).find((c) => /^\d+$/.test(c));
+      add(cells.slice(0, ti).join(' '), cells[ti], cost);
+    });
+  }
+  return { entries, unknown: [...new Set(unknown)], count: Object.keys(entries).length };
+}

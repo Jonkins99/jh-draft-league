@@ -87,15 +87,16 @@
         <div class="mb-4 flex flex-wrap items-center justify-between gap-3">
           <div class="min-w-0">
             <h2 class="font-display text-xl font-bold uppercase tracking-wider text-ink">Spielplan bearbeiten</h2>
-            <p class="mt-1 text-xs text-mist">Partien mit Aufgebot oder Ergebnis sind gesperrt. ⇄ tauscht das Heimrecht.</p>
+            <p class="mt-1 text-xs text-mist">8 Spieltage zu je 4 Partien. Partien mit Aufgebot oder Ergebnis sind gesperrt. ⇄ tauscht das Heimrecht.</p>
           </div>
-          <button type="button" @click="addPlanDay()" class="shrink-0 rounded-xl border border-line px-3 py-2 text-xs font-semibold text-mist hover:text-flame-400">+ Spieltag</button>
         </div>
         <div class="grid gap-4 lg:grid-cols-2">
           <template x-for="(md, di) in planDraft" :key="'pd-'+md.day">
-            <div class="min-w-0 rounded-xl border border-line bg-elevated/40 p-3">
+            <div class="min-w-0 rounded-xl border bg-elevated/40 p-3" :class="isExtraDay(md) ? 'border-flame-500/60' : 'border-line'">
               <div class="mb-2 flex items-center justify-between gap-2">
                 <p class="font-display text-sm font-bold uppercase tracking-wider text-ink" x-text="`Spieltag ${md.day}`"></p>
+                <button type="button" x-show="isExtraDay(md)" @click="removePlanDay(di)" :disabled="!canRemovePlanDay(md)"
+                        class="ml-auto rounded-lg border border-flame-500/50 px-2 py-1 text-[11px] font-semibold text-flame-400 hover:bg-flame-500/10 disabled:opacity-40">Spieltag entfernen</button>
                 <select :value="md.leg" @change="setLeg(di, $event.target.value)" class="rounded-lg border border-line bg-panel px-2 py-1 text-xs text-ink">
                   <option value="hin" :selected="md.leg === 'hin'">Hinrunde</option>
                   <option value="rueck" :selected="md.leg === 'rueck'">Rückrunde</option>
@@ -128,7 +129,7 @@
         </ul>
         <div class="mt-4 flex justify-end gap-2">
           <button type="button" @click="cancelPlanEdit()" class="rounded-xl border border-line px-4 py-2.5 text-sm font-semibold text-mist hover:text-ink">Abbrechen</button>
-          <button type="button" @click="savePlan()" :disabled="busy || planCheck.errors.length"
+          <button type="button" @click="savePlan()" :disabled="busy || planCheck.errors.length > 0"
                   class="rounded-xl bg-flame-500 px-4 py-2.5 font-display text-sm font-bold uppercase tracking-wide text-white hover:bg-flame-600 disabled:opacity-40">Spielplan speichern</button>
         </div>
       </section>
@@ -160,7 +161,7 @@
                   <div class="grid grid-cols-[minmax(0,1fr)_auto_minmax(0,1fr)] items-center gap-2 p-4">
                     <button type="button" @click.stop="goTeam(m.home)" class="flex min-w-0 flex-col items-center gap-1.5 rounded-xl p-1 text-center hover:bg-elevated">
                       <img x-show="teamById(m.home)?.logo" :src="logoUrl(teamById(m.home)?.logo)" alt="" class="size-14 rounded-xl object-contain" />
-                      <span x-show="!teamById(m.home)?.logo" class="size-14 rounded-xl" :style="`background:${teamColor(teamById(m.home))}33`"></span>
+                      <span x-show="!teamById(m.home)?.logo" class="size-14 rounded-xl" :style="{ background: teamColor(teamById(m.home)) + '33' }"></span>
                       <span class="break-words text-sm font-semibold leading-tight" :style="`color:${teamColor(teamById(m.home))}`" x-text="teamById(m.home)?.name"></span>
                     </button>
                     <div class="px-1 text-center">
@@ -173,7 +174,7 @@
                     </div>
                     <button type="button" @click.stop="goTeam(m.away)" class="flex min-w-0 flex-col items-center gap-1.5 rounded-xl p-1 text-center hover:bg-elevated">
                       <img x-show="teamById(m.away)?.logo" :src="logoUrl(teamById(m.away)?.logo)" alt="" class="size-14 rounded-xl object-contain" />
-                      <span x-show="!teamById(m.away)?.logo" class="size-14 rounded-xl" :style="`background:${teamColor(teamById(m.away))}33`"></span>
+                      <span x-show="!teamById(m.away)?.logo" class="size-14 rounded-xl" :style="{ background: teamColor(teamById(m.away)) + '33' }"></span>
                       <span class="break-words text-sm font-semibold leading-tight" :style="`color:${teamColor(teamById(m.away))}`" x-text="teamById(m.away)?.name"></span>
                     </button>
                   </div>

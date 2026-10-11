@@ -261,7 +261,7 @@
                     <div class="min-w-0 flex-1">
                       <p class="truncate text-sm font-semibold text-ink" x-text="r.name" :title="r.name"></p>
                       <p class="mt-0.5 flex items-center gap-1.5 text-xs">
-                        <span class="rounded px-1.5 py-0.5 font-bold" :style="`color:${tierColor(r.currentTier)};background:${tierColor(r.currentTier)}26`" x-text="r.currentTier"></span>
+                        <span class="rounded px-1.5 py-0.5 font-bold" :style="{ color: tierColor(r.currentTier), background: tierColor(r.currentTier) + '26' }" x-text="r.currentTier"></span>
                         <span class="text-mist">→</span>
                         <span class="rounded px-1.5 py-0.5 font-bold" :style="`color:${tierColor(r.projectedTier)};background:${tierColor(r.projectedTier)}26`" x-text="r.projectedTier"></span>
                       </p>
@@ -289,7 +289,7 @@
                     <div class="min-w-0 flex-1">
                       <p class="truncate text-sm font-semibold text-ink" x-text="r.name" :title="r.name"></p>
                       <p class="mt-0.5 flex items-center gap-1.5 text-xs">
-                        <span class="rounded px-1.5 py-0.5 font-bold" :style="`color:${tierColor(r.currentTier)};background:${tierColor(r.currentTier)}26`" x-text="r.currentTier"></span>
+                        <span class="rounded px-1.5 py-0.5 font-bold" :style="{ color: tierColor(r.currentTier), background: tierColor(r.currentTier) + '26' }" x-text="r.currentTier"></span>
                         <span class="text-mist">→</span>
                         <span class="rounded px-1.5 py-0.5 font-bold" :style="`color:${tierColor(r.projectedTier)};background:${tierColor(r.projectedTier)}26`" x-text="r.projectedTier"></span>
                       </p>
@@ -375,7 +375,7 @@
                     <td class="whitespace-nowrap px-3 py-2 text-right font-display font-bold tabular-nums text-ink" x-text="fmtMarket(r.market)"></td>
                     <td class="whitespace-nowrap px-3 py-2 text-right tabular-nums text-mist" x-text="r.elo ?? '—'"></td>
                     <td class="whitespace-nowrap px-3 py-2 text-center">
-                      <span x-show="r.currentTier" class="inline-block rounded-full px-2 py-0.5 text-xs font-bold" :style="`color:${tierColor(r.currentTier)};background:${tierColor(r.currentTier)}26`" x-text="r.currentTier"></span>
+                      <span x-show="r.currentTier" class="inline-block rounded-full px-2 py-0.5 text-xs font-bold" :style="{ color: tierColor(r.currentTier), background: tierColor(r.currentTier) + '26' }" x-text="r.currentTier"></span>
                       <span x-show="!r.currentTier" class="text-mist">—</span>
                     </td>
                     <td class="whitespace-nowrap px-3 py-2 text-center">

@@ -99,10 +99,10 @@ import {
   l2TeamsOf, l2ResultsOf, synthKills, winnerOf, rosterCheck, tierHasRoom, transferDiff, mergeTransfer,
   drawBlocks, buildBlockSchedule, blankSchedule, checkSchedule, drawTags, normalizeTags, tagPlayer, canEnterBattle,
   squadsComplete, lineupsComplete, pendingEntries, dayComplete, completeDays, updateL2Match, leadCounts,
-  combinedAllTime, parseL2MatchId, l2MatchId, seasonOfL2Doc,
+  combinedAllTime, parseL2MatchId, l2MatchId, seasonOfL2Doc, planDraftFrom,
 } from '../resources/js/liga2.mjs';
 import { clubSlug, normalizeClub, clubDirectory, seasonPreselect, validateSeasonPick, buildSeasonStart } from '../resources/js/clubs.mjs';
-import { sinceOf, availableIn, monKey, normalizeMonRecord, validateMon, mergePokedex, pokedexForSeason } from '../resources/js/pokedb.mjs';
+import { sinceOf, availableIn, monKey, normalizeMonRecord, validateMon, mergePokedex, pokedexForSeason, rebandCost, snapshotTiers, applySeasonTiers, parseTierList } from '../resources/js/pokedb.mjs';
 import { normalizeChampionsUrl, parseChampionsPage, decodePage } from '../resources/js/serebii.mjs';
 import { logoSrc } from '../resources/js/logos.mjs';
 
@@ -3120,6 +3120,50 @@ test('Awards: gemerkte Vorbewertung gilt auch für eine Nominierung des anderen'
   assert.equal(votes.glurak, 8);
   assert.equal(fromPrevote.glurak, true);
   assert.equal(votes.pixi, 5);
+});
+
+test('Saison-Tiers: Momentaufnahme vor Kader vor Stammdaten, Punkte behalten ihren Rang', () => {
+  const dex = [
+    { name: 'Glurak', tier: 'A', cost: 16 },
+    { name: 'Pixi', tier: 'B', cost: 10 },
+    { name: 'Evoli', tier: 'C', cost: 6 },
+  ];
+  assert.equal(rebandCost(16, 'A', 'S'), 20);
+  assert.equal(rebandCost(10, 'B', 'D'), 2);
+  assert.equal(rebandCost(null, 'B', 'C'), 5);
+  const snap = { [monKey('Glurak')]: { name: 'Glurak', tier: 'B', cost: null } };
+  const out = applySeasonTiers(dex, snap, { Glurak: 'S', Pixi: 'C' });
+  assert.deepEqual(out.map((p) => [p.tier, p.cost, p.tierSource]), [['B', 12, 'snapshot'], ['C', 6, 'roster'], ['C', 6, 'base']]);
+  assert.equal(dex[0].tier, 'A');
+  assert.equal(snapshotTiers(dex)[monKey('Pixi')].tier, 'B');
+});
+
+test('Saison-Tiers: Tierliste aus pokemon.json oder Zeilen', () => {
+  const names = ['Mega-Glurak Y', 'Pixi', 'Nidoran♂'];
+  const json = parseTierList(JSON.stringify([{ name: 'Pixi', tier: 'a', cost: 14 }, { name: 'Mew', tier: 'S' }]), names);
+  assert.equal(json.count, 1);
+  assert.equal(json.entries[monKey('Pixi')].cost, 14);
+  assert.deepEqual(json.unknown, ['Mew']);
+  const lines = parseTierList('Mega-Glurak Y\tS\t20\npixi;B\nNidoran♂ D 3\nKopfzeile', names);
+  assert.equal(lines.count, 3);
+  assert.equal(lines.entries[monKey('Mega-Glurak Y')].tier, 'S');
+  assert.equal(lines.entries[monKey('Pixi')].tier, 'B');
+  assert.equal(lines.entries[monKey('Nidoran♂')].cost, 3);
+});
+
+test('Zweite Liga: höchstens acht Spieltage, ein überzähliger leerer fällt im Editor weg', () => {
+  const md = (day, matches = []) => ({ day, leg: 'hin', matches });
+  const nine = [...Array.from({ length: 8 }, (_, i) => md(i + 1)), md(9, [{ home: '', away: '' }])];
+  const draft = planDraftFrom(nine);
+  assert.equal(draft.length, 8);
+  assert.ok(draft.every((d) => d.matches.length === 4));
+  assert.equal(draft[7].leg, 'hin');
+  const filled = [...nine.slice(0, 8), md(9, [{ home: 'a', away: 'b' }])];
+  assert.equal(planDraftFrom(filled).length, 9);
+  assert.equal(checkSchedule(planDraftFrom(filled), ['a', 'b']).errors.length, 1);
+  assert.equal(checkSchedule(draft, ['a', 'b']).errors.length, 0);
+  // Ohne Spielplan: leerer Entwurf mit Hin- und Rückrunde.
+  assert.equal(planDraftFrom([]).filter((d) => d.leg === 'rueck').length, 4);
 });
 
 console.log(`\n${passed} Tests bestanden.`);

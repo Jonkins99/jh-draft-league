@@ -261,7 +261,7 @@
           <p x-show="newSeason.error" class="mb-2 text-xs text-flame-400" x-text="newSeason.error"></p>
           <div class="flex flex-wrap items-center justify-end gap-2">
             <button type="button" @click="closeNewSeason()" class="mr-auto rounded-xl border border-line px-4 py-2.5 text-sm font-semibold text-mist hover:text-ink">Abbrechen</button>
-            <button type="button" @click="confirmNewSeason()" :disabled="newSeason.busy || seasonPickErrors().length"
+            <button type="button" @click="confirmNewSeason()" :disabled="newSeason.busy || seasonPickErrors().length > 0"
                     class="rounded-xl bg-volt-400 px-5 py-2.5 font-display text-sm font-bold uppercase tracking-wider text-void transition-colors hover:bg-volt-500 disabled:opacity-40"
                     x-text="newSeason.busy ? 'Wird angelegt…' : `Saison ${newSeason.season} starten`"></button>
           </div>

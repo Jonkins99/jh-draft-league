@@ -8,6 +8,9 @@
 - **Statistics.** Only what the simpler results allow: matchups, battles, shares, win rates and leads (first two picks).
 - **Press.** When every match of a matchday is in, a matchday review is written automatically (category "Zweite Liga") with all results, a short text per match and the full table (new tile `[tabelle2: season | matchday]`).
 - **All seasons.** All-time table and teams get a league switch (default first league only; both leagues rank the second league from place 9). The trainer market shows second-league records in a separate, smaller bar.
+- **Tiers per season.** The second league plays with the tiers of its own season, the same ones the first league drafted with. Each season's tiering is recorded once while it is current (`drafts/seasontiers`); older seasons fall back to the first-league rosters of that season and the latest tiering. The Pokémon view shows the tiers of any season, lets them be corrected one by one and accepts a pasted tier list (a `pokemon.json` of that season or "name · tier · points" lines).
+- **Roster changes explained.** Editing a roster that is already in use shows exactly what goes out and what comes in and asks once whether the change is a correction (valid for the whole season) or a winter transfer (outgoing until the end of the first leg, incoming from the second leg).
+- **Fixes.** Crest placeholders no longer pop up under existing crests; saving a hand-made schedule works; the schedule is fixed to eight matchdays and a surplus matchday from an older state can be removed.
 
 ## Seasons and data without file deliveries
 - **Club register.** Clubs are created and edited in "Teams" across all seasons (name, permanent id, player, crest as address or upload, colour).
@@ -15,6 +18,7 @@
 - **Pokémon data.** A new all-seasons view "Pokémon" lists every Pokémon and edits all fields, including "available from season" — a Pokémon of a future season appears nowhere before it. New Pokémon can be imported from the serebii.net Champions Pokédex (base form, regional and alternate forms, every mega evolution); only tier, points and season are entered by hand.
 
 ## Fixes
+- **Disabled buttons.** "Spielplan speichern", "Neue Saison" and saving a Pokémon stayed disabled although no error was shown.
 - **Award ratings.** Ratings are now tapped (0–10) instead of slid — on touch devices a swipe while scrolling kept setting sliders to 10. A provisional rating stays saved after removing one's own nomination and still pre-fills the vote if the other player nominated that Pokémon.
 - **Cava LANZ "matchday 8".** Looking at an older season made its released games count as new; the delayed show was then written into the current season. Press automation now only runs for the current season, remembers its state per season and drops delayed jobs after a season switch.
 - **Article editor.** Only the tile bar scrolls sideways; the rest of the editor no longer overflows.

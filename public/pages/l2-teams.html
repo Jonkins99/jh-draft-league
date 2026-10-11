@@ -23,7 +23,7 @@
         <article @click="open(t.id)" class="min-w-0 cursor-pointer rounded-2xl border border-line bg-panel p-5 transition-colors hover:border-flame-500/40">
           <div class="flex min-w-0 items-center gap-4">
             <img x-show="t.logo" :src="logoUrl(t.logo)" :alt="t.name" loading="lazy" class="size-14 shrink-0 rounded-xl object-contain" />
-            <span x-show="!t.logo" class="size-14 shrink-0 rounded-xl" :style="`background:${teamColor(t)}33`"></span>
+            <span x-show="!t.logo" class="size-14 shrink-0 rounded-xl" :style="{ background: teamColor(t) + '33' }"></span>
             <div class="min-w-0">
               <h2 class="truncate font-display text-xl font-bold tracking-wide" :style="`color:${teamColor(t)}`" x-text="t.name" :title="t.name"></h2>
               <p class="text-xs text-mist" x-text="check(t).complete ? 'Kader vollständig' : `Kader ${check(t).total} / 8`"></p>
@@ -66,7 +66,7 @@
           <div class="relative shrink-0">
             <div class="team-hero-glow absolute inset-2 -z-10 rounded-full blur-2xl"></div>
             <img x-show="selectedTeam.logo" :src="logoUrl(selectedTeam.logo)" :alt="selectedTeam.name" class="relative size-20 rounded-2xl object-contain sm:size-28" />
-            <span x-show="!selectedTeam.logo" class="relative block size-20 rounded-2xl sm:size-28" :style="`background:${color}33`"></span>
+            <span x-show="!selectedTeam.logo" class="relative block size-20 rounded-2xl sm:size-28" :style="{ background: color + '33' }"></span>
           </div>
           <div class="min-w-0 flex-1 pr-8">
             <p class="font-display text-[11px] font-bold uppercase tracking-[0.25em] text-[#8ab8ea]" x-text="`2. Liga · Saison ${season}`"></p>
@@ -368,13 +368,56 @@
                 <img :src="p.image" :alt="p.name" class="size-9 shrink-0 object-contain" />
                 <span class="min-w-0 flex-1">
                   <span class="block truncate text-xs font-semibold text-ink" x-text="p.name"></span>
-                  <span class="text-[10px] font-bold" :style="`color:${tierColor(p.tier)}`" x-text="`Tier ${p.tier}`"></span>
+                  <span class="text-[10px] font-bold" :style="{ color: tierColor(p.tier) }" x-text="`Tier ${p.tier}`"></span>
+                  <span x-show="rosterNeedsMode && isNewInRoster(p.name)" class="ml-1 rounded bg-volt-400/15 px-1 text-[9px] font-bold uppercase tracking-wider text-volt-400">neu</span>
                 </span>
                 <span class="shrink-0 text-mist">×</span>
               </button>
             </template>
           </div>
           <p x-show="rosterCheckDraft.problems.length" class="mt-3 rounded-xl border border-flame-500/40 bg-flame-500/10 px-3 py-2 text-xs text-flame-400" x-text="rosterCheckDraft.problems.join(' · ')"></p>
+
+          <div x-show="rosterNeedsMode" class="mt-4 rounded-xl border border-line bg-elevated/40 p-3">
+            <p class="font-display text-[11px] font-bold uppercase tracking-wider text-mist">Änderung gegenüber dem gespeicherten Kader</p>
+            <div class="mt-2 grid gap-2 sm:grid-cols-2">
+              <div class="min-w-0">
+                <p class="mb-1 text-[11px] font-semibold text-flame-400" x-text="`Raus (${rosterDiff.removed.length})`"></p>
+                <div class="flex flex-wrap gap-1.5">
+                  <template x-for="r in rosterDiff.removed" :key="'l2out-'+r.name">
+                    <button type="button" @click="restoreMon(r.name)" title="Zurückholen"
+                            class="rounded-lg border border-flame-500/40 px-2 py-1 text-xs text-ink hover:bg-flame-500/10">
+                      <span class="line-through decoration-flame-400" x-text="r.name"></span> <span class="text-mist">↺</span>
+                    </button>
+                  </template>
+                  <span x-show="!rosterDiff.removed.length" class="text-xs text-mist">—</span>
+                </div>
+              </div>
+              <div class="min-w-0">
+                <p class="mb-1 text-[11px] font-semibold text-volt-400" x-text="`Rein (${rosterDiff.added.length})`"></p>
+                <div class="flex flex-wrap gap-1.5">
+                  <template x-for="a in rosterDiff.added" :key="'l2in-'+a.name">
+                    <span class="rounded-lg border border-volt-400/40 px-2 py-1 text-xs text-ink" x-text="a.name"></span>
+                  </template>
+                  <span x-show="!rosterDiff.added.length" class="text-xs text-mist">—</span>
+                </div>
+              </div>
+            </div>
+            <p class="mt-3 text-xs font-semibold text-ink">Was ist das für eine Änderung? Sie gilt für alle Ab- und Zugänge oben gemeinsam.</p>
+            <div class="mt-2 grid gap-2 sm:grid-cols-2">
+              <button type="button" @click="rosterForm.mode = 'fix'"
+                      class="rounded-xl border p-3 text-left transition-colors"
+                      :class="rosterForm.mode === 'fix' ? 'border-flame-500 bg-flame-500/10' : 'border-line hover:border-flame-500/40'">
+                <span class="block font-display text-sm font-bold uppercase tracking-wide text-ink">Korrektur</span>
+                <span class="mt-1 block text-xs text-mist">Der Kader war falsch erfasst. Der neue Stand gilt für die ganze Saison, es wird kein Transfer vermerkt.</span>
+              </button>
+              <button type="button" @click="rosterForm.mode = 'winter'"
+                      class="rounded-xl border p-3 text-left transition-colors"
+                      :class="rosterForm.mode === 'winter' ? 'border-flame-500 bg-flame-500/10' : 'border-line hover:border-flame-500/40'">
+                <span class="block font-display text-sm font-bold uppercase tracking-wide text-ink">Wintertransfer</span>
+                <span class="mt-1 block text-xs text-mist" x-text="winterCutDay ? `Wer raus ist, gehörte dem Team bis Spieltag ${winterCutDay} (Ende der Hinrunde), wer rein kommt, ab Spieltag ${winterCutDay + 1}. Erscheint im Team als Zugang bzw. Abgang im Winter.` : 'Wer raus ist, gehörte dem Team bis zum Ende der Hinrunde, wer rein kommt, ab der Rückrunde. Erscheint im Team als Zugang bzw. Abgang im Winter.'"></span>
+              </button>
+            </div>
+          </div>
 
           <div class="mt-5 border-t border-line pt-4">
             <div class="flex flex-wrap items-center gap-2">
@@ -398,11 +441,9 @@
           </div>
         </div>
         <div class="flex flex-wrap items-center gap-3 border-t border-line px-4 py-3 sm:px-5">
-          <label class="flex min-w-0 flex-1 items-start gap-2 text-xs text-mist">
-            <input type="checkbox" x-model="rosterForm.winter" class="mt-0.5 size-4 shrink-0 accent-flame-500" />
-            <span>Als <strong class="text-ink">Wintertransfer</strong> vermerken — Ab- und Zugänge zählen dann erst ab der Rückrunde.</span>
-          </label>
-          <button type="button" @click="saveRoster()" :disabled="busy || !rosterCheckDraft.valid"
+          <p class="min-w-0 flex-1 text-xs text-mist"
+             x-text="!rosterNeedsMode ? (rosterChanged ? 'Erster Eintrag des Kaders.' : 'Keine Änderung.') : (rosterForm.mode === 'winter' ? 'Wird als Wintertransfer gespeichert.' : rosterForm.mode === 'fix' ? 'Wird als Korrektur gespeichert.' : 'Bitte oben Korrektur oder Wintertransfer wählen.')"></p>
+          <button type="button" @click="saveRoster()" :disabled="busy || !rosterSaveReady"
                   class="shrink-0 rounded-xl bg-flame-500 px-4 py-2.5 font-display text-sm font-bold uppercase tracking-wide text-white transition-colors hover:bg-flame-600 disabled:opacity-40">Speichern</button>
         </div>
       </div>

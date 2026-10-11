@@ -62,7 +62,7 @@
                 </div>
               </td>
               <td class="whitespace-nowrap px-3 py-2">
-                <span x-show="s.team" class="text-xs font-semibold" :style="`color:${s.team ? teamColor(s.team) : ''}`" x-text="s.team?.name"></span>
+                <span x-show="s.team" class="text-xs font-semibold" :style="{ color: s.team ? teamColor(s.team) : '' }" x-text="s.team?.name"></span>
                 <span x-show="!s.team" class="text-xs text-mist">—</span>
               </td>
               <template x-for="c in columns" :key="'l2c-'+s.pokemon.name+'-'+c.key">

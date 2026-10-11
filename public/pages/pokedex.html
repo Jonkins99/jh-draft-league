@@ -28,7 +28,21 @@
         <option value="">Jede Saison</option>
         <template x-for="n in sinceOptions" :key="'pds-'+n"><option :value="n" x-text="`Ab Saison ${n}`"></option></template>
       </select>
+      <select x-model="tierSeason" class="rounded-lg border border-line bg-elevated px-2 py-2 text-sm text-ink" title="Welche Einstufung die Tabelle zeigt">
+        <option value="">Tiers: Stammdaten</option>
+        <template x-for="n in seasonOptions" :key="'pdts-'+n"><option :value="String(n)" x-text="`Tiers: Saison ${n}`"></option></template>
+      </select>
       <span class="ml-auto text-xs text-mist" x-text="`${rows.length} Pokémon`"></span>
+    </div>
+    <div x-show="tierSeasonNo" class="mb-4 flex flex-wrap items-start gap-3 rounded-xl border border-line bg-elevated/40 px-3 py-2.5 text-xs text-mist">
+      <p class="min-w-0 flex-1">
+        <span class="font-semibold text-ink" x-text="`Tiers der Saison ${tierSeasonNo}`"></span> — danach richtet sich die Zweite Liga dieser Saison.
+        <span x-show="tierSeasonTaken">Die Einstufung wurde festgehalten, solange sie galt.</span>
+        <span x-show="!tierSeasonTaken">Bekannt sind die Tiers aus den Erstliga-Kadern; für alle anderen gilt die jüngste Einstufung, bis du sie hier setzt oder eine Tierliste einfügst.</span>
+        Ein Punkt neben dem Tier zeigt die Herkunft (antippen = Hinweis).
+      </p>
+      <button type="button" x-show="canEdit" @click="openTierPaste()"
+              class="shrink-0 rounded-lg border border-line px-3 py-1.5 font-semibold text-mist transition-colors hover:border-flame-500/40 hover:text-flame-400">Tierliste einfügen</button>
     </div>
 
     <div class="overflow-x-auto overscroll-x-contain">
@@ -66,7 +80,20 @@
                   </template>
                 </span>
               </td>
-              <td class="px-2 py-1.5 text-center font-display font-bold" :style="`color:${tierColor(p.tier)}`" x-text="p.tier || '—'"></td>
+              <td x-show="!tierSeasonNo" class="px-2 py-1.5 text-center font-display font-bold" :style="{ color: tierColor(p.tier) }" x-text="p.tier || '—'"></td>
+              <td x-show="tierSeasonNo" class="px-2 py-1.5 text-center">
+                <span class="inline-flex items-center gap-1">
+                  <select x-show="canEdit" @change="setSeasonTier(p, $event.target.value)" :aria-label="`Tier von ${p.name} in Saison ${tierSeasonNo}`"
+                          class="rounded-md border border-line bg-elevated px-1 py-0.5 font-display text-sm font-bold" :style="{ color: tierColor(p.tier) }">
+                    <template x-for="t in tiers" :key="'pdst-'+p.name+t"><option :value="t" :selected="p.tier === t" x-text="t"></option></template>
+                    <option value="" :disabled="p.tierSource !== 'snapshot'">↺</option>
+                  </select>
+                  <span x-show="!canEdit" class="font-display font-bold" :style="{ color: tierColor(p.tier) }" x-text="p.tier || '—'"></span>
+                  <button type="button" @click="$dispatch('toast', { msg: `${p.name}: Tier ${p.tier} – ${tierSourceLabel(p)}` })" :title="tierSourceLabel(p)"
+                          class="size-2 shrink-0 rounded-full"
+                          :class="p.tierSource === 'snapshot' ? 'bg-volt-400' : p.tierSource === 'roster' ? 'bg-[#4d90d5]' : 'bg-mist/40'"></button>
+                </span>
+              </td>
               <td class="px-2 py-1.5 text-right font-display tabular-nums text-ink" x-text="p.cost ?? '—'"></td>
               <td class="px-2 py-1.5 text-right font-display tabular-nums text-mist" x-text="total(p) || '—'"></td>
               <td class="px-2 py-1.5 text-right font-display tabular-nums text-mist" x-text="p.base_speed ?? '—'"></td>
@@ -87,6 +114,29 @@
       </table>
     </div>
   </section>
+
+  <!-- Tierliste einer Saison einfügen -->
+  <div popover="manual" id="pokedex-tierpaste" class="modal-pop w-[36rem] max-w-[calc(100vw-1rem)] rounded-2xl border border-line bg-panel p-5 text-ink">
+    <template x-if="tierPaste">
+      <div class="grid max-h-[calc(100dvh-3rem)] gap-3 overflow-y-auto">
+        <p class="font-display text-lg font-bold tracking-wide text-ink" x-text="`Tierliste Saison ${tierSeasonNo}`"></p>
+        <p class="text-xs text-mist">Entweder den Inhalt einer <code>pokemon.json</code> aus dieser Saison einfügen oder je Zeile „Name · Tier · Punkte (optional)", getrennt durch Tab, Semikolon oder Komma — eine Spalte aus einer Tabelle zu kopieren genügt. Nur die enthaltenen Pokémon ändern sich.</p>
+        <textarea x-model="tierPaste.text" rows="8" placeholder="Mega-Glurak Y;S;20&#10;Pixi;A" class="w-full rounded-lg border border-line bg-elevated px-3 py-2 font-mono text-base text-ink focus:border-flame-500 focus:outline-none sm:text-xs"></textarea>
+        <template x-if="tierPasteResult">
+          <div class="rounded-xl border border-line bg-elevated/40 px-3 py-2 text-xs text-mist">
+            <p><span class="font-semibold text-ink" x-text="`${tierPasteResult.count} erkannt`"></span><span x-text="` · ${tierPasteResult.changes} davon ändern das Tier`"></span></p>
+            <p x-show="tierPasteResult.unknown.length" class="mt-1 text-flame-400" x-text="`Unbekannt (wird übersprungen): ${tierPasteResult.unknown.slice(0, 12).join(', ')}${tierPasteResult.unknown.length > 12 ? ' …' : ''}`"></p>
+          </div>
+        </template>
+        <p x-show="tierPaste.error" class="text-xs text-flame-400" x-text="tierPaste.error"></p>
+        <div class="flex justify-end gap-2">
+          <button type="button" @click="closeTierPaste()" class="rounded-xl border border-line px-4 py-2.5 text-sm font-semibold text-mist hover:text-ink">Abbrechen</button>
+          <button type="button" @click="saveTierPaste()" :disabled="tierPaste.busy || !(tierPasteResult && tierPasteResult.count > 0)"
+                  class="rounded-xl bg-flame-500 px-4 py-2.5 font-display text-sm font-bold uppercase tracking-wide text-white hover:bg-flame-600 disabled:opacity-40">Übernehmen</button>
+        </div>
+      </div>
+    </template>
+  </div>
 
   <!-- Formular: anlegen / bearbeiten -->
   <div popover="manual" id="pokedex-form" class="modal-pop w-[42rem] max-w-[calc(100vw-1rem)] rounded-2xl border border-line bg-panel p-0 text-ink">
@@ -210,7 +260,7 @@
           <button type="button" x-show="form.added" @click="removeForm()" :disabled="busy"
                   class="rounded-xl border border-flame-500/40 px-3.5 py-2.5 text-xs font-semibold text-flame-400 hover:bg-flame-500/10">Entfernen</button>
           <button type="button" @click="closeForm()" class="ml-auto rounded-xl border border-line px-4 py-2.5 text-sm font-semibold text-mist hover:text-ink">Abbrechen</button>
-          <button type="button" @click="saveForm()" :disabled="busy || formErrors.length"
+          <button type="button" @click="saveForm()" :disabled="busy || formErrors.length > 0"
                   class="rounded-xl bg-flame-500 px-4 py-2.5 font-display text-sm font-bold uppercase tracking-wide text-white hover:bg-flame-600 disabled:opacity-40"
                   x-text="form.isNew ? 'Anlegen' : 'Speichern'"></button>
         </div>

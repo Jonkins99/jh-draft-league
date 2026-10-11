@@ -8,10 +8,10 @@
 import { computeStandings, pokemonStats, placementHistory, battleStats } from './scoring.mjs';
 import { franchiseSlug, teamsOfSeason } from './seasons.mjs';
 import {
-  L2_TAGS, L2_TAG_LABEL, L2_SQUAD_SIZE, L2_USED, L2_BATTLES, L2_TIERS, L2_PER_TIER, L2_ROSTER_SIZE, L2_TEAMS,
-  rosterCheck, tierHasRoom, drawBlocks, buildBlockSchedule, blankSchedule, checkSchedule, drawTags, normalizeTags,
+  L2_TAGS, L2_TAG_LABEL, L2_SQUAD_SIZE, L2_USED, L2_BATTLES, L2_TIERS, L2_PER_TIER, L2_ROSTER_SIZE, L2_MATCHDAYS,
+  rosterCheck, tierHasRoom, drawBlocks, buildBlockSchedule, blankSchedule, planDraftFrom, checkSchedule, drawTags, normalizeTags,
   tagPlayer, canEnterBattle, squadsComplete, lineupsComplete, matchComplete, completeDays, leadCounts, matchScore,
-  l2MatchId, battleHasResult,
+  l2MatchId, battleHasResult, transferDiff,
 } from './liga2.mjs';
 import { currentTrainer, trainerHistory, genderLabel, GENDERS, nextFromDay, normalizeTrainer } from './trainers.mjs';
 
@@ -392,8 +392,36 @@ export function l2TeamsView(deps) {
     openRoster() {
       const t = this.selectedTeam;
       if (!t || !this.canEdit) return;
-      this.rosterForm = { list: [...(t.pokemon || [])], q: '', tier: '', winter: false };
+      const played = this.store.results.some((r) => (r.home === t.id || r.away === t.id) && r.battles.some((b) => b.done));
+      // mode: 'fix' = Korrektur (gilt die ganze Saison), 'winter' = Wintertransfer.
+      // Hat das Team schon gespielt, muss die Art bewusst gewählt werden.
+      this.rosterForm = { list: [...(t.pokemon || [])], before: [...(t.pokemon || [])], q: '', tier: '', mode: played ? null : 'fix' };
       this.showPop('l2-roster');
+    },
+    // Was sich gegenüber dem gespeicherten Kader ändert — Grundlage der Transfer-Frage.
+    get rosterDiff() {
+      const f = this.rosterForm;
+      if (!f) return { removed: [], added: [] };
+      return transferDiff(this.selectedId, f.before, f.list);
+    },
+    get rosterChanged() { return this.rosterDiff.removed.length + this.rosterDiff.added.length > 0; },
+    // Beim ersten Eintragen gibt es nichts zu unterscheiden.
+    get rosterNeedsMode() { return this.rosterChanged && (this.rosterForm?.before || []).length > 0; },
+    isNewInRoster(name) { return this.rosterDiff.added.some((a) => a.name === name); },
+    restoreMon(name) {
+      const f = this.rosterForm;
+      const p = f?.before.find((x) => x.name === name);
+      if (!p || f.list.some((x) => x.name === name)) return;
+      if (f.list.length >= L2_ROSTER_SIZE || !tierHasRoom(f.list, p.tier)) return this.toast(`Für ${name} ist im Tier ${p.tier} kein Platz mehr.`);
+      f.list = [...f.list, p];
+    },
+    // Letzter Spieltag der Hinrunde: bis dahin zählen Abgänge, danach die Zugänge.
+    get winterCutDay() {
+      const days = (this.store.schedule.matchdays || []).filter((md) => md.leg !== 'rueck').map((md) => Number(md.day));
+      return days.length ? Math.max(...days) : null;
+    },
+    get rosterSaveReady() {
+      return !!this.rosterForm && this.rosterCheckDraft.valid && (!this.rosterNeedsMode || !!this.rosterForm.mode);
     },
     get rosterCheckDraft() { return rosterCheck(this.rosterForm?.list || []); },
     // Wer schon in einem anderen Zweitliga-Kader dieser Saison steht, ist vergeben.
@@ -432,13 +460,14 @@ export function l2TeamsView(deps) {
     },
     async saveRoster() {
       const f = this.rosterForm;
-      if (!f || this.busy || !this.rosterCheckDraft.valid) return;
+      if (!f || this.busy || !this.rosterSaveReady) return;
+      const winter = this.rosterNeedsMode && f.mode === 'winter';
       this.busy = true;
       try {
-        await this.store.setRoster(this.season, this.selectedId, f.list, { winter: f.winter });
+        await this.store.setRoster(this.season, this.selectedId, f.list, { winter });
         this.hidePop('l2-roster');
         this.rosterForm = null;
-        this.toast(f.winter ? 'Kader gespeichert — als Wintertransfer vermerkt.' : 'Kader gespeichert.');
+        this.toast(winter ? 'Kader gespeichert — Ab- und Zugänge als Wintertransfer vermerkt.' : 'Kader gespeichert.');
       } catch (e) {
         console.error('Kader konnte nicht gespeichert werden:', e);
         this.toast('Der Kader konnte nicht gespeichert werden.');
@@ -621,9 +650,7 @@ export function l2ScheduleView(deps) {
     },
     startPlanEdit() {
       const days = this.schedule.matchdays || [];
-      this.planDraft = days.length
-        ? days.map((md) => ({ day: md.day, leg: md.leg || 'hin', matches: (md.matches || []).map((m) => ({ home: m.home || '', away: m.away || '' })) }))
-        : blankSchedule(L2_TEAMS, L2_TEAMS / 2);
+      this.planDraft = days.length ? planDraftFrom(days) : blankSchedule();
       this.recheckPlan();
     },
     cancelPlanEdit() { this.planDraft = null; },
@@ -645,10 +672,14 @@ export function l2ScheduleView(deps) {
       md.matches[mi] = { home: m.away, away: m.home };
       this.recheckPlan();
     },
-    addPlanDay() {
-      if (!this.planDraft) return;
-      const day = this.planDraft.length + 1;
-      this.planDraft.push({ day, leg: 'rueck', matches: Array.from({ length: L2_TEAMS / 2 }, () => ({ home: '', away: '' })) });
+    // Mehr als acht Spieltage gibt es nicht. Ein überzähliger aus einem alten Stand lässt
+    // sich entfernen, solange keine seiner Partien gesperrt ist.
+    isExtraDay(md) { return !!md && (md.day > L2_MATCHDAYS || md.day < 1); },
+    canRemovePlanDay(md) { return this.isExtraDay(md) && !(md.matches || []).some((_, mi) => this.slotLocked(md.day, mi)); },
+    removePlanDay(dayIdx) {
+      const md = this.planDraft?.[dayIdx];
+      if (!this.canRemovePlanDay(md)) return;
+      this.planDraft.splice(dayIdx, 1);
       this.recheckPlan();
     },
     setLeg(dayIdx, leg) {

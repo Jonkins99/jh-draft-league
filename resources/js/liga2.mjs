@@ -34,6 +34,9 @@ export const L2_PER_TIER = 2;
 export const L2_SQUAD_SIZE = 6;
 export const L2_USED = 4;
 export const L2_BATTLES = 3;
+// Hin- und Rückrunde: jedes Team aus Block A trifft zweimal auf jedes aus Block B.
+export const L2_MATCHDAYS = L2_TEAMS;
+export const L2_MATCHES_PER_DAY = L2_TEAMS / 2;
 export const L2_TAGS = ['henrik', 'janik', 'ki'];
 export const L2_TAG_LABEL = { henrik: 'Henrik', janik: 'Janik', ki: 'KI' };
 // Bis einschließlich Spieltag 2 der Saison 2 (und in Saison 1 komplett) darf Henrik
@@ -289,7 +292,7 @@ export function buildBlockSchedule(A = [], B = [], rand = Math.random) {
 }
 
 /** Ein leerer Spielplan zum Ausfüllen von Hand: 8 Spieltage zu je 4 Partien. */
-export function blankSchedule(days = 8, perDay = 4) {
+export function blankSchedule(days = L2_MATCHDAYS, perDay = L2_MATCHES_PER_DAY) {
   const half = Math.ceil(days / 2);
   return Array.from({ length: days }, (_, i) => ({
     day: i + 1,
@@ -299,12 +302,40 @@ export function blankSchedule(days = 8, perDay = 4) {
 }
 
 /**
+ * Ein gespeicherter Spielplan als Entwurf für den Editor: genau `days` Spieltage zu je
+ * `perDay` Partien. Fehlende Spieltage und Partien kommen leer dazu; überzählige
+ * Spieltage fallen weg, solange sie leer sind — sonst bleiben sie stehen und müssen
+ * bewusst entfernt werden (`checkSchedule` meldet sie).
+ */
+export function planDraftFrom(matchdays = [], { days = L2_MATCHDAYS, perDay = L2_MATCHES_PER_DAY } = {}) {
+  const half = Math.ceil(days / 2);
+  const src = (matchdays || []).map((md) => ({
+    day: Number(md.day),
+    leg: md.leg === 'rueck' ? 'rueck' : 'hin',
+    matches: (md.matches || []).map((m) => ({ home: m?.home || '', away: m?.away || '' })),
+  }));
+  const out = [];
+  for (let d = 1; d <= days; d++) {
+    const md = src.find((x) => x.day === d) || { day: d, leg: d <= half ? 'hin' : 'rueck', matches: [] };
+    while (md.matches.length < perDay) md.matches.push({ home: '', away: '' });
+    out.push(md);
+  }
+  src.filter((md) => md.day > days || md.day < 1)
+    .filter((md) => md.matches.some((m) => m.home || m.away))
+    .forEach((md) => out.push(md));
+  return out;
+}
+
+/**
  * Was stimmt an einem (händisch gepflegten) Spielplan nicht? Harte Fehler verhindern
  * das Speichern, Hinweise nicht — ein Spielplan darf bewusst vom Block-Muster abweichen.
  */
-export function checkSchedule(matchdays = [], teamIds = [], blocks = null) {
+export function checkSchedule(matchdays = [], teamIds = [], blocks = null, { maxDays = L2_MATCHDAYS } = {}) {
   const errors = [];
   const hints = [];
+  if (maxDays && (matchdays || []).length > maxDays) {
+    errors.push(`Höchstens ${maxDays} Spieltage — ${(matchdays || []).slice(maxDays).map((md) => `Spieltag ${md.day}`).join(', ')} bitte entfernen.`);
+  }
   const known = new Set(teamIds);
   const pairs = new Map();
   (matchdays || []).forEach((md) => {

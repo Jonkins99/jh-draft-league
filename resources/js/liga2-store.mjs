@@ -30,15 +30,27 @@ let allCache = null;
 export function createLiga2Store(Alpine) {
   const league = () => Alpine.store('league');
 
+  // Die Zweite Liga spielt mit den Tiers IHRER Saison (wie der Draft der ersten Liga
+  // derselben Saison), nicht mit der jüngsten Einstufung aus pokemon.json. Auch schon
+  // gespeicherte Kader folgen dem — das Tier am Kadereintrag ist nur der Stand beim Eintragen.
   const view = (season) => {
     const id = l2DocId(season);
     const d = league()._drafts[id] || null;
+    const dex = league().pokemonInSeasonTiers(season);
     const hit = cache.get(id);
-    if (hit && hit.doc === d) return hit;
+    if (hit && hit.doc === d && hit.dex === dex) return hit;
     const s = Number(season);
+    const tierOf = new Map(dex.map((p) => [p.name, p]));
     const next = {
       doc: d,
-      teams: l2TeamsOf(d, s),
+      dex,
+      teams: l2TeamsOf(d, s).map((t) => ({
+        ...t,
+        pokemon: t.pokemon.map((p) => {
+          const m = tierOf.get(p?.name);
+          return m && (m.tier !== p.tier || m.cost !== p.cost) ? { ...p, tier: m.tier, cost: m.cost } : p;
+        }),
+      })),
       results: l2ResultsOf(d, s),
       schedule: l2ScheduleOf(d),
       blocks: l2BlocksOf(d),
@@ -105,8 +117,8 @@ export function createLiga2Store(Alpine) {
       this._allSeasons().forEach((s) => Object.assign(out, transferAvailability(this.transferOf(s), this.scheduleOf(s))));
       return out;
     },
-    get pokemon() { return league().pokemon; },
-    pokemonOf(season) { return league().pokemonOf(season); },
+    get pokemon() { return this.pokemonOf(this.season); },
+    pokemonOf(season) { return league().pokemonInSeasonTiers(season); },
     teamById(id) { return this.allTeams.find((t) => t.id === id) || null; },
     tableOf(season, uptoDay = null) {
       const results = this.resultsOf(season).filter((r) => uptoDay == null || r.day <= uptoDay);
