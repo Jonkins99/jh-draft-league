@@ -102,16 +102,25 @@ function stintStats(stint, slug, results) {
 /**
  * Das Verzeichnis aller Trainer.
  * @param {object} o
- * @param {Array}  o.teams    alle Teams aller Saisons
- * @param {Array}  o.results  alle Ergebnisse aller Saisons
+ * @param {Array}  o.teams    alle Teams aller Saisons (erste Liga)
+ * @param {Array}  o.results  alle Ergebnisse aller Saisons (erste Liga)
  * @param {object} o.pool     { <key>: { name, image, gender, traits, createdAt, createdBy } }
- * @returns {Array<{ key, name, image, gender, traits, inPool, office, stints, totals, seasons, lastSeen }>}
- *   office  — { teamId, teamName, logo, since } beim amtierenden Verein der jüngsten Saison, sonst null
- *   stints  — Amtszeiten, jüngste zuerst, je mit Verein und Zahlen
+ * @param {Array}  o.teams2   Teams der Zweiten Liga (optional)
+ * @param {Array}  o.results2 Ergebnisse der Zweiten Liga (optional)
+ * @returns {Array<{ key, name, image, gender, traits, inPool, office, stints, totals, totals2, seasons, lastSeen }>}
+ *   office  — { teamId, teamName, logo, since, league } beim amtierenden Verein der jüngsten Saison, sonst null
+ *   stints  — Amtszeiten, jüngste zuerst, je mit Verein und Zahlen (`stats` erste, `stats2` Zweite Liga)
+ *   totals  — Bilanz in der ersten Liga, totals2 die der Zweiten — bewusst nie zusammengezählt
+ *
+ * Ein Verein kann zwischen den Ligen wechseln. Seine Trainerhistorie läuft deshalb über
+ * BEIDE Ligen (ein mitgenommener Trainer bleibt EINE Amtszeit); gezählt wird je Liga
+ * getrennt — ein Ergebnis gehört immer genau einer.
  */
-export function trainerDirectory({ teams = [], results = [], pool = {} } = {}) {
-  const latestSeason = Math.max(1, ...(teams || []).map(seasonOfTeam).filter(Number.isFinite));
-  const slugs = [...new Set((teams || []).map((t) => franchiseSlug(t.id)))];
+export function trainerDirectory({ teams = [], results = [], pool = {}, teams2 = [], results2 = [] } = {}) {
+  const all = [...(teams || []), ...(teams2 || [])];
+  const second = new Set((teams2 || []).map((t) => t.id));
+  const latestSeason = Math.max(1, ...all.map(seasonOfTeam).filter(Number.isFinite));
+  const slugs = [...new Set(all.map((t) => franchiseSlug(t.id)))];
   const byKey = {};
   const person = (name) => {
     const key = trainerKey(name);
@@ -122,7 +131,7 @@ export function trainerDirectory({ teams = [], results = [], pool = {} } = {}) {
   };
 
   slugs.forEach((slug) => {
-    const chain = franchiseTeams(teams, slug);
+    const chain = franchiseTeams(all, slug);
     const latest = chain[chain.length - 1];
     const history = franchiseTrainerHistory(chain.map((t) => ({ season: seasonOfTeam(t), trainers: t.trainers || [] })));
     history.forEach((h) => {
@@ -130,6 +139,7 @@ export function trainerDirectory({ teams = [], results = [], pool = {} } = {}) {
       if (!p) return;
       const teamAt = chain.find((t) => seasonOfTeam(t) === h.until.season) || latest;
       const stats = stintStats(h, slug, results);
+      const stats2 = stintStats(h, slug, results2);
       // Im Amt ist nur, wer bei einem Verein der JÜNGSTEN Saison noch amtiert — ein
       // offenes Amt bei einem abgestiegenen Verein endet mit dessen letzter Saison.
       const active = h.until.open && h.until.season === latestSeason && seasonOfTeam(latest) === latestSeason;
@@ -139,11 +149,13 @@ export function trainerDirectory({ teams = [], results = [], pool = {} } = {}) {
         teamId: teamAt?.id || null,
         teamName: teamAt?.name || slug,
         logo: teamAt?.logo || '',
+        league: second.has(teamAt?.id) ? 2 : 1,
         from: h.from,
         until: h.until,
         active,
         period: active ? h.period : h.period.replace(/ – heute$/, ' – Saisonende'),
         stats,
+        stats2,
       });
       h.seasons.forEach((s) => p.seasons.add(s));
       // Das Bild und die Eigenschaften der jüngsten Amtszeit gelten.
@@ -154,7 +166,7 @@ export function trainerDirectory({ teams = [], results = [], pool = {} } = {}) {
         if (h.traits?.length) p.traits = h.traits;
         if (h.gender) p.gender = h.gender;
       }
-      if (active) p.office = { teamId: latest.id, teamName: latest.name, logo: latest.logo || '', since: h.from };
+      if (active) p.office = { teamId: latest.id, teamName: latest.name, logo: latest.logo || '', since: h.from, league: second.has(latest.id) ? 2 : 1 };
     });
   });
 
@@ -173,11 +185,13 @@ export function trainerDirectory({ teams = [], results = [], pool = {} } = {}) {
   return Object.values(byKey).map((p) => {
     const stints = p.stints.sort((a, b) => (b.until.season - a.until.season) || ((b.until.open ? 999 : b.until.day || 0) - (a.until.open ? 999 : a.until.day || 0)));
     const totals = finishStats(stints.reduce((acc, s) => addStats(acc, s.stats), blankStats()));
+    const totals2 = finishStats(stints.reduce((acc, s) => addStats(acc, s.stats2 || {}), blankStats()));
     return {
       ...p,
       gender: p.gender || 'd',
       stints,
       totals,
+      totals2,
       clubs: [...new Set(stints.map((s) => s.slug))].length,
       seasons: [...p.seasons].sort((a, b) => a - b),
     };

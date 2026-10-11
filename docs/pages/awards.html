@@ -287,10 +287,16 @@
                         <svg viewBox="0 0 24 24" class="size-4" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"><path d="M6 6l12 12M18 6L6 18"/></svg>
                       </button>
                     </div>
-                    <input type="range" min="0" max="10" step="1" :value="preOf(d.id) ?? 5"
-                           @input="setPre(d.id, $event.target.value)"
-                           class="mt-1.5 h-6 w-full accent-flame-500" :class="preOf(d.id) == null ? 'opacity-40' : ''"
-                           :aria-label="`Vorläufige Bewertung für ${d.label}`" />
+                    <!-- Antippen statt Schieberegler: ein Wisch beim Scrollen setzt so keinen Wert. -->
+                    <div class="mt-1.5 grid grid-cols-11 gap-0.5" role="radiogroup" :aria-label="`Vorläufige Bewertung für ${d.label}`">
+                      <template x-for="n in [0,1,2,3,4,5,6,7,8,9,10]" :key="'pv-'+d.id+'-'+n">
+                        <button type="button" @click="setPre(d.id, n)" role="radio" :aria-checked="preOf(d.id) === n"
+                                class="h-8 min-w-0 rounded-md font-display text-xs font-bold tabular-nums transition-colors"
+                                :class="preOf(d.id) === n ? '' : 'bg-elevated/60 text-mist hover:text-ink'"
+                                :style="preOf(d.id) === n ? `color:#0b0d12;background:${voteColor(n)}` : ''"
+                                x-text="n"></button>
+                      </template>
+                    </div>
                   </div>
                 </template>
                 <p x-show="!draft.length" class="text-sm text-mist">Noch nichts nominiert – 0 Vorschläge sind erlaubt.</p>
@@ -409,9 +415,16 @@
                           :style="`color:${voteColor(votes[o.id] ?? 5)};background:${voteColor(votes[o.id] ?? 5)}1f`"
                           x-text="votes[o.id] ?? 5"></span>
                   </div>
-                  <input type="range" min="0" max="10" step="1" :value="votes[o.id] ?? 5"
-                         @input="setVote(o.id, $event.target.value)"
-                         class="mt-2.5 h-6 w-full accent-flame-500" :aria-label="`Bewertung für ${o.label}`" />
+                  <!-- Antippen statt Schieberegler: ein Wisch beim Scrollen setzt so keinen Wert. -->
+                  <div class="mt-2.5 grid grid-cols-11 gap-0.5" role="radiogroup" :aria-label="`Bewertung für ${o.label}`">
+                    <template x-for="n in [0,1,2,3,4,5,6,7,8,9,10]" :key="'vv-'+o.id+'-'+n">
+                      <button type="button" @click="setVote(o.id, n)" role="radio" :aria-checked="(votes[o.id] ?? 5) === n"
+                              class="h-9 min-w-0 rounded-md font-display text-xs font-bold tabular-nums transition-colors"
+                              :class="(votes[o.id] ?? 5) === n ? '' : 'bg-elevated/60 text-mist hover:text-ink'"
+                              :style="(votes[o.id] ?? 5) === n ? `color:#0b0d12;background:${voteColor(n)}` : ''"
+                              x-text="n"></button>
+                    </template>
+                  </div>
                 </div>
               </template>
               <p x-show="!voteOptions.length" class="py-6 text-center text-sm text-mist">Keine Optionen – es wurde nichts nominiert.</p>

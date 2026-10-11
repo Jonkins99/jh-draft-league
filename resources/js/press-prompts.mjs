@@ -977,3 +977,33 @@ export const QUESTIONS_SCHEMA = schemaOf({
   ),
 }, ['fragen']);
 
+
+// === Zweite Liga: Spieltag-Rückblick ========================================
+// Der einzige Beitrag, der automatisch über die Zweite Liga entsteht. Die Ergebnisse,
+// die Überschriften je Partie und die Tabelle setzt der Code selbst — das Modell
+// schreibt nur Einleitung, je Partie einen kurzen Text und den Schluss.
+export const LIGA2_REVIEW_BRIEF = `AUFTRAG: Spieltag-Rückblick der ZWEITEN LIGA (H-Side).
+Die Zweite Liga ist eine eigene Liga neben der ersten: acht Vereine, eigene Tabelle, eigene Spieltage.
+Sie ist kleiner und rauer — keine Marktwerte, keine Kampfprotokolle, nur Ergebnisse und Aufstellungen.
+- Schreibe eine kurze Einleitung (zwei bis vier Sätze) über den Spieltag als Ganzes.
+- Schreibe zu JEDER Partie aus "partien" einen eigenen kurzen Text (zwei bis vier Sätze) mit ihrer
+  matchId. Erfinde keine Spielzüge: bekannt sind je Kampf nur die Aufstellung (die ersten zwei sind
+  die Startaufstellung) und wie viele Pokémon je Seite übrig blieben.
+- Schließe mit einem Fazit zur Tabelle (zwei bis drei Sätze): Wer oben steht, wer unten — Platz 1 und
+  2 sind Aufstiegsränge, die letzten zwei Abstiegsränge.
+- Kein Wort über die erste Liga, keine Marktwerte, keine Elo-Werte.`;
+
+export const LIGA2_REVIEW_SCHEMA = schemaOf({
+  dachzeile: S.string('Drei bis fünf Wörter über der Überschrift'),
+  titel: S.string('Die Überschrift'),
+  einleitung: S.string('Zwei bis vier Sätze über den Spieltag'),
+  partien: S.array(
+    S.object({
+      matchId: S.string('Die matchId der Partie exakt wie in den Metadaten'),
+      text: S.string('Zwei bis vier Sätze zu dieser Partie'),
+    }, ['matchId', 'text']),
+    'Ein Eintrag je Partie des Spieltags',
+  ),
+  fazit: S.string('Zwei bis drei Sätze zur Tabelle'),
+  erwaehntePokemon: S.array(S.string(), 'Namen der Pokémon, um die es im Text geht'),
+}, ['dachzeile', 'titel', 'einleitung', 'partien', 'fazit']);

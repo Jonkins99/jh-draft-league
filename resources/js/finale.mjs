@@ -10,6 +10,7 @@
 // und aufwendiger die Szene — die Top 3 bekommen ihren kompletten Kader zu sehen,
 // der Meister zusätzlich eine eigene Parade und die Pokal-Szene.
 
+import { logoSrc } from './logos.mjs';
 import { computeStandings, placementHistory, pokemonStats, battleStats } from './scoring.mjs';
 import { currentTrainer, trainerHistory, periodLabel } from './trainers.mjs';
 import { AWARD_BY_KEY, awardWinners } from './awards.mjs';
@@ -429,7 +430,7 @@ function sceneHtml(scene, ctx) {
   }
 
   const champion = scene.kind === 'champion';
-  const logo = scene.team.logo ? `<img src="${ctx.logoBase}${esc(scene.team.logo)}" alt="" class="fin-logo" />` : '';
+  const logo = scene.team.logo ? `<img src="${esc(logoSrc(scene.team.logo, ctx.logoBase))}" alt="" class="fin-logo" />` : '';
   const placeLabel = champion ? 'Meister' : `Platz ${scene.place}`;
 
   return `<div class="fin-scene fin-scene--team" data-rank="${scene.rank}">

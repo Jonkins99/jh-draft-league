@@ -26,12 +26,21 @@
 
   <!-- ====================== SAISONÜBERGREIFEND ====================== -->
   <div x-show="isAll">
+    <!-- Welche Liga: standardmäßig nur die erste -->
+    <div class="mb-6 flex w-full rounded-xl border border-line bg-panel p-0.5 sm:inline-flex sm:w-auto" role="tablist">
+      <template x-for="o in ligaOptions" :key="'tl-'+o.v">
+        <button type="button" role="tab" @click="setLigaMode(o.v)" :aria-selected="ligaMode === o.v"
+                class="flex-1 whitespace-nowrap rounded-lg px-3 py-2 font-display text-xs font-bold uppercase tracking-wider transition-colors sm:flex-none"
+                :class="ligaMode === o.v ? 'bg-flame-500 text-white' : 'text-mist hover:text-ink'" x-text="o.l"></button>
+      </template>
+    </div>
+
     <!-- Die Saisons im Überblick -->
     <section class="mb-6 grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
-      <template x-for="sm in seasonCards" :key="'sm-'+sm.season">
-        <div class="rounded-2xl border border-line bg-panel p-4">
+      <template x-for="sm in seasonCards" :key="'sm-'+sm.season+'-'+sm.league">
+        <div class="rounded-2xl border bg-panel p-4" :class="sm.league === 2 ? 'border-[#4d90d5]/30' : 'border-line'">
           <div class="flex items-center justify-between gap-2">
-            <p class="font-display text-lg font-bold uppercase tracking-wider text-ink" x-text="`Saison ${sm.season}`"></p>
+            <p class="font-display text-lg font-bold uppercase tracking-wider text-ink" x-text="sm.league === 2 ? `Saison ${sm.season} · 2. Liga` : `Saison ${sm.season}`"></p>
             <span class="rounded-full border border-line px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wider"
                   :class="sm.running ? 'border-volt-400/50 text-volt-400' : 'text-mist'"
                   x-text="sm.running ? 'läuft' : (sm.matches ? 'abgeschlossen' : 'offen')"></span>
@@ -84,7 +93,8 @@
                 <td class="whitespace-nowrap px-3 py-3 text-center tabular-nums text-mist" x-text="r.seasonCount"></td>
                 <td class="whitespace-nowrap px-3 py-3 text-center">
                   <span x-show="r.titles" class="font-display font-bold tabular-nums text-volt-400" x-text="`${r.titles}×`"></span>
-                  <span x-show="!r.titles" class="text-mist">—</span>
+                  <span x-show="r.titles2" class="ml-1 font-display text-xs font-bold tabular-nums text-[#8ab8ea]" :title="'Meister der Zweiten Liga'" x-text="`${r.titles2}× 2.L`"></span>
+                  <span x-show="!r.titles && !r.titles2" class="text-mist">—</span>
                 </td>
                 <td class="whitespace-nowrap px-3 py-3 text-center tabular-nums text-mist" x-text="r.played"></td>
                 <td class="whitespace-nowrap px-3 py-3 text-center tabular-nums text-mist" x-text="`${r.won}-${r.draw}-${r.lost}`"></td>
@@ -101,7 +111,10 @@
         </table>
       </div>
       <p x-show="!allTimeRows.length" class="px-5 py-8 text-center text-mist">Noch keine Ergebnisse.</p>
-      <p x-show="allTimeRows.length" class="border-t border-line px-5 py-2.5 text-xs text-mist">Teams werden über alle Saisons hinweg als dasselbe Franchise geführt — Auf- und Abstiege ändern daran nichts.</p>
+      <p x-show="allTimeRows.length" class="border-t border-line px-5 py-2.5 text-xs text-mist"
+         x-text="ligaMode === 'both'
+           ? 'Beide Ligen zusammengezählt. Plätze zählen über beide Ligen: Platz 1 der Zweiten Liga ist Gesamtrang 9. Titel nur aus der ersten Liga, die der Zweiten stehen daneben.'
+           : (ligaMode === 'l2' ? 'Nur die Zweite Liga (H-Side). Kills und Deaths folgen aus den Überlebenden je Kampf.' : 'Teams werden über alle Saisons hinweg als dasselbe Franchise geführt — Auf- und Abstiege ändern daran nichts.')"></p>
     </section>
   </div>
 

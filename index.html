@@ -103,7 +103,7 @@
 
   <div x-show="unlocked" id="app" x-data="app()" x-init="initApp()"
        @navigate.window="onNavigate($event.detail)" @toast.window="pushToast($event.detail)"
-       @season-change.window="onSeasonChange()">
+       @season-change.window="onSeasonChange()" @l2-return.window="returnFromL2Entry()">
 
     <header class="fixed inset-x-0 top-0 z-40 flex h-16 items-center justify-between border-b border-line bg-void/85 px-4 backdrop-blur md:hidden">
       <img src="resources/img/logo.png" alt="JH Draft League" class="h-11 w-auto" />
@@ -114,7 +114,7 @@
         </button>
         <span class="relative">
           <button type="button" class="pokeball" popovertarget="mobile-nav" aria-label="Navigation öffnen"></button>
-          <span x-show="navDot('presse') || navDot('awards')" x-cloak class="nav-dot" aria-hidden="true"></span>
+          <span x-show="navDot('presse') || navDot('awards') || l2Pending.length" x-cloak class="nav-dot" aria-hidden="true"></span>
         </span>
       </div>
     </header>
@@ -134,6 +134,22 @@
           <span class="min-w-0 flex-1 truncate font-display text-lg font-semibold tracking-wide" x-text="$store.season.label"></span>
           <svg viewBox="0 0 24 24" class="size-5 shrink-0" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m8 9 4-4 4 4"/><path d="m16 15-4 4-4-4"/></svg>
         </button>
+
+        <!-- Zweite Liga: Ergebnisse, die der Angemeldete gerade eintragen kann -->
+        <template x-for="p in l2Pending.slice(0, 3)" :key="'l2pm-'+p.matchId+'-'+p.battle">
+          <button type="button" @click="openL2Pending(p)"
+                  class="flex items-center gap-3 rounded-xl border border-volt-400/40 bg-volt-400/10 px-4 py-3 text-left transition-colors hover:bg-volt-400/15">
+            <span class="relative grid size-8 shrink-0 place-items-center rounded-lg bg-volt-400/20 font-display text-xs font-black text-volt-400">
+              <span x-text="`K${p.battle + 1}`"></span>
+              <span class="nav-dot" aria-hidden="true"></span>
+            </span>
+            <span class="min-w-0 flex-1">
+              <span class="block font-display text-[11px] font-bold uppercase tracking-wider text-volt-400" x-text="`2. Liga · Saison ${p.season} · Spieltag ${p.day}`"></span>
+              <span class="block truncate text-sm font-semibold text-ink" x-text="`${p.home.name} – ${p.away.name}`"></span>
+              <span class="block text-[11px] text-mist">Ergebnis eintragen</span>
+            </span>
+          </button>
+        </template>
 
         <template x-for="item in items" :key="item.key">
           <a href="#" @click.prevent="navTo(item.key)"
@@ -204,7 +220,24 @@
         </div>
 
         <nav class="min-h-0 flex-1 overflow-y-auto" :class="navCollapsed ? 'px-3' : 'px-4'">
-          <p x-show="!navCollapsed" class="px-3.5 pb-2 font-display text-xs font-semibold uppercase tracking-[0.28em] text-mist">Liga</p>
+          <p x-show="!navCollapsed" class="px-3.5 pb-2 font-display text-xs font-semibold uppercase tracking-[0.28em] text-mist" x-text="$store.season.isLiga2 ? '2. Liga · H-Side' : 'Liga'"></p>
+          <!-- Zweite Liga: Ergebnisse, die der Angemeldete gerade eintragen kann -->
+          <div x-show="l2Pending.length" x-cloak class="mb-3 grid gap-1.5">
+            <template x-for="p in l2Pending.slice(0, 3)" :key="'l2ps-'+p.matchId+'-'+p.battle">
+              <button type="button" @click="openL2Pending(p)" :title="`2. Liga: ${p.home.name} – ${p.away.name}, Kampf ${p.battle + 1} eintragen`"
+                      class="flex items-center rounded-xl border border-volt-400/40 bg-volt-400/10 text-left transition-colors hover:bg-volt-400/15"
+                      :class="navCollapsed ? 'mx-auto size-11 justify-center' : 'gap-2.5 px-3 py-2'">
+                <span class="relative grid size-7 shrink-0 place-items-center rounded-lg bg-volt-400/20 font-display text-[10px] font-black text-volt-400">
+                  <span x-text="`K${p.battle + 1}`"></span>
+                  <span class="nav-dot" aria-hidden="true"></span>
+                </span>
+                <span x-show="!navCollapsed" class="min-w-0 flex-1">
+                  <span class="block font-display text-[10px] font-bold uppercase tracking-wider text-volt-400" x-text="`2. Liga · S${p.season} · ST ${p.day}`"></span>
+                  <span class="block truncate text-xs font-semibold text-ink" x-text="`${p.home.name} – ${p.away.name}`"></span>
+                </span>
+              </button>
+            </template>
+          </div>
           <div class="grid gap-1.5">
             <template x-for="item in items" :key="item.key">
               <a href="#" @click.prevent="navTo(item.key)" :title="navCollapsed ? item.label : null"
@@ -279,24 +312,30 @@
     </div>
 
     <!-- Saison-Umschalter (geteilt von Sidebar und Mobile-Nav) -->
-    <div popover id="season-pick" class="modal-pop w-[22rem] max-w-[calc(100vw-2rem)] rounded-2xl border border-line bg-panel p-5 text-ink">
+    <div popover id="season-pick" class="modal-pop max-h-[85dvh] w-[22rem] max-w-[calc(100vw-2rem)] overflow-y-auto rounded-2xl border border-line bg-panel p-5 text-ink">
       <p class="mb-1 font-display text-sm font-bold uppercase tracking-wider text-ink">Bereich wählen</p>
       <p class="mb-4 text-xs leading-relaxed text-mist">Jede Saison steht für sich — Tabelle, Spielplan, Kader und Statistiken zeigen ausschließlich ihre eigenen Daten. „Saisonübergreifend“ fasst alles zusammen.</p>
       <div class="grid gap-2">
-        <template x-for="opt in $store.season.options" :key="'sc-'+opt.value">
-          <button type="button" @click="pickSeason(opt.value)"
-                  class="flex items-center gap-3 rounded-xl border px-3.5 py-3 text-left transition-colors"
-                  :class="$store.season.isActive(opt.value)
-                    ? 'border-flame-500/50 bg-flame-500/10 text-ink'
-                    : 'border-line text-mist hover:border-flame-500/40 hover:text-ink'">
-            <span class="grid size-8 shrink-0 place-items-center overflow-hidden rounded-lg font-display text-xs font-bold"
-                  :class="$store.season.isActive(opt.value) ? 'bg-flame-500/20 text-flame-300' : 'bg-elevated text-mist'"
-                  x-text="$store.season.shortLabelOf(opt.value)"></span>
+        <template x-for="opt in $store.season.options" :key="'sc-'+opt.key">
+          <button type="button" @click="pickSeason(opt.value, opt.liga)"
+                  class="flex items-center gap-3 rounded-xl border text-left transition-colors"
+                  :class="[
+                    opt.liga === 2 ? 'ml-6 -mt-1 px-3 py-2' : 'px-3.5 py-3',
+                    $store.season.isActive(opt.value, opt.liga)
+                      ? 'border-flame-500/50 bg-flame-500/10 text-ink'
+                      : 'border-line text-mist hover:border-flame-500/40 hover:text-ink'
+                  ]">
+            <span class="grid shrink-0 place-items-center overflow-hidden rounded-lg font-display font-bold"
+                  :class="[
+                    opt.liga === 2 ? 'size-7 text-[10px]' : 'size-8 text-xs',
+                    $store.season.isActive(opt.value, opt.liga) ? 'bg-flame-500/20 text-flame-300' : 'bg-elevated text-mist'
+                  ]"
+                  x-text="$store.season.shortLabelOf(opt.value, opt.liga)"></span>
             <span class="min-w-0 flex-1">
-              <span class="block truncate font-display text-sm font-bold tracking-wide" x-text="opt.label"></span>
-              <span class="block truncate text-[11px] text-mist" x-text="seasonHint(opt.value)"></span>
+              <span class="block truncate font-display font-bold tracking-wide" :class="opt.liga === 2 ? 'text-xs' : 'text-sm'" x-text="opt.liga === 2 ? '2. Liga · H-Side' : opt.label"></span>
+              <span class="block truncate text-[11px] text-mist" x-text="seasonHint(opt.value, opt.liga)"></span>
             </span>
-            <svg x-show="$store.season.isActive(opt.value)" viewBox="0 0 24 24" class="size-4 shrink-0 text-flame-400" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="m5 13 4 4L19 7"/></svg>
+            <svg x-show="$store.season.isActive(opt.value, opt.liga)" viewBox="0 0 24 24" class="size-4 shrink-0 text-flame-400" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="m5 13 4 4L19 7"/></svg>
           </button>
         </template>
       </div>

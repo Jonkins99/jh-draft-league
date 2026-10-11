@@ -1,0 +1,111 @@
+<div x-data="l2StandingsView">
+  <header class="mb-8">
+    <p class="font-display text-xs font-semibold uppercase tracking-[0.3em] text-[#8ab8ea]">2. Liga · H-Side</p>
+    <h1 class="mt-1 font-display text-4xl font-bold tracking-wide text-ink md:text-5xl">Tabelle</h1>
+    <p class="mt-2 text-mist" x-text="`Saison ${season} · ein Punkt pro gewonnenem Kampf, bei Gleichstand entscheidet die Differenz der besiegten Pokémon.`"></p>
+  </header>
+
+  <div x-show="!loaded" class="py-12 text-center text-mist">Lade Tabelle…</div>
+
+  <div x-show="loaded && !teams.length" class="rounded-2xl border border-line bg-panel p-8 text-center text-mist">
+    In dieser Saison spielt noch kein Team in der Zweiten Liga.
+    <button type="button" @click="$dispatch('navigate', { key: 'l2teams' })"
+            class="mt-4 block w-full rounded-xl border border-line px-4 py-2.5 font-display text-sm font-semibold uppercase tracking-wider text-mist transition-colors hover:border-flame-500/40 hover:text-flame-400 sm:mx-auto sm:w-auto">Teams anlegen</button>
+  </div>
+
+  <div x-show="loaded && teams.length">
+    <!-- Spieltags-Navigation: Zwischenstände -->
+    <div x-show="playedDays.length" class="mb-4 flex flex-wrap items-center gap-2">
+      <div class="flex items-center gap-1 rounded-xl border border-line bg-panel p-1">
+        <button type="button" @click="stepDay(-1)" :disabled="!canStep(-1)"
+                class="grid size-9 place-items-center rounded-lg text-mist transition-colors hover:text-flame-400 disabled:opacity-30" aria-label="Vorheriger Spieltag">
+          <svg viewBox="0 0 24 24" class="size-5" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M15 18l-6-6 6-6"/></svg>
+        </button>
+        <span class="min-w-32 px-2 text-center">
+          <span class="block font-display text-sm font-bold uppercase tracking-wider text-ink" x-text="`Spieltag ${viewDay()}`"></span>
+          <span class="block text-[11px] text-mist" x-text="isLatest() ? 'Aktueller Stand' : 'Zwischenstand'"></span>
+        </span>
+        <button type="button" @click="stepDay(1)" :disabled="!canStep(1)"
+                class="grid size-9 place-items-center rounded-lg text-mist transition-colors hover:text-flame-400 disabled:opacity-30" aria-label="Nächster Spieltag">
+          <svg viewBox="0 0 24 24" class="size-5" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 18l6-6-6-6"/></svg>
+        </button>
+      </div>
+      <button type="button" x-show="!isLatest()" @click="day = null"
+              class="rounded-xl border border-line px-3 py-2 font-display text-xs font-semibold uppercase tracking-wider text-mist transition-colors hover:border-flame-500/40 hover:text-flame-400">Zum aktuellen Stand</button>
+    </div>
+
+    <section class="overflow-hidden rounded-2xl border border-line bg-panel">
+      <div class="overflow-x-auto overscroll-x-contain">
+        <table class="w-full min-w-[40rem] text-left">
+          <thead>
+            <tr class="border-b border-line font-display text-xs font-semibold uppercase tracking-wider text-mist">
+              <th class="px-4 py-4 sm:px-5">#</th>
+              <th class="px-4 py-4 sm:px-5">Team</th>
+              <th class="px-3 py-4 text-center" title="Matches">Sp</th>
+              <th class="px-3 py-4 text-center" title="Gewonnene Kämpfe">S</th>
+              <th class="px-3 py-4 text-center" title="Unentschiedene Kämpfe">U</th>
+              <th class="px-3 py-4 text-center" title="Verlorene Kämpfe">N</th>
+              <th class="px-3 py-4 text-center">
+                <span class="inline-flex items-center gap-1">K:D
+                  <button type="button" @click="info('K : D', 'Besiegte gegnerische zu verlorenen eigenen Pokémon — abgeleitet aus den Überlebenden je Kampf (wer 1 übrig hat, hat 3 besiegt).')" class="text-mist/60 hover:text-flame-400" aria-label="Erklärung"><svg viewBox="0 0 24 24" class="size-3.5" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="9"/><path d="M12 11v5" stroke-linecap="round"/><circle cx="12" cy="7.6" r="0.6" fill="currentColor"/></svg></button>
+                </span>
+              </th>
+              <th class="px-3 py-4 text-center">Diff</th>
+              <th class="px-4 py-4 text-right sm:px-5">Pkt</th>
+            </tr>
+          </thead>
+          <tbody>
+            <template x-for="(row, idx) in rows" :key="row.team.id">
+              <tr class="cursor-pointer transition-colors hover:bg-elevated/40"
+                  :class="[
+                    idx === 0 ? 'bg-[#4d90d5]/[0.08]' : '',
+                    (idx === 2 || (rows.length > 4 && idx === rows.length - 2)) ? 'border-t-2 border-[#4d90d5]/60' : 'border-t border-line'
+                  ]"
+                  @click="goTeam(row.team.id)">
+              <td class="px-4 py-3.5 sm:px-5">
+                  <span class="flex items-center gap-1.5">
+                    <span class="font-display text-lg font-bold text-mist" x-text="idx + 1"></span>
+                    <template x-if="placeDelta(row.team.id) !== null && placeDelta(row.team.id) !== 0">
+                      <span class="font-display text-[11px] font-bold tabular-nums"
+                            :class="placeDelta(row.team.id) > 0 ? 'text-volt-400' : 'text-flame-400'"
+                            x-text="(placeDelta(row.team.id) > 0 ? '▲' : '▼') + Math.abs(placeDelta(row.team.id))"></span>
+                    </template>
+                  </span>
+                </td>
+                <td class="px-4 py-3.5 sm:px-5">
+                  <div class="flex min-w-0 items-center gap-3">
+                    <img x-show="row.team.logo" :src="logoUrl(row.team.logo)" :alt="row.team.name" class="size-9 shrink-0 rounded-lg object-contain" />
+                    <span x-show="!row.team.logo" class="size-9 shrink-0 rounded-lg" :style="`background:${teamColor(row.team)}33`"></span>
+                    <div class="min-w-0 truncate font-semibold" :style="`color:${teamColor(row.team)}`" x-text="row.team.name"></div>
+                  </div>
+                </td>
+                <td class="px-3 py-3.5 text-center tabular-nums text-ink" x-text="row.played"></td>
+                <td class="px-3 py-3.5 text-center tabular-nums text-ink" x-text="row.won"></td>
+                <td class="px-3 py-3.5 text-center tabular-nums text-mist" x-text="row.draw"></td>
+                <td class="px-3 py-3.5 text-center tabular-nums text-mist" x-text="row.lost"></td>
+                <td class="px-3 py-3.5 text-center tabular-nums text-ink" x-text="`${row.kills}:${row.deaths}`"></td>
+                <td class="px-3 py-3.5 text-center tabular-nums" :class="row.diff > 0 ? 'text-volt-400' : 'text-mist'" x-text="fmtDiff(row.diff)"></td>
+                <td class="px-4 py-3.5 text-right font-display text-lg font-bold tabular-nums text-ink sm:px-5" x-text="row.points"></td>
+              </tr>
+            </template>
+          </tbody>
+        </table>
+      </div>
+      <p class="border-t border-line px-5 py-2.5 text-xs text-mist">Blaue Linien: Platz 1–2 steigen auf, die letzten zwei steigen ab. Die Kämpfe sind schlichter erfasst als in der ersten Liga — es zählen nur die Überlebenden.</p>
+    </section>
+
+    <section class="mt-8 rounded-2xl border border-line bg-panel p-5 sm:p-6">
+      <h2 class="mb-4 font-display text-xl font-bold uppercase tracking-wider text-ink">Platzierungsverlauf</h2>
+      <div x-show="curve.hasData" class="overflow-x-auto" x-html="curveSvg"></div>
+      <p x-show="!curve.hasData" class="py-8 text-center text-sm text-mist">Noch keine gespielten Spieltage.</p>
+      <div x-show="curve.hasData" class="mt-4 flex flex-wrap gap-x-4 gap-y-2">
+        <template x-for="ln in curve.lines" :key="ln.teamId">
+          <button type="button" class="flex items-center gap-2 text-mist transition-colors hover:text-ink" @click="goTeam(ln.teamId)">
+            <span class="h-1 w-5 shrink-0 rounded-full" :style="`background:${ln.color}`"></span>
+            <span class="text-sm" x-text="teamById(ln.teamId)?.name"></span>
+          </button>
+        </template>
+      </div>
+    </section>
+  </div>
+</div>

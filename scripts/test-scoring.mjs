@@ -95,6 +95,16 @@ import { isStalePending, needsRewrite, articleViewStatus, hasArticleContent, PEN
 import { franchiseTeams, franchiseSeasons, franchisePokemon } from '../resources/js/seasons.mjs';
 import { franchiseTrainerHistory } from '../resources/js/trainers.mjs';
 import { franchiseSquadHistory } from '../resources/js/market.mjs';
+import {
+  l2TeamsOf, l2ResultsOf, synthKills, winnerOf, rosterCheck, tierHasRoom, transferDiff, mergeTransfer,
+  drawBlocks, buildBlockSchedule, blankSchedule, checkSchedule, drawTags, normalizeTags, tagPlayer, canEnterBattle,
+  squadsComplete, lineupsComplete, pendingEntries, dayComplete, completeDays, updateL2Match, leadCounts,
+  combinedAllTime, parseL2MatchId, l2MatchId, seasonOfL2Doc,
+} from '../resources/js/liga2.mjs';
+import { clubSlug, normalizeClub, clubDirectory, seasonPreselect, validateSeasonPick, buildSeasonStart } from '../resources/js/clubs.mjs';
+import { sinceOf, availableIn, monKey, normalizeMonRecord, validateMon, mergePokedex, pokedexForSeason } from '../resources/js/pokedb.mjs';
+import { normalizeChampionsUrl, parseChampionsPage, decodePage } from '../resources/js/serebii.mjs';
+import { logoSrc } from '../resources/js/logos.mjs';
 
 function test(name, fn) { fn(); passed++; console.log('  ok -', name); }
 // Die Anmeldung rechnet asynchron (WebCrypto) — dafür ein eigener, awaitbarer Helfer.
@@ -1312,9 +1322,18 @@ test('Ein Baustein steht allein im Absatz und nennt seine Art', () => {
   assert.equal(parseTile('[unbekannt: x]'), null);
   assert.deepEqual(TILE_KINDS, [
     'marktwert', 'verlauf', 'statistik', 'team', 'trainer', 'ergebnis', 'tabelle', 'video', 'bild', 'rivalität', 'rivalitaet',
-    'marktwertduell', 'vergleich', 'kampf', 'artikel', 'form', 'kader', 'rangliste', 'vorschau',
+    'marktwertduell', 'vergleich', 'kampf', 'artikel', 'form', 'kader', 'rangliste', 'vorschau', 'tabelle2',
   ]);
   assert.deepEqual(parseTile('[tabelle: top]'), { kind: 'tabelle', key: 'top' });
+  assert.deepEqual(parseTile('[tabelle2: 2 | 3]'), { kind: 'tabelle2', key: '2 | 3' });
+  // Tabelle der Zweiten Liga: ganze Tabelle, Stand nach einem Spieltag.
+  const l2table = [{ team: { name: 'Zwei-A', logo: 'https://x/a.png' }, points: 6, diff: 4 }, { team: { name: 'Zwei-B', logo: '' }, points: 3, diff: -4 }];
+  let asked = null;
+  const t2 = tileHtml({ kind: 'tabelle2', key: '2 | 3' }, { liga2: { tableOf: (s, d) => { asked = [s, d]; return l2table; } } });
+  assert.deepEqual(asked, [2, 3]);
+  assert.ok(t2.includes('2. Liga · Saison 2 · nach Spieltag 3') && t2.includes('Zwei-B') && t2.includes('https://x/a.png'));
+  assert.equal(tileHtml({ kind: 'tabelle2', key: 'quatsch' }, { liga2: { tableOf: () => l2table } }), null);
+  assert.equal(tileHtml({ kind: 'tabelle2', key: '2' }, {}), null);
 });
 
 test('Ein Bild aus dem Auftrag landet in einer Kachel, nie im Fliesstext', () => {
@@ -2757,6 +2776,350 @@ test('Trainermarkt: Personen über Vereine und Saisons, Amt, Bilanz, Pool', () =
   assert.equal(trainerKey('Perenus  II'), 'perenus-ii');
   assert.deepEqual(normalizePoolTrainer({ name: ' Lauro ', traits: 'ruhig, klug', gender: 'männlich' }),
     { id: 'lauro', name: 'Lauro', image: '', gender: 'm', traits: ['ruhig', 'klug'] });
+});
+
+// === Zweite Liga ================================================================
+
+test('Zweite Liga: Dokument -> Teams und Ergebnisse im Format der ersten Liga', () => {
+  const doc = {
+    teams: {
+      's2-a': { name: 'A', order: 2, pokemon: [{ name: 'X', tier: 'A' }] },
+      's2-b': { name: 'B', order: 1 },
+    },
+    results: {
+      'd1-m0': {
+        home: 's2-a', away: 's2-b', squads: { home: ['X'], away: [] }, tags: ['janik', 'ki', 'henrik'],
+        battles: [{ used: { home: ['X'], away: [] }, score: { home: 1, away: 0 } }, {}, { score: { home: 2, away: 2 } }],
+      },
+    },
+  };
+  const teams = l2TeamsOf(doc, 2);
+  assert.deepEqual(teams.map((t) => t.id), ['s2-b', 's2-a']);
+  assert.equal(teams[0].player, 'Henrik');
+  assert.equal(teams[0].league, 2);
+  const [r] = l2ResultsOf(doc, 2);
+  assert.equal(r.id, 's2-d1-m0');
+  assert.equal(r.battles.length, 3);
+  assert.equal(r.battles[0].done, true);
+  assert.equal(r.battles[0].winner, 'home');
+  assert.equal(r.battles[0].tag, 'janik');
+  // Wer 1 übrig hat, hat 4 besiegt bekommen — hier: Heim verliert 3, Gast 4.
+  assert.equal(r.battles[0].kills.filter((k) => k.victimSide === 'away').length, 4);
+  assert.equal(r.battles[0].kills.filter((k) => k.victimSide === 'home').length, 3);
+  assert.equal(r.battles[1].done, false);
+  assert.equal(r.battles[2].winner, 'draw');
+  assert.equal(winnerOf({ home: 0, away: 3 }), 'away');
+  assert.equal(winnerOf({ home: null, away: 3 }), null);
+  assert.equal(synthKills({ home: 4, away: 0 }).length, 4);
+  assert.deepEqual(parseL2MatchId('s2-d3-m1'), { season: 2, day: 3, index: 1, key: 'd3-m1' });
+  assert.equal(l2MatchId(2, 3, 1), 's2-d3-m1');
+  assert.equal(seasonOfL2Doc('liga2-s7'), 7);
+  assert.equal(seasonOfL2Doc('s1'), null);
+});
+
+test('Zweite Liga: Kaderregeln und Wintertransfer', () => {
+  const mk = (t, n) => Array.from({ length: n }, (_, i) => ({ name: `${t}${i}`, tier: t }));
+  const full = [...mk('A', 2), ...mk('B', 2), ...mk('C', 2), ...mk('D', 2)];
+  assert.equal(rosterCheck(full).complete, true);
+  assert.equal(rosterCheck(full.slice(0, 5)).valid, true);
+  assert.equal(rosterCheck(full.slice(0, 5)).complete, false);
+  assert.equal(rosterCheck([...full.slice(0, 7), { name: 'S0', tier: 'S' }]).valid, false);
+  assert.equal(rosterCheck([...mk('A', 3)]).valid, false);
+  assert.equal(tierHasRoom(mk('B', 2), 'B'), false);
+  assert.equal(tierHasRoom(mk('B', 1), 'B'), true);
+  assert.equal(tierHasRoom([], 'S'), false);
+  const diff = transferDiff('s2-a', [{ name: 'X', tier: 'A' }, { name: 'Y', tier: 'B' }], [{ name: 'X', tier: 'A' }, { name: 'Z', tier: 'B' }]);
+  assert.deepEqual(diff.removed.map((r) => r.name), ['Y']);
+  assert.deepEqual(diff.added.map((r) => r.name), ['Z']);
+  // Ein im selben Winter geholtes und wieder abgegebenes Pokémon hebt sich auf.
+  const t1 = mergeTransfer({}, diff);
+  const t2 = mergeTransfer(t1, transferDiff('s2-a', [{ name: 'Z', tier: 'B' }], []));
+  assert.deepEqual(t2.added, []);
+  assert.deepEqual(t2.removed.map((r) => r.name), ['Y']);
+});
+
+test('Zweite Liga: Blöcke, Spielplan und Prüfung', () => {
+  let seed = 7;
+  const rand = () => { seed = (seed * 9301 + 49297) % 233280; return seed / 233280; };
+  const ids = ['a', 'b', 'c', 'd', 'e', 'f', 'g', 'h'];
+  const { A, B } = drawBlocks(ids, rand);
+  assert.equal(A.length, 4);
+  assert.equal(B.length, 4);
+  assert.equal(new Set([...A, ...B]).size, 8);
+  const days = buildBlockSchedule(A, B, rand);
+  assert.equal(days.length, 8);
+  assert.deepEqual(days.map((d) => d.leg), ['hin', 'hin', 'hin', 'hin', 'rueck', 'rueck', 'rueck', 'rueck']);
+  days.forEach((d) => {
+    assert.equal(d.matches.length, 4);
+    const seen = d.matches.flatMap((m) => [m.home, m.away]);
+    assert.equal(new Set(seen).size, 8);
+  });
+  // Jede A-B-Paarung genau zweimal, nie A gegen A.
+  const pairs = {};
+  days.forEach((d) => d.matches.forEach((m) => {
+    assert.ok(A.includes(m.home) !== A.includes(m.away));
+    const k = [m.home, m.away].sort().join('|');
+    pairs[k] = (pairs[k] || 0) + 1;
+  }));
+  assert.equal(Object.keys(pairs).length, 16);
+  assert.ok(Object.values(pairs).every((n) => n === 2));
+  assert.deepEqual(checkSchedule(days, ids, { A, B }), { errors: [], hints: [] });
+  const bad = blankSchedule(2, 2);
+  bad[0].matches[0] = { home: 'a', away: 'a' };
+  bad[0].matches[1] = { home: 'a', away: 'b' };
+  bad[1].matches[0] = { home: 'c', away: '' };
+  const chk = checkSchedule(bad, ids, { A: ['a', 'c'], B: ['b', 'd'] });
+  assert.ok(chk.errors.length >= 3);
+  assert.equal(blankSchedule().length, 8);
+});
+
+test('Zweite Liga: Kennzeichen und Eintragsrechte', () => {
+  const tags = drawTags(() => 0.3);
+  assert.deepEqual([...tags].sort(), ['henrik', 'janik', 'ki']);
+  assert.equal(normalizeTags(['ki', 'janik', 'henrik']).length, 3);
+  assert.equal(normalizeTags(['ki', 'ki', 'henrik']), null);
+  assert.equal(normalizeTags(['ki', 'janik']), null);
+  assert.equal(tagPlayer('ki'), 'Henrik');
+  assert.equal(tagPlayer('janik'), 'Janik');
+  assert.equal(canEnterBattle('Henrik', 'henrik', 3, 1), true);
+  assert.equal(canEnterBattle('Henrik', 'ki', 3, 5), true);
+  assert.equal(canEnterBattle('Janik', 'ki', 1, 1), false);
+  assert.equal(canEnterBattle('Janik', 'janik', 2, 5), true);
+  // Nachtrag: Saison 1 komplett und Saison 2 bis Spieltag 2 darf Henrik Janiks Kämpfe eintragen.
+  assert.equal(canEnterBattle('Henrik', 'janik', 1, 8), true);
+  assert.equal(canEnterBattle('Henrik', 'janik', 2, 2), true);
+  assert.equal(canEnterBattle('Henrik', 'janik', 2, 3), false);
+  assert.equal(canEnterBattle('Henrik', 'janik', 3, 1), false);
+  assert.equal(canEnterBattle(null, 'janik', 1, 1), false);
+});
+
+test('Zweite Liga: Match fortschreiben — Aufgebot, Einsätze, Ergebnis, Sperren', () => {
+  const sq = { home: ['h1', 'h2', 'h3', 'h4', 'h5', 'h6'], away: ['a1', 'a2', 'a3', 'a4', 'a5', 'a6'] };
+  let m = updateL2Match({}, { home: 's2-x', away: 's2-y', day: 1, squads: sq, tags: ['henrik', 'janik', 'ki'] }, { at: 't1' });
+  assert.equal(squadsComplete(m), true);
+  assert.equal(m.lineupsSaved, false);
+  const l = { home: ['h1', 'h2', 'h3', 'h4'], away: ['a4', 'a3', 'a2', 'a1'] };
+  m = updateL2Match(m, { lineups: [l, l, { home: ['h1', 'h2', 'h3'], away: l.away }] });
+  assert.equal(m.lineupsSaved, false);
+  m = updateL2Match(m, { lineups: [l, l, { home: ['h6', 'h5', 'h4', 'h3'], away: l.away }] });
+  assert.equal(m.lineupsSaved, true);
+  assert.deepEqual(m.battles[1].used.away, ['a4', 'a3', 'a2', 'a1']);
+  assert.equal(lineupsComplete(m), true);
+  // Fremde Namen fliegen raus.
+  const odd = updateL2Match(m, { lineups: [null, null, { home: ['zz', 'h1', 'h2', 'h3'], away: l.away }] });
+  assert.deepEqual(odd.battles[2].used.home, ['h1', 'h2', 'h3']);
+  assert.equal(odd.lineupsSaved, false);
+  // Ergebnis eintragen, danach ist der Kampf gesperrt.
+  m = updateL2Match(m, { result: { index: 0, home: 3, away: 0, by: 'Henrik' } }, { at: 't2' });
+  assert.deepEqual(m.battles[0].score, { home: 3, away: 0 });
+  assert.equal(m.battles[0].by, 'Henrik');
+  const tried = updateL2Match(m, { lineups: [{ home: ['h6', 'h5', 'h4', 'h3'], away: l.away }] });
+  assert.deepEqual(tried.battles[0].used.home, ['h1', 'h2', 'h3', 'h4']);
+  // Kennzeichen eines Kampfes mit Ergebnis bleiben.
+  assert.deepEqual(updateL2Match(m, { tags: ['janik', 'henrik', 'ki'] }).tags, ['henrik', 'janik', 'ki']);
+  assert.deepEqual(updateL2Match(m, { tags: ['henrik', 'ki', 'janik'] }).tags, ['henrik', 'ki', 'janik']);
+  // Zurücknehmen.
+  const cleared = updateL2Match(m, { result: { index: 0, clear: true } });
+  assert.equal(cleared.battles[0].score, undefined);
+  // Ungültige Eingabe ändert nichts.
+  assert.deepEqual(updateL2Match(m, { result: { index: 1, home: 'x', away: 2 } }).battles[1].score, undefined);
+});
+
+test('Zweite Liga: offene Einträge, fertige Spieltage, Leads', () => {
+  const sq = { home: ['h1', 'h2', 'h3', 'h4', 'h5', 'h6'], away: ['a1', 'a2', 'a3', 'a4', 'a5', 'a6'] };
+  const l = { home: ['h1', 'h2', 'h3', 'h4'], away: ['a1', 'a2', 'a3', 'a4'] };
+  let raw = updateL2Match({}, { home: 's2-x', away: 's2-y', day: 3, squads: sq, tags: ['ki', 'janik', 'henrik'] });
+  raw = updateL2Match(raw, { lineups: [l, l, l] });
+  raw = updateL2Match(raw, { result: { index: 0, home: 2, away: 0 } });
+  const doc = { teams: { 's2-x': { name: 'X' }, 's2-y': { name: 'Y' } }, results: { 'd3-m0': raw } };
+  const seasons = [{ season: 2, teams: l2TeamsOf(doc, 2), results: l2ResultsOf(doc, 2) }];
+  const henrik = pendingEntries('Henrik', seasons);
+  assert.deepEqual(henrik.map((p) => p.battle), [2]);
+  const janik = pendingEntries('Janik', seasons);
+  assert.deepEqual(janik.map((p) => p.battle), [1]);
+  assert.equal(janik[0].home.name, 'X');
+  const schedule = { matchdays: [{ day: 3, matches: [{ home: 's2-x', away: 's2-y' }] }] };
+  assert.equal(dayComplete(schedule, seasons[0].results, 3), false);
+  raw = updateL2Match(raw, { result: { index: 1, home: 0, away: 1 } });
+  raw = updateL2Match(raw, { result: { index: 2, home: 1, away: 1 } });
+  const done = l2ResultsOf({ ...doc, results: { 'd3-m0': raw } }, 2);
+  assert.equal(dayComplete(schedule, done, 3), true);
+  assert.deepEqual(completeDays(schedule, done), [3]);
+  assert.deepEqual(pendingEntries('Janik', [{ season: 2, teams: seasons[0].teams, results: done }]), []);
+  const leads = leadCounts(done);
+  assert.equal(leads.h1, 3);
+  assert.equal(leads.h3, undefined);
+  assert.equal(leadCounts(done, { scopeTeamId: 's2-y' }).h1, undefined);
+});
+
+test('Zweite Liga: Ewige Tabelle über beide Ligen', () => {
+  const won = (w) => ({ done: true, winner: w, score: { home: w === 'home' ? 2 : 0, away: w === 'away' ? 2 : 0 } });
+  const l1 = { 1: [{ id: 's1-a', name: 'A' }, { id: 's1-b', name: 'B' }], 2: [{ id: 's2-a', name: 'A' }, { id: 's2-c', name: 'C' }] };
+  const r1 = { 1: [{ id: 's1-d1-m0', day: 1, home: 's1-a', away: 's1-b', battles: [won('away'), won('away'), won('away')] }], 2: [] };
+  const l2 = { 2: [{ id: 's2-b', name: 'B' }, { id: 's2-d', name: 'D' }] };
+  const r2 = { 2: [{ id: 's2-d1-m0', day: 1, home: 's2-b', away: 's2-d', battles: [won('home'), won('home'), won('away')] }] };
+  const rows = combinedAllTime({
+    seasons: [1, 2],
+    league1: { teamsOf: (s) => l1[s] || [], resultsOf: (s) => r1[s] || [], scheduleOf: () => null },
+    league2: { teamsOf: (s) => l2[s] || [], resultsOf: (s) => r2[s] || [], scheduleOf: () => null },
+  });
+  const by = Object.fromEntries(rows.map((r) => [r.slug, r]));
+  // B: Liga 1 Saison 1 (3 Punkte, Platz 1) und Liga 2 Saison 2 (2 Punkte, Gesamtrang 9).
+  assert.equal(by.b.points, 5);
+  assert.deepEqual(by.b.leagues, [1, 2]);
+  assert.equal(by.b.bestPlace, 1);
+  assert.equal(by.b.seasons.find((s) => s.league === 2).overall, 9);
+  assert.equal(by.d.bestPlace, 10);
+  assert.equal(rows[0].slug, 'b');
+});
+
+test('Vereine: Register, Vorauswahl und Saisonstart', () => {
+  assert.equal(clubSlug('FC Bayern Myriador'), 'fc-bayern-myriador');
+  assert.equal(clubSlug('Royal Union Pingoléon'), 'royal-union-pingoleon');
+  assert.deepEqual(normalizeClub({ name: ' Neuer  Verein ', player: 'Janik', color: '#ABCDEF' }),
+    { slug: 'neuer-verein', name: 'Neuer Verein', player: 'Janik', logo: '', color: '#abcdef' });
+  const teams1 = [
+    { id: 's1-a', name: 'A alt', player: 'Janik', logo: 'a.png', color: '#111111', trainers: [{ id: 't1', name: 'Volo', fromDay: null, untilDay: null }] },
+    { id: 's2-a', name: 'A', player: 'Janik', logo: 'a.png', trainers: [{ id: 't2', name: 'Volo', fromDay: null, untilDay: 3 }, { id: 't3', name: 'Irida', fromDay: 4, untilDay: null }] },
+  ];
+  const teams2 = [{ id: 's2-b', season: 2, name: 'B', player: 'Henrik', logo: '' }];
+  const dir = clubDirectory({ teams1, teams2, pool: { c: { name: 'C', player: 'Janik', logo: 'https://x/c.png' } } });
+  const by = Object.fromEntries(dir.map((c) => [c.slug, c]));
+  assert.equal(by.a.name, 'A');
+  assert.equal(by.a.lastSeason, 2);
+  assert.equal(by.b.lastLeague, 2);
+  assert.equal(by.b.player, 'Henrik');
+  assert.equal(by.c.inPool, true);
+  assert.equal(by.c.lastSeason, null);
+  const pre = seasonPreselect({
+    table1: ['a', 'x', 'y', 'z', 'u', 'v', 'w', 'q'].map((s) => ({ team: { id: `s2-${s}` } })),
+    table2: ['b', 'm', 'n', 'o', 'p', 'r', 's', 't'].map((s) => ({ team: { id: `s2-${s}` } })),
+  });
+  assert.deepEqual(pre.l1, ['a', 'x', 'y', 'z', 'u', 'v']);
+  assert.deepEqual(pre.l2, ['n', 'o', 'p', 'r']);
+  const dir8 = ['j1', 'j2', 'j3', 'j4', 'h1', 'h2', 'h3', 'h4'].map((s) => ({ slug: s, player: s[0] === 'j' ? 'Janik' : 'Henrik' }));
+  assert.deepEqual(validateSeasonPick({ l1: dir8.map((c) => c.slug), l2: [], directory: dir8 }), []);
+  assert.equal(validateSeasonPick({ l1: dir8.slice(0, 7).map((c) => c.slug), directory: dir8 }).length, 1);
+  assert.ok(validateSeasonPick({ l1: ['j1', 'j2', 'j3', 'j4', 'h1', 'h2', 'h3', 'j1'], directory: dir8 }).length >= 1);
+  assert.ok(validateSeasonPick({ l1: dir8.map((c) => c.slug), l2: ['j1', 'x', 'y', 'z', 'u', 'v', 'w', 'q'], directory: dir8 }).some((e) => e.includes('beiden')));
+  const start = buildSeasonStart({ season: 3, l1: ['a'], l2: ['b'], directory: dir });
+  assert.equal(start.teams1[0].id, 's3-a');
+  assert.equal(start.teams1[0].data.player, 'Janik');
+  assert.equal(start.teams1[0].data.trainers[0].name, 'Irida');
+  assert.equal(start.teams1[0].data.trainers[0].fromDay, null);
+  assert.deepEqual(start.teams1[0].data.pokemon, []);
+  assert.ok(start.teams2['s3-b']);
+  assert.equal(start.teams2['s3-b'].season, undefined);
+  assert.equal(start.teams2['s3-b'].order, 1);
+});
+
+test('Pokémon-Stammdaten: Zusammenführen, Saisonfilter, Prüfung', () => {
+  const base = [{ name: 'Glurak', tier: 'A', cost: 15 }, { name: 'Gortrom', tier: 'S', since: 2 }];
+  const db = {
+    glurak: { name: 'Glurak', tier: 'S', cost: 20, since: 1, updatedAt: 'x' },
+    neu: { name: 'Neumon', tier: 'C', since: 3 },
+    weg: { name: 'Weg', removed: true },
+  };
+  const all = mergePokedex(base, db);
+  assert.equal(all.length, 3);
+  assert.equal(all[0].tier, 'S');
+  assert.equal(all[0].updatedAt, undefined);
+  assert.equal(all[0].custom, true);
+  assert.equal(all[2].added, true);
+  assert.deepEqual(pokedexForSeason(all, 1).map((p) => p.name), ['Glurak']);
+  assert.deepEqual(pokedexForSeason(all, 2).map((p) => p.name), ['Glurak', 'Gortrom']);
+  assert.equal(pokedexForSeason(all, 3).length, 3);
+  assert.equal(sinceOf({}), 1);
+  assert.equal(availableIn({ since: 3 }, 2), false);
+  assert.equal(monKey('Salmagnis ♂'), 'salmagnis-m');
+  assert.notEqual(monKey('Salmagnis ♂'), monKey('Salmagnis ♀'));
+  assert.equal(monKey('Floette (Ewige Blume)'), 'floette-ewige-blume');
+  const rec = normalizeMonRecord({ name: ' Neumon ', name_en: 'Newmon', dex: '12', types: ['Feuer', '', 'Quatsch'], tier: 'c', cost: '7', image: 'https://x/1.png', since: '3', stats: { hp: 50, atk: 60, def: 70, spa: 80, spd: 90, spe: '100' } });
+  assert.equal(rec.name, 'Neumon');
+  assert.deepEqual(rec.types, ['Feuer']);
+  assert.equal(rec.tier, 'C');
+  assert.equal(rec.base_speed, 100);
+  assert.equal(rec.since, 3);
+  assert.deepEqual(validateMon(rec, { names: ['Glurak'], isNew: true }), []);
+  assert.ok(validateMon(rec, { names: ['Neumon'], isNew: true }).length);
+  assert.ok(validateMon(normalizeMonRecord({ name: 'X' }), {}).length >= 4);
+  assert.equal(normalizeMonRecord({ name: 'X' }).since, 1);
+});
+
+test('Serebii-Import: Adresse, Grundform, Formen und Mega-Entwicklungen', () => {
+  assert.equal(normalizeChampionsUrl('https://serebii.net/pokedex-champions/rillaboom'), 'https://www.serebii.net/pokedex-champions/rillaboom/');
+  assert.equal(normalizeChampionsUrl('www.serebii.net/pokedex-champions/charizard/'), 'https://www.serebii.net/pokedex-champions/charizard/');
+  assert.equal(normalizeChampionsUrl('rotom'), 'https://www.serebii.net/pokedex-champions/rotom/');
+  assert.equal(normalizeChampionsUrl('https://example.com/x'), null);
+  const stats = (v) => `<tr><td colspan="2" class="fooinfo">Base Stats - Total: 1</td>${v.map((n) => `<td align="center" class="fooinfo">${n}</td>`).join('')}</tr>`;
+  const nameRow = (en, de, dex, typeCell) => `<table class="dextable"><tr><td class="fooevo">Name</td><td class="fooevo">Other Names</td></tr><tr><td class="fooinfo">${en}</td><td class="fooinfo"><table><tr><td><b>German</b>: </td><td>${de}</td></tr></table></td><td class="fooinfo"><table><tr><td><b>National</b>: </td><td>#${dex}</td></tr></table></td><td class="cen">${typeCell}</td></tr><tr><td class="foo">Classification</td></tr></table>`;
+  const type = (t) => `<img src="/pokedex-bw/type/${t}.gif" />`;
+  const html = [
+    '<img id="sprite-regular" src="/pokemonhome/pokemon/006.png" alt="Normal Sprite" />',
+    nameRow('Charizard', 'Glurak', '006', type('fire') + type('flying')),
+    '<h2>Stats</h2>', stats([78, 84, 78, 109, 85, 100]),
+    '<h3>Mega Charizard X</h3><td class="pkmn"><img src="/legendsz-a/pokemon/006-mx.png" /></td>',
+    nameRow('Mega Charizard', 'Mega -Glurak', '006', type('fire') + type('dragon')),
+    '<h2>Stats - </h2>', stats([78, 130, 111, 130, 85, 100]),
+  ].join('\n');
+  const out = parseChampionsPage(html);
+  assert.equal(out.length, 2);
+  assert.deepEqual(out.map((v) => v.name), ['Glurak', 'Mega-Glurak X']);
+  assert.deepEqual(out[0].types, ['Feuer', 'Flug']);
+  assert.deepEqual(out[1].types, ['Feuer', 'Drache']);
+  assert.equal(out[1].name_en, 'Mega Charizard X');
+  assert.equal(out[1].stats.atk, 130);
+  assert.equal(out[1].base_speed, 100);
+  assert.equal(out[1].image, 'https://www.serebii.net/pokemonhome/pokemon/006-mx.png');
+  assert.equal(out[0].dex, 6);
+  // Regionalform: Typen und Bild aus der Formtabelle.
+  const regional = [
+    '<img src="/pokemonhome/pokemon/038.png" alt="Normal Sprite" />',
+    nameRow('Ninetales', 'Vulnona', '038', '<table><tr><td width="50%">Normal</td><td width="50%">' + type('fire') + '</td></tr><tr><td width="50%">Alolan</td><td width="50%">' + type('ice') + type('fairy') + '</td></tr></table>'),
+    '<img src="/pokemonhome/pokemon/038.png" alt="Kantonian Form" class="formpic" /><img src="/pokemonhome/pokemon/038-a.png" alt="Alola Form" class="formpic" />',
+    '<h2>Stats</h2>', stats([73, 76, 75, 81, 100, 100]),
+    '<h2>Stats - Alolan Ninetales</h2>', stats([73, 67, 75, 81, 100, 109]),
+  ].join('\n');
+  const r = parseChampionsPage(regional);
+  assert.deepEqual(r.map((v) => [v.name, v.name_en, v.types.join('/')]), [['Vulnona', 'Ninetales', 'Feuer'], ['Alola-Vulnona', 'Alolan Ninetales', 'Eis/Fee']]);
+  assert.equal(r[1].image, 'https://www.serebii.net/pokemonhome/pokemon/038-a.png');
+  assert.throws(() => parseChampionsPage('<html></html>'));
+  assert.equal(decodePage(new Uint8Array([0x50, 0x6f, 0x6b, 0xe9])), 'Poké');
+});
+
+test('Wappen: Dateiname, Adresse oder hochgeladenes Bild', () => {
+  assert.equal(logoSrc('fc-chelze.png'), './img/teams/fc-chelze.png');
+  assert.equal(logoSrc('https://x/y.png'), 'https://x/y.png');
+  assert.equal(logoSrc('data:image/webp;base64,AAA'), 'data:image/webp;base64,AAA');
+  assert.equal(logoSrc(''), '');
+  assert.equal(logoSrc('a.png', '/base/'), '/base/a.png');
+});
+
+test('Trainermarkt: Zweite Liga zählt getrennt, die Amtszeit läuft über beide Ligen', () => {
+  const won = (w) => ({ done: true, winner: w, score: { home: 1, away: 0 } });
+  const teams = [{ id: 's1-a', name: 'A', trainers: [{ id: 't1', name: 'Volo', fromDay: null, untilDay: null }] }];
+  const teams2 = [{ id: 's2-a', season: 2, name: 'A', trainers: [{ id: 't2', name: 'Volo', fromDay: null, untilDay: null }] }];
+  const results = [{ id: 's1-d1-m0', day: 1, home: 's1-a', away: 's1-x', battles: [won('home'), won('home'), won('away')] }];
+  const results2 = [{ id: 's2-d1-m0', day: 1, home: 's2-x', away: 's2-a', battles: [won('home'), won('home'), won('home')] }];
+  const dir = trainerDirectory({ teams, results, teams2, results2 });
+  const volo = dir.find((t) => t.key === 'volo');
+  assert.equal(volo.stints.length, 1);
+  assert.equal(volo.totals.matches, 1);
+  assert.equal(volo.totals.won, 1);
+  assert.equal(volo.totals2.matches, 1);
+  assert.equal(volo.totals2.lost, 1);
+  assert.equal(volo.office.league, 2);
+  // Ohne Zweite Liga bleibt alles wie bisher.
+  const plain = trainerDirectory({ teams, results }).find((t) => t.key === 'volo');
+  assert.equal(plain.totals2.matches, 0);
+  assert.equal(plain.office.teamId, 's1-a');
+});
+
+test('Awards: gemerkte Vorbewertung gilt auch für eine Nominierung des anderen', () => {
+  const { votes, fromPrevote } = initialVotes([{ id: 'glurak' }, { id: 'pixi' }], {}, { glurak: 8, pixi: null });
+  assert.equal(votes.glurak, 8);
+  assert.equal(fromPrevote.glurak, true);
+  assert.equal(votes.pixi, 5);
 });
 
 console.log(`\n${passed} Tests bestanden.`);

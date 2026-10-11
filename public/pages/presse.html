@@ -593,7 +593,7 @@ match /settings/{doc} { allow read, write: if true; }</code></pre>
   <div popover id="press-composer" class="modal-pop w-[46rem] max-w-[calc(100vw-1.5rem)] rounded-3xl border border-line bg-panel text-ink"
        @toggle="if ($event.newState === 'closed') composer = null">
     <template x-if="composer">
-      <div class="max-h-[88vh] overflow-y-auto p-5 sm:p-7">
+      <div class="max-h-[88vh] overflow-y-auto overflow-x-hidden p-5 sm:p-7">
         <div class="mb-5 flex items-start justify-between gap-4">
           <div>
             <p class="font-display text-xs font-semibold uppercase tracking-[0.3em] text-flame-400" x-text="composer.aiEdit ? 'Korrektur' : 'Eigener Beitrag'"></p>
@@ -606,7 +606,7 @@ match /settings/{doc} { allow read, write: if true; }</code></pre>
           </button>
         </div>
 
-        <div class="grid gap-4">
+        <div class="grid grid-cols-[minmax(0,1fr)] gap-4">
           <label class="block">
             <span class="mb-1.5 block font-display text-[11px] font-bold uppercase tracking-wider text-mist">Dachzeile</span>
             <input type="text" x-model="composer.subtitle" placeholder="Drei bis fünf Wörter"
@@ -659,9 +659,9 @@ match /settings/{doc} { allow read, write: if true; }</code></pre>
             </div>
           </div>
 
-          <div>
+          <div class="min-w-0">
             <span class="mb-1.5 block font-display text-[11px] font-bold uppercase tracking-wider text-mist">Text</span>
-            <div class="rounded-xl border border-line bg-elevated">
+            <div class="min-w-0 rounded-xl border border-line bg-elevated">
               <div class="flex flex-wrap items-center gap-1 border-b border-line p-2">
                 <template x-for="b in [
                   {c:'bold', l:'B', cls:'font-bold', t:'Fett'},
@@ -691,8 +691,8 @@ match /settings/{doc} { allow read, write: if true; }</code></pre>
               </div>
 
               <!-- Bausteine: dieselben Kacheln, die die Redaktion setzt -->
-              <div class="border-b border-line p-2">
-                <div class="press-tilebar flex items-center gap-1 overflow-x-auto overscroll-x-contain pb-1 pr-6">
+              <div class="min-w-0 border-b border-line p-2">
+                <div class="press-tilebar flex min-w-0 items-center gap-1 overflow-x-auto overscroll-x-contain pb-1 pr-6">
                   <span class="sticky left-0 z-10 mr-1 shrink-0 bg-elevated pr-1 font-display text-[10px] font-bold uppercase tracking-wider text-mist">Baustein</span>
                   <template x-for="k in tileKinds" :key="'tk-'+k.kind">
                     <button type="button" @click="toggleTilePicker(k.kind)" :title="k.hint"
@@ -742,7 +742,7 @@ match /settings/{doc} { allow read, write: if true; }</code></pre>
                    @keydown.enter="rteEnter($event)"
                    @click="rtePick($event)"
                    data-placeholder="Schreib los – Absätze, Zwischenüberschriften, Zitate und Bilder sind möglich."
-                   class="rte press-body max-h-[40vh] overflow-y-auto px-4 py-3"></div>
+                   class="rte press-body max-h-[40vh] overflow-y-auto break-words px-4 py-3"></div>
             </div>
             <p class="mt-1.5 text-[11px] leading-relaxed text-mist">Enter beginnt einen neuen Absatz, Umschalt+Enter einen Zeilenumbruch. Ein Tipp auf ein Bild öffnet die Breiteneinstellung.
               Bausteine und Tabellenzeilen bleiben hier als Text stehen – gesetzt werden sie erst im veröffentlichten Beitrag. Eine Tabellenzeile sieht so aus:

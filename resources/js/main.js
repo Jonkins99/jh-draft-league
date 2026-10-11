@@ -31,6 +31,23 @@ import {
   currentPick as draftCurrentPick, buildDraftOrder, renewedIn, snakeOrder,
 } from './draft.mjs';
 import { normalizeVideoUrl, videoEmbed, videoHostLabel } from './video.mjs';
+import { logoSrc, LOGO_BASE } from './logos.mjs';
+import {
+  POKEDB_DOC, MON_TIERS, MON_STATS, ALL_MON_TYPES, sinceOf, monKey, normalizeMonRecord, validateMon,
+  mergePokedex, pokedexForSeason,
+} from './pokedb.mjs';
+import { normalizeChampionsUrl, fetchChampionsHtml, parseChampionsPage } from './serebii.mjs';
+import {
+  TEAMPOOL_DOC, CLUB_PLAYERS, clubSlug, normalizeClub, clubDirectory, seasonPreselect, validateSeasonPick, buildSeasonStart,
+} from './clubs.mjs';
+import {
+  L2_TAGS, L2_TAG_LABEL, L2_SQUAD_SIZE, L2_USED, L2_TIERS, L2_PER_TIER, L2_ROSTER_SIZE, L2_PLAYER,
+  l2DocId, l2MatchId, parseL2MatchId, rosterCheck, tierHasRoom, drawBlocks, buildBlockSchedule, blankSchedule,
+  checkSchedule, drawTags, normalizeTags, tagPlayer, canEnterBattle, squadsComplete, lineupsComplete, matchComplete,
+  completeDays, dayComplete, leadCounts, matchScore, combinedAllTime,
+} from './liga2.mjs';
+import { createLiga2Store } from './liga2-store.mjs';
+import { l2StandingsView, l2ScheduleView, l2TeamsView, l2StatsView } from './liga2-views.mjs';
 import { renderTiles, TILE_MENU, normKey, imageUrlsIn, withImageTiles } from './press-tiles.mjs';
 import { renderMarketChart } from './marketchart.mjs';
 import { runMarketShow } from './marketshow.mjs';
@@ -73,7 +90,7 @@ import {
 import {
   DEFAULT_PROMPTS, PROMPT_DEFS, buildSystem, buildUserPrompt, buildDirection,
   ARTICLE_SCHEMA, ARTICLE_SCHEMA_WITH_CATEGORY, ARTICLE_SCHEMA_FREE_CATEGORY, ARTICLE_SCHEMA_COMMISSION, QUESTIONS_SCHEMA,
-  EDITORIAL_STORYLINE_BRIEF, EDITORIAL_STORYLINE_SCHEMA,
+  EDITORIAL_STORYLINE_BRIEF, EDITORIAL_STORYLINE_SCHEMA, LIGA2_REVIEW_BRIEF, LIGA2_REVIEW_SCHEMA,
   pickStances, stanceBrief, STANCE_KEYS, STANCE_BY_KEY, marketRule, scandalPick,
 } from './press-prompts.mjs';
 import {
@@ -96,6 +113,7 @@ import {
 } from './basestats.mjs';
 
 const PICKS_PER_TEAM = 10;
+
 const TIER_ORDER = ['S', 'A', 'B', 'C', 'D'];
 
 const ICONS = {
@@ -112,7 +130,20 @@ const ICONS = {
   press: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M4 5h13a1 1 0 0 1 1 1v12a2 2 0 0 0 2 2H5a2 2 0 0 1-2-2V6a1 1 0 0 1 1-1z"/><path d="M18 9h2a1 1 0 0 1 1 1v8"/><path d="M7 9h7"/><path d="M7 13h7"/><path d="M7 17h4"/></svg>`,
   coach: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="7" r="3.5"/><path d="M5 21v-1.5A6.5 6.5 0 0 1 11.5 13h1a6.5 6.5 0 0 1 6.5 6.5V21"/><path d="m12 13 1.6 3.2L12 21l-1.6-4.8z"/></svg>`,
   record: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M8 3h8v5a4 4 0 0 1-8 0z"/><path d="M8 5H5v2a3 3 0 0 0 3 3"/><path d="M16 5h3v2a3 3 0 0 1-3 3"/><path d="M12 12v4"/><path d="M9 20h6"/><path d="M10 16h4l1 4H9z"/></svg>`,
+  pokedex: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><path d="M3 12h6"/><path d="M15 12h6"/><circle cx="12" cy="12" r="2.8"/></svg>`,
 };
+
+// Die Ansichten der Zweiten Liga. Sie stehen neben denen der ersten — eigene Partials,
+// eigene Komponenten; nur die Presse teilen sich beide Ligen.
+const L2_ROUTES = {
+  l2tabelle: { key: 'l2tabelle', label: 'Tabelle', file: './pages/l2-tabelle.html', icon: ICONS.standings },
+  l2spielplan: { key: 'l2spielplan', label: 'Spielplan', file: './pages/l2-spielplan.html', icon: ICONS.schedule },
+  l2teams: { key: 'l2teams', label: 'Teams', file: './pages/l2-teams.html', icon: ICONS.teams },
+  l2stats: { key: 'l2stats', label: 'Statistiken', file: './pages/l2-statistiken.html', icon: ICONS.stats },
+};
+const L2_KEYS = new Set(Object.keys(L2_ROUTES));
+const L2_TWIN_OF = { tabelle: 'l2tabelle', spieltag: 'l2spielplan', teams: 'l2teams', stats: 'l2stats' };
+const L1_TWIN_OF = Object.fromEntries(Object.entries(L2_TWIN_OF).map(([a, b]) => [b, a]));
 
 const TYPE_COLORS = {
   Normal: '#9099a1',
@@ -227,6 +258,8 @@ const PRESS_PAGE_STEP = 10;
 
 // Verlauf der Zurück-Leiste je Tab (sessionStorage), damit ein Reload ihn behält.
 const NAV_STACK_KEY = 'jhdl-nav-stack-v1';
+const VEREINE_LIGA_KEY = 'jhdl-vereine-liga-v1'; // { liga: 'l1'|'l2'|'both' }
+const TABELLE_LIGA_KEY = 'jhdl-tabelle-liga-v1'; // { liga: 'l1'|'l2'|'both' }
 
 const SYNC_PREFIXES = ['jhdl-tb-', 'jhdl-speedtiers-', 'jhdl-weakness-', 'jhdl-matchup-marks-'];
 // Der Draftplan liegt NICHT mehr im localStorage, sondern ausschließlich verschlüsselt
@@ -686,6 +719,31 @@ function normalizeHexColor(value) {
  * sonst eine feste Ableitung aus der Team-ID. Die Ableitung ist stabil — dasselbe Team
  * bekommt in jedem Diagramm dieselbe Farbe, auch ohne hinterlegte Wahl.
  */
+// Ein hochgeladenes Wappen klein rechnen und als data-URL ablegen — es gibt keinen
+// Dateispeicher, das Bild steht direkt am Team. 160 px reichen für jede Darstellung.
+async function imageToDataUrl(file, size = 160) {
+  const url = URL.createObjectURL(file);
+  try {
+    const img = await new Promise((resolve, reject) => {
+      const el = new Image();
+      el.onload = () => resolve(el);
+      el.onerror = reject;
+      el.src = url;
+    });
+    const scale = Math.min(1, size / Math.max(img.naturalWidth || size, img.naturalHeight || size));
+    const w = Math.max(1, Math.round((img.naturalWidth || size) * scale));
+    const h = Math.max(1, Math.round((img.naturalHeight || size) * scale));
+    const canvas = document.createElement('canvas');
+    canvas.width = w;
+    canvas.height = h;
+    canvas.getContext('2d').drawImage(img, 0, 0, w, h);
+    const webp = canvas.toDataURL('image/webp', 0.86);
+    return webp.startsWith('data:image/webp') ? webp : canvas.toDataURL('image/png');
+  } finally {
+    URL.revokeObjectURL(url);
+  }
+}
+
 function teamColor(team) {
   const chosen = normalizeHexColor(team?.color);
   if (chosen) return chosen;
@@ -890,6 +948,8 @@ function app() {
       if (!nav) return;
       nav.teamId = params.teamId || null;
       nav.matchId = params.matchId || null;
+      nav.battleNo = params.battleNo || null;
+      nav.articleId = params.articleId || null;
       nav.pokemonName = params.pokemonName || null;
       nav.teamAId = params.teamAId || null;
       nav.teamBId = params.teamBId || null;
@@ -1017,6 +1077,7 @@ function app() {
     },
     // Laufender Transfer > laufender Draft > Spielplan (sobald ausgelost) > Draft.
     startKey() {
+      if (this.$store.season?.isLiga2) return 'l2spielplan';
       const l = this.$store.league;
       if (l.transfer?.status === 'running') return 'transfer';
       if (l.draft?.status === 'running') return 'draft';
@@ -1041,6 +1102,7 @@ function app() {
         pokemonName: detail.pokemonName || null,
         teamAId: detail.teamAId || null,
         teamBId: detail.teamBId || null,
+        articleId: detail.articleId || null,
         // Herkunft merken, damit der Pokémon→Pokémon-Wechsel nicht die ursprüngliche
         // Ausgangsansicht überschreibt.
         from: detail.key === 'pokemon' && this.current !== 'pokemon' ? this.current : (this.$store.nav?.from || null),
@@ -1060,6 +1122,10 @@ function app() {
     // Draft; ein laufender Draft bzw. ein laufendes Transferfenster rückt vorübergehend
     // auf Position 1.
     get items() {
+      const season = this.$store.season;
+      return this._navItems(season?.isAll ? 'all' : season?.isLiga2 ? 'liga2' : 'liga1');
+    },
+    _navItems(mode) {
       const byKey = {
         tabelle: { key: 'tabelle', label: 'Tabelle', file: './pages/tabelle.html', icon: ICONS.standings },
         spieltag: { key: 'spieltag', label: 'Spielplan', file: './pages/spieltag.html', icon: ICONS.schedule },
@@ -1076,13 +1142,20 @@ function app() {
         vereine: { key: 'vereine', label: 'Teams', file: './pages/vereine.html', icon: ICONS.teams },
         // Saisonübergreifend: der Trainermarkt.
         trainer: { key: 'trainer', label: 'Trainer', file: './pages/trainer.html', icon: ICONS.coach },
+        // Saisonübergreifend: die Pokémon-Stammdaten (anlegen, bearbeiten, Import).
+        pokedex: { key: 'pokedex', label: 'Pokémon', file: './pages/pokedex.html', icon: ICONS.pokedex },
+        ...L2_ROUTES,
       };
       const l = this.$store.league;
       // Saisonübergreifend gibt es nur, was über Saisongrenzen hinweg Sinn ergibt:
       // Spielplan, Teambuilding, Teams, Draft und Transfer gehören immer zu genau
       // einer Saison und fallen deshalb weg; dafür kommen die Rekorde dazu.
-      if (this.$store.season?.isAll) {
-        return ['tabelle', 'vereine', 'trainer', 'stats', 'presse', 'awards', 'spieler', 'rekorde'].map((k) => byKey[k]);
+      if (mode === 'all') {
+        return ['tabelle', 'vereine', 'trainer', 'stats', 'presse', 'awards', 'spieler', 'rekorde', 'pokedex'].map((k) => byKey[k]);
+      }
+      // Die Zweite Liga hat ihre eigenen, schlichteren Ansichten — nur die Presse ist dieselbe.
+      if (mode === 'liga2') {
+        return ['l2tabelle', 'l2spielplan', 'l2teams', 'l2stats', 'presse'].map((k) => byKey[k]);
       }
       const keys = ['tabelle', 'spieltag', 'teambuilding', 'teams', 'stats', 'presse', 'awards', 'spieler', 'draft'];
       if (l.draft?.status === 'done') keys.push('transfer');
@@ -1094,9 +1167,14 @@ function app() {
     },
 
     // Vollständiger Route-Katalog inkl. versteckter Pokémon-Detailansicht (nicht in
-    // Sidebar/Mobile-Nav, nur per Verlinkung erreichbar).
+    // Sidebar/Mobile-Nav, nur per Verlinkung erreichbar). Innerhalb einer Saison kennt er
+    // die Ansichten BEIDER Ligen — der Browser-Verlauf darf zwischen ihnen wechseln.
     get routes() {
-      return [...this.items, { key: 'pokemon', file: './pages/pokemon.html' }];
+      const out = [...this.items, { key: 'pokemon', file: './pages/pokemon.html' }];
+      if (this.$store.season?.isAll) return out;
+      const other = this._navItems(this.$store.season?.isLiga2 ? 'liga1' : 'liga2');
+      other.forEach((r) => { if (!out.some((x) => x.key === r.key)) out.push(r); });
+      return out;
     },
 
     isActive(key) {
@@ -1108,6 +1186,7 @@ function app() {
     // Teams bzw. eine Award-Abstimmung, bei der die eigene Stimme fehlt.
     navDot(key) {
       if (!this.$store.auth?.player) return false;
+      if (key === 'l2spielplan') return this.l2Pending.length > 0;
       if (key === 'presse') return this.$store.notify.pressAwaiting() > 0;
       if (key === 'awards') return this.$store.notify.awardsAwaiting() > 0;
       return false;
@@ -1123,24 +1202,62 @@ function app() {
       const list = this.$store.season.list;
       return this.$store.season.scope === list[list.length - 1];
     },
-    seasonHint(scope) {
+    seasonHint(scope, liga = 1) {
       const l = this.$store.league;
       if (scope === SEASON_ALL) return 'Ewige Tabelle, Rekorde, Langzeitstatistik';
+      if (liga === 2) {
+        const l2 = this.$store.liga2;
+        const n = l2.teamsOf(scope).length;
+        const played = l2.resultsOf(scope).filter((r) => r.battles.some((b) => b.done)).length;
+        if (!n) return 'Noch keine Teams';
+        return played ? `${n} Teams · ${played} Partien gespielt` : `${n} Teams · noch keine Partie`;
+      }
       const teams = teamsOfSeason(l.teams, scope).length;
       const summary = seasonSummaries(l.teams, l.allResults, l.allSchedules).find((x) => x.season === scope);
       if (!summary || !summary.matches) return `${teams} Teams · noch keine Partie`;
       if (summary.champion && !summary.running) return `${teams} Teams · Meister ${summary.champion.name}`;
       return `${teams} Teams · ${summary.matches} Partien gespielt`;
     },
-    pickSeason(scope) {
-      this.$store.season.set(scope);
+    pickSeason(scope, liga = 1) {
+      this.$store.season.set(scope, { liga });
       const el = document.getElementById('season-pick');
       if (el && el.matches(':popover-open')) el.hidePopover();
     },
 
     onSeasonChange() {
-      const key = this.items.some((i) => i.key === this.current) ? this.current : 'tabelle';
+      // Beim Ligawechsel bleibt man in der entsprechenden Ansicht der anderen Liga.
+      const twin = this.$store.season.isLiga2 ? L2_TWIN_OF[this.current] : L1_TWIN_OF[this.current];
+      const fallback = this.$store.season.isLiga2 ? 'l2tabelle' : 'tabelle';
+      const want = twin || this.current;
+      const key = this.items.some((i) => i.key === want) ? want : fallback;
       this.load(key, { animate: true, replace: true });
+    },
+
+    // === Zweite Liga: offene Ergebniseingaben ================================
+    // Ein Hinweis in der Navigation führt direkt in die Eingabe; nach dem Speichern
+    // geht es zurück dorthin, wo man herkam — auch zurück in die erste Liga.
+    get l2Pending() {
+      const player = this.$store.auth?.player;
+      return player ? this.$store.liga2.pendingFor(player) : [];
+    },
+    openL2Pending(item) {
+      if (!item) return;
+      const season = this.$store.season;
+      this.$store.nav.l2Return = { scope: season.scope, liga: season.liga, key: this.current };
+      season.set(item.season, { liga: 2, silent: true });
+      const params = { matchId: item.matchId, battleNo: item.battle + 1 };
+      this.applyNavParams(params);
+      this.load('l2spielplan', { params });
+    },
+    // Nach dem Speichern: zurück zur Ansicht vor dem Sprung, samt Saison und Liga.
+    returnFromL2Entry() {
+      const back = this.$store.nav.l2Return;
+      if (!back) return false;
+      this.$store.nav.l2Return = null;
+      this.$store.season.set(back.scope, { liga: back.liga, silent: true });
+      if (this.canGoBack) history.back();
+      else this.load(back.key || 'tabelle', { replace: true });
+      return true;
     },
 
     closeMobileNav() {
@@ -1151,6 +1268,10 @@ function app() {
     async load(key, { animate = true, params = null, replace = false } = {}) {
       const item = this.routes.find((i) => i.key === key);
       if (!item) return;
+      // Die Liga folgt der Ansicht: eine Zweitliga-Ansicht schaltet die Zweite Liga ein,
+      // jede Saisonansicht der ersten Liga wieder aus. Presse und Pokémon gehören beiden.
+      if (L2_KEYS.has(key)) this.$store.season.setLiga(2);
+      else if (key !== 'presse' && key !== 'pokemon') this.$store.season.setLiga(1);
 
       // Verlauf fortschreiben — außer die Navigation kam gerade AUS dem Verlauf.
       if (this._fromHistory) this._fromHistory = false;
@@ -1222,7 +1343,7 @@ function app() {
       // Teams
       (league.seasonTeams || []).forEach((t) => {
         if (t.name.toLowerCase().includes(q) || (t.player || '').toLowerCase().includes(q)) {
-          out.push({ type: 'Team', label: t.name, sub: t.player, teamId: t.id, key: 'teams', logo: `./img/teams/${t.logo}` });
+          out.push({ type: 'Team', label: t.name, sub: t.player, teamId: t.id, key: 'teams', logo: logoSrc(t.logo) });
         }
       });
       // Pokémon
@@ -1530,7 +1651,7 @@ function draftBoard() {
       return player === 'Henrik' ? '#4d90d5' : '#e3350d';
     },
     logoUrl(file) {
-      return `./img/teams/${file}`;
+      return logoSrc(file);
     },
     goMon(name) {
       this.$dispatch('navigate', { key: 'pokemon', pokemonName: name });
@@ -2326,7 +2447,7 @@ function teamsView() {
     },
 
     logoUrl(file) {
-      return `./img/teams/${file}`;
+      return logoSrc(file);
     },
     playerColor(player) {
       return player === 'Henrik' ? '#4d90d5' : '#e3350d';
@@ -2417,10 +2538,113 @@ function seasonFinaleMixin() {
   };
 }
 
+// === Neue Saison starten ====================================================
+// Am Ende der Saison, ganz unten im Spielplan: Teams beider Ligen für die kommende
+// Saison wählen. Vorausgewählt sind Platz 1–6 der ersten und Platz 3–6 der Zweiten Liga;
+// Auf- und Absteiger wählt man selbst. Mixin — nur Methoden, keine Getter.
+function newSeasonMixin() {
+  return {
+    newSeason: null, // { season, l1: [slug], l2: [slug], busy, error }
+
+    // Nur in der jüngsten Saison, wenn jede Partie der ersten Liga ihr Ergebnis hat.
+    canStartSeason() {
+      const l = this.$store.league;
+      const list = l.seasons;
+      if (!this.$store.auth?.player || l.season !== list[list.length - 1]) return false;
+      return this.seasonComplete();
+    },
+    _seasonTables() {
+      const l = this.$store.league;
+      const l2 = this.$store.liga2;
+      return {
+        table1: computeStandings(l.seasonTeams, l.results),
+        table2: l2.tableOf(l.season),
+      };
+    },
+    openNewSeason() {
+      if (!this.canStartSeason()) return;
+      const pre = seasonPreselect(this._seasonTables());
+      this.newSeason = { season: this.$store.league.season + 1, l1: [...pre.l1], l2: [...pre.l2], busy: false, error: '' };
+      this.$nextTick(() => document.getElementById('new-season')?.showPopover());
+    },
+    closeNewSeason() {
+      const el = document.getElementById('new-season');
+      if (el && el.matches(':popover-open')) el.hidePopover();
+      this.newSeason = null;
+    },
+    // Alle Vereine, gruppiert: erste Liga (nach Platz), Zweite Liga (nach Platz), alle übrigen.
+    seasonGroups() {
+      const dir = this.$store.league.clubDirectory;
+      const bySlug = new Map(dir.map((c) => [c.slug, c]));
+      const { table1, table2 } = this._seasonTables();
+      const seen = new Set();
+      const row = (slug, extra) => { seen.add(slug); return { ...(bySlug.get(slug) || { slug, name: slug, player: 'Henrik' }), ...extra }; };
+      const g1 = table1.map((r, i) => row(franchiseSlug(r.team.id), { place: i + 1, tag: `1. Liga · Platz ${i + 1}` }));
+      const g2 = table2.map((r, i) => row(franchiseSlug(r.team.id), { place: i + 1, tag: `2. Liga · Platz ${i + 1}` }));
+      const rest = dir.filter((c) => !seen.has(c.slug)).map((c) => ({
+        ...c, tag: c.lastSeason ? `zuletzt Saison ${c.lastSeason}` : 'neu im Register',
+      }));
+      return [
+        { key: 'l1', label: 'Erste Liga', rows: g1 },
+        { key: 'l2', label: 'Zweite Liga', rows: g2 },
+        { key: 'rest', label: 'Weitere Vereine', rows: rest },
+      ].filter((g) => g.rows.length);
+    },
+    seasonPickOf(slug) {
+      const n = this.newSeason;
+      if (!n) return 0;
+      return n.l1.includes(slug) ? 1 : n.l2.includes(slug) ? 2 : 0;
+    },
+    // Antippen schaltet um: keine Liga -> erste -> Zweite -> keine.
+    setSeasonPick(slug, league) {
+      const n = this.newSeason;
+      if (!n) return;
+      n.l1 = n.l1.filter((s) => s !== slug);
+      n.l2 = n.l2.filter((s) => s !== slug);
+      if (league === 1) n.l1 = [...n.l1, slug];
+      if (league === 2) n.l2 = [...n.l2, slug];
+      n.error = '';
+    },
+    seasonPickCount(league, player = null) {
+      const n = this.newSeason;
+      if (!n) return 0;
+      const list = league === 1 ? n.l1 : n.l2;
+      if (!player) return list.length;
+      const dir = new Map(this.$store.league.clubDirectory.map((c) => [c.slug, c]));
+      return list.filter((s) => dir.get(s)?.player === player).length;
+    },
+    seasonPickErrors() {
+      const n = this.newSeason;
+      if (!n) return [];
+      return validateSeasonPick({ l1: n.l1, l2: n.l2, directory: this.$store.league.clubDirectory });
+    },
+    async confirmNewSeason() {
+      const n = this.newSeason;
+      if (!n || n.busy || this.seasonPickErrors().length) return;
+      if (!window.confirm(`Saison ${n.season} mit ${n.l1.length} + ${n.l2.length} Teams starten?`)) return;
+      n.busy = true;
+      n.error = '';
+      try {
+        await this.$store.league.startSeason({ season: n.season, l1: n.l1, l2: n.l2 });
+        const season = n.season;
+        this.closeNewSeason();
+        window.dispatchEvent(new CustomEvent('toast', { detail: { msg: `Saison ${season} ist angelegt — als Nächstes der Draft.` } }));
+        this.$store.season.set(season);
+      } catch (e) {
+        console.error('Neue Saison konnte nicht angelegt werden:', e);
+        n.error = e?.message || 'Die Saison konnte nicht angelegt werden.';
+        n.busy = false;
+      }
+    },
+    logoOf(file) { return logoSrc(file); },
+  };
+}
+
 function scheduleView() {
   return {
     ...battleLogMixin(),
     ...seasonFinaleMixin(),
+    ...newSeasonMixin(),
     busy: false,
     saving: false,
     saveError: null,
@@ -2514,7 +2738,7 @@ function scheduleView() {
       return this.league.teams.find((t) => t.id === id) || null;
     },
     logoUrl(file) {
-      return `./img/teams/${file}`;
+      return logoSrc(file);
     },
     playerColor(player) {
       return player === 'Henrik' ? '#4d90d5' : '#e3350d';
@@ -3017,18 +3241,46 @@ function standingsView() {
     ...seasonFinaleMixin(),
     // Ausgewählter Zwischenstand (Spieltag). null = aktueller Stand.
     day: null,
+    // Saisonübergreifend: welche Liga(en) — 'l1' (Standard), 'l2' oder 'both'.
+    ligaMode: 'l1',
 
-    init() {},
+    init() {
+      const saved = loadJson(TABELLE_LIGA_KEY);
+      if (['l1', 'l2', 'both'].includes(saved?.liga)) this.ligaMode = saved.liga;
+    },
+    setLigaMode(v) {
+      this.ligaMode = ['l1', 'l2', 'both'].includes(v) ? v : 'l1';
+      saveJson(TABELLE_LIGA_KEY, { liga: this.ligaMode });
+    },
+    get ligaOptions() {
+      return [{ v: 'l1', l: 'Nur 1. Liga' }, { v: 'l2', l: 'Nur 2. Liga' }, { v: 'both', l: '1. & 2. Liga' }];
+    },
 
     // --- Saisonübergreifend -------------------------------------------------
     get isAll() {
       return this.$store.season.isAll;
     },
     get allTimeRows() {
-      return allTimeTable(this.league.teams, this.league.allResults, { schedules: this.league.allSchedules });
+      const l = this.league;
+      const l2 = this.$store.liga2;
+      if (this.ligaMode === 'l2') return allTimeTable(l2.allTeams, l2.allResults, { schedules: l2.allSchedules });
+      if (this.ligaMode === 'both') {
+        return combinedAllTime({
+          seasons: [...new Set([...l.seasons, ...l2.docSeasons])],
+          league1: { teamsOf: (s) => teamsOfSeason(l.teams, s), resultsOf: (s) => resultsOfSeason(l.allResults, s), scheduleOf: (s) => l.scheduleOf(s) },
+          league2: { teamsOf: (s) => l2.teamsOf(s), resultsOf: (s) => l2.resultsOf(s), scheduleOf: (s) => l2.scheduleOf(s) },
+        });
+      }
+      return allTimeTable(l.teams, l.allResults, { schedules: l.allSchedules });
     },
     get seasonCards() {
-      return seasonSummaries(this.league.teams, this.league.allResults, this.league.allSchedules);
+      const l = this.league;
+      const l2 = this.$store.liga2;
+      const first = this.ligaMode === 'l2' ? [] : seasonSummaries(l.teams, l.allResults, l.allSchedules).map((c) => ({ ...c, league: 1 }));
+      const second = this.ligaMode === 'l1' ? [] : seasonSummaries(l2.allTeams, l2.allResults, l2.allSchedules)
+        .filter((c) => c.teams > 0 && l2.teamsOf(c.season).length > 0)
+        .map((c) => ({ ...c, league: 2 }));
+      return [...first, ...second].sort((a, b) => a.season - b.season || a.league - b.league);
     },
 
     get league() {
@@ -3132,7 +3384,7 @@ function standingsView() {
       return this.league.teams.find((t) => t.id === id) || null;
     },
     logoUrl(file) {
-      return `./img/teams/${file}`;
+      return logoSrc(file);
     },
     playerColor(player) {
       return player === 'Henrik' ? '#4d90d5' : '#e3350d';
@@ -3382,7 +3634,7 @@ function statsView() {
       return this.league.teams.find((t) => t.id === id) || null;
     },
     logoUrl(file) {
-      return `./img/teams/${file}`;
+      return logoSrc(file);
     },
     playerColor(player) {
       return player === 'Henrik' ? '#4d90d5' : '#e3350d';
@@ -3767,7 +4019,7 @@ function pokemonView() {
 
     // === Helfer ==============================================================
     logoUrl(file) {
-      return `./img/teams/${file}`;
+      return logoSrc(file);
     },
     // Bild eines Pokémon per Name aus den Stammdaten (für Historie/Partner-Listen).
     monImage(name) {
@@ -3890,7 +4142,7 @@ function recordsView() {
       }
       if (h?.teamId) this.$dispatch('navigate', { key: 'teams', teamId: h.teamId });
     },
-    logoUrl(file) { return `./img/teams/${file}`; },
+    logoUrl(file) { return logoSrc(file); },
     teamById(id) { return this.league.teams.find((t) => t.id === id) || null; },
     info(rec) { openStatInfo(null, rec.label, rec.info || ''); },
   };
@@ -4006,7 +4258,7 @@ function spielerView() {
     monTeam(name) {
       return this.league.teams.find((t) => (t.pokemon || []).some((p) => p.name === name)) || null;
     },
-    logoUrl(file) { return `./img/teams/${file}`; },
+    logoUrl(file) { return logoSrc(file); },
     fmtPct(x) { return `${Math.round((Number.isFinite(x) ? x : 0) * 100)} %`; },
     fmtDiff(d) { return d > 0 ? `+${d}` : `${d}`; },
     fmtAvg(x) { return x == null ? '—' : x.toFixed(2); },
@@ -4925,7 +5177,7 @@ function teambuildingView() {
       return Number.isFinite(v) ? v : null;
     },
     playerColor(player) { return player === 'Henrik' ? '#4d90d5' : '#e3350d'; },
-    logoUrl(file) { return `./img/teams/${file}`; },
+    logoUrl(file) { return logoSrc(file); },
     typeColor(type) { return TYPE_COLORS[type] || '#6b7280'; },
     tierColor(tier) { return TIER_COLORS[tier] || '#6b7280'; },
     goMon(name) { this.$dispatch('navigate', { key: 'pokemon', pokemonName: name }); },
@@ -5140,12 +5392,12 @@ function trainerMarketView() {
     get league() { return this.$store.league; },
     get loaded() { return this.league.teamsLoaded && this.league.resultsLoaded; },
     get canEdit() { return !!this.$store.auth?.player; },
-    logoUrl(file) { return file ? `./img/teams/${file}` : ''; },
+    logoUrl(file) { return logoSrc(file); },
     fmtNum(v, d = 2) { return Number.isFinite(v) ? v.toFixed(d).replace('.', ',') : '—'; },
     fmtPct(v) { return Number.isFinite(v) ? `${Math.round(v * 100)} %` : '—'; },
     fmtDiff(v) { return v > 0 ? `+${v}` : String(v); },
     teamColorOf(teamId) {
-      const t = this.league.teams.find((x) => x.id === teamId);
+      const t = this.league.teams.find((x) => x.id === teamId) || this.$store.liga2.teamById(teamId);
       return t ? teamColor(t) : '#98a2b3';
     },
 
@@ -5252,6 +5504,9 @@ function trainerMarketView() {
 function franchiseView() {
   return {
     slug: null,
+    // Welche Liga: 'l1' (Standard), 'l2' oder 'both' — gerätelokal gemerkt.
+    liga: 'l1',
+    clubForm: null,   // { isNew, slug, name, player, logo, color, busy, error }
     sortKey: 'points',
     sortDir: 'desc',
     monSortKey: 'kills',
@@ -5266,15 +5521,48 @@ function franchiseView() {
 
     init() {
       this.$store.elo.ensureLoaded();
+      const saved = loadJson(VEREINE_LIGA_KEY);
+      if (['l1', 'l2', 'both'].includes(saved?.liga)) this.liga = saved.liga;
       const nav = this.$store.nav;
       const teamId = nav?.teamId || null;
       if (nav) nav.teamId = null;
-      if (teamId) this.slug = franchiseSlug(teamId);
+      if (teamId) {
+        this.slug = franchiseSlug(teamId);
+        // Ein Verein, der nur in der Zweiten Liga gespielt hat, ist in der Erstliga-Sicht leer.
+        const inL1 = this.league.teams.some((t) => franchiseSlug(t.id) === this.slug);
+        if (!inL1 && this.liga === 'l1') this.liga = 'both';
+      }
     },
+    setLiga(v) {
+      this.liga = ['l1', 'l2', 'both'].includes(v) ? v : 'l1';
+      saveJson(VEREINE_LIGA_KEY, { liga: this.liga });
+    },
+    get ligaOptions() {
+      return [{ v: 'l1', l: 'Nur 1. Liga' }, { v: 'l2', l: 'Nur 2. Liga' }, { v: 'both', l: '1. & 2. Liga' }];
+    },
+    // Die Daten der gewählten Liga(en) — dieselbe Form, egal aus welcher Liga.
+    src() {
+      const l = this.league;
+      const l2 = this.$store.liga2;
+      if (this.liga === 'l2') {
+        return { teams: l2.allTeams, results: l2.allResults, schedules: l2.allSchedules, availability: l2.availability };
+      }
+      if (this.liga === 'both') {
+        return {
+          teams: [...l.teams, ...l2.allTeams],
+          results: [...(l.allResults || []), ...l2.allResults],
+          schedules: l.allSchedules,
+          availability: { ...l.availability, ...l2.availability },
+        };
+      }
+      return { teams: l.teams, results: l.allResults, schedules: l.allSchedules, availability: l.availability };
+    },
+    isL2Team(id) { return this.$store.liga2.allTeams.some((t) => t.id === id); },
+    get showMarket() { return this.liga === 'l1'; },
 
     get league() { return this.$store.league; },
     get loaded() { return this.league.teamsLoaded && this.league.resultsLoaded; },
-    logoUrl(file) { return `./img/teams/${file}`; },
+    logoUrl(file) { return logoSrc(file); },
     playerColor(player) { return player === 'Henrik' ? '#4d90d5' : '#e3350d'; },
     teamColor(team) { return teamColor(team); },
     fmtMarket(v) { return formatMarket(v); },
@@ -5286,26 +5574,38 @@ function franchiseView() {
     // --- Übersicht -----------------------------------------------------------
     get table() {
       const l = this.league;
-      const key = `${l.teams.length}|${(l.allResults || []).length}|${Object.keys(l.allSchedules || {}).length}`
-        + `|${(l.allResults || []).reduce((n, r) => n + (r.battles || []).filter((b) => b?.done).length, 0)}`;
+      const l2 = this.$store.liga2;
+      const done = (list) => (list || []).reduce((n, r) => n + (r.battles || []).filter((b) => b?.done).length, 0);
+      const key = `${this.liga}|${l.teams.length}|${(l.allResults || []).length}|${Object.keys(l.allSchedules || {}).length}`
+        + `|${done(l.allResults)}|${l2.allTeams.length}|${l2.allResults.length}|${done(l2.allResults)}`;
       if (this._tableKey !== key) {
         this._tableKey = key;
-        this._tableCache = allTimeTable(l.teams, l.allResults, { schedules: l.allSchedules });
+        if (this.liga === 'both') {
+          this._tableCache = combinedAllTime({
+            seasons: [...new Set([...l.seasons, ...l2.docSeasons])],
+            league1: { teamsOf: (s) => teamsOfSeason(l.teams, s), resultsOf: (s) => resultsOfSeason(l.allResults, s), scheduleOf: (s) => l.scheduleOf(s) },
+            league2: { teamsOf: (s) => l2.teamsOf(s), resultsOf: (s) => l2.resultsOf(s), scheduleOf: (s) => l2.scheduleOf(s) },
+          });
+        } else {
+          const src = this.src();
+          this._tableCache = allTimeTable(src.teams, src.results, { schedules: src.schedules });
+        }
       }
       return this._tableCache || [];
     },
     latestTeam(slug) {
-      const chain = franchiseTeams(this.league.teams, slug);
+      const chain = franchiseTeams(this.src().teams, slug);
       return chain[chain.length - 1] || null;
     },
     trainerNow(slug) {
       return currentTrainer(this.latestTeam(slug)?.trainers || []);
     },
     trainerCount(slug) {
-      const chain = franchiseTeams(this.league.teams, slug);
+      const chain = franchiseTeams(this.src().teams, slug);
       return new Set(chain.flatMap((t) => (t.trainers || []).map((x) => x.name))).size;
     },
     marketNow(slug) {
+      if (!this.showMarket) return 0;
       return squadMarketValue(this.latestTeam(slug)?.pokemon || [], this.$store.elo.index());
     },
     get rows() {
@@ -5379,7 +5679,7 @@ function franchiseView() {
     },
 
     // --- Detail --------------------------------------------------------------
-    get chain() { return this.slug ? franchiseTeams(this.league.teams, this.slug) : []; },
+    get chain() { return this.slug ? franchiseTeams(this.src().teams, this.slug) : []; },
     get team() { return this.chain[this.chain.length - 1] || null; },
     get row() { return this.rows.find((r) => r.slug === this.slug) || null; },
     get color() { return this.team ? teamColor(this.team) : '#e3350d'; },
@@ -5390,14 +5690,19 @@ function franchiseView() {
     },
     get seasonRows() {
       if (!this.slug) return [];
-      return franchiseSeasons(this.league.teams, this.league.allResults, this.league.allSchedules, this.slug).reverse();
+      const l = this.league;
+      const l2 = this.$store.liga2;
+      const rows1 = this.liga === 'l2' ? [] : franchiseSeasons(l.teams, l.allResults, l.allSchedules, this.slug).map((r) => ({ ...r, league: 1 }));
+      const rows2 = this.liga === 'l1' ? [] : franchiseSeasons(l2.allTeams, l2.allResults, l2.allSchedules, this.slug).map((r) => ({ ...r, league: 2 }));
+      return [...rows1, ...rows2].sort((a, b) => b.season - a.season);
     },
     get trainerRows() {
       return franchiseTrainerHistory(this.chain.map((t) => ({ season: seasonOfTeam(t), trainers: t.trainers || [] })));
     },
     get monRows() {
       if (!this.slug) return [];
-      return franchisePokemon(this.league.teams, this.league.allResults, this.league.pokemon, this.slug, { availability: this.league.availability });
+      const src = this.src();
+      return franchisePokemon(src.teams, src.results, this.league.pokemonAll, this.slug, { availability: src.availability });
     },
     get monColumns() {
       return [
@@ -5431,9 +5736,9 @@ function franchiseView() {
     seasonsLabel(list) { return (list || []).map((n) => `S${n}`).join(' · '); },
 
     // --- Ergebnisse über alle Saisons ----------------------------------------
-    teamById(id) { return this.league.teams.find((t) => t.id === id) || null; },
+    teamById(id) { return this.league.teams.find((t) => t.id === id) || this.$store.liga2.teamById(id) || null; },
     get resultRows() {
-      return this.slug ? franchiseResults(this.league.allResults, this.slug) : [];
+      return this.slug ? franchiseResults(this.src().results, this.slug).map((r) => ({ ...r, league: this.isL2Team(r.teamId) ? 2 : 1 })) : [];
     },
     get shownResults() {
       return this.showAllResults ? this.resultRows : this.resultRows.slice(0, 12);
@@ -5446,8 +5751,74 @@ function franchiseView() {
     },
     openResult(r) {
       // Der Spielplan zeigt eine Saison — für ein altes Match erst dorthin wechseln.
-      this.$store.season.set(r.season);
-      this.$nextTick(() => this.$dispatch('navigate', { key: 'spieltag', matchId: r.id }));
+      const liga = r.league === 2 ? 2 : 1;
+      this.$store.season.set(r.season, { liga });
+      this.$nextTick(() => this.$dispatch('navigate', { key: liga === 2 ? 'l2spielplan' : 'spieltag', matchId: r.id }));
+    },
+
+    // --- Vereinsregister: anlegen und bearbeiten ---------------------------------
+    get canEdit() { return !!this.$store.auth?.player; },
+    get clubPlayers() { return CLUB_PLAYERS; },
+    get colorPresets() { return TEAM_COLOR_PRESETS; },
+    // Vereine, die angelegt sind, aber noch keine Saison gespielt haben.
+    get poolOnly() {
+      return this.league.clubDirectory.filter((c) => !c.appearances.length);
+    },
+    openClubForm(slug = null) {
+      if (!this.canEdit) return;
+      const c = slug ? this.league.clubDirectory.find((x) => x.slug === slug) : null;
+      const live = this.league.seasons[this.league.seasons.length - 1];
+      // Der Spieler eines Teams, das gerade in der ersten Liga spielt, bleibt — sonst kippt der Spielplan.
+      const playerLocked = !!c && this.league.teams.some((t) => t.id === `${seasonPrefix(live)}-${c.slug}`);
+      this.clubForm = c
+        ? { isNew: false, slug: c.slug, name: c.name, player: c.player, logo: c.logo || '', color: c.color || '', playerLocked, busy: false, error: '' }
+        : { isNew: true, slug: '', name: '', player: 'Janik', logo: '', color: '', playerLocked: false, busy: false, error: '' };
+      this.$nextTick(() => document.getElementById('club-form')?.showPopover());
+    },
+    closeClubForm() {
+      const el = document.getElementById('club-form');
+      if (el && el.matches(':popover-open')) el.hidePopover();
+      this.clubForm = null;
+    },
+    get clubFormSlug() {
+      const f = this.clubForm;
+      if (!f) return '';
+      return f.isNew ? clubSlug(f.slug || f.name) : f.slug;
+    },
+    get clubFormError() {
+      const f = this.clubForm;
+      if (!f) return '';
+      if (!f.name.trim()) return 'Der Name fehlt.';
+      if (!this.clubFormSlug) return 'Die Kennung fehlt.';
+      if (f.isNew && this.league.clubDirectory.some((c) => c.slug === this.clubFormSlug)) return 'Diese Kennung gibt es schon.';
+      return '';
+    },
+    async pickClubLogo(ev) {
+      const file = ev?.target?.files?.[0];
+      if (!file || !this.clubForm) return;
+      try { this.clubForm.logo = await imageToDataUrl(file); } catch (e) { this.clubForm.error = 'Das Bild ließ sich nicht lesen.'; }
+    },
+    async saveClubForm() {
+      const f = this.clubForm;
+      if (!f || f.busy || this.clubFormError) return;
+      f.busy = true;
+      f.error = '';
+      try {
+        const slug = await this.league.saveClub({ slug: this.clubFormSlug, name: f.name, player: f.player, logo: f.logo, color: f.color }, { isNew: f.isNew });
+        window.dispatchEvent(new CustomEvent('toast', { detail: { msg: f.isNew ? `${f.name.trim()} ist angelegt.` : 'Verein gespeichert.' } }));
+        this.closeClubForm();
+        return slug;
+      } catch (e) {
+        console.error('Verein konnte nicht gespeichert werden:', e);
+        f.error = e?.message || 'Der Verein konnte nicht gespeichert werden.';
+        f.busy = false;
+      }
+      return null;
+    },
+    async removePoolClub(slug) {
+      const c = this.poolOnly.find((x) => x.slug === slug);
+      if (!c || !this.canEdit || !window.confirm(`${c.name} aus dem Register entfernen?`)) return;
+      await this.league.removePoolClub(slug);
     },
 
     // --- Auszeichnungen ------------------------------------------------------
@@ -5526,6 +5897,168 @@ function franchiseView() {
       const peak = pts.reduce((m, p) => (p.value > m.value ? p : m), pts[0]);
       return { first: pts[0], last: pts[pts.length - 1], peak };
     },
+  };
+}
+
+// === Pokémon-Stammdaten (nur saisonübergreifend) ==========================
+// Anlegen und Bearbeiten ohne Dateilieferung: was hier gespeichert wird, liegt in
+// `drafts/pokemondb` und überlagert pokemon.json (siehe pokedb.mjs). Neue Pokémon lassen
+// sich aus dem Champions-Pokédex von serebii.net vorbefüllen.
+function pokedexView() {
+  return {
+    q: '',
+    fTier: '',
+    fSince: '',
+    sortKey: 'name',
+    sortDir: 'asc',
+    form: null,       // { isNew, rec, errors }
+    importer: null,   // { url, html, busy, error, variants, picked, pasteOpen }
+    busy: false,
+    tiers: MON_TIERS,
+    statDefs: MON_STATS,
+    allTypes: ALL_MON_TYPES,
+
+    get league() { return this.$store.league; },
+    get loaded() { return this.league.pokemonLoaded && this.league.draftLoaded; },
+    get canEdit() { return !!this.$store.auth?.player; },
+    get liveSeason() { const l = this.league.seasons; return l[l.length - 1] || 1; },
+    get sinceOptions() {
+      const max = Math.max(this.liveSeason + 1, ...this.league.pokemonAll.map((p) => sinceOf(p)));
+      return Array.from({ length: max }, (_, i) => i + 1);
+    },
+    sinceOf(p) { return sinceOf(p); },
+    total(p) {
+      const st = p?.stats || {};
+      return MON_STATS.reduce((n, s) => n + (Number(st[s.key]) || 0), 0);
+    },
+    get rows() {
+      const q = this.q.trim().toLowerCase();
+      const list = this.league.pokemonAll.filter((p) => {
+        if (this.fTier && p.tier !== this.fTier) return false;
+        if (this.fSince && sinceOf(p) !== Number(this.fSince)) return false;
+        if (!q) return true;
+        return p.name.toLowerCase().includes(q) || (p.name_en || '').toLowerCase().includes(q)
+          || (p.types || []).some((t) => t.toLowerCase().includes(q));
+      });
+      const dir = this.sortDir === 'asc' ? 1 : -1;
+      const k = this.sortKey;
+      const val = (p) => (k === 'name' ? p.name : k === 'tier' ? tierRank(p.tier) : k === 'since' ? sinceOf(p) : k === 'total' ? this.total(p) : Number(p[k]) || 0);
+      return [...list].sort((a, b) => {
+        const x = val(a);
+        const y = val(b);
+        if (typeof x === 'string') return x.localeCompare(y, 'de') * dir;
+        return (x - y) * dir || a.name.localeCompare(b.name, 'de');
+      });
+    },
+    setSort(key) {
+      if (this.sortKey === key) this.sortDir = this.sortDir === 'asc' ? 'desc' : 'asc';
+      else { this.sortKey = key; this.sortDir = key === 'name' ? 'asc' : 'desc'; }
+    },
+    sortMark(key) { return this.sortKey === key ? (this.sortDir === 'asc' ? '▲' : '▼') : ''; },
+    typeColor(t) { return TYPE_COLORS[t] || '#6b7280'; },
+    tierColor(t) { return TIER_COLORS[t] || '#6b7280'; },
+    goMon(name) { this.$dispatch('navigate', { key: 'pokemon', pokemonName: name }); },
+
+    // --- Formular ------------------------------------------------------------------
+    blank() {
+      return { name: '', name_en: '', dex: '', types: ['', ''], tier: '', cost: '', image: '', since: this.liveSeason, stats: Object.fromEntries(MON_STATS.map((s) => [s.key, ''])) };
+    },
+    toDraft(p) {
+      const types = [...(p.types || [])];
+      return {
+        name: p.name, name_en: p.name_en || '', dex: p.dex ?? '', types: [types[0] || '', types[1] || ''],
+        tier: p.tier || '', cost: p.cost ?? '', image: p.image || '', since: sinceOf(p),
+        stats: Object.fromEntries(MON_STATS.map((s) => [s.key, p.stats?.[s.key] ?? (s.key === 'spe' ? p.base_speed ?? '' : '')])),
+      };
+    },
+    openNew() {
+      if (!this.canEdit) return;
+      this.form = { isNew: true, rec: this.blank(), errors: [] };
+      this.importer = { url: '', html: '', busy: false, error: '', variants: [], picked: null, pasteOpen: false };
+      this.$nextTick(() => document.getElementById('pokedex-form')?.showPopover());
+    },
+    openEdit(p) {
+      if (!this.canEdit || !p) return;
+      this.form = { isNew: false, rec: this.toDraft(p), errors: [], added: !!p.added };
+      this.importer = null;
+      this.$nextTick(() => document.getElementById('pokedex-form')?.showPopover());
+    },
+    closeForm() {
+      const el = document.getElementById('pokedex-form');
+      if (el && el.matches(':popover-open')) el.hidePopover();
+      this.form = null;
+      this.importer = null;
+    },
+    _record() {
+      const r = this.form.rec;
+      return { ...r, types: r.types.filter(Boolean) };
+    },
+    get formErrors() {
+      if (!this.form) return [];
+      return validateMon(normalizeMonRecord(this._record()), { names: this.league.pokemonAll.map((p) => p.name), isNew: this.form.isNew });
+    },
+    async saveForm() {
+      if (!this.form || this.busy || this.formErrors.length) return;
+      this.busy = true;
+      try {
+        const name = await this.league.savePokemon(this._record(), { isNew: this.form.isNew });
+        window.dispatchEvent(new CustomEvent('toast', { detail: { msg: this.form.isNew ? `${name} angelegt.` : `${name} gespeichert.` } }));
+        this.closeForm();
+      } catch (e) {
+        console.error('Pokémon konnte nicht gespeichert werden:', e);
+        this.form.errors = [e?.message || 'Das Pokémon konnte nicht gespeichert werden.'];
+      }
+      this.busy = false;
+    },
+    async removeForm() {
+      if (!this.form?.added || this.busy) return;
+      if (!window.confirm(`${this.form.rec.name} wirklich entfernen?`)) return;
+      this.busy = true;
+      try {
+        await this.league.removePokemon(this.form.rec.name);
+        this.closeForm();
+      } catch (e) {
+        this.form.errors = [e?.message || 'Das Pokémon ließ sich nicht entfernen.'];
+      }
+      this.busy = false;
+    },
+
+    // --- Import von serebii.net --------------------------------------------------
+    get importUrlValid() { return !!normalizeChampionsUrl(this.importer?.url); },
+    async runImport() {
+      const im = this.importer;
+      if (!im || im.busy) return;
+      im.busy = true;
+      im.error = '';
+      im.variants = [];
+      try {
+        const html = im.pasteOpen && im.html.trim() ? im.html : await fetchChampionsHtml(im.url);
+        im.variants = parseChampionsPage(html);
+        // Ohne Auswahl: die Grundform; mehrere Formen bietet die Liste zum Wechseln an.
+        this.pickVariant(im.variants[0]?.key);
+      } catch (e) {
+        console.error('Import fehlgeschlagen:', e);
+        im.error = `${e?.message || 'Der Import ist fehlgeschlagen.'} Alternativ den Quelltext der Seite einfügen.`;
+        im.pasteOpen = true;
+      }
+      im.busy = false;
+    },
+    pickVariant(key) {
+      const im = this.importer;
+      const v = im?.variants.find((x) => x.key === key);
+      if (!v || !this.form) return;
+      im.picked = key;
+      const r = this.form.rec;
+      Object.assign(r, {
+        name: v.name,
+        name_en: v.name_en,
+        dex: v.dex ?? '',
+        types: [v.types[0] || '', v.types[1] || ''],
+        image: v.image || '',
+        stats: { ...v.stats },
+      });
+    },
+    variantTaken(v) { return this.league.pokemonAll.some((p) => p.name === v.name || (p.name_en && p.name_en === v.name_en)); },
   };
 }
 
@@ -5640,7 +6173,7 @@ function transferView() {
     },
     async start() { this.closeConfirm('transfer-start-confirm'); if (this.busy || !this.draftDone) return; this.busy = true; try { await this.league.startTransfer(); } catch (e) { console.error(e); } this.busy = false; },
 
-    logoUrl(file) { return `./img/teams/${file}`; },
+    logoUrl(file) { return logoSrc(file); },
     playerColor(player) { return player === 'Henrik' ? '#4d90d5' : '#e3350d'; },
     tierColor(tier) { return TIER_COLORS[tier] || '#6b7280'; },
     typeColor(type) { return TYPE_COLORS[type] || '#6b7280'; },
@@ -5679,7 +6212,7 @@ function awardsView() {
       return l.teamsLoaded && l.resultsLoaded && l.scheduleLoaded && l.pokemonLoaded && this.store.loaded;
     },
     teamById(id) { return this.league.teams.find((t) => t.id === id) || null; },
-    logoUrl(file) { return `./img/teams/${file}`; },
+    logoUrl(file) { return logoSrc(file); },
     monImage(name) { return this.league.pokemon.find((p) => p.name === name)?.image || ''; },
     playerColor(player) { return player === 'Henrik' ? '#4d90d5' : '#e3350d'; },
 
@@ -6046,11 +6579,13 @@ function awardsView() {
     preOf(id) { return normalizePrevote(this.pre[id]); },
     setPre(id, value) { this.pre = { ...this.pre, [id]: normalizePrevote(value) }; },
     clearPre(id) { this.pre = { ...this.pre, [id]: null }; },
-    // Nur die Bewertungen der Optionen, die noch auf der Liste stehen. Gestrichene und
-    // zurückgenommene stehen als null drin — der Merge-Schreibzugriff löscht sonst nichts.
+    // Alle vorläufigen Bewertungen — auch die gestrichener Optionen. Nominiert der andere
+    // Spieler ein Pokémon, das man selbst wieder von der Liste genommen hat, belegt die
+    // gemerkte Wertung trotzdem die Abstimmung vor. Nur „zurückgenommen" steht als null
+    // drin (der Merge-Schreibzugriff löscht sonst nichts).
     prevotesForSave() {
       const out = {};
-      Object.keys(this.pre).forEach((id) => { out[id] = null; });
+      Object.keys(this.pre).forEach((id) => { out[id] = this.preOf(id); });
       this.draft.forEach((d) => { out[d.id] = this.preOf(d.id); });
       return out;
     },
@@ -6364,6 +6899,14 @@ function presseView() {
       this.pickTeam = this.defaultTeamId();
       const nav = this.$store.nav;
       if (nav?.teamId) { this.fTeam = nav.teamId; this.pickTeam = nav.teamId; nav.teamId = null; }
+      // Ein Sprung auf einen bestimmten Beitrag (z. B. Rückblick der Zweiten Liga).
+      if (nav?.articleId) {
+        const id = nav.articleId;
+        nav.articleId = null;
+        const open = () => { if (this.press.byId(id)) this.openArticle(id); };
+        if (this.press.articlesLoaded) this.$nextTick(open);
+        else this.$watch('press.articlesLoaded', (v) => { if (v) this.$nextTick(open); });
+      }
       // Eine neue Auswahl beginnt wieder oben.
       ['fCat', 'fTeam', 'q'].forEach((key) => this.$watch(key, () => { this.shown = PRESS_PAGE_FIRST; }));
       this.speakInit();
@@ -6379,7 +6922,7 @@ function presseView() {
     get authors() { return PRESS_AUTHORS; },
 
     teamById(id) { return this.league.teams.find((t) => t.id === id) || null; },
-    logoUrl(file) { return `./img/teams/${file}`; },
+    logoUrl(file) { return logoSrc(file); },
     teamLogo(id) {
       const t = this.teamById(id);
       return t ? this.logoUrl(t.logo) : '';
@@ -6528,6 +7071,7 @@ function presseView() {
         logoBase: './img/teams/',
         squadValue: (team) => squadMarketValue(team.pokemon || [], this.$store.elo.index()),
         findArticle: (key) => this.teaserFor(key, a.id),
+        liga2: { tableOf: (season, day) => this.$store.liga2.tableOf(season, day) },
       });
     },
     // Ein anderer Beitrag als Lesetipp: Id, Titel oder eindeutiger Titelanfang.
@@ -6859,6 +7403,15 @@ function presseView() {
             label: `${this.teamById(m.home)?.name || m.home} – ${this.teamById(m.away)?.name || m.away}`,
             sub: `Spieltag ${m.day}`,
           }));
+      } else if (source === 'liga2') {
+        // Jede Saison mit Zweitliga-Teams — der aktuelle Stand und der nach jedem fertigen Spieltag.
+        const l2 = this.$store.liga2;
+        [...l2.seasons].reverse().forEach((season) => {
+          if (!l2.teamsOf(season).length) return;
+          rows.push({ value: `${season}`, label: `Saison ${season}`, sub: 'aktueller Stand' });
+          completeDays(l2.scheduleOf(season), l2.resultsOf(season)).reverse()
+            .forEach((d) => rows.push({ value: `${season} | ${d}`, label: `Saison ${season}`, sub: `nach Spieltag ${d}` }));
+        });
       } else if (source === 'match') {
         rows = (this.league.results || [])
           .filter((r) => isMatchComplete(r) && (kind === 'ergebnis' || r.videoUrl))
@@ -7658,10 +8211,17 @@ Alpine.store('auth', {
 // unabhängig voneinander in verschiedenen Saisons unterwegs sein.
 Alpine.store('season', {
   scope: 1,
+  // Welche Liga: 1 (Standard) oder 2 (H-Side). Gilt nur innerhalb einer Saison —
+  // saisonübergreifend schalten die Ansichten die Zweite Liga selbst dazu.
+  liga: 1,
 
   init() {
     const saved = loadJson(SEASON_KEY);
     if (saved?.scope === SEASON_ALL || Number.isFinite(saved?.scope)) this.scope = saved.scope;
+    if (saved?.liga === 2 && saved?.scope !== SEASON_ALL) this.liga = 2;
+  },
+  get isLiga2() {
+    return !this.isAll && this.liga === 2;
   },
 
   // Alle Saisons, für die Teams existieren.
@@ -7679,29 +8239,48 @@ Alpine.store('season', {
     return list.includes(this.scope) ? this.scope : list[list.length - 1] || 1;
   },
   get label() {
-    return this.labelOf(this.scope);
+    return this.labelOf(this.scope, this.isLiga2 ? 2 : 1);
   },
-  labelOf(scope) {
-    return scope === SEASON_ALL ? 'Saisonübergreifend' : `Saison ${scope}`;
+  labelOf(scope, liga = 1) {
+    if (scope === SEASON_ALL) return 'Saisonübergreifend';
+    return liga === 2 ? `Saison ${scope} · 2. Liga` : `Saison ${scope}`;
   },
   // Kurzform für das Abzeichen im Umschalter — muss in ein kleines Quadrat passen.
-  shortLabelOf(scope) {
-    return scope === SEASON_ALL ? '∞' : `S${scope}`;
+  shortLabelOf(scope, liga = 1) {
+    if (scope === SEASON_ALL) return '∞';
+    return liga === 2 ? `${scope}·2` : `S${scope}`;
   },
-  // Die Einträge des Umschalters: jede Saison, dann der übergreifende Bereich.
+  // Die Einträge des Umschalters: je Saison die erste Liga und darunter die Zweite,
+  // dann der übergreifende Bereich.
   get options() {
-    return [...this.list.map((v) => ({ value: v, label: this.labelOf(v) })),
-      { value: SEASON_ALL, label: this.labelOf(SEASON_ALL) }];
+    return [
+      ...this.list.flatMap((v) => [
+        { value: v, liga: 1, key: `${v}-1`, label: this.labelOf(v, 1) },
+        { value: v, liga: 2, key: `${v}-2`, label: this.labelOf(v, 2) },
+      ]),
+      { value: SEASON_ALL, liga: 1, key: 'all', label: this.labelOf(SEASON_ALL) },
+    ];
   },
-  isActive(scope) {
-    return this.scope === scope;
+  isActive(scope, liga = 1) {
+    if (scope === SEASON_ALL) return this.isAll;
+    return this.scope === scope && (this.isLiga2 ? 2 : 1) === liga;
   },
-  set(scope) {
+  // `silent`: ohne „season-change" — wenn die aufrufende Navigation die Ansicht selbst lädt.
+  set(scope, { liga = 1, silent = false } = {}) {
     const next = scope === SEASON_ALL ? SEASON_ALL : Number(scope);
-    if (next === this.scope) return;
+    const nextLiga = next === SEASON_ALL ? 1 : (liga === 2 ? 2 : 1);
+    if (next === this.scope && nextLiga === this.liga) return;
     this.scope = next;
-    saveJson(SEASON_KEY, { scope: next });
-    window.dispatchEvent(new CustomEvent('season-change', { detail: { scope: next } }));
+    this.liga = nextLiga;
+    saveJson(SEASON_KEY, { scope: next, liga: nextLiga });
+    if (!silent) window.dispatchEvent(new CustomEvent('season-change', { detail: { scope: next, liga: nextLiga } }));
+  },
+  // Liga wechseln, ohne die Saison anzufassen (Ansichten der jeweils anderen Liga).
+  setLiga(liga) {
+    const next = liga === 2 && !this.isAll ? 2 : 1;
+    if (next === this.liga) return;
+    this.liga = next;
+    saveJson(SEASON_KEY, { scope: this.scope, liga: next });
   },
 });
 
@@ -7711,7 +8290,8 @@ Alpine.store('season', {
 // die aktive Saison eingeschränkt — ein Saisonwechsel braucht so keine neuen Listener.
 Alpine.store('league', {
   teams: [],
-  pokemon: [],
+  // Stammdaten aus pokemon.json; gelesen wird über `pokemon` (Saison) bzw. `pokemonAll`.
+  _pokedexBase: [],
   _drafts: {},      // { s1: {…}, 'transfer-s1': {…} }
   _schedules: {},   // { s1: {…} }
   allResults: [],
@@ -7762,6 +8342,29 @@ Alpine.store('league', {
   },
   get seasonTeams() {
     return teamsOfSeason(this.teams, this.season);
+  },
+  // === Pokémon-Stammdaten ====================================================
+  // pokemon.json plus die in der Oberfläche gepflegten Einträge (drafts/pokemondb).
+  // `pokemon` ist der Pool der gewählten Saison: Ein Pokémon, das erst ab einer späteren
+  // Saison verfügbar ist, taucht davor nirgends auf. `pokemonAll` ist der Gesamtbestand.
+  get pokedexDb() {
+    return this._drafts[POKEDB_DOC]?.mons || EMPTY_POOL;
+  },
+  get pokemonAll() {
+    const base = this._pokedexBase;
+    const db = this.pokedexDb;
+    const c = pokedexCache;
+    if (!c || c.base !== base || c.db !== db) pokedexCache = { base, db, all: mergePokedex(base, db), seasons: new Map() };
+    return pokedexCache.all;
+  },
+  pokemonOf(season) {
+    const all = this.pokemonAll;
+    const key = Number(season) || 1;
+    if (!pokedexCache.seasons.has(key)) pokedexCache.seasons.set(key, pokedexForSeason(all, key));
+    return pokedexCache.seasons.get(key);
+  },
+  get pokemon() {
+    return this.pokemonOf(this.season);
   },
   // Alle Spielpläne — die Langzeitsichten brauchen sie, um eine abgeschlossene
   // Saison von einer laufenden zu unterscheiden.
@@ -7817,7 +8420,7 @@ Alpine.store('league', {
     try {
       const res = await fetch('./data/pokemon.json', { cache: 'no-cache' });
       if (!res.ok) throw new Error(`HTTP ${res.status}`);
-      this.pokemon = await res.json();
+      this._pokedexBase = await res.json();
     } catch (e) {
       console.error('pokemon.json konnte nicht geladen werden:', e);
     } finally {
@@ -8078,11 +8681,125 @@ Alpine.store('league', {
     const teams = this.teams;
     const results = this.allResults;
     const pool = this.trainerPool;
+    // Die Zweite Liga zählt getrennt mit (eigene Bilanz je Trainer).
+    const l2 = Alpine.store('liga2');
+    const teams2 = l2?.allTeams || [];
+    const results2 = l2?.allResults || [];
     const c = trainerDirCache;
-    if (!c || c.teams !== teams || c.results !== results || c.pool !== pool) {
-      trainerDirCache = { teams, results, pool, value: trainerDirectory({ teams, results, pool }) };
+    if (!c || c.teams !== teams || c.results !== results || c.pool !== pool || c.teams2 !== teams2 || c.results2 !== results2) {
+      trainerDirCache = { teams, results, pool, teams2, results2, value: trainerDirectory({ teams, results, pool, teams2, results2 }) };
     }
     return trainerDirCache.value;
+  },
+
+  // === Vereinsregister (drafts/teampool) ====================================
+  // Stammdaten der Vereine über alle Saisons und beide Ligen. Ein Eintrag entsteht, wenn
+  // ein Verein in der Oberfläche angelegt oder bearbeitet wird.
+  get teamPool() {
+    return this._drafts[TEAMPOOL_DOC]?.teams || EMPTY_POOL;
+  },
+  get clubDirectory() {
+    const teams1 = this.teams;
+    const l2 = Alpine.store('liga2');
+    const teams2 = l2?.allTeams || [];
+    const pool = this.teamPool;
+    const c = clubDirCache;
+    if (!c || c.teams1 !== teams1 || c.teams2 !== teams2 || c.pool !== pool) {
+      clubDirCache = { teams1, teams2, pool, value: clubDirectory({ teams1, teams2, pool }) };
+    }
+    return clubDirCache.value;
+  },
+  /**
+   * Einen Verein anlegen oder ändern. Bei einer Änderung ziehen die Team-Einträge der
+   * laufenden Saison mit (Name, Wappen, Farbe) — frühere Saisons behalten ihren Stand.
+   */
+  async saveClub(raw, { isNew = false } = {}) {
+    const club = normalizeClub(raw);
+    if (!club.slug || !club.name) throw new Error('Ohne Namen lässt sich kein Verein anlegen.');
+    const known = this.clubDirectory.find((c) => c.slug === club.slug);
+    if (isNew && known) throw new Error('Diesen Verein gibt es schon.');
+    const prev = this.teamPool[club.slug] || {};
+    const now = new Date().toISOString();
+    const entry = {
+      ...club,
+      createdAt: prev.createdAt || now,
+      createdBy: prev.createdBy || Alpine.store('auth')?.player || null,
+      updatedAt: now,
+    };
+    if (!entry.color) delete entry.color;
+    const batch = writeBatch(db);
+    batch.set(doc(db, 'drafts', TEAMPOOL_DOC), { teams: { [club.slug]: entry } }, { merge: true });
+    const live = this.seasons[this.seasons.length - 1];
+    const l1 = this.teams.find((t) => t.id === `${seasonPrefix(live)}-${club.slug}`);
+    if (l1) {
+      const patch = { name: club.name, logo: club.logo };
+      if (club.color) patch.color = club.color;
+      // Der Spieler eines laufenden Erstliga-Teams bleibt — sonst kippt der Spielplan.
+      batch.set(doc(db, 'teams', l1.id), patch, { merge: true });
+    }
+    await batch.commit();
+    const l2team = Alpine.store('liga2').teamsOf(live).find((t) => t.id === `${seasonPrefix(live)}-${club.slug}`);
+    if (l2team) await Alpine.store('liga2').saveTeam(live, l2team.id, { name: club.name, logo: club.logo, color: club.color || null });
+    return club.slug;
+  },
+  async removePoolClub(slug) {
+    if (!slug) return;
+    await setDoc(doc(db, 'drafts', TEAMPOOL_DOC), { teams: { [slug]: deleteField() } }, { merge: true });
+  },
+
+  /**
+   * Eine neue Saison starten: Teams der ersten Liga als `teams/s<N>-<slug>`, die der
+   * Zweiten Liga im Saisondokument. Draft, Spielplan & Co. folgen in der neuen Saison
+   * wie gewohnt über die Oberfläche.
+   */
+  async startSeason({ season, l1 = [], l2 = [] }) {
+    const n = Number(season);
+    if (!Number.isFinite(n) || n < 2) throw new Error('Ungültige Saison.');
+    if (this.teams.some((t) => seasonOfTeam(t) === n)) throw new Error(`Saison ${n} gibt es schon.`);
+    const directory = this.clubDirectory;
+    const problems = validateSeasonPick({ l1, l2, directory });
+    if (problems.length) throw new Error(problems.join(' '));
+    const { teams1, teams2 } = buildSeasonStart({ season: n, l1, l2, directory });
+    const batch = writeBatch(db);
+    teams1.forEach(({ id, data }) => batch.set(doc(db, 'teams', id), data));
+    if (Object.keys(teams2).length) {
+      batch.set(doc(db, 'drafts', l2DocId(n)), { season: n, teams: teams2, createdAt: new Date().toISOString() }, { merge: true });
+    }
+    await batch.commit();
+  },
+
+  // === Pokémon-Stammdaten bearbeiten (drafts/pokemondb) ======================
+  async savePokemon(raw, { isNew = false } = {}) {
+    const rec = normalizeMonRecord(raw);
+    const errors = validateMon(rec, { names: this.pokemonAll.map((p) => p.name), isNew });
+    if (errors.length) throw new Error(errors.join(' '));
+    const key = monKey(rec.name);
+    const prev = Object.values(this.pokedexDb).find((e) => e?.name === rec.name) || null;
+    const now = new Date().toISOString();
+    const by = Alpine.store('auth')?.player || null;
+    await setDoc(doc(db, 'drafts', POKEDB_DOC), {
+      mons: {
+        [key]: {
+          ...rec,
+          createdAt: prev?.createdAt || now,
+          createdBy: prev?.createdBy || by,
+          updatedAt: now,
+          updatedBy: by,
+        },
+      },
+    }, { merge: true });
+    return rec.name;
+  },
+  // Nur über die Oberfläche angelegte Pokémon lassen sich entfernen — und nur, solange
+  // sie in keinem Kader und keinem Ergebnis stehen.
+  async removePokemon(name) {
+    const mon = this.pokemonAll.find((p) => p.name === name);
+    if (!mon?.added) throw new Error('Nur selbst angelegte Pokémon lassen sich entfernen.');
+    const used = this.teams.some((t) => (t.pokemon || []).some((p) => p.name === name))
+      || (this.allResults || []).some((r) => ['home', 'away'].some((side) => (r.squads?.[side] || []).includes(name)))
+      || (Alpine.store('liga2')?.allTeams || []).some((t) => (t.pokemon || []).some((p) => p.name === name));
+    if (used) throw new Error(`${name} steht schon in einem Kader oder Ergebnis.`);
+    await setDoc(doc(db, 'drafts', POKEDB_DOC), { mons: { [monKey(name)]: deleteField() } }, { merge: true });
   },
   async savePoolTrainer(raw) {
     const entry = normalizePoolTrainer(raw);
@@ -8255,6 +8972,10 @@ Alpine.store('league', {
     await batch.commit();
   },
 });
+
+// === Zweite Liga ==============================================================
+// Liest die Saisondokumente `drafts/liga2-s<N>` aus dem league-Store (siehe liga2-store.mjs).
+Alpine.store('liga2', createLiga2Store(Alpine));
 
 // === Awards =================================================================
 // Eine Firestore-Doc je Abstimmung (Collection `awards`, ID aus awardDocId).
@@ -8575,18 +9296,25 @@ Alpine.store('awards', {
 // Der Auslöser ist die BEOBACHTETE Zustandsänderung, nicht der Bestand: beim Laden
 // wird der aktuelle Stand nur gemerkt, damit nicht die halbe Saison nachgeschrieben
 // wird. Für Lücken gibt es „Fehlende Berichte" in den Einstellungen.
-let pressSeenComplete = null;
+//
+// Gemerkt wird JE SAISON: Ein Blick in eine alte Saison darf deren Bestand nicht als
+// „neu" melden — genau so entstanden mitten in Saison 2 Cava-LANZ-Ausgaben zu
+// „Spieltag 8" (die Freigaben der Saison 1 galten nach dem Umschalten als frisch, der
+// verzögerte Erzeuger schrieb dann in die inzwischen wieder gewählte Saison 2).
+const pressSeenComplete = new Map();
 // Dasselbe für die Marktwert-Updates: welche Spieltage waren beim letzten Durchlauf
 // schon „fertig UND im Sheet bewertet"? Bewusst außerhalb der Alpine-Reaktivität.
-let pressSeenMarket = null;
+const pressSeenMarket = new Map();
 // Und für das Saisonende: war die Saison beim letzten Durchlauf schon komplett?
-let pressSeenSeasonEnd = null;
+const pressSeenSeasonEnd = new Map();
 // Welche Pool-Zugänge wurden in dieser Sitzung schon angestoßen? Der Beitrag zu den
 // Neuzugängen hängt am Bestand, nicht an einer Änderung — ohne diese Sperre würde ein
 // Fehlschlag den Effekt sofort wieder auslösen und sich im Kreis drehen.
 const pressTriedNewcomers = new Set();
 // Dasselbe für den Podcast: er hängt am Bestand (Awards vergeben und angesehen).
 const pressTriedPodcast = new Set();
+// Und für den Spieltag-Rückblick der Zweiten Liga.
+const pressTriedLiga2 = new Set();
 // Der Podcast beginnt mit Saison 2 — die abgeschlossene Saison 1 wird nicht nachgeholt.
 const PODCAST_FROM_SEASON = 2;
 // Abgebrochene Platzhalter (isStalePending), die in dieser Sitzung schon einmal neu
@@ -8609,7 +9337,10 @@ const pressPreviewCache = new Map();
 const pressSceneCache = new Map();
 // Trainermarkt (league.trainerDirectory) — außerhalb der Reaktivität.
 let trainerDirCache = null;
+let clubDirCache = null;
 const EMPTY_POOL = Object.freeze({});
+// Zusammengeführte Pokémon-Stammdaten — gilt, solange Datei und Dokument dieselben sind.
+let pokedexCache = null;
 
 // Beschreibt dem Modell, wann der Termin stattfindet — die Auftaktrunde liegt
 // außerhalb des normalen Rhythmus und braucht ihre eigene Einordnung.
@@ -8704,18 +9435,39 @@ Alpine.store('press', {
     Alpine.effect(() => this._watchNewcomers());
     Alpine.effect(() => this._watchPodcast());
     Alpine.effect(() => this._watchStale());
+    Alpine.effect(() => this._watchLiga2());
   },
 
   // Beitragsleichen heilen: ein Platzhalter, dessen Gerät mittendrin geschlossen wurde,
   // wird einmal je Sitzung neu geschrieben.
   _watchStale() {
+    if (!this.automationLive) return;
     if (!this.articlesLoaded || !this.sessionsLoaded || !this.hasKey) return;
     const stale = (this.articles || []).filter((a) => isStalePending(a) && !pressTriedStale.has(a.id) && this.canRetry(a));
     if (!stale.length) return;
     stale.forEach((a) => pressTriedStale.add(a.id));
-    setTimeout(async () => {
+    this._later(async () => {
       for (const a of stale) await this.retryArticle(a.id).catch(() => null);
     }, 6000);
+  },
+
+  // === Automatik nur in der laufenden Saison ================================
+  // Die Erzeuger schreiben in die GEWÄHLTE Saison (`league.season`). Automatisch
+  // geschrieben wird deshalb nur, solange die jüngste Saison gewählt ist — und ein
+  // verzögerter Auftrag verfällt, wenn inzwischen umgeschaltet wurde.
+  get liveSeason() {
+    const list = Alpine.store('league')?.seasons || [];
+    return list[list.length - 1] || 1;
+  },
+  get automationLive() {
+    return Alpine.store('league').season === this.liveSeason;
+  },
+  _later(fn, ms) {
+    const season = Alpine.store('league').season;
+    setTimeout(() => {
+      if (Alpine.store('league').season !== season || !this.automationLive) return;
+      fn();
+    }, ms);
   },
 
   // --- Zugang --------------------------------------------------------------
@@ -8858,30 +9610,31 @@ Alpine.store('press', {
   _watchResults() {
     const l = Alpine.store('league');
     if (!l.resultsLoaded || !l.scheduleLoaded || !l.teamsLoaded) return;
+    if (!this.automationLive) return;
     // Nicht die Vollständigkeit löst aus, sondern die Freigabe: erst sie sagt, dass
     // Ergebnis und Kampfverlauf endgültig sind.
     const from = pressFromDay(l.season);
     const done = new Set((l.results || [])
       .filter((r) => (r.day ?? 0) >= from && isPressReleased(r))
       .map((r) => r.id));
-    const known = pressSeenComplete;
-    pressSeenComplete = done;
+    const known = pressSeenComplete.get(l.season) || null;
+    pressSeenComplete.set(l.season, done);
     if (known === null) return;
     if (!this.articlesLoaded || !this.hasKey) return;
     // Bewusst aus dem Effekt heraus verzögert: generateReport liest und schreibt
     // reaktive Felder (busy, articles) und würde den Effekt sonst selbst neu auslösen.
     const fresh = [...done].filter((id) => !known.has(id));
-    fresh.forEach((id) => { setTimeout(() => this.generateReport(id).catch(() => {}), 0); });
+    fresh.forEach((id) => { this._later(() => this.generateReport(id).catch(() => {}), 0); });
     // Je Spieltag drei freie Beiträge: einer nach dem ersten, zweiten und dritten
     // abgeschlossenen Spiel dieses Spieltags.
     const freshDays = [...new Set(fresh.map((id) => (l.results || []).find((r) => r.id === id)?.day).filter((d) => d != null))];
-    freshDays.forEach((day) => { setTimeout(() => this.fillRandomArticles(day).catch(() => {}), 1500); });
+    freshDays.forEach((day) => { this._later(() => this.fillRandomArticles(day).catch(() => {}), 1500); });
     // Cava LANZ: zweimal je Spieltag, nach zwei der ersten drei freigegebenen Spiele.
     // Die zweite Ausgabe startet später, damit die erste ihre Besetzung schon belegt hat.
     freshDays.forEach((day) => {
       const done = this.completedOnDay(day);
       lanzTriggerGames(l.season, day).forEach((game, i) => {
-        if (done >= game) setTimeout(() => this.generateLanz(day, { edition: i + 1 }).catch(() => {}), 9000 + i * 20000);
+        if (done >= game) this._later(() => this.generateLanz(day, { edition: i + 1 }).catch(() => {}), 9000 + i * 20000);
       });
     });
   },
@@ -9094,6 +9847,12 @@ Alpine.store('press', {
       return this.retryLanzSession(existing.source.sessionId, model);
     }
     const l = Alpine.store('league');
+    // Die Sendung braucht ihre freigegebenen Spiele IN DIESER Saison — sonst entsteht
+    // eine Ausgabe zu einem Spieltag, der hier noch gar nicht gespielt ist.
+    if (!force && !existing) {
+      const need = lanzTriggerGames(l.season, day)[edition - 1] || 1;
+      if (this.completedOnDay(day) < need) return null;
+    }
     const show = SHOWS.lanz;
     const ref = doc(db, 'press', id);
     const createdAt = new Date().toISOString();
@@ -9325,10 +10084,11 @@ Alpine.store('press', {
   _watchPodcast() {
     const l = Alpine.store('league');
     if (!l.resultsLoaded || !l.scheduleLoaded || !this.articlesLoaded || !this.hasKey) return;
+    if (!this.automationLive) return;
     const day = this.missingPodcasts.find((d) => !pressTriedPodcast.has(this.podcastIdFor(d)));
     if (day == null) return;
     pressTriedPodcast.add(this.podcastIdFor(day));
-    setTimeout(() => this.generatePodcast(day).catch(() => {}), 5000);
+    this._later(() => this.generatePodcast(day).catch(() => {}), 5000);
   },
   async generatePodcast(day, { force = false, model = null } = {}) {
     if (!this.hasKey || day == null) return null;
@@ -9504,6 +10264,154 @@ Alpine.store('press', {
     }
   },
 
+  // --- Zweite Liga: Spieltag-Rückblick ------------------------------------
+  // Der einzige automatische Beitrag zur Zweiten Liga: sobald alle Partien eines
+  // Spieltags drei Ergebnisse haben. Er hängt am Bestand (wie Neuzugänge und Podcast),
+  // gesperrt je Sitzung über `pressTriedLiga2` — und nur in der laufenden Saison; ältere
+  // Spieltage lassen sich im Spielplan der Zweiten Liga von Hand nachholen.
+  liga2ReviewId(season, day) {
+    return `${seasonPrefix(season)}-l2-d${day}`;
+  },
+  get missingLiga2Reviews() {
+    const l2 = Alpine.store('liga2');
+    if (!l2?.loaded) return [];
+    const season = this.liveSeason;
+    return completeDays(l2.scheduleOf(season), l2.resultsOf(season))
+      .filter((day) => needsRewrite(this.byId(this.liga2ReviewId(season, day))))
+      .map((day) => ({ season, day, id: this.liga2ReviewId(season, day) }));
+  },
+  _watchLiga2() {
+    if (!this.articlesLoaded || !this.hasKey) return;
+    const next = this.missingLiga2Reviews.find((row) => !pressTriedLiga2.has(row.id));
+    if (!next) return;
+    pressTriedLiga2.add(next.id);
+    setTimeout(() => this.generateLiga2Review(next.season, next.day).catch(() => {}), 4000);
+  },
+  // Die Fakten des Spieltags — ohne Kennzeichen (wer spielte, ist Meta-Ebene).
+  _liga2DayContext(season, day) {
+    const l2 = Alpine.store('liga2');
+    const teams = l2.teamsOf(season);
+    const name = (id) => teams.find((t) => t.id === id)?.name || id;
+    const results = l2.resultsOf(season).filter((r) => r.day === day);
+    const table = l2.tableOf(season, day);
+    const before = day > 1 ? l2.tableOf(season, day - 1) : [];
+    return {
+      liga: 'Zweite Liga (H-Side)',
+      saison: season,
+      spieltag: day,
+      partien: results.map((r) => {
+        const sc = matchScore(r, 'home');
+        return {
+          matchId: r.id,
+          heim: name(r.home),
+          gast: name(r.away),
+          kaempfe: `${sc.own}:${sc.other}`,
+          aufgebot: { heim: r.squads.home, gast: r.squads.away },
+          kampfVerlauf: r.battles.filter((b) => b.done).map((b) => ({
+            kampf: b.no,
+            startaufstellung: { heim: b.used.home.slice(0, 2), gast: b.used.away.slice(0, 2) },
+            einsatz: { heim: b.used.home, gast: b.used.away },
+            ueberlebende: { heim: b.score.home, gast: b.score.away },
+            sieger: b.winner === 'draw' ? 'unentschieden' : name(r[b.winner]),
+          })),
+        };
+      }),
+      tabelle: table.map((row, i) => {
+        const was = before.findIndex((x) => x.team.id === row.team.id);
+        return {
+          platz: i + 1,
+          vorher: was >= 0 ? was + 1 : null,
+          verein: row.team.name,
+          trainer: currentTrainer(row.team.trainers || [])?.name || null,
+          punkte: row.points,
+          bilanz: `${row.won}-${row.draw}-${row.lost}`,
+          differenz: row.diff,
+        };
+      }),
+    };
+  },
+  async generateLiga2Review(season, day, { force = false, model = null } = {}) {
+    if (!this.hasKey || season == null || day == null) return null;
+    const l2 = Alpine.store('liga2');
+    const id = this.liga2ReviewId(season, day);
+    if (this.busy[id]) return null;
+    const existing = this.byId(id);
+    if (!force && !needsRewrite(existing)) return null;
+    if (!dayComplete(l2.scheduleOf(season), l2.resultsOf(season), day)) return null;
+
+    const ref = doc(db, 'press', id);
+    const author = randomAuthor();
+    const createdAt = new Date().toISOString();
+    const source = { type: 'liga2', season, day };
+    this.busy = { ...this.busy, [id]: true };
+    try {
+      const claimed = await runTransaction(db, async (tx) => {
+        const snap = await tx.get(ref);
+        if (snap.exists() && !force && !needsRewrite(snap.data())) return false;
+        tx.set(ref, {
+          season, category: 'zweite-liga', categories: ['zweite-liga'], status: 'pending',
+          authorId: author.id, teamIds: [], day, title: '', subtitle: '', body: '',
+          source, storylines: [], createdAt, publishedAt: createdAt, error: null,
+        });
+        return true;
+      });
+      if (!claimed) return null;
+
+      const context = this._liga2DayContext(season, day);
+      const data = await this._generate(model, {
+        system: buildSystem({ author }),
+        prompt: buildUserPrompt({ task: LIGA2_REVIEW_BRIEF, context }),
+        schema: LIGA2_REVIEW_SCHEMA,
+        maxOutputTokens: 8192,
+        accept: (d) => !!(d?.titel && d?.einleitung) && !answerMentionsMeta(d),
+      });
+
+      // Ergebnisse, Überschriften und Tabelle setzt der Code — sie sollen stimmen.
+      const texts = new Map((data.partien || []).map((p) => [p.matchId, p.text]));
+      const parts = [String(data.einleitung || '').trim()];
+      context.partien.forEach((m) => {
+        parts.push(`## ${m.heim} ${m.kaempfe} ${m.gast}`);
+        const text = String(texts.get(m.matchId) || '').trim();
+        if (text) parts.push(text);
+      });
+      parts.push(`[tabelle2: ${season} | ${day}]`);
+      if (data.fazit) parts.push(String(data.fazit).trim());
+      const known = new Set((l2.pokemonOf(season) || []).map((p) => p.name));
+      const docData = {
+        season,
+        category: 'zweite-liga',
+        categories: ['zweite-liga'],
+        editorial: false,
+        title: String(data.titel || '').trim() || `Spieltag ${day} der Zweiten Liga`,
+        subtitle: String(data.dachzeile || '').trim(),
+        body: sanitizeHtml(paragraphsToHtml(parts)),
+        authorId: author.id,
+        teamIds: [],
+        pokemonNames: (data.erwaehntePokemon || []).filter((n) => known.has(n)).slice(0, 12),
+        day,
+        archetype: null,
+        storylines: [],
+        source,
+        model: data._model || null,
+        status: 'ready',
+        error: null,
+        createdAt,
+        publishedAt: new Date().toISOString(),
+      };
+      await setDoc(ref, docData);
+      window.dispatchEvent(new CustomEvent('toast', { detail: { msg: `2. Liga: ${docData.title}` } }));
+      return id;
+    } catch (e) {
+      console.error('Zweitliga-Rückblick fehlgeschlagen:', e);
+      await this._fail(ref, e?.message || 'Unbekannter Fehler', this._modelOf(model));
+      return null;
+    } finally {
+      const next = { ...this.busy };
+      delete next[id];
+      this.busy = next;
+    }
+  },
+
   // --- Marktwert-Update ----------------------------------------------------
   marketIdFor(day) {
     return `${this.prefix}-market-d${day}`;
@@ -9547,13 +10455,14 @@ Alpine.store('press', {
     // Reaktive Lesevorgänge, damit der Effekt bei neuen Sheet-Daten erneut läuft.
     void elo.rows.length;
     void elo.fetchedAt;
+    if (!this.automationLive) return;
     const ready = new Set(this.marketDaysReady());
-    const known = pressSeenMarket;
-    pressSeenMarket = ready;
+    const known = pressSeenMarket.get(l.season) || null;
+    pressSeenMarket.set(l.season, ready);
     if (known === null) return;
     if (!this.articlesLoaded || !this.hasKey) return;
     [...ready].filter((d) => !known.has(d))
-      .forEach((day) => { setTimeout(() => this.generateMarketUpdate(day).catch(() => {}), 2500); });
+      .forEach((day) => { this._later(() => this.generateMarketUpdate(day).catch(() => {}), 2500); });
   },
 
   /**
@@ -9681,14 +10590,15 @@ Alpine.store('press', {
     // Reaktive Lesevorgänge: Ergebnisse und erledigte Ausblicksrunden.
     const done = this.seasonDone;
     const outlook = this.outlookDone.done;
-    const known = pressSeenSeasonEnd;
-    pressSeenSeasonEnd = { done, outlook };
+    if (!this.automationLive) return;
+    const known = pressSeenSeasonEnd.get(l.season) || null;
+    pressSeenSeasonEnd.set(l.season, { done, outlook });
     if (known === null) return;
     if (!this.articlesLoaded || !this.hasKey) return;
     // Nur bei einer echten Veränderung loslegen — sonst schreibt jeder Snapshot mit.
     if (known.done === done && known.outlook === outlook) return;
     if (!done) return;
-    setTimeout(() => this.fillSeasonPress().catch(() => {}), 3000);
+    this._later(() => this.fillSeasonPress().catch(() => {}), 3000);
   },
   async fillSeasonPress() {
     // Nacheinander: die Beiträge bauen aufeinander auf, und drei parallele Aufrufe
@@ -9943,6 +10853,7 @@ Alpine.store('press', {
         ? this.retryLanzSession(src.sessionId, model)
         : this.generateLanz(src.day, { ...opts, edition: src.edition || 1 });
       case 'zweiblatt': return this.generatePodcast(src.day, opts);
+      case 'liga2': return this.generateLiga2Review(src.season, src.day, opts);
       case 'pk':
       case 'interview': return this.retrySession(src.sessionId, model);
       default: return null;
@@ -10822,7 +11733,7 @@ Alpine.store('notify', {
   },
 });
 
-Alpine.store('nav', { teamId: null, matchId: null, pokemonName: null, from: null, teamAId: null, teamBId: null, canBack: false, view: null });
+Alpine.store('nav', { teamId: null, matchId: null, battleNo: null, articleId: null, pokemonName: null, from: null, teamAId: null, teamBId: null, canBack: false, view: null, l2Return: null });
 
 // Marktwerte (Elo-Quelle) aus dem öffentlichen Sheet — clientseitig, ohne Key.
 // Cache im localStorage; „Marktwert-Update" (refresh) lädt live neu.
@@ -10976,4 +11887,14 @@ Alpine.data('transferView', transferView);
 Alpine.data('awardsView', awardsView);
 Alpine.data('recordsView', recordsView);
 Alpine.data('presseView', presseView);
+// Zweite Liga: eigene Komponenten (liga2-views.mjs), Hilfen aus dieser Datei.
+const l2Deps = {
+  buildChart, chartSvgString, teamColor, normalizeHexColor, logoSrc, openStatInfo, imageToDataUrl, clubSlug, trainerKey,
+  TEAM_COLOR_PRESETS, TYPE_COLORS, TIER_COLORS, ALL_TYPES,
+};
+Alpine.data('l2StandingsView', () => l2StandingsView(l2Deps));
+Alpine.data('l2ScheduleView', () => l2ScheduleView(l2Deps));
+Alpine.data('l2TeamsView', () => l2TeamsView(l2Deps));
+Alpine.data('l2StatsView', () => l2StatsView(l2Deps));
+Alpine.data('pokedexView', pokedexView);
 Alpine.start();

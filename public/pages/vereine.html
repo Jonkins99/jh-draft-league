@@ -2,11 +2,26 @@
 
   <!-- ÜBERSICHT -->
   <div x-show="!slug">
-    <header class="mb-8">
-      <p class="font-display text-xs font-semibold uppercase tracking-[0.3em] text-flame-400">Alle Saisons</p>
-      <h1 class="mt-1 font-display text-4xl font-bold tracking-wide text-ink md:text-5xl">Teams</h1>
-      <p class="mt-2 text-mist">Jeder Verein, der je in der Liga gespielt hat — mit seiner Bilanz über alle Saisons. Tippe ein Team an für die Detailansicht.</p>
+    <header class="mb-6 flex flex-wrap items-end justify-between gap-4">
+      <div class="min-w-0">
+        <p class="font-display text-xs font-semibold uppercase tracking-[0.3em] text-flame-400">Alle Saisons</p>
+        <h1 class="mt-1 font-display text-4xl font-bold tracking-wide text-ink md:text-5xl">Teams</h1>
+        <p class="mt-2 text-mist">Jeder Verein, der je in der Liga gespielt hat — mit seiner Bilanz über alle Saisons. Tippe ein Team an für die Detailansicht.</p>
+      </div>
+      <button type="button" x-show="canEdit" @click="openClubForm()"
+              class="inline-flex shrink-0 items-center gap-2 rounded-xl bg-flame-500 px-4 py-2.5 font-display text-sm font-bold uppercase tracking-wide text-white transition-colors hover:bg-flame-600">
+        <svg viewBox="0 0 24 24" class="size-4" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"><path d="M12 5v14M5 12h14"/></svg>
+        Verein anlegen
+      </button>
     </header>
+
+    <div class="mb-6 flex w-full rounded-xl border border-line bg-panel p-0.5 sm:w-auto sm:inline-flex" role="tablist">
+      <template x-for="o in ligaOptions" :key="'vl-'+o.v">
+        <button type="button" role="tab" @click="setLiga(o.v)" :aria-selected="liga === o.v"
+                class="flex-1 whitespace-nowrap rounded-lg px-3 py-2 font-display text-xs font-bold uppercase tracking-wider transition-colors sm:flex-none"
+                :class="liga === o.v ? 'bg-flame-500 text-white' : 'text-mist hover:text-ink'" x-text="o.l"></button>
+      </template>
+    </div>
 
     <div x-show="!loaded" class="py-12 text-center text-mist">Lade Teams…</div>
 
@@ -30,10 +45,12 @@
           </div>
 
           <div class="mt-4 flex flex-wrap gap-1.5">
-            <template x-for="s in r.seasons" :key="'frs-'+r.slug+'-'+s.season">
-              <span class="rounded-lg border border-line bg-elevated/50 px-2 py-0.5 text-[11px] font-semibold tabular-nums text-mist"
-                    x-text="s.played ? `S${s.season} · ${s.place}.` : `S${s.season} · —`"></span>
+            <template x-for="s in r.seasons" :key="'frs-'+r.slug+'-'+s.season+'-'+(s.league || 1)">
+              <span class="rounded-lg border px-2 py-0.5 text-[11px] font-semibold tabular-nums"
+                    :class="(s.league === 2 || liga === 'l2') ? 'border-[#4d90d5]/40 bg-[#4d90d5]/10 text-[#8ab8ea]' : 'border-line bg-elevated/50 text-mist'"
+                    x-text="`S${s.season}${s.league === 2 ? ' · 2. Liga' : ''} · ${s.played ? s.place + '.' : '—'}`"></span>
             </template>
+            <span x-show="r.titles2" class="rounded-lg border border-[#4d90d5]/40 px-2 py-0.5 text-[11px] font-semibold text-[#8ab8ea]" x-text="`${r.titles2}× Meister 2. Liga`"></span>
           </div>
 
           <dl class="mt-4 grid grid-cols-3 gap-2 border-t border-line pt-4 text-center">
@@ -108,8 +125,27 @@
       </div>
     </section>
 
+    <!-- Angelegt, aber noch ohne Saison -->
+    <section x-show="loaded && poolOnly.length" class="mt-8 rounded-2xl border border-line bg-panel p-5 sm:p-6">
+      <h2 class="font-display text-xl font-bold uppercase tracking-wider text-ink">Im Register, noch ohne Saison</h2>
+      <p class="mb-4 mt-1 text-sm text-mist">Diese Vereine lassen sich beim nächsten Saisonwechsel einer Liga zuteilen.</p>
+      <ul class="grid grid-cols-[minmax(0,1fr)] gap-2 sm:grid-cols-2">
+        <template x-for="c in poolOnly" :key="'po-'+c.slug">
+          <li class="flex min-w-0 items-center gap-3 rounded-xl border border-line bg-elevated/40 px-3 py-2">
+            <img x-show="c.logo" :src="logoUrl(c.logo)" alt="" class="size-9 shrink-0 object-contain" />
+            <span class="min-w-0 flex-1">
+              <span class="block truncate font-semibold" :style="`color:${c.color || playerColor(c.player)}`" x-text="c.name"></span>
+              <span class="block text-[11px] text-mist" x-text="`${c.player} · ${c.slug}`"></span>
+            </span>
+            <button type="button" x-show="canEdit" @click="openClubForm(c.slug)" class="shrink-0 rounded-lg border border-line px-2 py-1 text-[11px] font-semibold text-mist hover:text-flame-400">Bearbeiten</button>
+            <button type="button" x-show="canEdit" @click="removePoolClub(c.slug)" class="shrink-0 rounded-lg border border-line px-2 py-1 text-[11px] font-semibold text-mist hover:text-flame-400" aria-label="Entfernen">×</button>
+          </li>
+        </template>
+      </ul>
+    </section>
+
     <!-- Kaderwerte über alle Saisons -->
-    <section x-show="loaded && $store.elo.rows.length" class="mt-8 rounded-2xl border border-line bg-panel p-5 sm:p-6">
+    <section x-show="loaded && $store.elo.rows.length && showMarket" class="mt-8 rounded-2xl border border-line bg-panel p-5 sm:p-6">
       <h2 class="font-display text-xl font-bold uppercase tracking-wider text-ink">Kaderwerte über alle Saisons</h2>
       <p class="mb-4 mt-1 text-sm text-mist">Jeder Zeitpunkt zählt mit dem Kader, den das Team in dieser Saison hatte. Tippen oder zeigen gibt die Werte aus; die Legende blendet Teams aus.</p>
       <div x-init="mountAllChart($el)"></div>
@@ -126,6 +162,10 @@
       </button>
 
       <section class="team-hero relative overflow-hidden rounded-2xl border p-6 md:p-8" :style="`--team:${color}`">
+        <button type="button" x-show="canEdit" @click="openClubForm(slug)" title="Verein bearbeiten"
+                class="absolute right-3 top-3 grid size-9 place-items-center rounded-xl border border-line bg-void/50 text-mist transition-colors hover:text-ink">
+          <svg viewBox="0 0 24 24" class="size-4" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M12 20h9"/><path d="M16.5 3.5a2.1 2.1 0 0 1 3 3L7 19l-4 1 1-4z"/></svg>
+        </button>
         <div class="flex flex-wrap items-center gap-6">
           <div class="relative shrink-0">
             <div class="team-hero-glow absolute inset-2 -z-10 rounded-full blur-2xl"></div>
@@ -181,10 +221,11 @@
               </tr>
             </thead>
             <tbody>
-              <template x-for="s in seasonRows" :key="'fs-'+s.season">
+              <template x-for="s in seasonRows" :key="'fs-'+s.season+'-'+s.league">
                 <tr class="border-b border-line/50">
                   <td class="py-2 pl-5 pr-2 sm:pl-6">
                     <span class="font-display font-bold text-ink" x-text="`S${s.season}`"></span>
+                    <span x-show="s.league === 2" class="ml-1 rounded bg-[#4d90d5]/15 px-1.5 py-0.5 font-display text-[10px] font-bold uppercase tracking-wider text-[#8ab8ea]">2. Liga</span>
                     <span x-show="s.team.name !== team.name" class="ml-1 text-xs text-mist" x-text="`als ${s.team.name}`"></span>
                     <span x-show="!s.finished && s.played" class="ml-1 rounded bg-flame-500/15 px-1.5 py-0.5 font-display text-[10px] font-bold uppercase tracking-wider text-flame-300">läuft</span>
                   </td>
@@ -211,15 +252,15 @@
           <p x-show="resultRows.length" class="text-sm text-mist" x-text="`${resultRows.length} ${resultRows.length === 1 ? 'Match' : 'Matches'} über alle Saisons`"></p>
         </div>
         <p x-show="!resultRows.length" class="rounded-xl border border-line bg-elevated/40 px-3 py-3 text-sm text-mist">Noch kein Match gespielt.</p>
-        <ul x-show="resultRows.length" class="grid gap-1.5">
+        <ul x-show="resultRows.length" class="grid grid-cols-[minmax(0,1fr)] gap-1.5">
           <template x-for="r in shownResults" :key="'fr-'+r.id">
-            <li>
+            <li class="min-w-0">
               <button type="button" @click="openResult(r)"
                       class="flex w-full min-w-0 items-center gap-3 rounded-xl border border-line bg-elevated/40 px-3 py-2 text-left transition-colors hover:border-flame-500/40">
                 <span class="grid size-8 shrink-0 place-items-center rounded-lg border font-display text-sm font-black"
                       :class="outcomeClass(r.outcome)" x-text="outcomeLabel(r.outcome)"></span>
                 <span class="w-16 shrink-0 font-display text-[11px] font-bold uppercase leading-tight tracking-wider text-mist">
-                  <span class="block" x-text="`Saison ${r.season}`"></span>
+                  <span class="block" x-text="r.league === 2 ? `S${r.season} · 2. L` : `Saison ${r.season}`"></span>
                   <span class="block font-semibold normal-case tracking-normal" x-text="r.day != null ? `Spieltag ${r.day}` : ''"></span>
                 </span>
                 <img x-show="teamById(r.opponentId)?.logo" :src="logoUrl(teamById(r.opponentId)?.logo)" alt="" loading="lazy" class="size-8 shrink-0 object-contain" />
@@ -337,7 +378,7 @@
       </section>
 
       <!-- Kaderwert über alle Saisons -->
-      <section x-show="$store.elo.rows.length" class="mt-6 rounded-2xl border border-line bg-panel p-5 sm:p-6">
+      <section x-show="$store.elo.rows.length && showMarket" class="mt-6 rounded-2xl border border-line bg-panel p-5 sm:p-6">
         <div class="mb-4 flex flex-wrap items-baseline justify-between gap-x-4 gap-y-1">
           <h2 class="font-display text-xl font-bold uppercase tracking-wider text-ink">Kaderwert über alle Saisons</h2>
           <p x-show="marketSpan" class="text-sm text-mist">
@@ -428,4 +469,67 @@
       </section>
     </div>
   </template>
+
+  <!-- Verein anlegen / bearbeiten -->
+  <div popover="manual" id="club-form" class="modal-pop w-[28rem] max-w-[calc(100vw-1rem)] rounded-2xl border border-line bg-panel p-0 text-ink">
+    <template x-if="clubForm">
+      <div class="flex max-h-[calc(100dvh-1rem)] flex-col">
+        <div class="flex items-center justify-between gap-3 border-b border-line px-5 py-4">
+          <p class="font-display text-lg font-bold tracking-wide text-ink" x-text="clubForm.isNew ? 'Verein anlegen' : 'Verein bearbeiten'"></p>
+          <button type="button" @click="closeClubForm()" class="rounded-lg p-1.5 text-mist hover:text-ink" aria-label="Schließen">
+            <svg viewBox="0 0 24 24" class="size-5" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M6 6l12 12M18 6L6 18"/></svg>
+          </button>
+        </div>
+        <div class="grid min-h-0 flex-1 gap-3 overflow-y-auto px-5 py-4">
+          <label class="block">
+            <span class="mb-1 block font-display text-[11px] font-bold uppercase tracking-wider text-mist">Name</span>
+            <input type="text" x-model="clubForm.name" class="w-full rounded-lg border border-line bg-elevated px-3 py-2.5 text-base text-ink focus:border-flame-500 focus:outline-none sm:text-sm" />
+          </label>
+          <label class="block">
+            <span class="mb-1 block font-display text-[11px] font-bold uppercase tracking-wider text-mist">Kennung</span>
+            <input type="text" x-model="clubForm.slug" :placeholder="clubFormSlug || 'aus dem Namen'" :disabled="!clubForm.isNew"
+                   class="w-full rounded-lg border border-line bg-elevated px-3 py-2.5 font-mono text-sm text-ink focus:border-flame-500 focus:outline-none disabled:opacity-60" />
+            <span class="mt-1 block text-[11px] text-mist" x-text="clubForm.isNew ? `Wird zu „${clubFormSlug}“. Sie verbindet den Verein über alle Saisons und bleibt danach fest.` : 'Die Kennung bleibt — an ihr hängt die ganze Vereinsgeschichte.'"></span>
+          </label>
+          <div>
+            <span class="mb-1 block font-display text-[11px] font-bold uppercase tracking-wider text-mist">Spieler</span>
+            <div class="flex rounded-xl border border-line bg-elevated/40 p-0.5">
+              <template x-for="p in clubPlayers" :key="'cfp-'+p">
+                <button type="button" @click="if (!clubForm.playerLocked) clubForm.player = p" :disabled="clubForm.playerLocked"
+                        class="flex-1 rounded-lg px-3 py-1.5 font-display text-xs font-bold uppercase tracking-wider transition-colors disabled:cursor-not-allowed"
+                        :class="clubForm.player === p ? 'bg-flame-500 text-white' : 'text-mist hover:text-ink'" x-text="p"></button>
+              </template>
+            </div>
+            <span x-show="clubForm.playerLocked" class="mt-1 block text-[11px] text-mist">Der Verein spielt gerade in der ersten Liga — der Spieler wechselt erst mit einer neuen Saison. In der Zweiten Liga gehört jedes Team Henrik.</span>
+          </div>
+          <div>
+            <span class="mb-1 block font-display text-[11px] font-bold uppercase tracking-wider text-mist">Wappen</span>
+            <div class="flex items-center gap-3">
+              <img x-show="clubForm.logo" :src="logoUrl(clubForm.logo)" alt="" class="size-12 shrink-0 rounded-lg object-contain" />
+              <input type="text" x-model="clubForm.logo" placeholder="https://… oder Dateiname" class="min-w-0 flex-1 rounded-lg border border-line bg-elevated px-3 py-2.5 text-base text-ink focus:border-flame-500 focus:outline-none sm:text-sm" />
+            </div>
+            <input type="file" accept="image/*" @change="pickClubLogo($event)" class="mt-2 block w-full text-xs text-mist file:mr-3 file:rounded-lg file:border file:border-line file:bg-elevated file:px-3 file:py-1.5 file:text-xs file:font-semibold file:text-ink" />
+          </div>
+          <div>
+            <span class="mb-1 block font-display text-[11px] font-bold uppercase tracking-wider text-mist">Farbe</span>
+            <div class="flex flex-wrap items-center gap-1.5">
+              <template x-for="c in colorPresets" :key="'cfc-'+c.hex">
+                <button type="button" @click="clubForm.color = c.hex" :title="c.name" class="size-7 rounded-lg border-2 transition-transform hover:scale-110"
+                        :style="`background:${c.hex}; border-color:${clubForm.color === c.hex ? '#fff' : 'transparent'}`"></button>
+              </template>
+              <input type="color" :value="clubForm.color || '#e3350d'" @input="clubForm.color = $event.target.value" class="h-7 w-10 rounded-lg border border-line bg-elevated" />
+              <button type="button" x-show="clubForm.color" @click="clubForm.color = ''" class="text-[11px] text-mist underline decoration-dotted hover:text-ink">automatisch</button>
+            </div>
+          </div>
+          <p x-show="clubFormError || clubForm.error" class="text-xs text-flame-300" x-text="clubForm.error || clubFormError"></p>
+        </div>
+        <div class="flex justify-end gap-2 border-t border-line px-5 py-3">
+          <button type="button" @click="closeClubForm()" class="rounded-xl border border-line px-4 py-2.5 text-sm font-semibold text-mist hover:text-ink">Abbrechen</button>
+          <button type="button" @click="saveClubForm()" :disabled="clubForm.busy || !!clubFormError"
+                  class="rounded-xl bg-flame-500 px-4 py-2.5 font-display text-sm font-bold uppercase tracking-wide text-white hover:bg-flame-600 disabled:opacity-40"
+                  x-text="clubForm.isNew ? 'Anlegen' : 'Speichern'"></button>
+        </div>
+      </div>
+    </template>
+  </div>
 </div>

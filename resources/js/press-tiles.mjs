@@ -31,6 +31,7 @@
 // <table> im Textkörper: so übersteht die Tabelle den Sanitizer, bleibt im Editor
 // zeilenweise bearbeitbar und lässt sich ohne Tabellenwerkzeug tippen.
 
+import { logoSrc } from './logos.mjs';
 import { formatMarket, formatMarketDelta, marketValue, historyPoints } from './market.mjs';
 import { currentTrainer } from './trainers.mjs';
 import { videoEmbed } from './video.mjs';
@@ -41,7 +42,7 @@ import { rivalry, splitPair } from './career.mjs';
 // „rivalitaet" ist dieselbe Kachel wie „rivalität" — ohne Umlaut getippt.
 export const TILE_KINDS = [
   'marktwert', 'verlauf', 'statistik', 'team', 'trainer', 'ergebnis', 'tabelle', 'video', 'bild', 'rivalität', 'rivalitaet',
-  'marktwertduell', 'vergleich', 'kampf', 'artikel', 'form', 'kader', 'rangliste', 'vorschau',
+  'marktwertduell', 'vergleich', 'kampf', 'artikel', 'form', 'kader', 'rangliste', 'vorschau', 'tabelle2',
 ];
 
 const TILE_RE = new RegExp(`^\\s*\\[\\s*(${TILE_KINDS.join('|')})\\s*:\\s*([^\\]]+?)\\s*\\]\\s*$`, 'i');
@@ -70,6 +71,7 @@ export const TILE_MENU = [
   { kind: 'kader', label: 'Kader', hint: 'alle zehn Pokémon eines Vereins mit Tier und Bilanz', source: 'team' },
   { kind: 'rangliste', label: 'Bestenliste', hint: 'Top fünf: kills, deaths, kd, einsaetze, ueberleben, siegquote, marktwert', source: 'ranking' },
   { kind: 'vorschau', label: 'Vorschau', hint: 'eine anstehende Partie: Tabelle, Form, Typen-Vorteile', source: 'match' },
+  { kind: 'tabelle2', label: 'Tabelle 2. Liga', hint: 'die komplette Tabelle der Zweiten Liga einer Saison', source: 'liga2' },
 ];
 
 /** `[marktwert: Glurak]` -> { kind: 'marktwert', key: 'Glurak' }, sonst null. */
@@ -185,7 +187,7 @@ function teamTile(key, { teams, seasonTeams, logoBase, squadValue }) {
   if (!team) return null;
   const value = typeof squadValue === 'function' ? squadValue(team) : null;
   return `<figure class="press-tile press-tile-team">
-    ${team.logo ? `<img src="${esc(logoBase)}${esc(team.logo)}" alt="${esc(team.name)}" loading="lazy" />` : ''}
+    ${team.logo ? `<img src="${esc(logoSrc(team.logo, logoBase))}" alt="${esc(team.name)}" loading="lazy" />` : ''}
     <figcaption>
       <span class="press-tile-label">Verein</span>
       <span class="press-tile-name">${esc(team.name)}</span>
@@ -212,7 +214,7 @@ function trainerTile(key, { teams, seasonTeams, logoBase }) {
   return `<figure class="press-tile press-tile-trainer">
     ${trainer.image
       ? `<img src="${esc(trainer.image)}" alt="${esc(trainer.name)}" loading="lazy" />`
-      : (owner?.logo ? `<img src="${esc(logoBase)}${esc(owner.logo)}" alt="${esc(owner.name)}" loading="lazy" />` : '')}
+      : (owner?.logo ? `<img src="${esc(logoSrc(owner.logo, logoBase))}" alt="${esc(owner.name)}" loading="lazy" />` : '')}
     <figcaption>
       <span class="press-tile-label">Trainer${owner ? ` · ${esc(owner.name)}` : ''}</span>
       <span class="press-tile-name">${esc(trainer.name)}</span>
@@ -240,7 +242,7 @@ function resultTile(key, { results, teams, logoBase }) {
   });
   if (!played) return null;
   const side = (team, wins, win) => `<span class="press-score-side${win ? ' is-win' : ''}">
-      ${team?.logo ? `<img src="${esc(logoBase)}${esc(team.logo)}" alt="${esc(team.name)}" loading="lazy" />` : ''}
+      ${team?.logo ? `<img src="${esc(logoSrc(team.logo, logoBase))}" alt="${esc(team.name)}" loading="lazy" />` : ''}
       <span class="press-score-team">${esc(team?.name || '?')}</span>
       <span class="press-score-num">${wins}</span>
     </span>`;
@@ -381,7 +383,7 @@ function tableTile(key, { seasonTeams, teams, results, logoBase }) {
   }
   const rows = slice.map(({ r, place, focus }) => `<span class="press-table-row${focus ? ' is-focus' : ''}">
       <span class="press-table-place">${place}</span>
-      ${r.team.logo ? `<img src="${esc(logoBase)}${esc(r.team.logo)}" alt="${esc(r.team.name)}" loading="lazy" />` : ''}
+      ${r.team.logo ? `<img src="${esc(logoSrc(r.team.logo, logoBase))}" alt="${esc(r.team.name)}" loading="lazy" />` : ''}
       <span class="press-table-name">${esc(r.team.name)}</span>
       <span class="press-table-diff">${r.diff > 0 ? '+' : ''}${r.diff}</span>
       <span class="press-table-pts">${r.points}</span>
@@ -390,6 +392,32 @@ function tableTile(key, { seasonTeams, teams, results, logoBase }) {
     <span class="press-tile-label">${esc(label)}</span>
     ${rows}
     <figcaption class="press-tile-sub">Platz · Team · Kill-Differenz · Punkte</figcaption>
+  </figure>`;
+}
+
+// Die ganze Tabelle der Zweiten Liga: `[tabelle2: 2]` (Saison 2, aktueller Stand) oder
+// `[tabelle2: 2 | 3]` (Stand nach Spieltag 3). Die Zweite Liga hat nur acht Teams — anders
+// als in der ersten Liga steht hier die ganze Tabelle, nicht ein Ausschnitt.
+function liga2TableTile(key, { liga2, logoBase }) {
+  if (!liga2?.tableOf) return null;
+  const [rawSeason, rawDay] = String(key || '').split(/[|,]/).map((x) => x.trim());
+  const season = Number(String(rawSeason || '').replace(/^s(aison)?\s*/i, ''));
+  if (!Number.isFinite(season) || season < 1) return null;
+  const day = rawDay ? Number(String(rawDay).replace(/^(st|spieltag)\s*/i, '')) : null;
+  const table = liga2.tableOf(season, Number.isFinite(day) ? day : null);
+  if (!table || table.length < 2) return null;
+  const rows = table.map((r, i) => `<span class="press-table-row${i < 2 ? ' is-focus' : ''}">
+      <span class="press-table-place">${i + 1}</span>
+      ${r.team.logo ? `<img src="${esc(logoSrc(r.team.logo, logoBase))}" alt="${esc(r.team.name)}" loading="lazy" />` : ''}
+      <span class="press-table-name">${esc(r.team.name)}</span>
+      <span class="press-table-diff">${r.diff > 0 ? '+' : ''}${r.diff}</span>
+      <span class="press-table-pts">${r.points}</span>
+    </span>`).join('');
+  const label = `2. Liga · Saison ${season}${Number.isFinite(day) ? ` · nach Spieltag ${day}` : ''}`;
+  return `<figure class="press-tile press-tile-table">
+    <span class="press-tile-label">${esc(label)}</span>
+    ${rows}
+    <figcaption class="press-tile-sub">Platz · Team · Differenz · Punkte</figcaption>
   </figure>`;
 }
 
@@ -413,7 +441,7 @@ function rivalryTile(key, { teams, seasonTeams, results, logoBase, storylines })
   if (!ta || !tb || ta.id === tb.id) return null;
   const r = rivalry(ta.id, tb.id, results, storylines);
   const side = (team, wins, win) => `<span class="press-score-side${win ? ' is-win' : ''}">
-      ${team.logo ? `<img src="${esc(logoBase)}${esc(team.logo)}" alt="${esc(team.name)}" loading="lazy" />` : ''}
+      ${team.logo ? `<img src="${esc(logoSrc(team.logo, logoBase))}" alt="${esc(team.name)}" loading="lazy" />` : ''}
       <span class="press-score-team">${esc(team.name)}</span>
       <span class="press-score-num">${wins}</span>
     </span>`;
@@ -477,7 +505,7 @@ function monImg(mon, cls = '') {
 }
 
 function logoImg(team, logoBase) {
-  return team?.logo ? `<img src="${esc(logoBase)}${esc(team.logo)}" alt="${esc(team.name)}" loading="lazy" />` : '';
+  return team?.logo ? `<img src="${esc(logoSrc(team.logo, logoBase))}" alt="${esc(team.name)}" loading="lazy" />` : '';
 }
 
 // --- 1. Zwei Marktwertkurven -------------------------------------------------
@@ -877,6 +905,7 @@ const BUILDERS = {
   kader: squadTile,
   rangliste: rankingTile,
   vorschau: previewTile,
+  tabelle2: liga2TableTile,
 };
 
 /**

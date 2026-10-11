@@ -1,0 +1,79 @@
+<div x-data="l2StatsView">
+  <header class="mb-6">
+    <p class="font-display text-xs font-semibold uppercase tracking-[0.3em] text-[#8ab8ea]">2. Liga · H-Side</p>
+    <h1 class="mt-1 font-display text-4xl font-bold tracking-wide text-ink md:text-5xl">Statistiken</h1>
+    <p class="mt-2 text-mist" x-text="`Saison ${season} · Pokémon-Kennzahlen aus Aufgeboten, Einsätzen und Siegern. Kills und Überleben werden in der Zweiten Liga nicht erfasst.`"></p>
+  </header>
+
+  <div x-show="!loaded" class="py-12 text-center text-mist">Lade Statistiken…</div>
+
+  <section x-show="loaded" class="rounded-2xl border border-line bg-panel p-4 sm:p-6">
+    <div class="mb-4 flex flex-wrap items-center gap-2">
+      <select x-model="fType" class="min-w-0 rounded-lg border border-line bg-elevated px-2 py-2 text-sm text-ink focus:border-flame-500 focus:outline-none">
+        <option value="">Alle Typen</option>
+        <template x-for="t in allTypes" :key="'l2ft-'+t"><option :value="t" x-text="t"></option></template>
+      </select>
+      <select x-model="fTier" class="min-w-0 rounded-lg border border-line bg-elevated px-2 py-2 text-sm text-ink focus:border-flame-500 focus:outline-none">
+        <option value="">Alle Tiers</option>
+        <template x-for="t in tiers" :key="'l2ftier-'+t"><option :value="t" x-text="'Tier '+t"></option></template>
+      </select>
+      <select x-model="fTeam" class="min-w-0 rounded-lg border border-line bg-elevated px-2 py-2 text-sm text-ink focus:border-flame-500 focus:outline-none">
+        <option value="">Alle Teams</option>
+        <template x-for="t in teams" :key="'l2fteam-'+t.id"><option :value="t.id" x-text="t.name"></option></template>
+      </select>
+      <button type="button" x-show="hasFilters" @click="clearFilters()"
+              class="rounded-lg border border-line px-2.5 py-2 text-sm font-semibold text-mist transition-colors hover:text-flame-400">Filter&nbsp;×</button>
+    </div>
+
+    <div class="overflow-x-auto overscroll-x-contain">
+      <table class="w-full min-w-max border-collapse text-sm">
+        <thead>
+          <tr class="border-b border-line">
+            <th class="sticky left-0 z-10 bg-panel py-2 pr-3 text-left font-display text-xs font-semibold uppercase tracking-wider text-mist">Pokémon</th>
+            <th class="whitespace-nowrap px-3 py-2 text-left font-display text-xs font-semibold uppercase tracking-wider text-mist">Team</th>
+            <template x-for="c in columns" :key="'l2th-'+c.key">
+              <th class="whitespace-nowrap px-3 py-2 text-right">
+                <span class="inline-flex items-center gap-1">
+                  <button type="button" @click="setSort(c.key)" :title="c.label"
+                          class="inline-flex items-center gap-1 font-display text-xs font-semibold uppercase tracking-wider transition-colors"
+                          :class="sortKey === c.key ? 'text-flame-400' : 'text-mist hover:text-ink'">
+                    <span x-text="c.short"></span>
+                    <span x-show="sortKey === c.key" x-text="sortDir === 'desc' ? '↓' : '↑'"></span>
+                  </button>
+                  <button type="button" @click="info(c)" class="text-mist/60 transition-colors hover:text-flame-400" aria-label="Erklärung">
+                    <svg viewBox="0 0 24 24" class="size-3.5" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="9"/><path d="M12 11v5" stroke-linecap="round"/><circle cx="12" cy="7.6" r="0.6" fill="currentColor"/></svg>
+                  </button>
+                </span>
+              </th>
+            </template>
+          </tr>
+        </thead>
+        <tbody>
+          <template x-for="(s, i) in rows" :key="'l2r-'+s.pokemon.name">
+            <tr class="cursor-pointer border-b border-line/40 transition-colors hover:bg-elevated/40" @click="goMon(s.pokemon.name)">
+              <td class="sticky left-0 z-10 bg-panel py-2 pr-3">
+                <div class="flex items-center gap-2">
+                  <span class="w-6 shrink-0 text-right font-display text-xs font-bold tabular-nums text-mist/60" x-text="i + 1"></span>
+                  <img :src="s.pokemon.image" :alt="s.pokemon.name" loading="lazy" class="size-8 shrink-0 object-contain" />
+                  <span class="min-w-0">
+                    <span class="block max-w-[8.5rem] truncate font-semibold text-ink sm:max-w-[12rem]" x-text="s.pokemon.name" :title="s.pokemon.name"></span>
+                    <span class="block text-[10px] font-bold" :style="`color:${tierColor(s.pokemon.tier)}`" x-text="s.pokemon.tier ? `Tier ${s.pokemon.tier}` : ''"></span>
+                  </span>
+                </div>
+              </td>
+              <td class="whitespace-nowrap px-3 py-2">
+                <span x-show="s.team" class="text-xs font-semibold" :style="`color:${s.team ? teamColor(s.team) : ''}`" x-text="s.team?.name"></span>
+                <span x-show="!s.team" class="text-xs text-mist">—</span>
+              </td>
+              <template x-for="c in columns" :key="'l2c-'+s.pokemon.name+'-'+c.key">
+                <td class="whitespace-nowrap px-3 py-2 text-right font-display tabular-nums"
+                    :class="sortKey === c.key ? 'font-bold text-flame-400' : 'text-ink'" x-text="cell(s, c)"></td>
+              </template>
+            </tr>
+          </template>
+        </tbody>
+      </table>
+    </div>
+    <p x-show="!rows.length" class="mt-2 text-sm text-mist">Noch keine Daten — die Kader werden in den Teams gepflegt.</p>
+  </section>
+</div>

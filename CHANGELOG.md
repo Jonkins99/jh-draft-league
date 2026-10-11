@@ -1,5 +1,25 @@
 # Changelog
 
+## Second league (H-Side)
+- **A league of its own.** The second league runs next to the first one: eight teams owned by Henrik, its own table, schedule, teams and statistics. It is reached through the season switcher ("2. Liga" under every season); seasons 1 and 2 are there to be filled in. Nothing of it appears in first-league views — only the press is shared.
+- **Teams and rosters.** Teams are added from the club register or created on the spot (name, crest, colour), rosters are kept by hand: eight Pokémon, two each from tiers A–D, no S. A roster change can be marked as winter transfer and then counts like the first league's transfer window.
+- **Schedule.** Teams are split into block A and B (drawn or by hand); the schedule is drawn from the blocks (A vs B, both legs, eight matchdays) or edited freely by hand.
+- **Results.** Henrik picks the squads (6 of 8), assigns Henrik/Janik/AI to the three battles (drawn by default, editable) and sets the four Pokémon per battle in order. Results are only survivors per side. Henrik enters his and the AI battles, Janik his own (Henrik may backfill Janik's battles for season 1 and matchdays 1–2 of season 2). Whoever has a result to enter gets a card in the navigation that jumps straight into the entry and back afterwards.
+- **Statistics.** Only what the simpler results allow: matchups, battles, shares, win rates and leads (first two picks).
+- **Press.** When every match of a matchday is in, a matchday review is written automatically (category "Zweite Liga") with all results, a short text per match and the full table (new tile `[tabelle2: season | matchday]`).
+- **All seasons.** All-time table and teams get a league switch (default first league only; both leagues rank the second league from place 9). The trainer market shows second-league records in a separate, smaller bar.
+
+## Seasons and data without file deliveries
+- **Club register.** Clubs are created and edited in "Teams" across all seasons (name, permanent id, player, crest as address or upload, colour).
+- **Start a new season.** Once every first-league match has a result, the schedule offers "Neue Saison": places 1–6 of the first and 3–6 of the second league are preselected, promoted and relegated teams are picked by hand. Colours and current trainers carry over.
+- **Pokémon data.** A new all-seasons view "Pokémon" lists every Pokémon and edits all fields, including "available from season" — a Pokémon of a future season appears nowhere before it. New Pokémon can be imported from the serebii.net Champions Pokédex (base form, regional and alternate forms, every mega evolution); only tier, points and season are entered by hand.
+
+## Fixes
+- **Award ratings.** Ratings are now tapped (0–10) instead of slid — on touch devices a swipe while scrolling kept setting sliders to 10. A provisional rating stays saved after removing one's own nomination and still pre-fills the vote if the other player nominated that Pokémon.
+- **Cava LANZ "matchday 8".** Looking at an older season made its released games count as new; the delayed show was then written into the current season. Press automation now only runs for the current season, remembers its state per season and drops delayed jobs after a season switch.
+- **Article editor.** Only the tile bar scrolls sideways; the rest of the editor no longer overflows.
+- **Mobile.** Result entry fits small screens (no cut-off names, larger tap targets, no zoom on inputs); the club results list no longer overflows; the team's Pokémon ranking no longer shows scrolled cells left of the sticky column.
+
 ## Press: interviews and press conferences on set
 - **A real set.** Interviews now take place in front of a translucent sponsor backdrop with a Pokémon battlefield behind it; the reporter in the corner reaches a single handheld mic (flag with the outlet's initials) in from the bottom right, held low in front of the guest; a TV lower third names guest and club. Press conferences put the guest behind a podium in the club colour with low mics and a name card, in front of a slowly moving LED wall of sponsor logos; the whole press desk sits opposite on chairs (every reporter's portrait, not only the three asking) and whoever asks the current question stands up and is lit. Reporters are shown from behind when a back sprite exists (`img/press/back/<same file name>`), otherwise from the front.
 - **PokéJobs sponsors.** 57 company logos from the PokéJobs (PokéWiki) ship with the app (`public/img/sponsors/`). Every club has its own sponsor circle (stable across seasons), each appointment shuffles it, and the club crest appears between the sponsors now and then.
