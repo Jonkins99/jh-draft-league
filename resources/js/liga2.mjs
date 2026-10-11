@@ -193,7 +193,8 @@ export function l2TransferOf(doc) {
 // === Kader ===================================================================
 
 /**
- * Passt ein Kader zu den Regeln? Acht Pokémon, je zwei aus A, B, C und D, kein S.
+ * Passt ein Kader zu den Slots? Acht Plätze, je zwei für A, B, C und D — gezählt wird
+ * das Slot-Tier am Eintrag, nicht das Tier des Pokémon in den Stammdaten.
  * Unvollständige Kader sind erlaubt (beim Aufbau), werden aber benannt.
  */
 export function rosterCheck(pokemon = []) {
@@ -213,6 +214,55 @@ export function rosterCheck(pokemon = []) {
   const complete = !illegal.length && list.length === L2_ROSTER_SIZE
     && L2_TIERS.every((t) => byTier[t] === L2_PER_TIER);
   return { total: list.length, byTier, illegal, problems, complete, valid: !problems.length };
+}
+
+// Der Kader besteht aus Slots: zwei je Tier A–D. Jedes Pokémon darf in jeden Slot —
+// welches Tier es in den Stammdaten (heute oder früher) hat, spielt keine Rolle. Das
+// Tier am Kadereintrag IST der Slot.
+
+/** Acht leere Slots in der Reihenfolge A, A, B, B, C, C, D, D. */
+export function emptySlots() {
+  return L2_TIERS.flatMap((tier) => Array.from({ length: L2_PER_TIER }, () => ({ tier, mon: null })));
+}
+
+/**
+ * Einen gespeicherten Kader auf die Slots verteilen: erst nach dem Tier am Eintrag, was
+ * dort keinen Platz findet (alte Stände, S-Tier), in den nächsten freien Slot. Was auch
+ * dann nicht passt (mehr als acht), steht in `overflow`.
+ */
+export function rosterSlots(pokemon = []) {
+  const slots = emptySlots();
+  const rest = [];
+  (pokemon || []).filter((p) => p?.name).forEach((p) => {
+    const free = slots.find((s) => !s.mon && s.tier === p.tier);
+    if (free) free.mon = p;
+    else rest.push(p);
+  });
+  const overflow = [];
+  rest.forEach((p) => {
+    const free = slots.find((s) => !s.mon);
+    if (free) free.mon = p;
+    else overflow.push(p);
+  });
+  return { slots, overflow };
+}
+
+/** Slots -> Kader zum Speichern: jedes Pokémon mit dem Tier seines Slots. */
+export function slotsToRoster(slots = []) {
+  return (slots || []).filter((s) => s?.mon?.name).map((s) => ({ ...s.mon, tier: s.tier }));
+}
+
+/**
+ * Stammdaten mit dem Slot-Tier der Kader: ein Pokémon im D-Slot gilt in dieser Saison
+ * der Zweiten Liga als D (Statistik, Filter). Alle anderen bleiben, wie sie sind.
+ */
+export function withSlotTiers(pokedex = [], teams = []) {
+  const slot = new Map();
+  (teams || []).forEach((t) => (t?.pokemon || []).forEach((p) => {
+    if (p?.name && L2_TIERS.includes(p.tier) && !slot.has(p.name)) slot.set(p.name, p.tier);
+  }));
+  if (!slot.size) return pokedex || [];
+  return (pokedex || []).map((m) => (slot.has(m.name) && slot.get(m.name) !== m.tier ? { ...m, tier: slot.get(m.name) } : m));
 }
 
 /** Ist im Tier dieses Pokémon noch Platz? */

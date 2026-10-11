@@ -34,7 +34,7 @@ import { normalizeVideoUrl, videoEmbed, videoHostLabel } from './video.mjs';
 import { logoSrc, LOGO_BASE } from './logos.mjs';
 import {
   POKEDB_DOC, MON_TIERS, MON_STATS, ALL_MON_TYPES, sinceOf, monKey, normalizeMonRecord, validateMon,
-  mergePokedex, pokedexForSeason, SEASON_TIERS_DOC, seasonTierKey, snapshotTiers, applySeasonTiers, parseTierList,
+  mergePokedex, pokedexForSeason,
 } from './pokedb.mjs';
 import { normalizeChampionsUrl, fetchChampionsHtml, parseChampionsPage } from './serebii.mjs';
 import {
@@ -5914,8 +5914,6 @@ function pokedexView() {
     form: null,       // { isNew, rec, errors }
     importer: null,   // { url, html, busy, error, variants, picked, pasteOpen }
     busy: false,
-    tierSeason: '',   // '' = Stammdaten, sonst die Saison, deren Tiers die Tabelle zeigt
-    tierPaste: null,  // { text, result, busy, error }
     tiers: MON_TIERS,
     statDefs: MON_STATS,
     allTypes: ALL_MON_TYPES,
@@ -5933,61 +5931,10 @@ function pokedexView() {
       const st = p?.stats || {};
       return MON_STATS.reduce((n, s) => n + (Number(st[s.key]) || 0), 0);
     },
-    // --- Tiers je Saison ------------------------------------------------------------
-    get seasonOptions() { return Array.from({ length: this.liveSeason }, (_, i) => i + 1); },
-    get tierSeasonNo() { return this.tierSeason === '' ? null : Number(this.tierSeason) || null; },
-    get tierSeasonTaken() { return !!(this.tierSeasonNo && this.league.seasonTiersDoc.taken?.[seasonTierKey(this.tierSeasonNo)]); },
-    tierSourceLabel(p) {
-      return p?.tierSource === 'snapshot' ? 'festgehalten' : p?.tierSource === 'roster' ? 'aus dem Erstliga-Kader' : 'Stammdaten (jüngste Einstufung)';
-    },
-    async setSeasonTier(p, tier) {
-      const season = this.tierSeasonNo;
-      if (!season || !this.canEdit || !p) return;
-      try {
-        await this.league.saveSeasonTiers(season, { [monKey(p.name)]: MON_TIERS.includes(tier) ? { name: p.name, tier, cost: null } : null });
-      } catch (e) {
-        console.error('Tier konnte nicht gespeichert werden:', e);
-        window.dispatchEvent(new CustomEvent('toast', { detail: { msg: 'Das Tier konnte nicht gespeichert werden.' } }));
-      }
-    },
-    openTierPaste() {
-      if (!this.canEdit || !this.tierSeasonNo) return;
-      this.tierPaste = { text: '', busy: false, error: '' };
-      this.$nextTick(() => document.getElementById('pokedex-tierpaste')?.showPopover());
-    },
-    closeTierPaste() {
-      const el = document.getElementById('pokedex-tierpaste');
-      if (el && el.matches(':popover-open')) el.hidePopover();
-      this.tierPaste = null;
-    },
-    get tierPasteResult() {
-      if (!this.tierPaste?.text.trim()) return null;
-      const res = parseTierList(this.tierPaste.text, this.league.pokemonAll.map((p) => p.name));
-      const now = new Map(this.league.pokemonInSeasonTiers(this.tierSeasonNo).map((p) => [p.name, p.tier]));
-      res.changes = Object.values(res.entries).filter((e) => now.get(e.name) !== e.tier).length;
-      return res;
-    },
-    async saveTierPaste() {
-      const tp = this.tierPaste;
-      const res = this.tierPasteResult;
-      if (!tp || tp.busy || !res?.count) return;
-      tp.busy = true;
-      tp.error = '';
-      try {
-        await this.league.saveSeasonTiers(this.tierSeasonNo, res.entries);
-        window.dispatchEvent(new CustomEvent('toast', { detail: { msg: `${res.count} Tiers für Saison ${this.tierSeasonNo} übernommen.` } }));
-        this.closeTierPaste();
-      } catch (e) {
-        console.error('Tierliste konnte nicht gespeichert werden:', e);
-        tp.error = 'Die Tierliste konnte nicht gespeichert werden.';
-        tp.busy = false;
-      }
-    },
 
     get rows() {
       const q = this.q.trim().toLowerCase();
-      const source = this.tierSeasonNo ? this.league.pokemonInSeasonTiers(this.tierSeasonNo) : this.league.pokemonAll;
-      const list = source.filter((p) => {
+      const list = this.league.pokemonAll.filter((p) => {
         if (this.fTier && p.tier !== this.fTier) return false;
         if (this.fSince && sinceOf(p) !== Number(this.fSince)) return false;
         if (!q) return true;
@@ -6032,8 +5979,6 @@ function pokedexView() {
       this.$nextTick(() => document.getElementById('pokedex-form')?.showPopover());
     },
     openEdit(p) {
-      // Immer den Stammdatensatz bearbeiten — in der Saisonsicht trägt die Zeile das Tier der Saison.
-      p = this.league.pokemonAll.find((x) => x.name === p?.name) || p;
       if (!this.canEdit || !p) return;
       this.form = { isNew: false, rec: this.toDraft(p), errors: [], added: !!p.added };
       this.importer = null;
@@ -8422,59 +8367,6 @@ Alpine.store('league', {
   get pokemon() {
     return this.pokemonOf(this.season);
   },
-  // === Tiers je Saison (drafts/seasontiers, siehe pokedb.mjs) ===================
-  // Bewusst nur für die Zweite Liga und die Pokémon-Ansicht — die erste Liga rechnet
-  // weiter mit den Stammdaten bzw. dem Tier am Kader.
-  get seasonTiersDoc() {
-    return this._drafts[SEASON_TIERS_DOC] || EMPTY_POOL;
-  },
-  seasonTierSnapshot(season) {
-    return this.seasonTiersDoc[seasonTierKey(season)] || EMPTY_POOL;
-  },
-  pokemonInSeasonTiers(season) {
-    const key = Number(season) || 1;
-    const base = this.pokemonOf(key);
-    const snap = this.seasonTierSnapshot(key);
-    const teams = this.teams;
-    const hit = seasonTierCache.get(key);
-    if (hit && hit.base === base && hit.snap === snap && hit.teams === teams) return hit.list;
-    const list = applySeasonTiers(base, snap, seasonTiers(teamsOfSeason(teams, key)));
-    seasonTierCache.set(key, { base, snap, teams, list });
-    return list;
-  },
-  // Die Einstufung einer Saison festhalten, solange ihr Pool noch gilt: jüngste Saison,
-  // Draft der ersten Liga läuft oder ist durch. Einmal je Saison; von Hand gesetzte
-  // Einträge gehen vor. Danach darf pokemon.json für die nächste Saison neu eingestuft werden.
-  async _snapshotSeasonTiers() {
-    if (!this.draftLoaded || !this.teamsLoaded || !this.pokemonLoaded || !(this._pokedexBase || []).length) return;
-    const latest = this.seasons[this.seasons.length - 1];
-    if (!latest) return;
-    const sk = seasonTierKey(latest);
-    if (this.seasonTiersDoc.taken?.[sk] || seasonTierTried.has(sk)) return;
-    const draft = this._drafts[seasonPrefix(latest)];
-    if (!draft || !['running', 'done'].includes(draft.status)) return;
-    seasonTierTried.add(sk);
-    const auto = snapshotTiers(this.pokemonOf(latest));
-    const ref = doc(db, 'drafts', SEASON_TIERS_DOC);
-    try {
-      await runTransaction(db, async (tx) => {
-        const snap = await tx.get(ref);
-        const data = snap.exists() ? snap.data() : {};
-        if (data.taken?.[sk]) return;
-        tx.set(ref, { [sk]: { ...auto, ...(data[sk] || {}) }, taken: { [sk]: new Date().toISOString() } }, { merge: true });
-      });
-    } catch (e) {
-      console.error('Tiers der Saison konnten nicht festgehalten werden:', e);
-    }
-  },
-  /** Einträge `{ <monKey>: { name, tier, cost } }` in die Saison schreiben; `null` löscht. */
-  async saveSeasonTiers(season, entries = {}) {
-    const sk = seasonTierKey(season);
-    const data = {};
-    Object.entries(entries || {}).forEach(([key, v]) => { data[key] = v == null ? deleteField() : v; });
-    if (!Object.keys(data).length) return;
-    await setDoc(doc(db, 'drafts', SEASON_TIERS_DOC), { [sk]: data }, { merge: true });
-  },
   // Alle Spielpläne — die Langzeitsichten brauchen sie, um eine abgeschlossene
   // Saison von einer laufenden zu unterscheiden.
   get allSchedules() {
@@ -8502,7 +8394,6 @@ Alpine.store('league', {
       this.detectPicks(next);
       this.teams = next;
       this.teamsLoaded = true;
-      this._snapshotSeasonTiers();
     });
 
     onSnapshot(collection(db, 'drafts'), (snap) => {
@@ -8511,7 +8402,6 @@ Alpine.store('league', {
       this._drafts = next;
       this.draftLoaded = true;
       this.transferLoaded = true;
-      this._snapshotSeasonTiers();
     });
 
     onSnapshot(collection(db, 'schedules'), (snap) => {
@@ -8536,7 +8426,6 @@ Alpine.store('league', {
       console.error('pokemon.json konnte nicht geladen werden:', e);
     } finally {
       this.pokemonLoaded = true;
-      this._snapshotSeasonTiers();
     }
   },
 
@@ -9453,8 +9342,6 @@ let clubDirCache = null;
 const EMPTY_POOL = Object.freeze({});
 // Zusammengeführte Pokémon-Stammdaten — gilt, solange Datei und Dokument dieselben sind.
 let pokedexCache = null;
-const seasonTierCache = new Map();
-const seasonTierTried = new Set();
 
 // Beschreibt dem Modell, wann der Termin stattfindet — die Auftaktrunde liegt
 // außerhalb des normalen Rhythmus und braucht ihre eigene Einordnung.

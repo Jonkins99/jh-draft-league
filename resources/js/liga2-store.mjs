@@ -15,7 +15,7 @@ import { doc, setDoc, runTransaction, deleteField } from 'firebase/firestore';
 import { db } from './firebase.js';
 import {
   l2DocId, seasonOfL2Doc, l2TeamsOf, l2ResultsOf, l2ScheduleOf, l2BlocksOf, l2TransferOf,
-  l2MatchKey, parseL2MatchId, updateL2Match, pendingEntries, transferDiff, mergeTransfer,
+  l2MatchKey, parseL2MatchId, updateL2Match, pendingEntries, transferDiff, mergeTransfer, withSlotTiers,
 } from './liga2.mjs';
 import { transferAvailability, computeStandings } from './scoring.mjs';
 import { seasonPrefix } from './seasons.mjs';
@@ -30,27 +30,23 @@ let allCache = null;
 export function createLiga2Store(Alpine) {
   const league = () => Alpine.store('league');
 
-  // Die Zweite Liga spielt mit den Tiers IHRER Saison (wie der Draft der ersten Liga
-  // derselben Saison), nicht mit der jüngsten Einstufung aus pokemon.json. Auch schon
-  // gespeicherte Kader folgen dem — das Tier am Kadereintrag ist nur der Stand beim Eintragen.
+  // Tiers kommen in der Zweiten Liga vom SLOT, nicht vom Pokémon: Jeder Kader hat zwei
+  // Plätze je Tier A–D, und jedes Pokémon darf in jeden Platz (Mega-Gengar im D-Slot
+  // zählt als D). Das Tier am Kadereintrag ist der Slot. `dex` sind die Stammdaten der
+  // Saison mit diesem Slot-Tier — für Statistik und Filter.
   const view = (season) => {
     const id = l2DocId(season);
     const d = league()._drafts[id] || null;
-    const dex = league().pokemonInSeasonTiers(season);
+    const base = league().pokemonOf(season);
     const hit = cache.get(id);
-    if (hit && hit.doc === d && hit.dex === dex) return hit;
+    if (hit && hit.doc === d && hit.base === base) return hit;
     const s = Number(season);
-    const tierOf = new Map(dex.map((p) => [p.name, p]));
+    const teams = l2TeamsOf(d, s);
     const next = {
       doc: d,
-      dex,
-      teams: l2TeamsOf(d, s).map((t) => ({
-        ...t,
-        pokemon: t.pokemon.map((p) => {
-          const m = tierOf.get(p?.name);
-          return m && (m.tier !== p.tier || m.cost !== p.cost) ? { ...p, tier: m.tier, cost: m.cost } : p;
-        }),
-      })),
+      base,
+      teams,
+      dex: withSlotTiers(base, teams),
       results: l2ResultsOf(d, s),
       schedule: l2ScheduleOf(d),
       blocks: l2BlocksOf(d),
@@ -118,7 +114,9 @@ export function createLiga2Store(Alpine) {
       return out;
     },
     get pokemon() { return this.pokemonOf(this.season); },
-    pokemonOf(season) { return league().pokemonInSeasonTiers(season); },
+    pokemonOf(season) { return league().pokemonOf(season); },
+    // Stammdaten mit dem Slot-Tier der Kader dieser Saison.
+    slotDexOf(season) { return view(season).dex; },
     teamById(id) { return this.allTeams.find((t) => t.id === id) || null; },
     tableOf(season, uptoDay = null) {
       const results = this.resultsOf(season).filter((r) => uptoDay == null || r.day <= uptoDay);

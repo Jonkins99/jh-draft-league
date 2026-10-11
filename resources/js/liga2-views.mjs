@@ -8,8 +8,8 @@
 import { computeStandings, pokemonStats, placementHistory, battleStats } from './scoring.mjs';
 import { franchiseSlug, teamsOfSeason } from './seasons.mjs';
 import {
-  L2_TAGS, L2_TAG_LABEL, L2_SQUAD_SIZE, L2_USED, L2_BATTLES, L2_TIERS, L2_PER_TIER, L2_ROSTER_SIZE, L2_MATCHDAYS,
-  rosterCheck, tierHasRoom, drawBlocks, buildBlockSchedule, blankSchedule, planDraftFrom, checkSchedule, drawTags, normalizeTags,
+  L2_TAGS, L2_TAG_LABEL, L2_SQUAD_SIZE, L2_USED, L2_BATTLES, L2_TIERS, L2_MATCHDAYS,
+  rosterCheck, rosterSlots, slotsToRoster, drawBlocks, buildBlockSchedule, blankSchedule, planDraftFrom, checkSchedule, drawTags, normalizeTags,
   tagPlayer, canEnterBattle, squadsComplete, lineupsComplete, matchComplete, completeDays, leadCounts, matchScore,
   l2MatchId, battleHasResult, transferDiff,
 } from './liga2.mjs';
@@ -167,7 +167,7 @@ export function l2StatsView(deps) {
 
     get teams() { return this.store.seasonTeams; },
     get rows() {
-      const pokedex = this.store.pokemonOf(this.season);
+      const pokedex = this.store.slotDexOf(this.season);
       let list = l2MonRows(this.store, this.teams, this.store.results, { pokedex });
       if (this.fType) list = list.filter((s) => (s.pokemon.types || []).includes(this.fType));
       if (this.fTier) list = list.filter((s) => s.pokemon.tier === this.fTier);
@@ -264,7 +264,7 @@ export function l2TeamsView(deps) {
     get ranking() {
       const team = this.selectedTeam;
       if (!team) return [];
-      const rows = l2MonRows(this.store, [team], this.store.results, { scopeTeamId: team.id, pokedex: this.store.pokemonOf(this.season) });
+      const rows = l2MonRows(this.store, [team], this.store.results, { scopeTeamId: team.id, pokedex: this.store.slotDexOf(this.season) });
       const dir = this.sortDir === 'asc' ? 1 : -1;
       const k = this.sortKey;
       return rows.sort((a, b) => dir * ((a[k] ?? 0) - (b[k] ?? 0)) || a.pokemon.name.localeCompare(b.pokemon.name));
@@ -389,31 +389,64 @@ export function l2TeamsView(deps) {
     },
 
     // --- Kader ------------------------------------------------------------------------
+    // Der Kader-Editor arbeitet mit acht Slots (zwei je Tier A–D). Jedes Pokémon darf in
+    // jeden Slot; es gibt bewusst keinen Abgleich mit den Tiers der Stammdaten.
     openRoster() {
       const t = this.selectedTeam;
       if (!t || !this.canEdit) return;
       const played = this.store.results.some((r) => (r.home === t.id || r.away === t.id) && r.battles.some((b) => b.done));
+      const { slots, overflow } = rosterSlots(t.pokemon || []);
       // mode: 'fix' = Korrektur (gilt die ganze Saison), 'winter' = Wintertransfer.
       // Hat das Team schon gespielt, muss die Art bewusst gewählt werden.
-      this.rosterForm = { list: [...(t.pokemon || [])], before: [...(t.pokemon || [])], q: '', tier: '', mode: played ? null : 'fix' };
+      this.rosterForm = {
+        slots,
+        overflow,
+        active: slots.findIndex((x) => !x.mon),
+        before: [...(t.pokemon || [])],
+        q: '',
+        tier: '',
+        mode: played ? null : 'fix',
+      };
+      if (this.rosterForm.active < 0) this.rosterForm.active = null;
       this.showPop('l2-roster');
     },
+    get rosterList() { return slotsToRoster(this.rosterForm?.slots || []); },
     // Was sich gegenüber dem gespeicherten Kader ändert — Grundlage der Transfer-Frage.
     get rosterDiff() {
       const f = this.rosterForm;
       if (!f) return { removed: [], added: [] };
-      return transferDiff(this.selectedId, f.before, f.list);
+      return transferDiff(this.selectedId, f.before, this.rosterList);
     },
     get rosterChanged() { return this.rosterDiff.removed.length + this.rosterDiff.added.length > 0; },
     // Beim ersten Eintragen gibt es nichts zu unterscheiden.
     get rosterNeedsMode() { return this.rosterChanged && (this.rosterForm?.before || []).length > 0; },
     isNewInRoster(name) { return this.rosterDiff.added.some((a) => a.name === name); },
+    // Tier eines Pokémon in den Stammdaten — nur als Hinweis neben dem Slot.
+    baseTier(name) { return this.store.pokemonOf(this.season).find((p) => p.name === name)?.tier || null; },
+    selectSlot(i) {
+      const f = this.rosterForm;
+      if (!f) return;
+      f.active = f.active === i ? null : i;
+    },
+    clearSlot(i) {
+      const f = this.rosterForm;
+      if (!f?.slots[i]) return;
+      f.slots[i].mon = null;
+      f.active = i;
+    },
+    _freeSlot(tier = null) {
+      const slots = this.rosterForm?.slots || [];
+      const same = tier ? slots.findIndex((x) => !x.mon && x.tier === tier) : -1;
+      return same >= 0 ? same : slots.findIndex((x) => !x.mon);
+    },
     restoreMon(name) {
       const f = this.rosterForm;
       const p = f?.before.find((x) => x.name === name);
-      if (!p || f.list.some((x) => x.name === name)) return;
-      if (f.list.length >= L2_ROSTER_SIZE || !tierHasRoom(f.list, p.tier)) return this.toast(`Für ${name} ist im Tier ${p.tier} kein Platz mehr.`);
-      f.list = [...f.list, p];
+      if (!p || this.rosterList.some((x) => x.name === name)) return;
+      const i = this._freeSlot(p.tier);
+      if (i < 0) return this.toast(`Für ${name} ist kein Slot frei — erst einen Slot leeren.`);
+      f.slots[i].mon = p;
+      if (f.active === i) f.active = null;
     },
     // Letzter Spieltag der Hinrunde: bis dahin zählen Abgänge, danach die Zugänge.
     get winterCutDay() {
@@ -421,10 +454,10 @@ export function l2TeamsView(deps) {
       return days.length ? Math.max(...days) : null;
     },
     get rosterSaveReady() {
-      return !!this.rosterForm && this.rosterCheckDraft.valid && (!this.rosterNeedsMode || !!this.rosterForm.mode);
+      return !!this.rosterForm && (!this.rosterNeedsMode || !!this.rosterForm.mode);
     },
-    get rosterCheckDraft() { return rosterCheck(this.rosterForm?.list || []); },
-    // Wer schon in einem anderen Zweitliga-Kader dieser Saison steht, ist vergeben.
+    get rosterFilled() { return this.rosterList.length; },
+    // Wer schon in einem anderen Zweitliga-Kader dieser Saison steht — nur als Hinweis.
     get takenElsewhere() {
       const map = {};
       this.teams.forEach((t) => {
@@ -437,26 +470,29 @@ export function l2TeamsView(deps) {
       const f = this.rosterForm;
       if (!f) return [];
       const q = f.q.trim().toLowerCase();
-      const have = new Set(f.list.map((p) => p.name));
+      const have = new Set(this.rosterList.map((p) => p.name));
+      const order = ['S', ...L2_TIERS];
       return this.store.pokemonOf(this.season)
-        .filter((p) => L2_TIERS.includes(p.tier) && !have.has(p.name))
-        .filter((p) => (f.tier ? p.tier === f.tier : tierHasRoom(f.list, p.tier)))
+        .filter((p) => !have.has(p.name))
+        .filter((p) => !f.tier || p.tier === f.tier)
         .filter((p) => !q || p.name.toLowerCase().includes(q) || (p.name_en || '').toLowerCase().includes(q))
-        .sort((a, b) => L2_TIERS.indexOf(a.tier) - L2_TIERS.indexOf(b.tier) || (b.cost ?? 0) - (a.cost ?? 0) || a.name.localeCompare(b.name))
+        .sort((a, b) => order.indexOf(a.tier) - order.indexOf(b.tier) || (b.cost ?? 0) - (a.cost ?? 0) || a.name.localeCompare(b.name))
         .slice(0, 120);
     },
-    canAddMon(p) {
+    get rosterTarget() {
       const f = this.rosterForm;
-      return !!f && f.list.length < L2_ROSTER_SIZE && tierHasRoom(f.list, p.tier) && !this.takenElsewhere[p.name];
+      if (!f) return -1;
+      return f.active != null && f.slots[f.active] ? f.active : this._freeSlot();
     },
+    canAddMon() { return this.rosterTarget >= 0; },
     addMon(p) {
-      if (!this.canAddMon(p)) return;
-      const clean = { name: p.name, name_en: p.name_en || null, dex: p.dex ?? null, types: p.types || [], tier: p.tier, cost: p.cost ?? null, image: p.image || null };
-      this.rosterForm.list = [...this.rosterForm.list, clean];
-    },
-    dropMon(name) {
-      if (!this.rosterForm) return;
-      this.rosterForm.list = this.rosterForm.list.filter((p) => p.name !== name);
+      const f = this.rosterForm;
+      const i = this.rosterTarget;
+      if (!f || i < 0 || !p) return;
+      f.slots[i].mon = { name: p.name, name_en: p.name_en || null, dex: p.dex ?? null, types: p.types || [], cost: p.cost ?? null, image: p.image || null };
+      const next = this._freeSlot();
+      f.active = next >= 0 ? next : null;
+      f.q = '';
     },
     async saveRoster() {
       const f = this.rosterForm;
@@ -464,7 +500,7 @@ export function l2TeamsView(deps) {
       const winter = this.rosterNeedsMode && f.mode === 'winter';
       this.busy = true;
       try {
-        await this.store.setRoster(this.season, this.selectedId, f.list, { winter });
+        await this.store.setRoster(this.season, this.selectedId, this.rosterList, { winter });
         this.hidePop('l2-roster');
         this.rosterForm = null;
         this.toast(winter ? 'Kader gespeichert — Ab- und Zugänge als Wintertransfer vermerkt.' : 'Kader gespeichert.');

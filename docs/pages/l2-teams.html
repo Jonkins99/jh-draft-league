@@ -96,7 +96,7 @@
         <div class="mb-4 flex flex-wrap items-center justify-between gap-3">
           <div class="min-w-0">
             <h2 class="font-display text-xl font-bold uppercase tracking-wider text-ink">Kader</h2>
-            <p class="mt-1 text-xs text-mist">Je zwei Pokémon aus Tier A, B, C und D — kein S.</p>
+            <p class="mt-1 text-xs text-mist">Zwei Slots je Tier A, B, C und D — jedes Pokémon passt in jeden Slot.</p>
           </div>
           <button type="button" x-show="canEdit" @click="openRoster()"
                   class="shrink-0 rounded-xl border border-line px-3.5 py-2 font-display text-xs font-bold uppercase tracking-wider text-mist transition-colors hover:border-flame-500/40 hover:text-flame-400">Kader bearbeiten</button>
@@ -354,28 +354,54 @@
           </button>
         </div>
         <div class="min-h-0 flex-1 overflow-y-auto overflow-x-hidden px-4 py-4 sm:px-5">
-          <div class="mb-3 flex flex-wrap gap-1.5">
-            <template x-for="tier in ['A','B','C','D']" :key="'l2rt-'+tier">
-              <span class="rounded-md px-2 py-0.5 font-display text-xs font-bold tabular-nums"
-                    :style="`color:${tierColor(tier)}; background:${tierColor(tier)}22`" x-text="`${tier} ${rosterCheckDraft.byTier[tier]}/2`"></span>
-            </template>
-            <span class="ml-auto font-display text-xs font-bold tabular-nums" :class="rosterCheckDraft.complete ? 'text-volt-400' : 'text-mist'" x-text="`${rosterCheckDraft.total} / 8`"></span>
+          <div class="mb-2 flex items-center gap-2">
+            <p class="min-w-0 flex-1 text-xs text-mist">Zwei Slots je Tier. Jedes Pokémon passt in jeden Slot — es zählt als Tier des Slots. Slot antippen, dann unten ein Pokémon wählen.</p>
+            <span class="shrink-0 font-display text-xs font-bold tabular-nums" :class="rosterFilled === 8 ? 'text-volt-400' : 'text-mist'" x-text="`${rosterFilled} / 8`"></span>
           </div>
           <div class="grid grid-cols-2 gap-2 sm:grid-cols-4">
-            <template x-for="p in rosterForm.list" :key="'l2rf-'+p.name">
-              <button type="button" @click="dropMon(p.name)" title="Entfernen"
-                      class="flex min-w-0 items-center gap-2 rounded-xl border border-line bg-elevated/40 p-2 text-left transition-colors hover:border-flame-500/50">
-                <img :src="p.image" :alt="p.name" class="size-9 shrink-0 object-contain" />
-                <span class="min-w-0 flex-1">
-                  <span class="block truncate text-xs font-semibold text-ink" x-text="p.name"></span>
-                  <span class="text-[10px] font-bold" :style="{ color: tierColor(p.tier) }" x-text="`Tier ${p.tier}`"></span>
-                  <span x-show="rosterNeedsMode && isNewInRoster(p.name)" class="ml-1 rounded bg-volt-400/15 px-1 text-[9px] font-bold uppercase tracking-wider text-volt-400">neu</span>
-                </span>
-                <span class="shrink-0 text-mist">×</span>
-              </button>
+            <template x-for="(slot, si) in rosterForm.slots" :key="'l2slot-'+si">
+              <div class="relative min-w-0 rounded-xl border p-2 transition-colors"
+                   :class="rosterForm.active === si ? 'border-flame-500 bg-flame-500/10' : (slot.mon ? 'border-line bg-elevated/40' : 'border-dashed border-line')">
+                <button type="button" @click="selectSlot(si)" class="flex w-full min-w-0 items-center gap-2 text-left"
+                        :aria-label="slot.mon ? `${slot.mon.name} im ${slot.tier}-Slot – antippen zum Ersetzen` : `Freier ${slot.tier}-Slot`">
+                  <span class="grid size-9 shrink-0 place-items-center rounded-lg font-display text-sm font-bold"
+                        :style="{ color: tierColor(slot.tier), background: tierColor(slot.tier) + '22' }" x-show="!slot.mon" x-text="slot.tier"></span>
+                  <img x-show="slot.mon" :src="slot.mon?.image" :alt="slot.mon?.name" class="size-9 shrink-0 object-contain" />
+                  <span class="min-w-0 flex-1 pr-5">
+                    <span class="block truncate text-xs font-semibold" :class="slot.mon ? 'text-ink' : 'text-mist'" x-text="slot.mon ? slot.mon.name : (rosterForm.active === si ? 'Pokémon wählen…' : 'frei')"></span>
+                    <span class="text-[10px] font-bold" :style="{ color: tierColor(slot.tier) }" x-text="`${slot.tier}-Slot`"></span>
+                    <span x-show="slot.mon && baseTier(slot.mon?.name) && baseTier(slot.mon?.name) !== slot.tier" class="text-[10px] text-mist" x-text="` · eig. ${baseTier(slot.mon?.name)}`"></span>
+                    <span x-show="slot.mon && rosterNeedsMode && isNewInRoster(slot.mon?.name)" class="ml-1 rounded bg-volt-400/15 px-1 text-[9px] font-bold uppercase tracking-wider text-volt-400">neu</span>
+                  </span>
+                </button>
+                <button type="button" x-show="slot.mon" @click="clearSlot(si)" :aria-label="`${slot.mon?.name} entfernen`"
+                        class="absolute right-1 top-1 grid size-7 place-items-center rounded-lg text-mist hover:text-flame-400">×</button>
+              </div>
             </template>
           </div>
-          <p x-show="rosterCheckDraft.problems.length" class="mt-3 rounded-xl border border-flame-500/40 bg-flame-500/10 px-3 py-2 text-xs text-flame-400" x-text="rosterCheckDraft.problems.join(' · ')"></p>
+          <p x-show="rosterForm.overflow.length" class="mt-3 rounded-xl border border-flame-500/40 bg-flame-500/10 px-3 py-2 text-xs text-flame-400" x-text="`Ohne freien Slot (fällt beim Speichern weg): ${rosterForm.overflow.map((p) => p.name).join(', ')}`"></p>
+
+          <div class="mt-4 border-t border-line pt-4">
+            <div class="flex flex-wrap items-center gap-2">
+              <input type="search" x-model="rosterForm.q" placeholder="Pokémon suchen…" class="min-w-0 flex-1 rounded-lg border border-line bg-elevated px-3 py-2 text-base text-ink focus:border-flame-500 focus:outline-none sm:text-sm" />
+              <select x-model="rosterForm.tier" class="rounded-lg border border-line bg-elevated px-2 py-2 text-sm text-ink">
+                <option value="">Alle Tiers</option>
+                <template x-for="t in ['S','A','B','C','D']" :key="'l2rft-'+t"><option :value="t" x-text="'Tier '+t"></option></template>
+              </select>
+            </div>
+            <p class="mt-2 text-[11px] text-mist" x-text="rosterTarget >= 0 ? `Kommt in den ${rosterForm.slots[rosterTarget].tier}-Slot.` : 'Alle Slots belegt — einen Slot antippen, um ihn zu ersetzen, oder mit × leeren.'"></p>
+            <div class="mt-2 grid max-h-72 grid-cols-1 gap-1.5 overflow-y-auto sm:grid-cols-2">
+              <template x-for="p in rosterOptions" :key="'l2ro-'+p.name">
+                <button type="button" @click="addMon(p)" :disabled="!canAddMon()"
+                        class="flex min-w-0 items-center gap-2 rounded-xl border border-line px-2.5 py-1.5 text-left transition-colors hover:border-flame-500/40 disabled:cursor-not-allowed disabled:opacity-40">
+                  <img :src="p.image" :alt="p.name" loading="lazy" class="size-8 shrink-0 object-contain" />
+                  <span class="min-w-0 flex-1 truncate text-sm text-ink" x-text="p.name"></span>
+                  <span x-show="takenElsewhere[p.name]" class="shrink-0 truncate text-[10px] text-mist" x-text="`auch bei ${takenElsewhere[p.name]}`"></span>
+                  <span class="shrink-0 font-display text-[11px] font-bold" :style="{ color: tierColor(p.tier) }" x-text="p.tier"></span>
+                </button>
+              </template>
+            </div>
+          </div>
 
           <div x-show="rosterNeedsMode" class="mt-4 rounded-xl border border-line bg-elevated/40 p-3">
             <p class="font-display text-[11px] font-bold uppercase tracking-wider text-mist">Änderung gegenüber dem gespeicherten Kader</p>
@@ -419,30 +445,10 @@
             </div>
           </div>
 
-          <div class="mt-5 border-t border-line pt-4">
-            <div class="flex flex-wrap items-center gap-2">
-              <input type="search" x-model="rosterForm.q" placeholder="Pokémon suchen…" class="min-w-0 flex-1 rounded-lg border border-line bg-elevated px-3 py-2 text-base text-ink focus:border-flame-500 focus:outline-none sm:text-sm" />
-              <select x-model="rosterForm.tier" class="rounded-lg border border-line bg-elevated px-2 py-2 text-sm text-ink">
-                <option value="">Alle Tiers</option>
-                <template x-for="t in ['A','B','C','D']" :key="'l2rft-'+t"><option :value="t" x-text="'Tier '+t"></option></template>
-              </select>
-            </div>
-            <div class="mt-3 grid grid-cols-1 gap-1.5 sm:grid-cols-2">
-              <template x-for="p in rosterOptions" :key="'l2ro-'+p.name">
-                <button type="button" @click="addMon(p)" :disabled="!canAddMon(p)"
-                        class="flex min-w-0 items-center gap-2 rounded-xl border border-line px-2.5 py-1.5 text-left transition-colors hover:border-flame-500/40 disabled:cursor-not-allowed disabled:opacity-40">
-                  <img :src="p.image" :alt="p.name" loading="lazy" class="size-8 shrink-0 object-contain" />
-                  <span class="min-w-0 flex-1 truncate text-sm text-ink" x-text="p.name"></span>
-                  <span x-show="takenElsewhere[p.name]" class="shrink-0 truncate text-[10px] text-mist" x-text="takenElsewhere[p.name]"></span>
-                  <span class="shrink-0 font-display text-[11px] font-bold" :style="`color:${tierColor(p.tier)}`" x-text="p.tier"></span>
-                </button>
-              </template>
-            </div>
-          </div>
         </div>
         <div class="flex flex-wrap items-center gap-3 border-t border-line px-4 py-3 sm:px-5">
           <p class="min-w-0 flex-1 text-xs text-mist"
-             x-text="!rosterNeedsMode ? (rosterChanged ? 'Erster Eintrag des Kaders.' : 'Keine Änderung.') : (rosterForm.mode === 'winter' ? 'Wird als Wintertransfer gespeichert.' : rosterForm.mode === 'fix' ? 'Wird als Korrektur gespeichert.' : 'Bitte oben Korrektur oder Wintertransfer wählen.')"></p>
+             x-text="!rosterNeedsMode ? (rosterChanged ? 'Erster Eintrag des Kaders.' : 'Keine Änderung.') : (rosterForm.mode === 'winter' ? 'Wird als Wintertransfer gespeichert.' : rosterForm.mode === 'fix' ? 'Wird als Korrektur gespeichert.' : 'Bitte unten Korrektur oder Wintertransfer wählen.')"></p>
           <button type="button" @click="saveRoster()" :disabled="busy || !rosterSaveReady"
                   class="shrink-0 rounded-xl bg-flame-500 px-4 py-2.5 font-display text-sm font-bold uppercase tracking-wide text-white transition-colors hover:bg-flame-600 disabled:opacity-40">Speichern</button>
         </div>
