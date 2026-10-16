@@ -37,7 +37,8 @@ export const LEAGUE_PRIMER = `SO FUNKTIONIERT DIE JH DRAFT LEAGUE:
   daraus entsteht echter Konkurrenzkampf im Kader.
 - Jeder gewonnene Kampf bringt einen Punkt. Ein Match endet also 3:0, 2:1, 1:2 oder 0:3
   (Unentschieden in einzelnen Kämpfen möglich). Die Tabelle sortiert nach Punkten, dann nach
-  Kill-Differenz (eigene Kills minus eigene Deaths).
+  Kill-Differenz (eigene Kills minus eigene Deaths), dann nach dem direkten Vergleich und zuletzt
+  nach der Platzierung am Ende der Vorsaison.
 - Kills und Deaths stammen aus dem Kampfprotokoll. Ein Pokémon kann auch durch den eigenen Partner
   fallen ("Eigenverschulden") — dafür gibt es dem Gegner keinen Kill, aber es ist ein Death.
 - Jedes Team hat einen TRAINER. Trainer kämpfen nicht, sie verantworten Aufstellung und Auftreten,

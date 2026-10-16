@@ -383,12 +383,15 @@ export function planRisks(plan, pathId, live) {
 const PRESSURE = { 4: 1.6, 2: 1, 1: 0, 0.5: -0.9, 0.25: -1.4, 0: -1.7 };
 const pressureOf = (mult) => (mult in PRESSURE ? PRESSURE[mult] : mult > 1 ? 1.6 : mult < 1 ? -1.4 : 0);
 
-/** Je Angriffstyp: wie viele meiner Pokémon er trifft, und wie schwer das wiegt. */
+/**
+ * Je Angriffstyp: wie viele meiner Pokémon er trifft, und wie schwer das wiegt.
+ * `m.immune` sind Angriffstypen, gegen die eine Fähigkeit immun macht.
+ */
 export function coverageOf(mons = []) {
   return ALL_TYPES.map((type) => {
     let weak = 0, resist = 0, immune = 0, pressure = 0;
     const cells = (mons || []).map((m) => {
-      const mult = typeMultiplier(type, m.types || []);
+      const mult = typeMultiplier(type, m.types || [], m.immune);
       if (mult === 0) immune++;
       else if (mult > 1) weak++;
       else if (mult < 1) resist++;
@@ -439,7 +442,7 @@ export function suggestCoverage(mons = [], pokedex = [], opts = {}) {
       const covers = [];
       const adds = [];
       spots.forEach((s) => {
-        const mult = typeMultiplier(s.type, p.types || []);
+        const mult = typeMultiplier(s.type, p.types || [], p.immune);
         if (mult < 1) covers.push({ type: s.type, mult });
         else if (mult > 1) adds.push({ type: s.type, mult });
       });

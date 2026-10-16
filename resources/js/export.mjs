@@ -217,8 +217,9 @@ export function buildRankingExport(teams, results, pokemon) {
       'Kampf-Siegquote %': pct(s.battleWinPct),
       'Match-Siegquote %': pct(s.matchWinPct),
       'Überlebensrate %': pct(s.survivalRate),
+      Leads: s.leads ?? 0,
+      'Lead-Quote %': pct(s.leadShare || 0),
       Init: speed[s.pokemon.name] ?? '',
-      Kosten: s.pokemon.cost ?? '',
     }));
   return { filename: 'jhdl-pokemon-ranking', sheets: [{ name: 'Ranking', rows }] };
 }
@@ -238,7 +239,6 @@ export function buildTeamsExport(teams, pokemon) {
           Pokémon: p.name,
           Typen: (p.types || []).join('/'),
           Tier: p.tier || '',
-          Kosten: p.cost ?? '',
           Init: speed[p.name] ?? '',
         });
       });
@@ -255,7 +255,6 @@ export function buildDraftpoolExport(pokemon, teams) {
     Dex: p.dex ?? '',
     Typen: (p.types || []).join('/'),
     Tier: p.tier || '',
-    Kosten: p.cost ?? '',
     Init: p.base_speed ?? '',
     'Gedraftet von': owner[p.name]?.name || '',
     Spieler: owner[p.name]?.player || '',
@@ -282,7 +281,6 @@ export function buildDraftOrderExport(picks, draft, teams) {
     Dex: p.mon?.dex ?? '',
     Typen: (p.mon?.types || []).join('/'),
     Tier: p.mon?.tier || '',
-    Kosten: p.mon?.cost ?? '',
     Init: p.mon?.base_speed ?? '',
     Status: p.gone ? 'im Transfer abgegeben' : 'im Kader',
     Zuordnung: p.approx ? 'ungefähr' : 'exakt',

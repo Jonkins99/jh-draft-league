@@ -2,7 +2,7 @@
   <header class="mb-8">
     <p class="font-display text-xs font-semibold uppercase tracking-[0.3em] text-[#8ab8ea]">2. Liga · H-Side</p>
     <h1 class="mt-1 font-display text-4xl font-bold tracking-wide text-ink md:text-5xl">Tabelle</h1>
-    <p class="mt-2 text-mist" x-text="`Saison ${season} · ein Punkt pro gewonnenem Kampf, bei Gleichstand entscheidet die Differenz der besiegten Pokémon.`"></p>
+    <p class="mt-2 text-mist" x-text="`Saison ${season} · ein Punkt pro gewonnenem Kampf, bei Gleichstand entscheiden die Differenz der besiegten Pokémon, der direkte Vergleich und zuletzt die Platzierung der Vorsaison.`"></p>
   </header>
 
   <div x-show="!loaded" class="py-12 text-center text-mist">Lade Tabelle…</div>
@@ -74,8 +74,8 @@
                 </td>
                 <td class="px-4 py-3.5 sm:px-5">
                   <div class="flex min-w-0 items-center gap-3">
-                    <img x-show="row.team.logo" :src="logoUrl(row.team.logo)" :alt="row.team.name" class="size-9 shrink-0 rounded-lg object-contain" />
-                    <span x-show="!row.team.logo" class="size-9 shrink-0 rounded-lg" :style="{ background: teamColor(row.team) + '33' }"></span>
+                    <template x-if="row.team.logo"><img :src="logoUrl(row.team.logo)" :alt="row.team.name" class="size-9 shrink-0 rounded-lg object-contain" /></template>
+                    <template x-if="!row.team.logo"><span class="size-9 shrink-0 rounded-lg" :style="{ background: teamColor(row.team) + '33' }"></span></template>
                     <div class="min-w-0 truncate font-semibold" :style="`color:${teamColor(row.team)}`" x-text="row.team.name"></div>
                   </div>
                 </td>

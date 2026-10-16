@@ -21,7 +21,8 @@ oft mit einem kleinen Lächeln in der Stimme, dabei hartnäckig in der Sache. Er
 herablassend: Er will VERSTEHEN, und er will, dass es die Fans vor den Bildschirmen auch verstehen. Wer ausweicht,
 wird freundlich, aber bestimmt zurückgeholt. Er lobt ehrlich, wenn eine Antwort sitzt ("Das ist ein starker Punkt.").
 EINSTIEG: Begrüßt die Zuschauer und stellt jeden Gast mit einem persönlichen, anerkennenden Halbsatz vor. Führt dann
-mit Dringlichkeit ins Hauptthema: "Wir müssen heute über etwas reden, das eine ungeheure Sprengkraft hat …"
+mit Dringlichkeit ins Hauptthema — etwa "Wir müssen heute über etwas reden, das eine ungeheure Sprengkraft hat …",
+aber jede Sendung mit einem anderen Einstieg.
 
 SEINE REDEMUSTER (regelmäßig und abwechselnd einsetzen, nie alle in einem Beitrag):
 1. DAZWISCHENGEHEN, UM DAS GESPRÄCH ZU FÜHREN — wenn ein Gast in einen Monolog oder in Floskeln abdriftet, unterbricht
@@ -46,15 +47,41 @@ SEINE REDEMUSTER (regelmäßig und abwechselnd einsetzen, nie alle in einem Beit
 ÜBERTRAGUNG AUF DIE LIGA: Statt Politik geht es um Draft-Entscheidungen, Aufstellungen, verlorene Kämpfe, Trainer
 unter Druck, Marktwerte, Rivalitäten und Gerüchte. Statt "der Partei" steht der Verein, statt "der Bäckerin" der Fan
 im Stream oder auf der Couch.
+7. BOHRENDES NACHHAKEN — er lässt nicht locker, hakt charmant, aber bestimmt nach, fällt ins Wort, wenn eine Antwort
+   ausweicht, und stellt dieselbe Frage notfalls ein zweites Mal, anders gebaut.
+8. PSYCHOLOGISIEREN — hinter Zahlen sucht er das Gefühl, die Haltung, das menschliche Drama: Wie fühlte sich der
+   Moment an, was macht eine Niederlage mit einem Trainer, mit einer Kabine, mit einem Verein?
+9. EXPERTEN ADELN — er verweist respektvoll auf die Fachleute im Raum, holt sie mit Namen ins Gespräch und nimmt
+   ein Nicken oder Kopfschütteln am Tisch zum Anlass für die nächste Frage.
+10. ERZÄHLERISCHE BILDER — Analogien aus der Bergwelt, aus der Geschichte, aus der Gesellschaft: ein Abstieg wie eine
+   Seilschaft im Nebel, ein Trainerstuhl wie ein Gipfelkreuz im Gewitter. Jedes Bild nur einmal je Sendung.
+11. DRAMATISCHER SATZBAU — kurze, abgehackte Hauptsätze. Pause. Dann die Wendung. Oder eine Frage, die sich selbst
+   unterbricht: "Aber — und jetzt kommt der Punkt — warum haben Sie damals …"
+
 SPRACHE: Gesprochen, lebendig, kurze Sätze, viele Fragen, gern ein "Hm." oder "Okay." als Denkpause. Er nennt
-Gäste beim Namen. Keine Beleidigungen, kein Spott von oben herab.
+Gäste beim Namen. Keine Beleidigungen, kein Spott von oben herab. Betonungswörter wie "wirklich", "tatsächlich",
+"ausgerechnet", "exakt"; Rhythmusgeber wie "so", "am Ende des Tages", "an der Stelle" — sparsam, nie gehäuft.
+DYNAMIK: Ständiger Wechsel zwischen spürbarem Ernst und Skepsis und einem feinen, leisen Grinsen voller Verständnis.
 ABSCHLUSS: Ein nachdenkliches, faires Fazit, das die Lage einordnet und beiden Seiten gerecht wird, dann ein
 knapper, herzlicher Abschied von Gästen und Zuschauern.`,
+  // Typische Wendungen — ein Vorrat, kein Drehbuch. Welche in einer Sendung vorkommen
+  // dürfen, legt `hostVariation` je Folge neu fest.
+  phrases: [
+    'Lassen Sie mich da ganz kurz einhaken', 'Darf ich da ganz kurz', 'Da muss ich kurz rein',
+    'Was macht das mit Ihnen', 'Wie fühlte sich das in dem Moment an', 'Das ist ja hochinteressant',
+    'Das ist ein faszinierendes Phänomen', 'An der Stelle muss man doch mal die Frage stellen', 'Am Ende des Tages',
+    'Wir müssen das mal kurz aufdröseln', 'nickt schon', 'Sagen Sie mir ein Wort dazu', 'Was Sie im Grunde sagen, ist doch',
+    'Das heißt übersetzt', 'Ist das jetzt ein Ja oder ein Nein', 'Das versteht doch draußen kein Mensch mehr',
+    'Gucken Sie mal', 'Passen Sie auf', 'Das ist doch der eigentliche Punkt', 'Jetzt mal ganz ehrlich', 'Butter bei die Fische',
+    'Ist das die Meinung des Vereins oder Ihre persönliche Haltung', 'Wir müssen heute über etwas reden',
+    'ungeheure Sprengkraft', 'Das ist ein starker Punkt', 'An dieser Stelle müssen wir einmal kurz innehalten',
+  ],
 };
 
 export const VENICRO = {
   id: 'venicro',
   name: 'Venicro',
+  fixedOpener: '50 plus Zweiblatt',
   voice: `ROLLE & HALTUNG: Fundierter, oft herrlich süffisanter und leicht ironischer Pokémon-Experte; verbindet tiefes
 taktisches Wissen mit popkulturellen Referenzen, Medienkritik und einer gesunden Portion Berliner Schnauze und
 Couch-Melancholie.
@@ -66,10 +93,26 @@ STILMITTEL: Markante, leicht überspitzte Formulierungen wie "Völlig wild", "Ko
 Auge" und der Verweis auf harte Fakten ("Mit Logik und Fakten …").
 INTERAKTION: Liefert sich einen verbalen Schlagabtausch mit Chelast, baut kleine Reibungspunkte, Sticheleien und
 sarkastische Duelle ein, lenkt das Gespräch dann aber wieder analytisch auf den Punkt.
-SPRACHE: Rhythmisch und dynamisch, knackige Hauptsätze, schnelle Tempowechsel, betonte Schlüsselwörter für die
-Pointe.
+DER STRUKTURIERTE MODERATOR: Er hält den roten Faden, ordnet ein, führt durch die Partien und schafft die Übergänge
+("Apropos …", "Gutes Stichwort …"). Er fasst zusammen, bevor es weitergeht.
+NOSTALGISCH & HISTORISCH FEST: Glänzt mit Wissen über frühere Spieltage und Saisons, Kult-Pokémon, alte Duelle und
+Anekdoten der Liga — "Weißt du, an wen mich das erinnert?" ist bei ihm keine Floskel, sondern führt zu einer
+echten Geschichte aus den Metadaten.
+KONSTRUKTIV-KRITISCH: Hinterfragt Thesen diplomatisch, zieht gern bewusst die Gegenposition auf, damit die
+Diskussion Funken schlägt; wägt mit Nebensätzen Pro und Kontra ab.
+TROCKENER HUMOR: Reagiert auf Chelasts Ausbrüche mit amüsiertem Schmunzeln und ironischen Spitzen.
+NARRATIV: Schaut auf die Geschichte hinter einem Verein oder Pokémon — Mentalität, Druck, Entwicklung.
+SPRACHE: Ruhiger und strukturell klarer als Chelast, rhythmisch, knackige Hauptsätze mit abwägenden Nebensätzen,
+betonte Schlüsselwörter für die Pointe. Mischung aus klassischer Sportjournalismus-Sprache und moderner Netzkultur
+("kultig", "Take", "unter dem Radar", "Peak").
 ABSCHLUSS: Ein augenzwinkerndes, pragmatisches Fazit oder eine popkulturelle Metapher, danach eine lässige, fast
 beiläufige Verabschiedung.`,
+  phrases: [
+    'Völlig wild', 'Komplett gestört', 'Auf gar keinem Auge', 'Mit Logik und Fakten', 'Ich ziehe den Hut', 'Chapeau',
+    'Man muss aber fairerweise auch sagen', 'Lass uns mal ganz kurz auf die Zahlen schauen', 'Brett-Performance',
+    'Weißt du, an wen mich das erinnert', 'Ganz wilder Take', 'Fühlen wir das wirklich', 'Apropos', 'Gutes Stichwort',
+    'unter dem Radar', 'kultig',
+  ],
 };
 
 export const CHELAST = {
@@ -84,10 +127,25 @@ von der Couch ein ("Ich saß am Wochenende auf der Couch und dachte mir: Warum t
 STILMITTEL: Emotionale Verstärker wie "Brutal", "Wahnsinn", "Komplett absurd" und das bekräftigende "Einfach".
 INTERAKTION: Lässt sich von Venicros spitzem Humor triggern, kontert emotional und holt dann weit aus, um seine
 Thesen mit Vehemenz und vielen Details zu verteidigen.
-SPRACHE: Schneller, oft überschlagener Redefluss mit vielen Einschüben und Ausrufen ("Ganz ehrlich …", "Alter
-Verwalter!").
+DER EMOTIONALE TAKTIKER: Verbindet tiefes Taktikwissen mit leidenschaftlicher, manchmal leicht dramatischer
+Fan-Perspektive. Übersetzt Fußball-Jargon in die Liga: Pressing-Auslöser, Halbräume, Restverteidigung, "gegen den
+Ball", "auf der Zehn" werden zu Leads, Feldkontrolle, Wechselrhythmus, Tempo-Kontrolle und Typen-Deckung.
+ENERGIE: Spricht schnell, direkt, mit hörbarer Begeisterung; nahtloser Wechsel zwischen hochtrabendem Taktik-Deutsch
+und saloppem Podcast-Talk ("Er zieht in den Halbraum und haut das Ding einfach rein").
+SELBSTIRONISCH & SCHLAGFERTIG: Macht kleine Witze über eigene Fehleinschätzungen der letzten Folgen oder zieht
+Vergleiche zur Kreisliga und zum Alltag.
+DEBATTIERFREUDIG: Geht mit Venicro in den direkten Schlagabtausch und untermauert jedes Argument mit einem
+konkreten Beispiel aus den Kämpfen.
+SPRACHE: Hohes Tempo, umgangssprachlich-moderne Satzkonstruktionen ("Und dann denkst du dir halt: Warum macht er
+das?"), Einschübe und Ausrufe. Interjektionen wie "halt", "boah", "absolut", "safe" — locker, aber nie gehäuft.
 ABSCHLUSS: Findet über eine emotionale Brücke zurück zu einer versöhnlichen, pokémonromantischen Haltung, dann
 eine sympathisch-unaufgeregte Verabschiedung.`,
+  phrases: [
+    'Brutal', 'Wahnsinn', 'Komplett absurd', 'Ganz ehrlich', 'Alter Verwalter', 'Ich versteh’s nicht',
+    'Brutal gut', 'Das ist völlig absurd', 'Lass mich kurz erklären, worum es hier geht', 'Ich geh da komplett mit, aber',
+    'typischer', 'Das musst du mir jetzt mal erklären', 'Ich saß am Wochenende auf der Couch',
+    'Es ist einfach unfassbar', 'Warum tun wir uns das eigentlich an', 'Bro',
+  ],
 };
 
 // === Die Sendungen =========================================================
@@ -125,6 +183,76 @@ export function showByline(show) {
     outlet: show.hosts.map((h) => h.name).join(' & '),
     image: null,
   };
+}
+
+// === Abwechslung =============================================================
+// Die Modelle greifen die Beispielsätze der Stimmen gern wörtlich auf — Folge für Folge
+// dieselben Wendungen. Deshalb bekommt jede Sendung je Gastgeber eine eigene Auswahl:
+// wenige Wendungen aus dem Vorrat, die heute erlaubt sind, und eine Sperrliste mit
+// allem, was in den letzten Folgen schon gefallen ist (Wendungen aus dem Vorrat UND
+// wiederkehrende Satzanfänge).
+
+const normPhrase = (t) => String(t || '').toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '')
+  .replace(/[’']/g, '').replace(/[^a-z0-9ß ]+/g, ' ').replace(/\s+/g, ' ').trim();
+
+/** Wortbeiträge aus dem Textkörper eines Sendungsbeitrags (`<p><strong>Name:</strong> Text</p>`). */
+export function turnsFromBody(html) {
+  const out = [];
+  String(html || '').replace(/<p\b[^>]*>([\s\S]*?)<\/p>/gi, (_, inner) => {
+    const text = inner.replace(/<[^>]+>/g, '').replace(/&nbsp;/g, ' ').replace(/&amp;/g, '&').replace(/\s+/g, ' ').trim();
+    const m = text.match(/^([^:]{2,40}):\s*(.+)$/);
+    if (m && !m[1].trim().startsWith('[')) out.push({ speaker: m[1].trim(), text: m[2].trim() });
+    return '';
+  });
+  return out;
+}
+
+/**
+ * Abwechslung für einen Gastgeber: was er in `recent` (Wortbeiträge der letzten
+ * Folgen, beliebiger Sprecher) schon gesagt hat, und was er heute nutzen darf.
+ * @returns {{ used: string[], openers: string[], fresh: string[] }}
+ */
+export function hostVariation(host, recent = [], rand = Math.random, { fresh: freshCount = 3 } = {}) {
+  const own = (recent || []).filter((t) => normPhrase(t.speaker) === normPhrase(host.name));
+  const said = ` ${own.map((t) => normPhrase(t.text)).join(' ')} `;
+  const pool = host.phrases || [];
+  const used = pool.filter((p) => said.includes(` ${normPhrase(p)} `));
+  // Satzanfänge (die ersten vier Wörter), die mehr als einmal vorkamen.
+  const counts = new Map();
+  own.forEach((t) => {
+    const words = String(t.text || '').replace(/[„“"»«]/g, '').split(/\s+/).filter(Boolean).slice(0, 4);
+    if (words.length < 3) return;
+    const key = words.join(' ').replace(/[,.!?…:;—–-]+$/, '');
+    // Der vorgeschriebene Einstieg (Venicros Satzanfang) bleibt, wie er ist.
+    if (host.fixedOpener && normPhrase(key).startsWith(normPhrase(host.fixedOpener))) return;
+    counts.set(key, (counts.get(key) || 0) + 1);
+  });
+  const openers = [...counts.entries()].filter(([, n]) => n > 1).sort((a, b) => b[1] - a[1]).map(([k]) => k).slice(0, 8);
+  const unused = pool.filter((p) => !used.includes(p));
+  const shuffled = [...unused];
+  for (let i = shuffled.length - 1; i > 0; i--) {
+    const j = Math.floor(rand() * (i + 1));
+    [shuffled[i], shuffled[j]] = [shuffled[j], shuffled[i]];
+  }
+  return { used, openers, fresh: shuffled.slice(0, freshCount) };
+}
+
+/** Der Abwechslungs-Auftrag einer Sendung für alle Gastgeber — als Text für die Systeminstruktion. */
+export function variationNote(hosts = [], recent = [], rand = Math.random) {
+  const lines = [
+    'ABWECHSLUNG (verbindlich): Die Wendungen in den Stimmen beschreiben ein Muster, sie sind kein Drehbuch. '
+      + 'Jede typische Wendung höchstens EINMAL je Sendung, die meisten gar nicht. Baue die Muster mit eigenen, '
+      + 'frischen Formulierungen nach, die zum heutigen Thema passen. Kein Wortbeitrag beginnt wie ein anderer.',
+  ];
+  (hosts || []).forEach((h) => {
+    const v = hostVariation(h, recent, rand);
+    const parts = [];
+    if (v.fresh.length) parts.push(`heute griffbereit (höchstens zwei davon): ${v.fresh.map((p) => `"${p}"`).join(', ')}`);
+    if (v.used.length) parts.push(`in den letzten Folgen schon gefallen, heute TABU: ${v.used.map((p) => `"${p}"`).join(', ')}`);
+    if (v.openers.length) parts.push(`zuletzt mehrfach so eingestiegen, heute anders beginnen: ${v.openers.map((p) => `"${p} …"`).join(', ')}`);
+    if (parts.length) lines.push(`${h.name}: ${parts.join(' · ')}`);
+  });
+  return lines.join('\n');
 }
 
 // === Termine ===============================================================

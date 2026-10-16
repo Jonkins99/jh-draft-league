@@ -80,10 +80,22 @@ export function mergeResult(existing, next) {
   return { ...existing, ...next, squads, battles: battles.filter(Boolean) };
 }
 
+// Platz am Ende der Vorsaison je Team-ID (kleiner = besser), als letzter sportlicher
+// Tie-Breaker. Die Liga registriert ihn einmal zentral (`setStandingsTiebreak`), damit
+// jede Tabelle — erste wie Zweite Liga, Presse, Rekorde — gleich sortiert, ohne dass
+// jeder Aufrufer die Vorsaison kennen muss. Ohne Eintrag: hinter allen mit Eintrag.
+let tiebreakRank = null;
+export function setStandingsTiebreak(fn) {
+  tiebreakRank = typeof fn === 'function' ? fn : null;
+}
+
 // Tabelle aus allen Match-Ergebnissen berechnen.
 // teams: [{id, name, player, logo}], results: [{home, away, battles:[{done, score}]}]
-// Punkte = gewonnene Kämpfe; 2. Sortierung = Kill-Differenz (kills − deaths).
-export function computeStandings(teams, results) {
+// Reihenfolge: Punkte (gewonnene Kämpfe) -> Kill-Differenz -> direkter Vergleich der
+// punkt- und differenzgleichen Teams (Punkte, dann Differenz untereinander) -> Platz am
+// Ende der Vorsaison (`opts.prevRank` bzw. der registrierte Tie-Breaker) -> Name.
+export function computeStandings(teams, results, opts = {}) {
+  const prevRank = opts.prevRank || tiebreakRank;
   const stats = {};
   teams.forEach((t) => {
     stats[t.id] = { team: t, played: new Set(), won: 0, draw: 0, lost: 0, kills: 0, deaths: 0, points: 0 };
@@ -110,15 +122,49 @@ export function computeStandings(teams, results) {
     });
   });
 
-  return Object.values(stats)
-    .map((x) => ({ ...x, played: x.played.size, diff: x.kills - x.deaths }))
-    .sort(
-      (a, b) =>
-        b.points - a.points ||
-        b.diff - a.diff ||
-        b.kills - a.kills ||
-        a.team.name.localeCompare(b.team.name),
-    );
+  const rows = Object.values(stats).map((x) => ({ ...x, played: x.played.size, diff: x.kills - x.deaths }));
+  const rankOf = (row) => {
+    const n = prevRank ? Number(prevRank(row.team.id, row.team)) : NaN;
+    return Number.isFinite(n) ? n : Infinity;
+  };
+  const byName = (a, b) => String(a.team.name || '').localeCompare(String(b.team.name || ''));
+  rows.sort((a, b) => b.points - a.points || b.diff - a.diff);
+
+  // Gleichstand in Punkten UND Differenz: direkter Vergleich innerhalb dieser Gruppe.
+  const out = [];
+  for (let i = 0; i < rows.length;) {
+    let j = i + 1;
+    while (j < rows.length && rows[j].points === rows[i].points && rows[j].diff === rows[i].diff) j++;
+    const group = rows.slice(i, j);
+    if (group.length > 1) {
+      const h2h = headToHead(group.map((g) => g.team.id), results);
+      group.sort((a, b) => h2h[b.team.id].points - h2h[a.team.id].points
+        || h2h[b.team.id].diff - h2h[a.team.id].diff
+        || rankOf(a) - rankOf(b)
+        || byName(a, b));
+    }
+    out.push(...group);
+    i = j;
+  }
+  return out;
+}
+
+// Punkte und Kill-Differenz nur aus den Partien der genannten Teams untereinander.
+function headToHead(ids, results) {
+  const set = new Set(ids);
+  const out = Object.fromEntries(ids.map((id) => [id, { points: 0, diff: 0 }]));
+  (results || []).forEach((r) => {
+    if (!r || !set.has(r.home) || !set.has(r.away)) return;
+    (r.battles || []).forEach((b) => {
+      if (!b || !b.done) return;
+      const s = battleStats(b);
+      out[r.home].points += s.homePoints;
+      out[r.away].points += s.awayPoints;
+      out[r.home].diff += s.homeKills - s.homeDeaths;
+      out[r.away].diff += s.awayKills - s.awayDeaths;
+    });
+  });
+  return out;
 }
 
 // Pro-Pokémon-Statistik über alle Match-Ergebnisse.
@@ -130,6 +176,7 @@ export function computeStandings(teams, results) {
 //            oder ohne Verursacher zählt als Death.
 // - matchups: in wie vielen Matches es im 6er-Aufgebot stand.
 // - battles:  in wie vielen (gespielten) Kämpfen es im 4er-Einsatz stand.
+// - leads:    in wie vielen davon es unter den ersten zwei Einsätzen stand (Startaufstellung).
 // Abgeleitete (sortierbare) Kennzahlen an ein Roh-Stat-Objekt anhängen.
 function withDerivedStats(st) {
   const battles = st.battles;
@@ -150,6 +197,7 @@ function withDerivedStats(st) {
     survivalRate: Math.max(0, Math.min(1, (battles - st.deaths) / Math.max(1, battles))),
     battleWinPct: battleDecided ? st.battleWins / battleDecided : 0,
     matchWinPct: matchesDecided ? st.matchWins / matchesDecided : 0,
+    leadShare: battles ? st.leads / battles : 0,
     base_speed: Number.isFinite(st.pokemon?.base_speed) ? st.pokemon.base_speed : 0,
     cost: Number.isFinite(st.pokemon?.cost) ? st.pokemon.cost : 0,
   };
@@ -222,7 +270,7 @@ export function pokemonStats(teams, results, pokedex = [], opts = {}) {
     if (stats[name]) return stats[name];
     stats[name] = {
       pokemon: pokemon || byName[name] || { name }, team: team || null,
-      kills: 0, deaths: 0, matchups: 0, battles: 0, rosterBattles: 0,
+      kills: 0, deaths: 0, matchups: 0, battles: 0, rosterBattles: 0, leads: 0,
       battleWins: 0, battleDraws: 0, battleLosses: 0,
       matchWins: 0, matchDraws: 0, matchLosses: 0,
     };
@@ -307,10 +355,12 @@ export function pokemonStats(teams, results, pokedex = [], opts = {}) {
       (r.battles || []).forEach((b) => {
         if (!b || !b.done) return;
         const s = battleStats(b);
-        (b.used?.[side] || []).forEach((name) => {
+        // Die ersten zwei Einsätze eines Kampfes sind die Startaufstellung (Leads).
+        (b.used?.[side] || []).forEach((name, slot) => {
           const st = stats[name];
           if (!st) return;
           st.battles += 1;
+          if (slot < 2) st.leads += 1;
           if (s.winner === 'draw') st.battleDraws += 1;
           else if (s.winner === side) st.battleWins += 1;
           else st.battleLosses += 1;
@@ -477,15 +527,18 @@ export const TYPE_CHART = {
 };
 
 // Schadensmultiplikator eines Angriffstyps gegen ein (Doppel-)Typ-Pokémon.
-export function typeMultiplier(attackType, defenderTypes) {
+// `immune`: Angriffstypen, gegen die eine Fähigkeit immun macht (Schwebe -> Boden) —
+// sie schlagen die Typ-Tabelle.
+export function typeMultiplier(attackType, defenderTypes, immune = null) {
+  if (immune && immune.includes(attackType)) return 0;
   const row = TYPE_CHART[attackType] || {};
   return (defenderTypes || []).reduce((m, t) => m * (row[t] ?? 1), 1);
 }
 
 // Defensive Typ-Tabelle: wie stark jeder Angriffstyp dieses (Doppel-)Typ-Pokémon trifft.
 // -> [{ type, mult }] für jeden ALL_TYPES.
-export function defensiveChart(types) {
-  return ALL_TYPES.map((type) => ({ type, mult: typeMultiplier(type, types || []) }));
+export function defensiveChart(types, immune = null) {
+  return ALL_TYPES.map((type) => ({ type, mult: typeMultiplier(type, types || [], immune) }));
 }
 
 // Offensive Coverage: für jeden Verteidigungstyp der beste (max.) Multiplikator,

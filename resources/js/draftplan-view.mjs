@@ -106,9 +106,11 @@ export function draftPlanView(deps = {}) {
     },
 
     get league() { return this.$store.league; },
+    // Pool der Saison samt Immunitäts-Fähigkeiten (`immune`) für die Typen-Analyse.
+    get dex() { return this.league.pokemonWithImmunity || this.league.pokemon; },
     get loaded() {
       const storeReady = !remote || ['ready', 'saving', 'error', 'off'].includes(this.store);
-      return storeReady && this.league.pokemonLoaded && this.league.teamsLoaded && this.league.draftLoaded;
+      return storeReady && this.dexLoaded && this.league.teamsLoaded && this.league.draftLoaded;
     },
     get loggedIn() { return !!this.$store.auth.player; },
 
@@ -200,7 +202,7 @@ export function draftPlanView(deps = {}) {
     get pathRows() {
       if (!this.plan) return [];
       const live = this.live;
-      const dex = this.league.pokemon;
+      const dex = this.dex;
       return orderedPaths(this.plan).map(({ path, depth }) => ({
         path,
         depth,
@@ -341,7 +343,7 @@ export function draftPlanView(deps = {}) {
       const live = this.live;
       const picks = this.activePicks;
       const usage = this.usage;
-      const byName = new Map(this.league.pokemon.map((p) => [p.name, p]));
+      const byName = new Map(this.dex.map((p) => [p.name, p]));
 
       return this.activeOrder.map((slot, i) => {
         const tier = slotTier(slot);
@@ -468,7 +470,7 @@ export function draftPlanView(deps = {}) {
       const term = this.pickerQuery.trim().toLowerCase();
       const already = new Set(this.plan?.slots[slot] || []);
       const live = this.live;
-      return this.league.pokemon
+      return this.dex
         .filter((p) => p.tier === tier)
         .filter((p) => !already.has(p.name))
         .filter((p) => !term
@@ -493,7 +495,7 @@ export function draftPlanView(deps = {}) {
       this.menu = null;
     },
     get menuMon() {
-      return this.menu ? this.league.pokemon.find((p) => p.name === this.menu.name) || { name: this.menu.name } : null;
+      return this.menu ? this.dex.find((p) => p.name === this.menu.name) || { name: this.menu.name } : null;
     },
     get menuPaths() {
       if (!this.menu) return [];
@@ -508,7 +510,7 @@ export function draftPlanView(deps = {}) {
     },
 
     get analysisMons() {
-      return this.plan ? pathMons(this.plan, this.activeId, this.league.pokemon) : [];
+      return this.plan ? pathMons(this.plan, this.activeId, this.dex) : [];
     },
     get coverage() {
       return this.memo('cov', () => coverageOf(this.analysisMons)
@@ -527,7 +529,7 @@ export function draftPlanView(deps = {}) {
       return out;
     },
     get suggestions() {
-      return this.memo('sug', () => suggestCoverage(this.analysisMons, this.league.pokemon, {
+      return this.memo('sug', () => suggestCoverage(this.analysisMons, this.dex, {
         exclude: new Set(this.analysisMons.map((m) => m.name)),
         live: this.live,
         openTiers: this.openTiers,
@@ -535,7 +537,7 @@ export function draftPlanView(deps = {}) {
       }));
     },
     get speed() {
-      return this.memo('spd', () => speedProfile(this.analysisMons, this.league.pokemon));
+      return this.memo('spd', () => speedProfile(this.analysisMons, this.dex));
     },
     // Ein Vorschlag landet im ersten freien Slot seines Tiers und wird dort gleich gewählt.
     adoptSuggestion(mon) {

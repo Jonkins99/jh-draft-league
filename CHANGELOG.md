@@ -1,5 +1,16 @@
 # Changelog
 
+## Tables, abilities and second-league polish
+- **Tie-breakers.** Both leagues now rank equal teams by points, kill difference, head-to-head (points, then difference among the tied teams) and finally the placing at the end of the previous season (second-league place 1 ranks behind every first-league team) instead of alphabetically.
+- **Immunity abilities.** The all-seasons Pokémon view manages abilities such as Levitate or Sap Sipper (name plus the attack types they make immune to, common ones as one-tap suggestions) and assigns them to Pokémon. Every weakness analysis (team, matchup, draft plan, Pokémon detail) counts the immunity.
+- **Draft points removed from the UI.** Points no longer show in the Pokémon view, the Pokémon detail, statistics or exports and are no longer required for new Pokémon.
+- **Leads in the first league.** Leads and lead share (first two Pokémon entered per battle) are available as statistics columns in both leagues.
+- **Second league: result per battle.** A battle's result can be entered as soon as its own lineup is saved, so lineups for battles 2 and 3 can react to battle 1. Checkmarks only appear for saved squads and lineups.
+- **Second league: market values.** Team cards, the team hero and a market section (roster by value, team comparison, roster history) show market values; no extra view or update show.
+- **Second league: statistics.** Sorting, secondary sorting and column choice are available and remembered per device; the schedule opens at the current matchday.
+- **Fix.** The coloured crest placeholder no longer appears next to existing crests after appointing a trainer or adding a team.
+- **Show hosts.** Cavalanzas, Venicro and Chelast got richer personas; every episode allows only a few of their signature phrases and bans phrases and openers used in the last episodes.
+
 ## Second league (H-Side)
 - **A league of its own.** The second league runs next to the first one: eight teams owned by Henrik, its own table, schedule, teams and statistics. It is reached through the season switcher ("2. Liga" under every season); seasons 1 and 2 are there to be filled in. Nothing of it appears in first-league views — only the press is shared.
 - **Teams and rosters.** Teams are added from the club register or created on the spot (name, crest, colour), rosters are kept by hand in eight tier slots. A roster change can be marked as winter transfer and then counts like the first league's transfer window.

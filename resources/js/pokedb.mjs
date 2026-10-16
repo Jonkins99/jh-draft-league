@@ -103,7 +103,6 @@ export function validateMon(rec, { names = [], isNew = false } = {}) {
   if (!rec.name_en) errors.push('Der englische Name fehlt (er ist der Schlüssel für Schadensrechner und Elo-Sheet).');
   if (!rec.types.length) errors.push('Mindestens ein Typ muss gesetzt sein.');
   if (!rec.tier) errors.push('Das Tier fehlt.');
-  if (rec.cost == null) errors.push('Die Punkte fehlen.');
   if (MON_STATS.some(({ key }) => rec.stats[key] == null)) errors.push('Alle sechs Statuswerte werden gebraucht.');
   if (rec.image && !/^https?:\/\//i.test(rec.image)) errors.push('Das Bild muss eine http(s)-Adresse sein.');
   return errors;
@@ -138,4 +137,72 @@ export function mergePokedex(base = [], dbMons = {}) {
 /** Nur, was in dieser Saison schon im Pool ist. */
 export function pokedexForSeason(all, season) {
   return (all || []).filter((m) => availableIn(m, season));
+}
+
+// === Fähigkeiten mit Immunität (drafts/pokedex) ===============================
+// Fähigkeiten wie Schwebe oder Vegetarier machen ein Pokémon gegen einen Angriffstyp
+// immun. Die Liga legt sie selbst an (Name + Typen) und ordnet sie Pokémon zu; jede
+// Schwächen-Analyse rechnet die Immunität dann mit (`immuneTypes` -> `typeMultiplier`).
+// Gespeichert neben Charakter und Rolle: `abilities.<key>` = { name, types } und
+// `monAbilities.<Pokémon>` = [key, …].
+
+/** Vorschläge zum Antippen — die gängigen Absorber-Fähigkeiten. */
+export const IMMUNITY_SUGGESTIONS = [
+  { name: 'Schwebe', types: ['Boden'] },
+  { name: 'Vegetarier', types: ['Pflanze'] },
+  { name: 'H2O-Absorber', types: ['Wasser'] },
+  { name: 'Sturmsog', types: ['Wasser'] },
+  { name: 'Trockenheit', types: ['Wasser'] },
+  { name: 'Voltabsorber', types: ['Elektro'] },
+  { name: 'Blitzfänger', types: ['Elektro'] },
+  { name: 'Starthilfe', types: ['Elektro'] },
+  { name: 'Feuerfänger', types: ['Feuer'] },
+  { name: 'Knusperkruste', types: ['Feuer'] },
+  { name: 'Bodenschmaus', types: ['Boden'] },
+];
+
+export function abilityKey(name) {
+  return monKey(name);
+}
+
+/** Eine Fähigkeit im Speicherformat: Name und mindestens ein bekannter Typ. */
+export function normalizeAbility(raw = {}) {
+  const name = String(raw?.name || '').replace(/\s+/g, ' ').trim();
+  const types = [...new Set((Array.isArray(raw?.types) ? raw.types : [])
+    .map((t) => String(t || '').trim())
+    .filter((t) => ALL_MON_TYPES.includes(t)))];
+  types.sort((a, b) => ALL_MON_TYPES.indexOf(a) - ALL_MON_TYPES.indexOf(b));
+  return { name, types };
+}
+
+export function validateAbility(rec, { keys = [], ownKey = null } = {}) {
+  const errors = [];
+  if (!rec.name) errors.push('Der Name fehlt.');
+  const key = abilityKey(rec.name);
+  if (rec.name && !key) errors.push('Der Name braucht Buchstaben oder Ziffern.');
+  if (key && key !== ownKey && (keys || []).includes(key)) errors.push('Eine Fähigkeit mit diesem Namen gibt es schon.');
+  if (!rec.types.length) errors.push('Mindestens ein Typ, gegen den sie immun macht.');
+  return errors;
+}
+
+/** Alle angelegten Fähigkeiten, alphabetisch. */
+export function abilityList(notes = {}) {
+  return Object.entries(notes?.abilities || {})
+    .filter(([, a]) => a && a.name)
+    .map(([key, a]) => ({ key, ...normalizeAbility(a) }))
+    .filter((a) => a.types.length)
+    .sort((a, b) => a.name.localeCompare(b.name, 'de'));
+}
+
+/** Die Fähigkeiten eines Pokémon — nur, was es (noch) gibt. */
+export function monAbilities(notes = {}, name) {
+  const keys = notes?.monAbilities?.[name];
+  if (!Array.isArray(keys) || !keys.length) return [];
+  const known = new Map(abilityList(notes).map((a) => [a.key, a]));
+  return [...new Set(keys)].map((k) => known.get(k)).filter(Boolean);
+}
+
+/** Angriffstypen, gegen die das Pokémon über eine Fähigkeit immun ist. */
+export function immuneTypes(notes = {}, name) {
+  return [...new Set(monAbilities(notes, name).flatMap((a) => a.types))];
 }

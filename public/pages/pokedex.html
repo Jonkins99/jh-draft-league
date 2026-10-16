@@ -14,6 +14,33 @@
 
   <div x-show="!loaded" class="py-12 text-center text-mist">Lade Pokémon…</div>
 
+  <section x-show="loaded" class="mb-6 rounded-2xl border border-line bg-panel p-4 sm:p-6">
+    <div class="mb-3 flex flex-wrap items-start justify-between gap-3">
+      <div class="min-w-0">
+        <h2 class="font-display text-xl font-bold uppercase tracking-wider text-ink">Fähigkeiten mit Immunität</h2>
+        <p class="mt-1 max-w-2xl text-xs text-mist">Fähigkeiten wie Schwebe oder Vegetarier machen gegen einen Angriffstyp immun. Einem Pokémon zugeordnet, rechnet jede Schwächen-Analyse die Immunität mit — im Team, im Matchup, im Draftplan und in der Pokémon-Ansicht.</p>
+      </div>
+      <button type="button" x-show="canEdit" @click="openAbility()"
+              class="shrink-0 rounded-xl border border-line px-3.5 py-2 font-display text-xs font-bold uppercase tracking-wider text-mist transition-colors hover:border-flame-500/40 hover:text-flame-400">Fähigkeit anlegen</button>
+    </div>
+    <p x-show="!abilities.length" class="text-sm text-mist">Noch keine Fähigkeit angelegt.</p>
+    <div x-show="abilities.length" class="flex flex-wrap gap-2">
+      <template x-for="a in abilities" :key="'pda-'+a.key">
+        <button type="button" @click="canEdit ? openAbility(a) : (fAbility = fAbility === a.key ? '' : a.key)"
+                class="flex min-w-0 max-w-full items-center gap-2 rounded-xl border px-3 py-2 text-left transition-colors"
+                :class="fAbility === a.key ? 'border-flame-500/60 bg-flame-500/10' : 'border-line bg-elevated/40 hover:border-flame-500/40'">
+          <span class="min-w-0 truncate text-sm font-semibold text-ink" x-text="a.name"></span>
+          <span class="flex shrink-0 flex-wrap gap-1">
+            <template x-for="t in a.types" :key="'pdat-'+a.key+t">
+              <span class="rounded px-1.5 py-0.5 text-[10px] font-bold uppercase" :style="`color:${typeColor(t)}; background:${typeColor(t)}22`" x-text="t"></span>
+            </template>
+          </span>
+          <span class="shrink-0 text-[11px] tabular-nums text-mist" x-text="`${abilityUsage(a.key)} Pkm`"></span>
+        </button>
+      </template>
+    </div>
+  </section>
+
   <section x-show="loaded" class="rounded-2xl border border-line bg-panel p-4 sm:p-6">
     <div class="mb-4 flex flex-wrap items-center gap-2">
       <label class="flex w-full min-w-0 items-center gap-2 rounded-xl border border-line bg-elevated px-3 py-2 sm:w-auto sm:max-w-xs sm:flex-1">
@@ -28,6 +55,10 @@
         <option value="">Jede Saison</option>
         <template x-for="n in sinceOptions" :key="'pds-'+n"><option :value="n" x-text="`Ab Saison ${n}`"></option></template>
       </select>
+      <select x-show="abilities.length" x-model="fAbility" class="rounded-lg border border-line bg-elevated px-2 py-2 text-sm text-ink">
+        <option value="">Jede Fähigkeit</option>
+        <template x-for="a in abilities" :key="'pdfa-'+a.key"><option :value="a.key" x-text="a.name"></option></template>
+      </select>
       <span class="ml-auto text-xs text-mist" x-text="`${rows.length} Pokémon`"></span>
     </div>
 
@@ -40,7 +71,7 @@
             </th>
             <th class="px-2 py-2">Typen</th>
             <th class="px-2 py-2 text-center"><button type="button" @click="setSort('tier')" class="hover:text-ink">Tier <span class="text-flame-400" x-text="sortMark('tier')"></span></button></th>
-            <th class="px-2 py-2 text-right"><button type="button" @click="setSort('cost')" class="hover:text-ink">Pkt <span class="text-flame-400" x-text="sortMark('cost')"></span></button></th>
+            <th class="px-2 py-2"><button type="button" @click="setSort('abilities')" class="hover:text-ink">Immun durch <span class="text-flame-400" x-text="sortMark('abilities')"></span></button></th>
             <th class="px-2 py-2 text-right"><button type="button" @click="setSort('total')" class="hover:text-ink">Werte <span class="text-flame-400" x-text="sortMark('total')"></span></button></th>
             <th class="px-2 py-2 text-right"><button type="button" @click="setSort('base_speed')" class="hover:text-ink">Init <span class="text-flame-400" x-text="sortMark('base_speed')"></span></button></th>
             <th class="px-2 py-2 text-center"><button type="button" @click="setSort('since')" class="hover:text-ink">Ab <span class="text-flame-400" x-text="sortMark('since')"></span></button></th>
@@ -67,7 +98,14 @@
                 </span>
               </td>
               <td class="px-2 py-1.5 text-center font-display font-bold" :style="{ color: tierColor(p.tier) }" x-text="p.tier || '—'"></td>
-              <td class="px-2 py-1.5 text-right font-display tabular-nums text-ink" x-text="p.cost ?? '—'"></td>
+              <td class="px-2 py-1.5">
+                <span class="flex flex-wrap gap-1">
+                  <template x-for="a in abilitiesOf(p)" :key="'pdab-'+p.name+a.key">
+                    <span class="whitespace-nowrap rounded bg-elevated px-1.5 py-0.5 text-[10px] font-semibold text-ink" :title="`Immun gegen ${a.types.join(', ')}`" x-text="a.name"></span>
+                  </template>
+                  <span x-show="!abilitiesOf(p).length" class="text-mist/50">—</span>
+                </span>
+              </td>
               <td class="px-2 py-1.5 text-right font-display tabular-nums text-mist" x-text="total(p) || '—'"></td>
               <td class="px-2 py-1.5 text-right font-display tabular-nums text-mist" x-text="p.base_speed ?? '—'"></td>
               <td class="px-2 py-1.5 text-center">
@@ -174,10 +212,6 @@
               </select>
             </label>
             <label class="block">
-              <span class="mb-1 block font-display text-[11px] font-bold uppercase tracking-wider text-mist">Punkte</span>
-              <input type="number" min="0" x-model="form.rec.cost" class="w-full rounded-lg border border-line bg-elevated px-3 py-2.5 text-base text-ink focus:border-flame-500 focus:outline-none sm:text-sm" />
-            </label>
-            <label class="block">
               <span class="mb-1 block font-display text-[11px] font-bold uppercase tracking-wider text-mist">Verfügbar ab Saison</span>
               <input type="number" min="1" x-model="form.rec.since" class="w-full rounded-lg border border-line bg-elevated px-3 py-2.5 text-base text-ink focus:border-flame-500 focus:outline-none sm:text-sm" />
             </label>
@@ -201,6 +235,21 @@
             </div>
           </div>
 
+          <div class="mt-4">
+            <span class="mb-1.5 block font-display text-[11px] font-bold uppercase tracking-wider text-mist">Fähigkeiten mit Immunität</span>
+            <p x-show="!abilities.length" class="text-xs text-mist">Noch keine angelegt — oben unter „Fähigkeit anlegen".</p>
+            <div class="flex flex-wrap gap-1.5">
+              <template x-for="a in abilities" :key="'pffa-'+a.key">
+                <button type="button" @click="toggleFormAbility(a.key)"
+                        class="inline-flex items-center gap-1.5 rounded-lg border px-2.5 py-1.5 text-xs font-semibold transition-colors"
+                        :class="hasFormAbility(a.key) ? 'border-flame-500 bg-flame-500/10 text-ink' : 'border-line text-mist hover:text-ink'">
+                  <span x-text="a.name"></span>
+                  <span class="text-[10px] font-normal text-mist" x-text="a.types.join(', ')"></span>
+                </button>
+              </template>
+            </div>
+          </div>
+
           <ul x-show="formErrors.length || form.errors.length" class="mt-4 grid gap-1 rounded-xl border border-line bg-elevated/40 px-3 py-2 text-xs text-mist">
             <template x-for="e in [...form.errors, ...formErrors]" :key="'pfe-'+e"><li x-text="e"></li></template>
           </ul>
@@ -213,6 +262,65 @@
           <button type="button" @click="saveForm()" :disabled="busy || formErrors.length > 0"
                   class="rounded-xl bg-flame-500 px-4 py-2.5 font-display text-sm font-bold uppercase tracking-wide text-white hover:bg-flame-600 disabled:opacity-40"
                   x-text="form.isNew ? 'Anlegen' : 'Speichern'"></button>
+        </div>
+      </div>
+    </template>
+  </div>
+  <!-- Formular: Fähigkeit -->
+  <div popover="manual" id="pokedex-ability" class="modal-pop w-[34rem] max-w-[calc(100vw-1rem)] rounded-2xl border border-line bg-panel p-0 text-ink">
+    <template x-if="abilityForm">
+      <div class="flex max-h-[calc(100dvh-1rem)] flex-col sm:max-h-[90dvh]">
+        <div class="flex items-center justify-between gap-3 border-b border-line px-4 py-3 sm:px-6">
+          <div class="min-w-0">
+            <p class="font-display text-xs font-semibold uppercase tracking-[0.2em] text-flame-400" x-text="abilityForm.key ? 'Fähigkeit bearbeiten' : 'Neue Fähigkeit'"></p>
+            <p class="truncate font-display text-lg font-bold text-ink" x-text="abilityForm.name || '—'"></p>
+          </div>
+          <button type="button" @click="closeAbility()" class="shrink-0 rounded-lg p-1.5 text-mist hover:text-ink" aria-label="Schließen">
+            <svg viewBox="0 0 24 24" class="size-5" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M6 6l12 12M18 6L6 18"/></svg>
+          </button>
+        </div>
+        <div class="min-h-0 flex-1 overflow-y-auto overflow-x-hidden px-4 py-4 sm:px-6">
+          <div x-show="!abilityForm.key && abilitySuggestions.length" class="mb-4">
+            <p class="mb-1.5 text-[11px] text-mist">Vorschläge — antippen übernimmt Name und Typ:</p>
+            <div class="flex flex-wrap gap-1.5">
+              <template x-for="x in abilitySuggestions" :key="'pdsg-'+x.name">
+                <button type="button" @click="useSuggestion(x)"
+                        class="rounded-lg border px-2.5 py-1 text-xs font-semibold transition-colors"
+                        :class="abilityForm.name === x.name ? 'border-flame-500 bg-flame-500/10 text-ink' : 'border-line text-mist hover:text-ink'">
+                  <span x-text="x.name"></span> <span class="font-normal" x-text="`(${x.types.join(', ')})`"></span>
+                </button>
+              </template>
+            </div>
+          </div>
+          <label class="block">
+            <span class="mb-1 block font-display text-[11px] font-bold uppercase tracking-wider text-mist">Name</span>
+            <input type="text" x-model="abilityForm.name" :disabled="!!abilityForm.key" placeholder="z. B. Schwebe"
+                   class="w-full rounded-lg border border-line bg-elevated px-3 py-2.5 text-base text-ink focus:border-flame-500 focus:outline-none disabled:opacity-60 sm:text-sm" />
+            <span x-show="abilityForm.key" class="mt-1 block text-[11px] text-mist">Der Name ist der Schlüssel der Zuordnungen und bleibt.</span>
+          </label>
+          <div class="mt-4">
+            <span class="mb-1.5 block font-display text-[11px] font-bold uppercase tracking-wider text-mist">Immun gegen</span>
+            <div class="grid grid-cols-3 gap-1.5 sm:grid-cols-6">
+              <template x-for="t in allTypes" :key="'pdatt-'+t">
+                <button type="button" @click="toggleAbilityType(t)"
+                        class="min-w-0 truncate rounded-lg border px-1.5 py-1.5 text-[11px] font-bold uppercase transition-colors"
+                        :class="abilityForm.types.includes(t) ? 'border-transparent' : 'border-line text-mist hover:text-ink'"
+                        :style="abilityForm.types.includes(t) ? { color: typeColor(t), background: typeColor(t) + '2e' } : {}"
+                        x-text="t"></button>
+              </template>
+            </div>
+          </div>
+          <ul x-show="abilityErrors.length || abilityForm.errors.length" class="mt-4 grid gap-1 rounded-xl border border-line bg-elevated/40 px-3 py-2 text-xs text-mist">
+            <template x-for="e in [...abilityForm.errors, ...abilityErrors]" :key="'pdae-'+e"><li x-text="e"></li></template>
+          </ul>
+        </div>
+        <div class="flex flex-wrap items-center gap-2 border-t border-line px-4 py-3 sm:px-6">
+          <button type="button" x-show="abilityForm.key" @click="removeAbility()" :disabled="busy"
+                  class="rounded-xl border border-flame-500/40 px-3.5 py-2.5 text-xs font-semibold text-flame-400 hover:bg-flame-500/10">Entfernen</button>
+          <button type="button" @click="closeAbility()" class="ml-auto rounded-xl border border-line px-4 py-2.5 text-sm font-semibold text-mist hover:text-ink">Abbrechen</button>
+          <button type="button" @click="saveAbility()" :disabled="busy || abilityErrors.length > 0"
+                  class="rounded-xl bg-flame-500 px-4 py-2.5 font-display text-sm font-bold uppercase tracking-wide text-white hover:bg-flame-600 disabled:opacity-40"
+                  x-text="abilityForm.key ? 'Speichern' : 'Anlegen'"></button>
         </div>
       </div>
     </template>

@@ -10,7 +10,7 @@ import { franchiseSlug, teamsOfSeason } from './seasons.mjs';
 import {
   L2_TAGS, L2_TAG_LABEL, L2_SQUAD_SIZE, L2_USED, L2_BATTLES, L2_TIERS, L2_MATCHDAYS,
   rosterCheck, rosterSlots, slotsToRoster, drawBlocks, buildBlockSchedule, blankSchedule, planDraftFrom, checkSchedule, drawTags, normalizeTags,
-  tagPlayer, canEnterBattle, squadsComplete, lineupsComplete, matchComplete, completeDays, leadCounts, matchScore,
+  tagPlayer, canEnterBattle, squadsComplete, lineupsComplete, battleLineupComplete, matchComplete, completeDays, matchScore,
   l2MatchId, battleHasResult, transferDiff,
 } from './liga2.mjs';
 import { currentTrainer, trainerHistory, genderLabel, GENDERS, nextFromDay, normalizeTrainer } from './trainers.mjs';
@@ -134,8 +134,8 @@ export const L2_STAT_COLUMNS = [
   { key: 'leads', label: 'Leads', short: 'Lead', fmt: 'int', info: 'Wie oft es unter den ersten zwei gewählten Pokémon eines Kampfes stand — die Reihenfolge der Auswahl ist die Startaufstellung.' },
   { key: 'leadShare', label: 'Lead-Quote', short: 'Lead %', fmt: 'pct', info: 'Anteil seiner Kämpfe, in denen es als Lead startete.' },
   { key: 'base_speed', label: 'Initiative', short: 'Init', fmt: 'int', info: 'Basis-Initiative aus den Stammdaten.' },
-  { key: 'cost', label: 'Punkte', short: 'Pkt', fmt: 'int', info: 'Draft-Punkte des Pokémon.' },
 ];
+const L2_TEAM_COLUMNS = L2_STAT_COLUMNS.filter((c) => c.key !== 'base_speed');
 
 function fmtL2(v, fmt) {
   const n = Number.isFinite(v) ? v : 0;
@@ -144,26 +144,25 @@ function fmtL2(v, fmt) {
   return String(n);
 }
 
-// Pokémon-Zeilen der Zweiten Liga — für die Statistik und das Team-Ranking.
+// Pokémon-Zeilen der Zweiten Liga — für die Statistik und das Team-Ranking. Leads und
+// Lead-Quote rechnet `pokemonStats` selbst (die ersten zwei Einsätze eines Kampfes).
 function l2MonRows(store, teams, results, { scopeTeamId = null, pokedex = [] } = {}) {
-  const leads = leadCounts(results, { scopeTeamId });
-  return pokemonStats(teams, results, pokedex, { scopeTeamId, availability: store.availability }).map((s) => {
-    const name = s.pokemon?.name;
-    const lead = leads[name] || 0;
-    return { ...s, leads: lead, leadShare: s.battles ? lead / s.battles : 0 };
-  });
+  return pokemonStats(teams, results, pokedex, { scopeTeamId, availability: store.availability });
 }
 
 export function l2StatsView(deps) {
-  return compose(base(deps), {
-    sortKey: 'battles',
-    sortDir: 'desc',
+  // Spaltenwahl, Reihenfolge, erste und zweite Sortierung — gerätelokal gespeichert wie in der ersten Liga.
+  const cols = deps.columnsMixin('jhdl-cols-l2stats-v1', {
+    catalog: L2_STAT_COLUMNS, defaults: L2_STAT_COLUMNS.map((c) => c.key), sortKey: 'battles',
+  });
+  return compose(base(deps), cols, {
     fType: '',
     fTier: '',
     fTeam: '',
-    columns: L2_STAT_COLUMNS,
     tiers: L2_TIERS,
     allTypes: deps.ALL_TYPES,
+
+    init() { this.initColumns(); },
 
     get teams() { return this.store.seasonTeams; },
     get rows() {
@@ -172,16 +171,14 @@ export function l2StatsView(deps) {
       if (this.fType) list = list.filter((s) => (s.pokemon.types || []).includes(this.fType));
       if (this.fTier) list = list.filter((s) => s.pokemon.tier === this.fTier);
       if (this.fTeam) list = list.filter((s) => s.team?.id === this.fTeam);
-      const dir = this.sortDir === 'asc' ? 1 : -1;
-      const k = this.sortKey;
-      return [...list].sort((a, b) => dir * ((a[k] ?? 0) - (b[k] ?? 0)) || (b.battles - a.battles) || a.pokemon.name.localeCompare(b.pokemon.name));
-    },
-    setSort(key) {
-      if (this.sortKey === key) this.sortDir = this.sortDir === 'desc' ? 'asc' : 'desc';
-      else { this.sortKey = key; this.sortDir = 'desc'; }
+      return this.sortRows(list);
     },
     cell(row, col) { return fmtL2(row[col.key], col.fmt); },
     info(col) { deps.openStatInfo(null, col.label, col.info); },
+    statInfo(key) {
+      const col = L2_STAT_COLUMNS.find((c) => c.key === key);
+      if (col) this.info(col);
+    },
     get hasFilters() { return !!(this.fType || this.fTier || this.fTeam); },
     clearFilters() { this.fType = ''; this.fTier = ''; this.fTeam = ''; },
   });
@@ -189,7 +186,10 @@ export function l2StatsView(deps) {
 
 // === Teams ======================================================================
 export function l2TeamsView(deps) {
-  return compose(base(deps), {
+  const cols = deps.columnsMixin('jhdl-cols-l2teamrank-v1', {
+    catalog: L2_TEAM_COLUMNS, defaults: L2_TEAM_COLUMNS.map((c) => c.key), sortKey: 'battles',
+  });
+  return compose(base(deps), cols, deps.marketMixin(), {
     selectedId: null,
     addForm: null,      // { mode: 'existing'|'new', slug, name, logo, color }
     editForm: null,     // { name, logo, color }
@@ -197,12 +197,10 @@ export function l2TeamsView(deps) {
     trainerForm: null,
     trainerConfirm: null,
     busy: false,
-    sortKey: 'battles',
-    sortDir: 'desc',
-    columns: L2_STAT_COLUMNS.filter((c) => !['base_speed', 'cost'].includes(c.key)),
     genders: GENDERS,
 
     init() {
+      this.initColumns();
       const nav = this.$store.nav;
       const teamId = nav?.teamId || null;
       if (nav) nav.teamId = null;
@@ -265,16 +263,14 @@ export function l2TeamsView(deps) {
       const team = this.selectedTeam;
       if (!team) return [];
       const rows = l2MonRows(this.store, [team], this.store.results, { scopeTeamId: team.id, pokedex: this.store.slotDexOf(this.season) });
-      const dir = this.sortDir === 'asc' ? 1 : -1;
-      const k = this.sortKey;
-      return rows.sort((a, b) => dir * ((a[k] ?? 0) - (b[k] ?? 0)) || a.pokemon.name.localeCompare(b.pokemon.name));
-    },
-    setSort(key) {
-      if (this.sortKey === key) this.sortDir = this.sortDir === 'desc' ? 'asc' : 'desc';
-      else { this.sortKey = key; this.sortDir = 'desc'; }
+      return this.sortRows(rows);
     },
     cell(row, col) { return fmtL2(row[col.key], col.fmt); },
     info(col) { deps.openStatInfo(null, col.label, col.info); },
+    statInfo(key) {
+      const col = L2_TEAM_COLUMNS.find((c) => c.key === key);
+      if (col) this.info(col);
+    },
     openResult(id) { this.$dispatch('navigate', { key: 'l2spielplan', matchId: id }); },
     // Wintertransfer: wer im Winter kam oder ging.
     transferMark(name) {
@@ -572,6 +568,7 @@ export function l2ScheduleView(deps) {
     entry: null,           // { matchId, day, index, home, away, step, squads, tags, lineups, battle, scores }
     detailId: null,
     returnAfter: false,
+    _scrolledToOpen: false,
 
     init() {
       const nav = this.$store.nav;
@@ -579,7 +576,11 @@ export function l2ScheduleView(deps) {
       const battleNo = nav?.battleNo || null;
       this.returnAfter = !!nav?.l2Return;
       if (nav) { nav.matchId = null; nav.battleNo = null; }
-      if (!matchId) return;
+      if (!matchId) {
+        if (this.loaded) this._scrollToOpenMatch();
+        else this.$watch('loaded', (v) => { if (v) this._scrollToOpenMatch(); });
+        return;
+      }
       const go = () => {
         const r = this.matchFor(matchId);
         if (!r) return;
@@ -590,12 +591,30 @@ export function l2ScheduleView(deps) {
       else this.$watch('loaded', (v) => { if (v) this.$nextTick(go); });
     },
 
+    // Einmalig nach dem Laden: die erste Partie ohne vollständiges Ergebnis in den Blick holen.
+    _scrollToOpenMatch() {
+      if (this._scrolledToOpen) return;
+      this._scrolledToOpen = true;
+      let target = null;
+      for (const md of this.schedule.matchdays || []) {
+        const i = (md.matches || []).findIndex((m, idx) => m.home && m.away && !matchComplete(this.resultAt(md.day, idx) || {}));
+        if (i >= 0) { target = `${md.day}-${i}`; break; }
+      }
+      if (!target) return;
+      const reduce = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+      this.$nextTick(() => requestAnimationFrame(() => {
+        const root = this.$root;
+        if (!root?.isConnected) return;
+        root.querySelector(`[data-match-key="${target}"]`)?.scrollIntoView({ behavior: reduce ? 'auto' : 'smooth', block: 'center' });
+      }));
+    },
+
     get teams() { return this.store.seasonTeams; },
     get schedule() { return this.store.schedule; },
     get hasSchedule() { return (this.schedule.matchdays || []).length > 0; },
     get blocks() { return this.store.blocks; },
     get hasBlocks() { return this.blocks.A.length > 0 && this.blocks.B.length > 0; },
-    get anyResult() { return this.store.results.some((r) => r.battles.some((b) => b.done) || r.lineupsSaved || (r.squads.home || []).length); },
+    get anyResult() { return this.store.results.some((r) => r.battles.some((b) => b.done || (b.used?.home || []).length) || (r.squads.home || []).length); },
     get legs() {
       const days = this.schedule.matchdays || [];
       return [
@@ -637,13 +656,15 @@ export function l2ScheduleView(deps) {
       const r = this.resultAt(day, index);
       if (!r || !(r.squads.home || []).length) return 'offen';
       if (matchComplete(r)) return 'fertig';
-      if (!r.lineupsSaved) return squadsComplete(r) ? 'Einsätze offen' : 'Aufgebot offen';
-      return 'Ergebnisse offen';
+      if (!squadsComplete(r)) return 'Aufgebot offen';
+      // Offen ist, was als Nächstes fehlt: ein Ergebnis zu einem gesetzten Einsatz oder der nächste Einsatz.
+      const waiting = r.battles.some((b, i) => !b.done && battleLineupComplete(r, i));
+      return waiting ? 'Ergebnis offen' : 'Einsatz offen';
     },
     canEnterAny(day, index) {
       const r = this.resultAt(day, index);
-      if (!r?.lineupsSaved) return false;
-      return r.battles.some((b) => !b.done && canEnterBattle(this.me, b.tag, this.season, day));
+      if (!r) return false;
+      return r.battles.some((b, i) => !b.done && battleLineupComplete(r, i) && canEnterBattle(this.me, b.tag, this.season, day));
     },
 
     // --- Blöcke ----------------------------------------------------------------------
@@ -747,7 +768,7 @@ export function l2ScheduleView(deps) {
       this.entry = {
         matchId: l2MatchId(this.season, day, index),
         day, index, home: m.home, away: m.away,
-        step: step || (r?.lineupsSaved ? 'ergebnis' : squadsComplete(r) ? 'einsatz' : 'aufgebot'),
+        step: step || this._entryStep(r),
         squads: { home: [...(r?.squads?.home || [])], away: [...(r?.squads?.away || [])] },
         tags,
         tagsDrawn: !normalizeTags(r?.tags),
@@ -755,7 +776,7 @@ export function l2ScheduleView(deps) {
           home: [...(r?.battles?.[i]?.used?.home || [])],
           away: [...(r?.battles?.[i]?.used?.away || [])],
         })),
-        battle,
+        battle: step ? battle : this._nextBattle(r),
         scores: Array.from({ length: L2_BATTLES }, (_, i) => ({
           home: r?.battles?.[i]?.done ? r.battles[i].score.home : null,
           away: r?.battles?.[i]?.done ? r.battles[i].score.away : null,
@@ -763,6 +784,18 @@ export function l2ScheduleView(deps) {
         error: '',
       };
       this.showPop('l2-entry');
+    },
+    // Wo die Eingabe weitergeht: ohne gespeichertes Aufgebot beim Aufgebot, ein offener
+    // Kampf mit Einsatz beim Ergebnis, sonst beim nächsten Einsatz.
+    _entryStep(r) {
+      if (!squadsComplete(r)) return 'aufgebot';
+      if (matchComplete(r)) return 'ergebnis';
+      const i = this._nextBattle(r);
+      return battleLineupComplete(r, i) ? 'ergebnis' : 'einsatz';
+    },
+    _nextBattle(r) {
+      const i = (r?.battles || []).findIndex((b) => !b.done);
+      return i < 0 ? 0 : i;
     },
     closeEntry() {
       this.hidePop('l2-entry');
@@ -801,7 +834,17 @@ export function l2ScheduleView(deps) {
     },
     battleLocked(i) { return !!this.entryResult?.battles?.[i]?.done; },
     get squadsValid() {
-      return this.entry && ['home', 'away'].every((s) => this.entry.squads[s].length === L2_SQUAD_SIZE) && !!normalizeTags(this.entry.tags);
+      return !!this.entry && ['home', 'away'].every((s) => this.entry.squads[s].length === L2_SQUAD_SIZE) && !!normalizeTags(this.entry.tags);
+    },
+    // Gespeichert ist, was in der Datenbank steht — nur das schaltet die nächsten Schritte frei.
+    get squadsSaved() { return squadsComplete(this.entryResult); },
+    get squadsDirty() {
+      const e = this.entry;
+      const r = this.entryResult;
+      if (!e) return false;
+      const same = (a = [], b = []) => a.length === b.length && a.every((n) => b.includes(n));
+      return !same(e.squads.home, r?.squads?.home) || !same(e.squads.away, r?.squads?.away)
+        || (normalizeTags(e.tags) || []).join() !== (r?.tags || []).join();
     },
     async saveSquads() {
       const e = this.entry;
@@ -812,6 +855,7 @@ export function l2ScheduleView(deps) {
         await this.store.updateMatch(e.matchId, { home: e.home, away: e.away, squads: e.squads, tags: e.tags });
         e.lineups = e.lineups.map((l) => ({ home: l.home.filter((n) => e.squads.home.includes(n)), away: l.away.filter((n) => e.squads.away.includes(n)) }));
         e.step = 'einsatz';
+        this.toast('Aufgebot gespeichert.');
       } catch (err) {
         console.error('Aufgebot konnte nicht gespeichert werden:', err);
         e.error = 'Das Aufgebot konnte nicht gespeichert werden.';
@@ -830,7 +874,18 @@ export function l2ScheduleView(deps) {
       const l = this.entry?.lineups?.[i];
       return !!l && l.home.length === L2_USED && l.away.length === L2_USED;
     },
-    get lineupsValid() { return !!this.entry && [0, 1, 2].every((i) => this.lineupDone(i)); },
+    // Gespeicherter Einsatz eines Kampfes — erst damit kann sein Ergebnis kommen.
+    lineupSaved(i) { return battleLineupComplete(this.entryResult, i); },
+    lineupDirty(i) {
+      const l = this.entry?.lineups?.[i];
+      const used = this.entryResult?.battles?.[i]?.used || {};
+      if (!l) return false;
+      return l.home.join() !== (used.home || []).join() || l.away.join() !== (used.away || []).join();
+    },
+    get lineupsDirty() { return [0, 1, 2].some((i) => !this.battleLocked(i) && this.lineupDirty(i)); },
+    get allLineupsSaved() { return [0, 1, 2].every((i) => this.lineupSaved(i)); },
+    // Gespeichert werden darf jeder Zwischenstand; ein halber Einsatz zählt nur noch nicht.
+    get lineupsValid() { return !!this.entry && this.squadsSaved && this.lineupsDirty; },
     async saveLineups() {
       const e = this.entry;
       if (!e || !this.isHenrik || !this.lineupsValid || this.busy) return;
@@ -838,23 +893,28 @@ export function l2ScheduleView(deps) {
       e.error = '';
       try {
         await this.store.updateMatch(e.matchId, { lineups: e.lineups });
-        e.step = 'ergebnis';
-        this.toast('Einsätze gespeichert — die Ergebnisse können kommen.');
+        const ready = [0, 1, 2].filter((i) => !this.battleLocked(i) && this.lineupDone(i));
+        if (ready.length) {
+          e.step = 'ergebnis';
+          e.battle = ready[0];
+          this.toast(`Einsatz gespeichert — Ergebnis von Kampf ${ready.map((i) => i + 1).join(', ')} kann kommen.`);
+        } else this.toast('Einsätze gespeichert.');
       } catch (err) {
         console.error('Einsätze konnten nicht gespeichert werden:', err);
         e.error = 'Die Einsätze konnten nicht gespeichert werden.';
       }
       this.busy = false;
     },
-    // Ergebnisse
-    get entryReady() { return !!this.entryResult?.lineupsSaved; },
+    // Ergebnisse — je Kampf, sobald sein Einsatz gespeichert ist.
+    get entryReady() { return [0, 1, 2].some((i) => this.lineupSaved(i)); },
     mayEnter(i) {
       const tag = this.entryResult?.tags?.[i] || this.entry?.tags?.[i];
-      return this.entryReady && canEnterBattle(this.me, tag, this.season, this.entry?.day);
+      return this.lineupSaved(i) && canEnterBattle(this.me, tag, this.season, this.entry?.day);
     },
     enterHint(i) {
       const tag = this.entryResult?.tags?.[i] || this.entry?.tags?.[i];
-      if (!this.entryReady) return 'Erst Aufgebot und Einsätze speichern.';
+      if (!this.squadsSaved) return 'Erst das Aufgebot speichern.';
+      if (!this.lineupSaved(i)) return 'Erst den Einsatz dieses Kampfes speichern.';
       if (this.mayEnter(i)) return '';
       return `Trägt ${tagPlayer(tag)} ein.`;
     },
@@ -874,6 +934,12 @@ export function l2ScheduleView(deps) {
       try {
         await this.store.updateMatch(e.matchId, { result: { index: i, home: e.scores[i].home, away: e.scores[i].away, by: this.me } });
         this.toast(`Kampf ${i + 1} gespeichert.`);
+        // Weiter zum nächsten offenen Kampf — fehlt dessen Einsatz noch, zuerst dorthin.
+        const next = [0, 1, 2].find((j) => j > i && !this.battleLocked(j));
+        if (next != null) {
+          e.battle = next;
+          if (this.isHenrik && !this.lineupSaved(next)) e.step = 'einsatz';
+        }
         if (this.returnAfter) {
           this.returnAfter = false;
           this.closeEntry();

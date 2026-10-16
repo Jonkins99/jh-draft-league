@@ -450,14 +450,24 @@ export function squadsComplete(match) {
     && !!normalizeTags(match?.tags);
 }
 
-/** Jeder Kampf hat beidseits vier Pokémon aus dem Aufgebot. */
-export function lineupsComplete(match) {
+/**
+ * Hat Kampf `i` beidseits vier Pokémon aus dem Aufgebot? Dann kann sein Ergebnis kommen —
+ * unabhängig von den anderen Kämpfen, damit die Aufstellung von Kampf 2 und 3 auf das
+ * Ergebnis von Kampf 1 reagieren kann.
+ */
+export function battleLineupComplete(match, i) {
   if (!squadsComplete(match)) return false;
-  return Array.from({ length: L2_BATTLES }, (_, i) => match?.battles?.[i]).every((b) => ['home', 'away'].every((side) => {
+  const b = match?.battles?.[i];
+  return ['home', 'away'].every((side) => {
     const used = b?.used?.[side] || [];
     const squad = match.squads[side];
     return used.length === L2_USED && new Set(used).size === L2_USED && used.every((n) => squad.includes(n));
-  }));
+  });
+}
+
+/** Jeder Kampf hat beidseits vier Pokémon aus dem Aufgebot. */
+export function lineupsComplete(match) {
+  return Array.from({ length: L2_BATTLES }, (_, i) => i).every((i) => battleLineupComplete(match, i));
 }
 
 export function matchComplete(match) {
@@ -465,8 +475,8 @@ export function matchComplete(match) {
 }
 
 /**
- * Die Kämpfe, deren Ergebnis `player` gerade eintragen kann: Einsätze gespeichert,
- * Ergebnis offen, Kennzeichen passt.
+ * Die Kämpfe, deren Ergebnis `player` gerade eintragen kann: Einsatz DIESES Kampfes
+ * gespeichert, Ergebnis offen, Kennzeichen passt.
  * `seasons`: [{ season, teams, results }]
  */
 export function pendingEntries(player, seasons = []) {
@@ -474,9 +484,8 @@ export function pendingEntries(player, seasons = []) {
   (seasons || []).forEach(({ season, teams = [], results = [] }) => {
     const byId = new Map(teams.map((t) => [t.id, t]));
     results.forEach((r) => {
-      if (!r?.lineupsSaved || !lineupsComplete(r)) return;
-      r.battles.forEach((b, i) => {
-        if (b.done || !canEnterBattle(player, b.tag, season, r.day)) return;
+      (r?.battles || []).forEach((b, i) => {
+        if (b.done || !battleLineupComplete(r, i) || !canEnterBattle(player, b.tag, season, r.day)) return;
         out.push({
           season,
           day: r.day,
@@ -522,6 +531,7 @@ const cleanNames = (list) => [...new Set((list || []).map((n) => String(n || '')
  * - `squads`/`tags`: Aufgebote und Kennzeichen. Ein Kampf mit Ergebnis behält seine
  *   Einsätze; wer aus dem Aufgebot fällt, verschwindet aus offenen Einsätzen.
  * - `lineups`: [{ home:[4], away:[4] }] in Reihenfolge. Kämpfe mit Ergebnis bleiben.
+ *   Einzelne Kämpfe dürfen noch offen sein — jeder Kampf zählt für sich.
  * - `result`: { index, home, away, by } trägt Überlebende ein; `clear: true` nimmt sie zurück.
  */
 export function updateL2Match(existing = {}, change = {}, { at = null } = {}) {

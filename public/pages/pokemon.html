@@ -48,7 +48,6 @@
               <span x-show="mon.tier" class="inline-flex items-center gap-1.5 rounded-full px-2.5 py-0.5 text-xs font-bold"
                     :style="`color:${tierColor(mon.tier)}; background:${tierColor(mon.tier)}26`">
                 <span x-text="`Tier ${mon.tier}`"></span>
-                <span x-show="Number.isFinite(mon.cost)" class="opacity-80" x-text="`· ${mon.cost} P`"></span>
               </span>
               <span x-show="Number.isFinite(mon.dex)" class="rounded-full border border-line px-2.5 py-0.5 text-xs font-semibold tabular-nums text-mist" x-text="`#${mon.dex}`"></span>
               <span x-show="Number.isFinite(mon.since)" class="rounded-full border border-volt-400/50 bg-volt-400/10 px-2.5 py-0.5 text-xs font-bold text-volt-400"
@@ -255,6 +254,12 @@
         <div class="rounded-2xl border border-line bg-panel p-5 sm:p-6">
           <h2 class="mb-1 font-display text-xl font-bold uppercase tracking-wider text-ink">Defensiv</h2>
           <p class="mb-4 text-sm text-mist">Schaden eingehender Angriffstypen.</p>
+          <p x-show="$store.league.abilitiesOf(mon.name).length" class="-mt-2 mb-4 flex flex-wrap items-center gap-1.5 text-xs text-mist">
+            <span>Eingerechnet:</span>
+            <template x-for="a in $store.league.abilitiesOf(mon.name)" :key="'monab-'+a.key">
+              <span class="rounded bg-elevated px-1.5 py-0.5 font-semibold text-ink" x-text="`${a.name} (immun gegen ${a.types.join(', ')})`"></span>
+            </template>
+          </p>
           <div class="grid grid-cols-3 gap-2 sm:grid-cols-6">
             <template x-for="c in defChart" :key="'def-'+c.type">
               <div class="rounded-lg border border-line bg-elevated/40 p-1.5 text-center">

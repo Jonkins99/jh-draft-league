@@ -1,7 +1,7 @@
 import Alpine from 'alpinejs';
 import { db } from './firebase.js';
 import { collection, doc, getDoc, onSnapshot, writeBatch, arrayUnion, setDoc, deleteDoc, deleteField, runTransaction } from 'firebase/firestore';
-import { battleStats, mergeResult, computeStandings, pokemonStats, placementHistory, speedTiers, speedCases, clampSp, applySpeedMod, typeMultiplier, ALL_TYPES, pokemonProfile, defensiveChart, offensiveChart, playerDuel, showdownExport, teamBattleTotals, isMega, baseFormOf, pokezoneUrl, draftPicks, transferAvailability, availableOn } from './scoring.mjs';
+import { battleStats, mergeResult, computeStandings, pokemonStats, placementHistory, speedTiers, speedCases, clampSp, applySpeedMod, typeMultiplier, ALL_TYPES, pokemonProfile, setStandingsTiebreak, defensiveChart, offensiveChart, playerDuel, showdownExport, teamBattleTotals, isMega, baseFormOf, pokezoneUrl, draftPicks, transferAvailability, availableOn } from './scoring.mjs';
 import {
   exportDataset, buildScheduleExport, buildBattleDetailsExport, buildStandingsExport,
   buildRankingExport, buildTeamsExport, buildDraftpoolExport, buildDraftOrderExport,
@@ -35,13 +35,14 @@ import { logoSrc, LOGO_BASE } from './logos.mjs';
 import {
   POKEDB_DOC, MON_TIERS, MON_STATS, ALL_MON_TYPES, sinceOf, monKey, normalizeMonRecord, validateMon,
   mergePokedex, pokedexForSeason,
+  IMMUNITY_SUGGESTIONS, abilityKey, normalizeAbility, validateAbility, abilityList, monAbilities, immuneTypes,
 } from './pokedb.mjs';
 import { normalizeChampionsUrl, fetchChampionsHtml, parseChampionsPage } from './serebii.mjs';
 import {
   TEAMPOOL_DOC, CLUB_PLAYERS, clubSlug, normalizeClub, clubDirectory, seasonPreselect, validateSeasonPick, buildSeasonStart,
 } from './clubs.mjs';
 import {
-  L2_TAGS, L2_TAG_LABEL, L2_SQUAD_SIZE, L2_USED, L2_TIERS, L2_PER_TIER, L2_ROSTER_SIZE, L2_PLAYER,
+  L2_TAGS, L2_TEAMS, L2_TAG_LABEL, L2_SQUAD_SIZE, L2_USED, L2_TIERS, L2_PER_TIER, L2_ROSTER_SIZE, L2_PLAYER,
   l2DocId, l2MatchId, parseL2MatchId, rosterCheck, tierHasRoom, drawBlocks, buildBlockSchedule, blankSchedule,
   checkSchedule, drawTags, normalizeTags, tagPlayer, canEnterBattle, squadsComplete, lineupsComplete, matchComplete,
   completeDays, dayComplete, leadCounts, matchScore, combinedAllTime,
@@ -78,13 +79,14 @@ import {
   formatDate, formatDateTime, sortArticles, articleMatchesFilter, storyId, commissionLeague,
   interviewCandidates, pickInterviewGuests, matchLines,
   isStalePending, needsRewrite, articleViewStatus, hasArticleContent, pickPreview, matchSequence, answerMentionsMeta,
+  seededRandom, hashSeed,
 } from './press.mjs';
 import { buildContext, isReference, nextOpenDay } from './press-context.mjs';
 import { buildScene, seatSprite, backMissing } from './press-scene.mjs';
 import { trainerDirectory, normalizePoolTrainer, trainerKey } from './trainer-market.mjs';
 import {
   SHOWS, CAVALANZAS, showOf, showByline, lanzTriggerGames, lanzId, previousLanz, lanzHadTrainer, lanzAnswerTarget, lanzLineup,
-  podcastReadyDays, showParagraphs, transcriptText, cleanTurns,
+  podcastReadyDays, showParagraphs, transcriptText, cleanTurns, turnsFromBody, variationNote,
   LANZ_BRIEF, ZWEIBLATT_BRIEF, SHOW_SCHEMA, SHOW_PART_SCHEMA, PODCAST_SCHEMA, podcastRawTurns, podcastMissing,
 } from './press-shows.mjs';
 import {
@@ -345,7 +347,8 @@ const STAT_CATALOG = [
   { key: 'base_speed', label: 'Initiative', short: 'Init', fmt: 'int', info: 'Basis-Initiative (Speed-Basiswert) aus den Stammdaten.' },
   { key: 'marktwert', label: 'Marktwert', short: 'MW', fmt: 'market', info: 'Aktueller Marktwert, umgerechnet aus dem Elo-Wert des öffentlichen Draft-Sheets. Nach oben eskalieren die Beträge, im unteren Korridor liegen sie dicht beieinander. „—" heißt: im Sheet nicht gefunden.' },
   { key: 'elo', label: 'Elo', short: 'Elo', fmt: 'elo', info: 'Der rohe Elo-Wert hinter dem Marktwert — aus dem öffentlichen Draft-Sheet. „—" heißt: im Sheet nicht gefunden.' },
-  { key: 'cost', label: 'Kosten', short: 'Kosten', fmt: 'int', info: 'Draft-Kosten (Punkte) des Pokémon.' },
+  { key: 'leads', label: 'Leads', short: 'Lead', fmt: 'int', info: 'Wie oft es in der Startaufstellung eines Kampfes stand — die ersten zwei eingetragenen Pokémon eines Kampfes sind die Leads.' },
+  { key: 'leadShare', label: 'Lead-Quote', short: 'Lead %', fmt: 'pct', info: 'Anteil seiner Kämpfe, in denen es als Lead startete.' },
   // `scope: 'all'` — nur im saisonübergreifenden Bereich sinnvoll und dort auch nur
   // dort sichtbar (siehe columnsMixin).
   { key: 'seasonsPlayed', label: 'Saisons', short: 'Sais.', fmt: 'int', scope: 'all', info: 'In wie vielen Saisons dieses Pokémon mindestens einmal im Aufgebot stand.' },
@@ -359,7 +362,7 @@ const DEFAULT_COLS = ['kills', 'deaths', 'matchups', 'battles'];
 const EXTRA_INFO = {
   matchupPct: 'Anteil der Matches, in denen dieses Pokémon im 6er-Aufgebot stand.',
   battleShare: 'Anteil der Team-Kämpfe, in denen dieses Pokémon eingesetzt wurde.',
-  diff: 'Kill-Differenz: Kills minus Deaths. Zweites Sortierkriterium der Tabelle.',
+  diff: 'Kill-Differenz: Kills minus Deaths. Zweites Sortierkriterium der Tabelle — danach entscheiden der direkte Vergleich und die Platzierung der Vorsaison.',
   points: 'Ein Punkt je gewonnenem Kampf über die gesamte Saison.',
   avgPlace: 'Durchschnittliche Tabellenplatzierung aller Teams dieses Spielers.',
 };
@@ -417,33 +420,36 @@ function fmtAgo(iso) {
 
 // Spalten-Steuerung (Sichtbarkeit, Reihenfolge, Sortierung, Drag&Drop) als
 // wiederverwendbarer Mixin – wird in Team- und Liga-Ranking eingespreizt.
-function columnsMixin(storageKey) {
+function columnsMixin(storageKey, { catalog = STAT_CATALOG, defaults = DEFAULT_COLS, sortKey = 'kills' } = {}) {
+  // Der Katalog ist austauschbar — die Zweite Liga bringt ihren eigenen mit.
+  const BY_KEY = catalog === STAT_CATALOG ? STAT_BY_KEY : Object.fromEntries(catalog.map((s) => [s.key, s]));
+  const KEYS = catalog.map((s) => s.key);
   return {
     colStorageKey: storageKey,
-    colOrder: [...STAT_KEYS],
-    colVisible: Object.fromEntries(STAT_KEYS.map((k) => [k, DEFAULT_COLS.includes(k)])),
-    sortKey: 'kills',
+    colOrder: [...KEYS],
+    colVisible: Object.fromEntries(KEYS.map((k) => [k, defaults.includes(k)])),
+    sortKey,
     sortDir: 'desc',
     sortKey2: '',      // optionale zweite Sortiermetrik ('' = aus)
     sortDir2: 'desc',
     viewMode: 'table', // 'table' | 'cards'
-    catalog: STAT_CATALOG,
+    catalog,
     _dragKey: null,
 
     initColumns() {
       const saved = loadJson(this.colStorageKey);
       if (saved && Array.isArray(saved.order)) {
         // Nur bekannte Keys übernehmen, fehlende hinten anhängen (Katalog-Erweiterungen).
-        const known = saved.order.filter((k) => STAT_BY_KEY[k]);
-        const missing = STAT_KEYS.filter((k) => !known.includes(k));
+        const known = saved.order.filter((k) => BY_KEY[k]);
+        const missing = KEYS.filter((k) => !known.includes(k));
         this.colOrder = [...known, ...missing];
       }
       if (saved && saved.visible) {
-        this.colVisible = Object.fromEntries(STAT_KEYS.map((k) => [k, !!saved.visible[k]]));
+        this.colVisible = Object.fromEntries(KEYS.map((k) => [k, !!saved.visible[k]]));
       }
-      if (saved && STAT_BY_KEY[saved.sortKey]) this.sortKey = saved.sortKey;
+      if (saved && BY_KEY[saved.sortKey]) this.sortKey = saved.sortKey;
       if (saved && (saved.sortDir === 'asc' || saved.sortDir === 'desc')) this.sortDir = saved.sortDir;
-      if (saved && STAT_BY_KEY[saved.sortKey2]) this.sortKey2 = saved.sortKey2;
+      if (saved && BY_KEY[saved.sortKey2]) this.sortKey2 = saved.sortKey2;
       if (saved && (saved.sortDir2 === 'asc' || saved.sortDir2 === 'desc')) this.sortDir2 = saved.sortDir2;
       if (saved && (saved.view === 'table' || saved.view === 'cards')) this.viewMode = saved.view;
       if (!this.visibleCols().length) this.colVisible[this.colOrder[0]] = true; // nie 0 Spalten
@@ -473,12 +479,12 @@ function columnsMixin(storageKey) {
       return (stat.scope === 'all') === !!Alpine.store('season')?.isAll;
     },
     orderedCatalog() {
-      return this.colOrder.map((k) => STAT_BY_KEY[k]).filter((x) => this.inScope(x));
+      return this.colOrder.map((k) => BY_KEY[k]).filter((x) => this.inScope(x));
     },
     visibleCols() {
       return this.colOrder
         .filter((k) => this.colVisible[k])
-        .map((k) => STAT_BY_KEY[k])
+        .map((k) => BY_KEY[k])
         .filter((x) => this.inScope(x));
     },
     toggleCol(key) {
@@ -509,7 +515,7 @@ function columnsMixin(storageKey) {
     },
     // Zweite Sortiermetrik: greift bei Gleichstand in der ersten.
     setSort2(key) {
-      this.sortKey2 = key === this.sortKey ? '' : (STAT_BY_KEY[key] ? key : '');
+      this.sortKey2 = key === this.sortKey ? '' : (BY_KEY[key] ? key : '');
       this.saveColumns();
     },
     toggleSortDir2() {
@@ -519,7 +525,7 @@ function columnsMixin(storageKey) {
     sortRows(rows) {
       const key = this.sortKey;
       const dir = this.sortDir === 'asc' ? 1 : -1;
-      const key2 = STAT_BY_KEY[this.sortKey2] ? this.sortKey2 : null;
+      const key2 = BY_KEY[this.sortKey2] ? this.sortKey2 : null;
       const dir2 = this.sortDir2 === 'asc' ? 1 : -1;
       return [...rows].sort((a, b) => {
         const primary = dir * ((a[key] ?? 0) - (b[key] ?? 0));
@@ -532,7 +538,7 @@ function columnsMixin(storageKey) {
       });
     },
     colValue(row, key) {
-      return fmtStat(row[key], STAT_BY_KEY[key]?.fmt);
+      return fmtStat(row[key], BY_KEY[key]?.fmt);
     },
     // Pointer-basiertes Drag&Drop (touch-tauglich) im Spalten-Popover.
     colDragStart(key, e) {
@@ -782,7 +788,7 @@ function monSeries(row, bounds, opts = {}) {
 // Diagramm an ein Element binden und bei neuen Sheet-Daten aktualisieren.
 // `build()` liefert die komplette Konfiguration; der Beobachter wird je Schlüssel
 // nur einmal registriert, auch wenn x-init erneut läuft.
-function bindMarketChart(ctx, el, key, build) {
+function bindMarketChart(ctx, el, key, build, { watch = [] } = {}) {
   if (!el) return;
   ctx._charts = ctx._charts || {};
   ctx._charts[key]?.destroy?.();
@@ -796,6 +802,114 @@ function bindMarketChart(ctx, el, key, build) {
   // Der Verlauf hängt an der gewählten Saison — ein Bereichswechsel muss das
   // Diagramm neu zeichnen, sonst bliebe die Kurve der alten Saison stehen.
   ctx.$watch('$store.season.scope', refresh);
+  watch.forEach((expr) => ctx.$watch(expr, refresh));
+}
+
+// Marktwerte der Zweiten Liga: dieselben Rechnungen wie im Team-View der ersten Liga
+// (Gesamtwert, Platz, Kader nach Wert, Verlauf), nur mit Teams, Transfer und Spielplan
+// der Zweiten Liga. Kein eigener View, keine Update-Inszenierung. Nur Methoden — der
+// Mixin wird in liga2-views.mjs eingesetzt.
+function l2MarketMixin() {
+  const L2_WATCH = { watch: ['$store.league._drafts'] };
+  return {
+    fmtMarket(v) { return formatMarket(v); },
+    fmtMarketDelta(v) { return formatMarketDelta(v); },
+    hasMarket() { return this.$store.elo.rows.length > 0; },
+    teamValue(team) {
+      return squadMarketValue(team?.pokemon || [], this.$store.elo.index());
+    },
+    teamMarketRank() {
+      const sorted = [...this.teams].sort((a, b) => this.teamValue(b) - this.teamValue(a));
+      const i = sorted.findIndex((t) => t.id === this.selectedId);
+      return i < 0 ? null : i + 1;
+    },
+    rosterByValue() {
+      const index = this.$store.elo.index();
+      return (this.selectedTeam?.pokemon || [])
+        .map((p) => {
+          const row = index[p.name];
+          return { ...p, value: row ? marketValue(row.elo) : null, elo: row?.elo ?? null };
+        })
+        .sort((a, b) => (b.value || 0) - (a.value || 0));
+    },
+    _rosterCut(team) {
+      const season = seasonOfTeam(team);
+      const l2 = this.$store.liga2;
+      const days = (l2.scheduleOf(season).matchdays || []).filter((md) => md.leg !== 'rueck').map((md) => Number(md.day));
+      return {
+        transfer: l2.transferOf(season),
+        cutIndex: transferCutIndex(this.$store.elo.stops(), { season, afterDay: days.length ? Math.max(...days) : null }),
+      };
+    },
+    _squadPoints(team) {
+      if (!team) return [];
+      const { transfer, cutIndex } = this._rosterCut(team);
+      return squadHistory(
+        (stop, i) => rosterAtIndex(team, transfer, i, cutIndex),
+        this.$store.elo.histIndex(),
+        this.$store.elo.stops(),
+      );
+    },
+    teamMarketSpan() {
+      const pts = this._squadPoints(this.selectedTeam);
+      if (pts.length < 2) return null;
+      const first = pts[0];
+      const last = pts[pts.length - 1];
+      return { first, last, delta: last.value - first.value };
+    },
+    _teamChartConfig(highlightId) {
+      return {
+        series: this.teams.map((t) => ({
+          key: t.id,
+          label: t.name,
+          color: teamColor(t),
+          highlight: highlightId === t.id,
+          dimmed: !!highlightId && highlightId !== t.id,
+          points: this._squadPoints(t),
+        })),
+        stops: this.$store.elo.stops(),
+        bands: [],
+        scale: 'linear',
+        legend: true,
+        format: (v) => formatMarket(v, { unit: false }),
+        ariaLabel: 'Gesamtmarktwert der Teams im Verlauf',
+        emptyText: 'Noch keine Verlaufsdaten im Sheet.',
+      };
+    },
+    mountTeamValueChart(el) {
+      bindMarketChart(this, el, 'l2teamvalue', () => this._teamChartConfig(this.selectedId), L2_WATCH);
+    },
+    mountLeagueValueChart(el) {
+      bindMarketChart(this, el, 'l2leaguevalue', () => this._teamChartConfig(null), L2_WATCH);
+    },
+    mountRosterChart(el) {
+      bindMarketChart(this, el, 'l2roster', () => {
+        const store = this.$store.elo;
+        const index = store.histIndex();
+        const bounds = tierBoundaries(store.rows);
+        const team = this.selectedTeam;
+        const { transfer, cutIndex } = this._rosterCut(team);
+        const series = rosterSpans(team, transfer, store.stops(), cutIndex)
+          .map((span, i) => {
+            const row = index[span.name];
+            if (!row) return null;
+            const suffix = span.left ? ' (abgegeben)' : span.joined ? ' (Zugang)' : '';
+            return monSeries(row, bounds, { color: seriesColor(i), label: `${span.name}${suffix}`, only: span.keys });
+          })
+          .filter((x) => x && x.points.length);
+        return {
+          series,
+          stops: store.stops(),
+          bands: marketBands(store.rows),
+          scale: 'log',
+          legend: true,
+          format: (v) => formatMarket(v, { unit: false }),
+          ariaLabel: 'Marktwert-Verlauf des Kaders',
+          emptyText: 'Noch keine Verlaufsdaten im Sheet.',
+        };
+      }, L2_WATCH);
+    },
+  };
 }
 
 // Stabiler, eindeutiger view-transition-name je Pokémon (dex trennt Geschlechts-/Formen).
@@ -2186,7 +2300,7 @@ function teamsView() {
       return ALL_TYPES.map((type) => {
         let weak = 0, resist = 0, immune = 0;
         const cells = mons.map((m) => {
-          const mult = typeMultiplier(type, m.types || []);
+          const mult = typeMultiplier(type, m.types || [], this.$store.league.immuneOf(m.name));
           if (mult === 0) immune++;
           else if (mult > 1) weak++;
           else if (mult < 1) resist++;
@@ -2205,7 +2319,7 @@ function teamsView() {
         name: m.name,
         image: m.image,
         types: m.types || [],
-        cells: ALL_TYPES.map((type) => ({ type, mult: typeMultiplier(type, m.types || []) })),
+        cells: ALL_TYPES.map((type) => ({ type, mult: typeMultiplier(type, m.types || [], this.$store.league.immuneOf(m.name)) })),
       }));
     },
     typeAbbr(type) {
@@ -3976,7 +4090,7 @@ function pokemonView() {
 
     // === Typ-Tabellen (scoring.mjs) =========================================
     get defChart() {
-      return defensiveChart(this.mon?.types || []);
+      return defensiveChart(this.mon?.types || [], this.$store.league.immuneOf(this.mon?.name));
     },
     get offCoverage() {
       return offensiveChart(this.mon?.types || []);
@@ -5236,7 +5350,8 @@ function teambuildingView() {
     // den eigenen Typen gegen jedes aktive Pokémon der Gegenseite erzielt.
     threat(attacker, defenderMon) {
       const atkTypes = [...new Set(this.activeMons(attacker).flatMap((m) => m.types || []))];
-      return atkTypes.reduce((best, atk) => Math.max(best, typeMultiplier(atk, defenderMon.types || [])), 0);
+      const immune = this.$store.league.immuneOf(defenderMon.name);
+      return atkTypes.reduce((best, atk) => Math.max(best, typeMultiplier(atk, defenderMon.types || [], immune)), 0);
     },
     threatList(attackerSide) {
       const attacker = attackerSide === 'a' ? this.teamA : this.teamB;
@@ -5258,7 +5373,8 @@ function teambuildingView() {
       return this.weakSort.dir === 'desc' ? '▼' : '▲';
     },
     get weakCompare() {
-      const count = (team) => ALL_TYPES.map((type) => this.activeMons(team).filter((m) => typeMultiplier(type, m.types || []) > 1).length);
+      const immune = (m) => this.$store.league.immuneOf(m.name);
+      const count = (team) => ALL_TYPES.map((type) => this.activeMons(team).filter((m) => typeMultiplier(type, m.types || [], immune(m)) > 1).length);
       const a = count(this.teamA);
       const b = count(this.teamB);
       const { key, dir } = this.weakSort;
@@ -5909,10 +6025,12 @@ function pokedexView() {
     q: '',
     fTier: '',
     fSince: '',
+    fAbility: '',
     sortKey: 'name',
     sortDir: 'asc',
-    form: null,       // { isNew, rec, errors }
+    form: null,       // { isNew, rec, errors, abilities, original }
     importer: null,   // { url, html, busy, error, variants, picked, pasteOpen }
+    abilityForm: null, // { key, name, types, errors }
     busy: false,
     tiers: MON_TIERS,
     statDefs: MON_STATS,
@@ -5937,13 +6055,15 @@ function pokedexView() {
       const list = this.league.pokemonAll.filter((p) => {
         if (this.fTier && p.tier !== this.fTier) return false;
         if (this.fSince && sinceOf(p) !== Number(this.fSince)) return false;
+        if (this.fAbility && !this.league.abilitiesOf(p.name).some((a) => a.key === this.fAbility)) return false;
         if (!q) return true;
         return p.name.toLowerCase().includes(q) || (p.name_en || '').toLowerCase().includes(q)
           || (p.types || []).some((t) => t.toLowerCase().includes(q));
       });
       const dir = this.sortDir === 'asc' ? 1 : -1;
       const k = this.sortKey;
-      const val = (p) => (k === 'name' ? p.name : k === 'tier' ? tierRank(p.tier) : k === 'since' ? sinceOf(p) : k === 'total' ? this.total(p) : Number(p[k]) || 0);
+      const val = (p) => (k === 'name' ? p.name : k === 'tier' ? tierRank(p.tier) : k === 'since' ? sinceOf(p) : k === 'total' ? this.total(p)
+        : k === 'abilities' ? this.league.abilitiesOf(p.name).length : Number(p[k]) || 0);
       return [...list].sort((a, b) => {
         const x = val(a);
         const y = val(b);
@@ -5974,13 +6094,17 @@ function pokedexView() {
     },
     openNew() {
       if (!this.canEdit) return;
-      this.form = { isNew: true, rec: this.blank(), errors: [] };
+      this.form = { isNew: true, rec: this.blank(), errors: [], abilities: [], original: null };
       this.importer = { url: '', html: '', busy: false, error: '', variants: [], picked: null, pasteOpen: false };
       this.$nextTick(() => document.getElementById('pokedex-form')?.showPopover());
     },
     openEdit(p) {
       if (!this.canEdit || !p) return;
-      this.form = { isNew: false, rec: this.toDraft(p), errors: [], added: !!p.added };
+      this.form = {
+        isNew: false, rec: this.toDraft(p), errors: [], added: !!p.added,
+        abilities: this.league.abilitiesOf(p.name).map((a) => a.key),
+        original: JSON.stringify(normalizeMonRecord(this.toDraft(p))),
+      };
       this.importer = null;
       this.$nextTick(() => document.getElementById('pokedex-form')?.showPopover());
     },
@@ -5994,15 +6118,99 @@ function pokedexView() {
       const r = this.form.rec;
       return { ...r, types: r.types.filter(Boolean) };
     },
+    // Nur wer die Stammdaten wirklich ändert, schreibt einen Eintrag nach drafts/pokemondb —
+    // der ersetzt den Datensatz aus pokemon.json, und spätere Einstufungen kämen nicht mehr an.
+    get recordChanged() {
+      if (!this.form) return false;
+      return this.form.isNew || JSON.stringify(normalizeMonRecord(this._record())) !== this.form.original;
+    },
     get formErrors() {
-      if (!this.form) return [];
+      if (!this.form || !this.recordChanged) return [];
       return validateMon(normalizeMonRecord(this._record()), { names: this.league.pokemonAll.map((p) => p.name), isNew: this.form.isNew });
+    },
+    // --- Fähigkeiten eines Pokémon ---------------------------------------------------
+    get abilities() { return this.league.immunityAbilities; },
+    abilitiesOf(p) { return this.league.abilitiesOf(p.name); },
+    hasFormAbility(key) { return !!this.form?.abilities.includes(key); },
+    toggleFormAbility(key) {
+      const f = this.form;
+      if (!f) return;
+      f.abilities = f.abilities.includes(key) ? f.abilities.filter((k) => k !== key) : [...f.abilities, key];
+    },
+    get abilitiesChanged() {
+      if (!this.form) return false;
+      const before = this.form.isNew ? [] : this.league.abilitiesOf(this.form.rec.name).map((a) => a.key);
+      const now = this.form.abilities;
+      return before.length !== now.length || now.some((k) => !before.includes(k));
+    },
+    abilityUsage(key) {
+      return this.league.pokemonAll.filter((p) => this.league.abilitiesOf(p.name).some((a) => a.key === key)).length;
+    },
+    // --- Fähigkeiten anlegen und bearbeiten -------------------------------------------
+    get abilitySuggestions() {
+      const have = new Set(this.abilities.map((a) => a.key));
+      return IMMUNITY_SUGGESTIONS.filter((x) => !have.has(abilityKey(x.name)));
+    },
+    openAbility(a = null) {
+      if (!this.canEdit) return;
+      this.abilityForm = a ? { key: a.key, name: a.name, types: [...a.types], errors: [] } : { key: null, name: '', types: [], errors: [] };
+      this.$nextTick(() => document.getElementById('pokedex-ability')?.showPopover());
+    },
+    useSuggestion(x) {
+      if (!this.abilityForm) return;
+      Object.assign(this.abilityForm, { name: x.name, types: [...x.types] });
+    },
+    toggleAbilityType(t) {
+      const f = this.abilityForm;
+      if (!f) return;
+      f.types = f.types.includes(t) ? f.types.filter((x) => x !== t) : [...f.types, t];
+    },
+    get abilityErrors() {
+      const f = this.abilityForm;
+      if (!f) return [];
+      return validateAbility(normalizeAbility(f), { keys: this.abilities.map((a) => a.key), ownKey: f.key });
+    },
+    closeAbility() {
+      const el = document.getElementById('pokedex-ability');
+      if (el && el.matches(':popover-open')) el.hidePopover();
+      this.abilityForm = null;
+    },
+    async saveAbility() {
+      const f = this.abilityForm;
+      if (!f || this.busy || this.abilityErrors.length) return;
+      this.busy = true;
+      try {
+        await this.league.saveAbility(f, { key: f.key });
+        window.dispatchEvent(new CustomEvent('toast', { detail: { msg: `${f.name.trim()} gespeichert.` } }));
+        this.closeAbility();
+      } catch (e) {
+        f.errors = [e?.message || 'Die Fähigkeit konnte nicht gespeichert werden.'];
+      }
+      this.busy = false;
+    },
+    async removeAbility() {
+      const f = this.abilityForm;
+      if (!f?.key || this.busy) return;
+      const n = this.abilityUsage(f.key);
+      if (!window.confirm(n ? `${f.name} entfernen? ${n} Pokémon verlieren damit diese Fähigkeit.` : `${f.name} entfernen?`)) return;
+      this.busy = true;
+      try {
+        await this.league.removeAbility(f.key);
+        if (this.fAbility === f.key) this.fAbility = '';
+        this.closeAbility();
+      } catch (e) {
+        f.errors = [e?.message || 'Die Fähigkeit ließ sich nicht entfernen.'];
+      }
+      this.busy = false;
     },
     async saveForm() {
       if (!this.form || this.busy || this.formErrors.length) return;
+      if (!this.recordChanged && !this.abilitiesChanged) return this.closeForm();
       this.busy = true;
       try {
-        const name = await this.league.savePokemon(this._record(), { isNew: this.form.isNew });
+        let name = this.form.rec.name;
+        if (this.recordChanged) name = await this.league.savePokemon(this._record(), { isNew: this.form.isNew });
+        if (this.abilitiesChanged) await this.league.setMonAbilities(name, this.form.abilities);
         window.dispatchEvent(new CustomEvent('toast', { detail: { msg: this.form.isNew ? `${name} angelegt.` : `${name} gespeichert.` } }));
         this.closeForm();
       } catch (e) {
@@ -8669,6 +8877,64 @@ Alpine.store('league', {
     }, { merge: true });
   },
 
+  // Fähigkeiten mit Immunität (Schwebe, Vegetarier …): angelegt von der Liga, je Pokémon
+  // zugeordnet. `immuneOf` geht in jede Schwächen-Analyse (`typeMultiplier`).
+  get immunityAbilities() {
+    const notes = this.pokedexNotes;
+    if (abilityCache.notes !== notes) abilityCache = { notes, list: abilityList(notes), immune: new Map(), pool: null, dex: null };
+    return abilityCache.list;
+  },
+  get pokemonWithImmunity() {
+    const pool = this.pokemon;
+    this.immunityAbilities;
+    if (abilityCache.pool !== pool || !abilityCache.dex) {
+      abilityCache.pool = pool;
+      abilityCache.dex = pool.map((p) => {
+        const immune = this.immuneOf(p.name);
+        return immune ? { ...p, immune } : p;
+      });
+    }
+    return abilityCache.dex;
+  },
+  abilitiesOf(name) {
+    return monAbilities(this.pokedexNotes, name);
+  },
+  immuneOf(name) {
+    if (!name) return null;
+    this.immunityAbilities;
+    if (!abilityCache.immune.has(name)) {
+      const types = immuneTypes(this.pokedexNotes, name);
+      abilityCache.immune.set(name, types.length ? types : null);
+    }
+    return abilityCache.immune.get(name);
+  },
+  async saveAbility(raw, { key: ownKey = null } = {}) {
+    const rec = normalizeAbility(raw);
+    const errors = validateAbility(rec, { keys: this.immunityAbilities.map((a) => a.key), ownKey });
+    if (errors.length) throw new Error(errors.join(' '));
+    const key = ownKey || abilityKey(rec.name);
+    await setDoc(doc(db, 'drafts', 'pokedex'), {
+      abilities: { [key]: { ...rec, updatedAt: new Date().toISOString(), updatedBy: Alpine.store('auth')?.player || null } },
+      updatedAt: new Date().toISOString(),
+    }, { merge: true });
+    return key;
+  },
+  // Zuordnungen bleiben stehen; ohne Definition zählen sie nicht mehr (`monAbilities`).
+  async removeAbility(key) {
+    if (!key) return;
+    await setDoc(doc(db, 'drafts', 'pokedex'), {
+      abilities: { [key]: deleteField() },
+      updatedAt: new Date().toISOString(),
+    }, { merge: true });
+  },
+  async setMonAbilities(name, keys) {
+    if (!name) return;
+    await setDoc(doc(db, 'drafts', 'pokedex'), {
+      monAbilities: { [name]: [...new Set((keys || []).filter(Boolean))] },
+      updatedAt: new Date().toISOString(),
+    }, { merge: true });
+  },
+
   // === Trainermarkt (drafts/trainerpool) ===================================
   // Trainer, die noch nie im Amt waren, brauchen einen Ort: den Pool. Er liegt wie
   // drafts/pokedex unter `drafts`, kommt über denselben Listener herein und braucht
@@ -8977,6 +9243,37 @@ Alpine.store('league', {
 // === Zweite Liga ==============================================================
 // Liest die Saisondokumente `drafts/liga2-s<N>` aus dem league-Store (siehe liga2-store.mjs).
 Alpine.store('liga2', createLiga2Store(Alpine));
+
+// Tie-Breaker aller Tabellen (nach Punkten, Differenz und direktem Vergleich): der Platz
+// des Franchise am Ende der Vorsaison. Erste Liga zählt Platz 1–8, die Zweite dahinter
+// (ihr Platz 1 ist Gesamtrang 9). Zwischengespeichert, solange Teams, Ergebnisse und
+// Saisondokumente dieselben Objekte sind.
+let tiebreakCache = null;
+setStandingsTiebreak((teamId) => {
+  const season = seasonOfId(teamId);
+  if (!season || season < 2) return null;
+  const league = Alpine.store('league');
+  const l2 = Alpine.store('liga2');
+  const c = tiebreakCache;
+  if (!c || c.teams !== league.teams || c.results !== league.allResults || c.drafts !== league._drafts) {
+    tiebreakCache = { teams: league.teams, results: league.allResults, drafts: league._drafts, bySeason: new Map() };
+  }
+  const prev = season - 1;
+  const memo = tiebreakCache.bySeason;
+  if (!memo.has(prev)) {
+    memo.set(prev, new Map());
+    const ranks = new Map();
+    const t1 = computeStandings(teamsOfSeason(league.teams, prev), resultsOfSeason(league.allResults, prev));
+    t1.forEach((r, i) => ranks.set(franchiseSlug(r.team.id), i + 1));
+    const offset = t1.length || L2_TEAMS;
+    computeStandings(l2.teamsOf(prev), l2.resultsOf(prev)).forEach((r, i) => {
+      const slug = franchiseSlug(r.team.id);
+      if (!ranks.has(slug)) ranks.set(slug, offset + i + 1);
+    });
+    memo.set(prev, ranks);
+  }
+  return memo.get(prev).get(franchiseSlug(teamId)) ?? null;
+});
 
 // === Awards =================================================================
 // Eine Firestore-Doc je Abstimmung (Collection `awards`, ID aus awardDocId).
@@ -9341,6 +9638,7 @@ let trainerDirCache = null;
 let clubDirCache = null;
 const EMPTY_POOL = Object.freeze({});
 // Zusammengeführte Pokémon-Stammdaten — gilt, solange Datei und Dokument dieselben sind.
+let abilityCache = { notes: null, list: [], immune: new Map(), pool: null, dex: null };
 let pokedexCache = null;
 
 // Beschreibt dem Modell, wann der Termin stattfindet — die Auftaktrunde liegt
@@ -9758,7 +10056,17 @@ Alpine.store('press', {
   lanzIdFor(day, edition = 1) { return lanzId(this.prefix, day, edition); },
   podcastIdFor(day) { return `${this.prefix}-zweiblatt-d${day}`; },
 
-  _showSystem(show, guests = []) {
+  // Wortbeiträge der letzten Folgen dieser Sendung — Grundlage der Abwechslung.
+  _recentShowTurns(show, { exclude = null, limit = 3 } = {}) {
+    return (this.articles || [])
+      .filter((a) => a?.source?.type === show.key && a.id !== exclude && a.body)
+      .sort((a, b) => String(b.createdAt || '').localeCompare(String(a.createdAt || '')))
+      .slice(0, limit)
+      .flatMap((a) => turnsFromBody(a.body));
+  },
+  _showSystem(show, guests = [], { seed = null } = {}) {
+    const rand = seed ? seededRandom(hashSeed(String(seed))) : Math.random;
+    const variation = variationNote(show.hosts, this._recentShowTurns(show, { exclude: seed }), rand);
     const voices = [
       ...show.hosts.map((h) => `${h.name} (Gastgeber):\n${h.voice}`),
       ...guests.filter((g) => g.kind === 'press').map((g) => {
@@ -9779,6 +10087,7 @@ Alpine.store('press', {
         `DIESES FORMAT: ${show.kind} "${show.title}". Es gibt keinen Autor und keinen Erzähler — nur die Stimmen der Runde.`,
         'Die Regeln zu Bausteinen gelten in diesem Format NICHT: keine [marktwert: …], [tabelle: …] oder andere Klammern.',
         `DIE STIMMEN:\n${voices.join('\n\n')}`,
+        variation,
       ].join('\n\n'),
     });
   },
@@ -9899,7 +10208,7 @@ Alpine.store('press', {
 
       const speakers = [CAVALANZAS.name, ...lineup.guests.map((g) => g.name)];
       const data = await this._generate(model, {
-        system: this._showSystem(show, lineup.guests),
+        system: this._showSystem(show, lineup.guests, { seed: id }),
         prompt: buildUserPrompt({
           task: LANZ_BRIEF,
           direction: this._showDirection({ scandal: true }),
@@ -9941,7 +10250,7 @@ Alpine.store('press', {
     try {
       await setDoc(ref, { status: 'generating', error: null, updatedAt: new Date().toISOString() }, { merge: true });
       const data = await this._generate(model, {
-        system: this._showSystem(SHOWS.lanz, s.guests || []),
+        system: this._showSystem(SHOWS.lanz, s.guests || [], { seed: s.articleId || sessionId }),
         prompt: buildUserPrompt({
           task: LANZ_BRIEF,
           direction: first ? this._showDirection({ scandal: true }) : '',
@@ -10016,7 +10325,7 @@ Alpine.store('press', {
     try {
       await setDoc(ref, { status: 'writing', error: null, updatedAt: new Date().toISOString() }, { merge: true });
       const data = await this._generate(model, {
-        system: this._showSystem(SHOWS.lanz, s.guests || []),
+        system: this._showSystem(SHOWS.lanz, s.guests || [], { seed: s.articleId || sessionId }),
         prompt: buildUserPrompt({
           task: LANZ_BRIEF,
           context: this.contextFor({ teamIds: [...new Set([trainer?.teamId, ...this._dayTeams(s.day)].filter(Boolean))], day: s.day }),
@@ -10131,7 +10440,7 @@ Alpine.store('press', {
       const listing = (list) => list.map((m, i) => `${i + 1}. ${nameOf(m.home)} gegen ${nameOf(m.away)} (matchId ${m.id})`).join('\n');
       const previewTeams = previewList.flatMap((m) => [m.home, m.away]);
       const data = await this._generate(model, {
-        system: this._showSystem(show),
+        system: this._showSystem(show, [], { seed: id }),
         prompt: buildUserPrompt({
           task: ZWEIBLATT_BRIEF,
           direction: this._showDirection({ scandal: false }),
@@ -11891,6 +12200,7 @@ Alpine.data('presseView', presseView);
 // Zweite Liga: eigene Komponenten (liga2-views.mjs), Hilfen aus dieser Datei.
 const l2Deps = {
   buildChart, chartSvgString, teamColor, normalizeHexColor, logoSrc, openStatInfo, imageToDataUrl, clubSlug, trainerKey,
+  columnsMixin, marketMixin: l2MarketMixin,
   TEAM_COLOR_PRESETS, TYPE_COLORS, TIER_COLORS, ALL_TYPES,
 };
 Alpine.data('l2StandingsView', () => l2StandingsView(l2Deps));

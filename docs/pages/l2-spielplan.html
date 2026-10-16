@@ -156,12 +156,12 @@
 
             <div class="grid grid-cols-1 gap-4 md:grid-cols-2">
               <template x-for="(m, i) in md.matches" :key="'mm-'+md.day+'-'+i">
-                <article x-show="m.home && m.away" @click="openDetail(md.day, i)"
+                <article x-show="m.home && m.away" @click="openDetail(md.day, i)" :data-match-key="`${md.day}-${i}`"
                          class="min-w-0 cursor-pointer rounded-2xl border border-line bg-panel transition-colors hover:border-flame-500/40">
                   <div class="grid grid-cols-[minmax(0,1fr)_auto_minmax(0,1fr)] items-center gap-2 p-4">
                     <button type="button" @click.stop="goTeam(m.home)" class="flex min-w-0 flex-col items-center gap-1.5 rounded-xl p-1 text-center hover:bg-elevated">
-                      <img x-show="teamById(m.home)?.logo" :src="logoUrl(teamById(m.home)?.logo)" alt="" class="size-14 rounded-xl object-contain" />
-                      <span x-show="!teamById(m.home)?.logo" class="size-14 rounded-xl" :style="{ background: teamColor(teamById(m.home)) + '33' }"></span>
+                      <template x-if="teamById(m.home)?.logo"><img :src="logoUrl(teamById(m.home)?.logo)" alt="" class="size-14 rounded-xl object-contain" /></template>
+                      <template x-if="!teamById(m.home)?.logo"><span class="size-14 rounded-xl" :style="{ background: teamColor(teamById(m.home)) + '33' }"></span></template>
                       <span class="break-words text-sm font-semibold leading-tight" :style="`color:${teamColor(teamById(m.home))}`" x-text="teamById(m.home)?.name"></span>
                     </button>
                     <div class="px-1 text-center">
@@ -173,8 +173,8 @@
                       <span x-show="!scoreAt(md.day, i)" class="font-display text-2xl font-bold uppercase tracking-wider text-[#8ab8ea]">VS</span>
                     </div>
                     <button type="button" @click.stop="goTeam(m.away)" class="flex min-w-0 flex-col items-center gap-1.5 rounded-xl p-1 text-center hover:bg-elevated">
-                      <img x-show="teamById(m.away)?.logo" :src="logoUrl(teamById(m.away)?.logo)" alt="" class="size-14 rounded-xl object-contain" />
-                      <span x-show="!teamById(m.away)?.logo" class="size-14 rounded-xl" :style="{ background: teamColor(teamById(m.away)) + '33' }"></span>
+                      <template x-if="teamById(m.away)?.logo"><img :src="logoUrl(teamById(m.away)?.logo)" alt="" class="size-14 rounded-xl object-contain" /></template>
+                      <template x-if="!teamById(m.away)?.logo"><span class="size-14 rounded-xl" :style="{ background: teamColor(teamById(m.away)) + '33' }"></span></template>
                       <span class="break-words text-sm font-semibold leading-tight" :style="`color:${teamColor(teamById(m.away))}`" x-text="teamById(m.away)?.name"></span>
                     </button>
                   </div>
@@ -222,8 +222,8 @@
                     class="shrink-0 rounded-lg px-3 py-1.5 text-sm font-semibold transition-colors"
                     :class="entry.step === s.k ? 'bg-flame-500 text-white' : 'text-mist hover:text-ink'">
               <span x-text="s.l"></span>
-              <span x-show="s.k === 'aufgebot' && squadsValid" class="text-volt-300">✓</span>
-              <span x-show="s.k === 'einsatz' && entryReady" class="text-volt-300">✓</span>
+              <span x-show="s.k === 'aufgebot' && squadsSaved && !squadsDirty" class="text-volt-300">✓</span>
+              <span x-show="s.k === 'einsatz' && allLineupsSaved && !lineupsDirty" class="text-volt-300">✓</span>
             </button>
           </template>
         </div>
@@ -255,6 +255,8 @@
               </template>
             </div>
 
+            <p x-show="isHenrik && squadsValid && squadsDirty" class="rounded-lg border border-volt-400/40 bg-volt-400/10 px-3 py-2 text-xs text-volt-400">Noch nicht gespeichert — erst nach „Aufgebot speichern" geht es mit den Einsätzen weiter.</p>
+
             <div>
               <div class="mb-2 flex flex-wrap items-center justify-between gap-2">
                 <h4 class="font-display text-sm font-bold uppercase tracking-wider text-mist">Wer spielt welchen Kampf?</h4>
@@ -279,15 +281,16 @@
 
           <!-- Einsätze -->
           <div x-show="entry.step === 'einsatz'" class="space-y-6">
-            <p x-show="!squadsValid" class="rounded-lg border border-flame-500/40 bg-flame-500/10 px-3 py-2 text-sm text-flame-400">Erst das Aufgebot (je 6) speichern.</p>
-            <p class="text-xs text-mist">Je Kampf vier Pokémon pro Team — in der Reihenfolge der Auswahl. Die ersten zwei sind die Startaufstellung.</p>
+            <p x-show="!squadsSaved" class="rounded-lg border border-flame-500/40 bg-flame-500/10 px-3 py-2 text-sm text-flame-400">Erst das Aufgebot (je 6) speichern.</p>
+            <p class="text-xs text-mist">Je Kampf vier Pokémon pro Team — in der Reihenfolge der Auswahl. Die ersten zwei sind die Startaufstellung. Jeder Kampf lässt sich einzeln speichern: Ist sein Einsatz gespeichert, kann sein Ergebnis kommen, bevor die nächsten Kämpfe aufgestellt sind.</p>
             <template x-for="i in [0, 1, 2]" :key="'ein-'+i">
-              <div class="rounded-xl border border-line bg-elevated/30 p-3" :class="battleLocked(i) ? 'opacity-70' : ''">
+              <div class="rounded-xl border bg-elevated/30 p-3" :class="[battleLocked(i) ? 'opacity-70' : '', entry.battle === i && !battleLocked(i) ? 'border-flame-500/50' : 'border-line']">
                 <div class="mb-2 flex items-center gap-2">
                   <span class="font-display text-sm font-bold uppercase tracking-wider text-ink" x-text="`Kampf ${i + 1}`"></span>
                   <span class="rounded px-1.5 py-0.5 font-display text-[10px] font-bold uppercase tracking-wider" :class="tagClass(entry.tags[i])" x-text="tagLabel(entry.tags[i])"></span>
                   <span x-show="battleLocked(i)" class="text-[11px] text-mist">Ergebnis steht — gesperrt</span>
-                  <span x-show="lineupDone(i)" class="ml-auto text-volt-300">✓</span>
+                  <span x-show="!battleLocked(i) && lineupSaved(i) && !lineupDirty(i)" class="ml-auto text-[11px] font-semibold text-volt-400">gespeichert ✓</span>
+                  <span x-show="!battleLocked(i) && lineupDirty(i)" class="ml-auto text-[11px] font-semibold text-mist" x-text="lineupDone(i) ? 'noch nicht gespeichert' : `${entry.lineups[i].home.length + entry.lineups[i].away.length} / 8`"></span>
                 </div>
                 <div class="grid grid-cols-1 gap-3 md:grid-cols-2">
                   <template x-for="side in ['home', 'away']" :key="'ein-'+i+side">
@@ -312,7 +315,7 @@
 
           <!-- Ergebnisse -->
           <div x-show="entry.step === 'ergebnis'" class="space-y-4">
-            <p x-show="!entryReady" class="rounded-lg border border-flame-500/40 bg-flame-500/10 px-3 py-2 text-sm text-flame-400">Erst Aufgebot und Einsätze speichern — dann können die Ergebnisse kommen.</p>
+            <p x-show="!entryReady" class="rounded-lg border border-flame-500/40 bg-flame-500/10 px-3 py-2 text-sm text-flame-400">Erst Aufgebot und den Einsatz eines Kampfes speichern — dann kann sein Ergebnis kommen.</p>
             <template x-for="i in [0, 1, 2]" :key="'erg-'+i">
               <div class="rounded-xl border bg-elevated/30 p-3" :class="entry.battle === i ? 'border-flame-500/50' : 'border-line'">
                 <div class="mb-2 flex flex-wrap items-center gap-2">
@@ -347,6 +350,8 @@
                 </div>
                 <div class="mt-3 flex flex-wrap items-center gap-2">
                   <span class="text-xs font-semibold text-ink" x-text="winnerLabel(i)"></span>
+                  <button type="button" x-show="isHenrik && squadsSaved && !lineupSaved(i)" @click="entry.battle = i; entry.step = 'einsatz'"
+                          class="ml-auto rounded-lg border border-line px-3 py-1.5 text-xs font-semibold text-mist hover:text-flame-400">Einsatz festlegen</button>
                   <span class="ml-auto flex gap-2" x-show="mayEnter(i)">
                     <button type="button" x-show="battleLocked(i)" @click="clearScore(i)" :disabled="busy" class="rounded-lg border border-line px-3 py-1.5 text-xs font-semibold text-mist hover:text-flame-400">Zurücknehmen</button>
                     <button type="button" @click="saveScore(i)" :disabled="busy || !scoreReady(i)"

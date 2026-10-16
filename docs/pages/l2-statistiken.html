@@ -23,6 +23,11 @@
       </select>
       <button type="button" x-show="hasFilters" @click="clearFilters()"
               class="rounded-lg border border-line px-2.5 py-2 text-sm font-semibold text-mist transition-colors hover:text-flame-400">Filter&nbsp;×</button>
+      <button type="button" popovertarget="cols-l2stats"
+              class="ml-auto inline-flex items-center gap-1.5 rounded-lg border border-line px-3 py-2 text-sm font-semibold text-mist transition-colors hover:text-flame-400">
+        <svg viewBox="0 0 24 24" class="size-4" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M3 6h18M3 12h18M3 18h18"/></svg>
+        Spalten
+      </button>
     </div>
 
     <div class="overflow-x-auto overscroll-x-contain">
@@ -31,7 +36,7 @@
           <tr class="border-b border-line">
             <th class="sticky left-0 z-10 bg-panel py-2 pr-3 text-left font-display text-xs font-semibold uppercase tracking-wider text-mist">Pokémon</th>
             <th class="whitespace-nowrap px-3 py-2 text-left font-display text-xs font-semibold uppercase tracking-wider text-mist">Team</th>
-            <template x-for="c in columns" :key="'l2th-'+c.key">
+            <template x-for="c in visibleCols()" :key="'l2th-'+c.key">
               <th class="whitespace-nowrap px-3 py-2 text-right">
                 <span class="inline-flex items-center gap-1">
                   <button type="button" @click="setSort(c.key)" :title="c.label"
@@ -65,7 +70,7 @@
                 <span x-show="s.team" class="text-xs font-semibold" :style="{ color: s.team ? teamColor(s.team) : '' }" x-text="s.team?.name"></span>
                 <span x-show="!s.team" class="text-xs text-mist">—</span>
               </td>
-              <template x-for="c in columns" :key="'l2c-'+s.pokemon.name+'-'+c.key">
+              <template x-for="c in visibleCols()" :key="'l2c-'+s.pokemon.name+'-'+c.key">
                 <td class="whitespace-nowrap px-3 py-2 text-right font-display tabular-nums"
                     :class="sortKey === c.key ? 'font-bold text-flame-400' : 'text-ink'" x-text="cell(s, c)"></td>
               </template>
@@ -76,4 +81,46 @@
     </div>
     <p x-show="!rows.length" class="mt-2 text-sm text-mist">Noch keine Daten — die Kader werden in den Teams gepflegt.</p>
   </section>
+  <!-- Spalten-Popover -->
+  <div popover id="cols-l2stats" class="modal-pop w-[20rem] max-w-[calc(100vw-2rem)] rounded-2xl border border-line bg-panel p-4 text-ink"
+       @pointermove.window="colDragMove($event)" @pointerup.window="colDragEnd()">
+    <p class="font-display text-sm font-bold uppercase tracking-wider text-ink">Spalten</p>
+    <p class="mb-3 mt-0.5 text-xs text-mist">Häkchen blendet ein/aus · Griff zum Umsortieren ziehen.</p>
+    <ul class="space-y-1">
+      <template x-for="c in orderedCatalog()" :key="'l2col-'+c.key">
+        <li :data-col-key="c.key"
+            class="flex items-center gap-2 rounded-lg border border-line bg-elevated/50 px-2 py-2 transition-colors"
+            :class="_dragKey === c.key ? 'opacity-60 ring-1 ring-flame-500/60' : ''">
+          <span class="col-grip shrink-0 cursor-grab text-mist" @pointerdown="colDragStart(c.key, $event)" title="Ziehen zum Umsortieren">
+            <svg viewBox="0 0 24 24" class="size-4" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M9 6h.01M9 12h.01M9 18h.01M15 6h.01M15 12h.01M15 18h.01"/></svg>
+          </span>
+          <label class="flex min-w-0 flex-1 cursor-pointer items-center gap-2">
+            <input type="checkbox" :checked="colVisible[c.key]" @change="toggleCol(c.key)" class="size-4 shrink-0 accent-flame-500" />
+            <span class="min-w-0 flex-1 truncate text-sm text-ink" x-text="c.label"></span>
+          </label>
+          <button type="button" @click="statInfo(c.key)" class="shrink-0 text-mist/60 transition-colors hover:text-flame-400" aria-label="Erklärung">
+            <svg viewBox="0 0 24 24" class="size-4" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="9"/><path d="M12 11v5" stroke-linecap="round"/><circle cx="12" cy="7.6" r="0.6" fill="currentColor"/></svg>
+          </button>
+        </li>
+      </template>
+    </ul>
+
+    <div class="mt-4 border-t border-line pt-3">
+      <p class="font-display text-sm font-bold uppercase tracking-wider text-ink">Zweite Sortierung</p>
+      <p class="mb-2 mt-0.5 text-xs text-mist">Greift, wenn zwei Pokémon in der ersten Spalte gleich sind.</p>
+      <div class="flex items-center gap-2">
+        <select @change="setSort2($event.target.value)"
+                class="min-w-0 flex-1 rounded-lg border border-line bg-elevated px-2 py-2 text-sm text-ink focus:border-flame-500 focus:outline-none">
+          <option value="" :selected="!sortKey2">— aus —</option>
+          <template x-for="c in sortChoices()" :key="'l2s2-'+c.key">
+            <option :value="c.key" :selected="sortKey2 === c.key" x-text="c.label"></option>
+          </template>
+        </select>
+        <button type="button" @click="toggleSortDir2()" :disabled="!sortKey2"
+                class="grid size-9 shrink-0 place-items-center rounded-lg border border-line font-display text-sm font-bold text-mist transition-colors hover:text-flame-400 disabled:opacity-40"
+                :title="sortDir2 === 'desc' ? 'absteigend' : 'aufsteigend'"
+                x-text="sortDir2 === 'desc' ? '↓' : '↑'"></button>
+      </div>
+    </div>
+  </div>
 </div>

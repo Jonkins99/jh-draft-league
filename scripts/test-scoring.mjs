@@ -6,7 +6,7 @@ import {
   showdownSpecies, showdownExport,
   speedAt, speedTiers, speedCases, clampSp, applySpeedMod,
   teamBattleTotals, isMega, baseFormOf, normalizeNature,
-  pokezoneSlug, pokezoneUrl, draftPicks, transferAvailability, availableOn,
+  pokezoneSlug, pokezoneUrl, draftPicks, transferAvailability, availableOn, typeMultiplier, defensiveChart, computeStandings, setStandingsTiebreak,
 } from '../resources/js/scoring.mjs';
 import {
   mergedOptions, voteResults, awardWinner, awardWinners, nextStatus, revealSteps,
@@ -71,6 +71,7 @@ import {
 import {
   SHOWS, showOf, showByline, lanzTriggerGames, lanzId, previousLanz, lanzHadTrainer, lanzAnswerTarget, lanzLineup, podcastReadyDays,
   turnParagraph, showParagraphs, cleanTurns, SHOW_SCHEMA, PODCAST_SCHEMA, podcastRawTurns, podcastMissing,
+  turnsFromBody, hostVariation, variationNote, VENICRO, CHELAST,
 } from '../resources/js/press-shows.mjs';
 import { teamForm, formFromTimeline, formSparkSvg, careerStations, rivalry, splitPair } from '../resources/js/career.mjs';
 import { statsOf, statTotal, statPercent, statRole, statBlock, roleLabel, monRole, normalizeRoleOverride } from '../resources/js/basestats.mjs';
@@ -98,11 +99,11 @@ import { franchiseSquadHistory } from '../resources/js/market.mjs';
 import {
   l2TeamsOf, l2ResultsOf, synthKills, winnerOf, rosterCheck, tierHasRoom, transferDiff, mergeTransfer,
   drawBlocks, buildBlockSchedule, blankSchedule, checkSchedule, drawTags, normalizeTags, tagPlayer, canEnterBattle,
-  squadsComplete, lineupsComplete, pendingEntries, dayComplete, completeDays, updateL2Match, leadCounts,
+  squadsComplete, lineupsComplete, battleLineupComplete, pendingEntries, dayComplete, completeDays, updateL2Match, leadCounts,
   combinedAllTime, parseL2MatchId, l2MatchId, seasonOfL2Doc, planDraftFrom, rosterSlots, slotsToRoster, withSlotTiers,
 } from '../resources/js/liga2.mjs';
 import { clubSlug, normalizeClub, clubDirectory, seasonPreselect, validateSeasonPick, buildSeasonStart } from '../resources/js/clubs.mjs';
-import { sinceOf, availableIn, monKey, normalizeMonRecord, validateMon, mergePokedex, pokedexForSeason } from '../resources/js/pokedb.mjs';
+import { sinceOf, availableIn, monKey, normalizeMonRecord, validateMon, mergePokedex, pokedexForSeason, normalizeAbility, validateAbility, abilityList, monAbilities, immuneTypes, IMMUNITY_SUGGESTIONS } from '../resources/js/pokedb.mjs';
 import { normalizeChampionsUrl, parseChampionsPage, decodePage } from '../resources/js/serebii.mjs';
 import { logoSrc } from '../resources/js/logos.mjs';
 
@@ -2952,6 +2953,26 @@ test('Zweite Liga: offene Einträge, fertige Spieltage, Leads', () => {
   assert.equal(leadCounts(done, { scopeTeamId: 's2-y' }).h1, undefined);
 });
 
+test('Zweite Liga: Ergebnis je Kampf, sobald dessen Einsatz steht', () => {
+  const sq = { home: ['h1', 'h2', 'h3', 'h4', 'h5', 'h6'], away: ['a1', 'a2', 'a3', 'a4', 'a5', 'a6'] };
+  const l = { home: ['h1', 'h2', 'h3', 'h4'], away: ['a1', 'a2', 'a3', 'a4'] };
+  let raw = updateL2Match({}, { home: 's2-x', away: 's2-y', day: 4, squads: sq, tags: ['henrik', 'janik', 'ki'] });
+  raw = updateL2Match(raw, { lineups: [l] });
+  assert.equal(raw.lineupsSaved, false);
+  assert.equal(battleLineupComplete(raw, 0), true);
+  assert.equal(battleLineupComplete(raw, 1), false);
+  const doc = { teams: { 's2-x': { name: 'X' }, 's2-y': { name: 'Y' } }, results: { 'd4-m0': raw } };
+  const seasons = [{ season: 2, teams: l2TeamsOf(doc, 2), results: l2ResultsOf(doc, 2) }];
+  assert.deepEqual(pendingEntries('Henrik', seasons).map((p) => p.battle), [0]);
+  assert.deepEqual(pendingEntries('Janik', seasons), []);
+  // Kampf 1 gespielt, danach die Aufstellung für Kampf 2 — Kampf 1 bleibt, wie er ist.
+  raw = updateL2Match(raw, { result: { index: 0, home: 1, away: 0 } });
+  raw = updateL2Match(raw, { lineups: [{ home: ['h6', 'h5', 'h4', 'h3'], away: l.away }, { home: ['h5', 'h6', 'h1', 'h2'], away: l.away }] });
+  assert.deepEqual(raw.battles[0].used.home, ['h1', 'h2', 'h3', 'h4']);
+  const next = l2ResultsOf({ ...doc, results: { 'd4-m0': raw } }, 2);
+  assert.deepEqual(pendingEntries('Janik', [{ season: 2, teams: seasons[0].teams, results: next }]).map((p) => p.battle), [1]);
+});
+
 test('Zweite Liga: Ewige Tabelle über beide Ligen', () => {
   const won = (w) => ({ done: true, winner: w, score: { home: w === 'home' ? 2 : 0, away: w === 'away' ? 2 : 0 } });
   const l1 = { 1: [{ id: 's1-a', name: 'A' }, { id: 's1-b', name: 'B' }], 2: [{ id: 's2-a', name: 'A' }, { id: 's2-c', name: 'C' }] };
@@ -3044,6 +3065,100 @@ test('Pokémon-Stammdaten: Zusammenführen, Saisonfilter, Prüfung', () => {
   assert.ok(validateMon(rec, { names: ['Neumon'], isNew: true }).length);
   assert.ok(validateMon(normalizeMonRecord({ name: 'X' }), {}).length >= 4);
   assert.equal(normalizeMonRecord({ name: 'X' }).since, 1);
+});
+
+test('Sendungen: Abwechslung der Gastgeber', () => {
+  const body = '<p>[bild: https://x/y.jpg]</p><p><strong>Venicro:</strong> 50 plus Zweiblatt, JHDL Rückblick und bei mir sitzt der Mann, der alles weiß.</p>'
+    + '<p><strong>Chelast:</strong> Brutal. Einfach brutal.</p><p><strong>Venicro:</strong> Völlig wild, was da los war. Chapeau!</p>'
+    + '<p><strong>Venicro:</strong> Völlig wild, was da passiert ist.</p>';
+  const turns = turnsFromBody(body);
+  assert.equal(turns.length, 4);
+  assert.deepEqual(turns[1], { speaker: 'Chelast', text: 'Brutal. Einfach brutal.' });
+  const v = hostVariation(VENICRO, turns, () => 0.5);
+  assert.ok(v.used.includes('Völlig wild'));
+  assert.ok(v.used.includes('Chapeau'));
+  assert.ok(!v.fresh.some((p) => v.used.includes(p)));
+  assert.equal(v.fresh.length, 3);
+  assert.deepEqual(v.openers, ['Völlig wild, was da']);
+  // Der vorgeschriebene Einstieg zählt nie als abgenutzt.
+  const twice = turnsFromBody(body + body);
+  assert.ok(!hostVariation(VENICRO, twice, () => 0.5).openers.some((o) => o.startsWith('50 plus')));
+  // Ganze Wörter: "Bro" steckt nicht in "Brocken".
+  assert.ok(!hostVariation(CHELAST, [{ speaker: 'Chelast', text: 'Ein Brocken von Pokémon.' }]).used.includes('Bro'));
+  const note = variationNote([VENICRO, CHELAST], turns, () => 0.5);
+  assert.match(note, /ABWECHSLUNG/);
+  assert.match(note, /Venicro: .*TABU: .*"Völlig wild"/);
+  assert.match(note, /Chelast: .*TABU: .*"Brutal"/);
+});
+
+test('Tabelle: Tie-Breaker Punkte, Differenz, direkter Vergleich, Vorsaison', () => {
+  // Ein Kampf: Sieger mit 2 Überlebenden -> 2 Kills, Verlierer 0.
+  const win = (w, k = 2) => ({ done: true, winner: w, score: { home: 0, away: 0 },
+    kills: Array.from({ length: k }, () => (w === 'home' ? { victimSide: 'away', victim: 'x', killerSide: 'home', killer: 'y' } : { victimSide: 'home', victim: 'x', killerSide: 'away', killer: 'y' })) });
+  const teams = [{ id: 's2-a', name: 'A' }, { id: 's2-b', name: 'B' }, { id: 's2-c', name: 'C' }, { id: 's2-d', name: 'D' }];
+  // A und B: je 2 Punkte, Differenz je +1. B schlägt A im direkten Duell — B steht vorn, obwohl A im Alphabet vorgeht.
+  const results = [
+    { id: 'r1', home: 's2-b', away: 's2-a', battles: [win('home', 1)] },
+    { id: 'r2', home: 's2-a', away: 's2-c', battles: [win('home', 1)] },
+    { id: 'r3', home: 's2-c', away: 's2-b', battles: [win('home', 1)] },
+    { id: 'r4', home: 's2-a', away: 's2-d', battles: [win('home', 1)] },
+    { id: 'r5', home: 's2-b', away: 's2-d', battles: [win('home', 1)] },
+  ];
+  const t = computeStandings(teams, results);
+  assert.deepEqual(t.map((r) => [r.team.id, r.points, r.diff]).slice(0, 2), [['s2-b', 2, 1], ['s2-a', 2, 1]]);
+  // Ohne Duell entscheidet der Platz der Vorsaison, nicht das Alphabet.
+  const flat = [{ id: 's2-y', name: 'Y' }, { id: 's2-x', name: 'X' }, { id: 's2-z', name: 'Z' }];
+  assert.deepEqual(computeStandings(flat, []).map((r) => r.team.id), ['s2-x', 's2-y', 's2-z']);
+  const prev = { 's2-z': 2, 's2-y': 9 };
+  assert.deepEqual(computeStandings(flat, [], { prevRank: (id) => prev[id] }).map((r) => r.team.id), ['s2-z', 's2-y', 's2-x']);
+  // Registriert gilt der Tie-Breaker für jede Tabelle.
+  setStandingsTiebreak((id) => prev[id]);
+  assert.deepEqual(computeStandings(flat, []).map((r) => r.team.id), ['s2-z', 's2-y', 's2-x']);
+  setStandingsTiebreak(null);
+  // Punkte gehen vor allem anderen.
+  assert.equal(computeStandings(teams, results)[0].points >= computeStandings(teams, results)[1].points, true);
+});
+
+test('Leads: die ersten zwei Einsätze eines Kampfes, auch in der ersten Liga', () => {
+  const teams = [{ id: 's1-a', name: 'A', pokemon: [{ name: 'P1' }, { name: 'P2' }, { name: 'P3' }] }];
+  const results = [{ id: 's1-d1-m0', day: 1, home: 's1-a', away: 's1-b', squads: { home: ['P1', 'P2', 'P3'], away: [] },
+    battles: [
+      { done: true, winner: 'home', used: { home: ['P1', 'P2', 'P3'], away: [] }, kills: [] },
+      { done: true, winner: 'home', used: { home: ['P3', 'P1', 'P2'], away: [] }, kills: [] },
+      { done: false, used: { home: ['P2', 'P3'], away: [] }, kills: [] },
+    ] }];
+  const by = Object.fromEntries(pokemonStats(teams, results, []).map((r) => [r.pokemon.name, r]));
+  assert.equal(by.P1.leads, 2);
+  assert.equal(by.P2.leads, 1);
+  assert.equal(by.P3.leads, 1);
+  assert.equal(by.P2.leadShare, 0.5);
+});
+
+test('Fähigkeiten mit Immunität: anlegen, zuordnen, in der Typ-Rechnung', () => {
+  // Punkte sind keine Pflicht mehr.
+  const noCost = normalizeMonRecord({ name: 'Neumon', name_en: 'Newmon', types: ['Feuer'], tier: 'C', stats: { hp: 1, atk: 1, def: 1, spa: 1, spd: 1, spe: 1 } });
+  assert.deepEqual(validateMon(noCost, { names: [], isNew: true }), []);
+  const a = normalizeAbility({ name: '  Schwebe ', types: ['Boden', 'Quatsch', 'Boden'] });
+  assert.deepEqual(a, { name: 'Schwebe', types: ['Boden'] });
+  assert.deepEqual(validateAbility(a, { keys: [] }), []);
+  assert.ok(validateAbility(a, { keys: ['schwebe'] }).length);
+  assert.deepEqual(validateAbility(a, { keys: ['schwebe'], ownKey: 'schwebe' }), []);
+  assert.ok(validateAbility(normalizeAbility({ name: 'X' }), {}).length);
+  assert.ok(IMMUNITY_SUGGESTIONS.every((s) => !validateAbility(normalizeAbility(s), {}).length));
+  const notes = {
+    abilities: { schwebe: { name: 'Schwebe', types: ['Boden'] }, vegetarier: { name: 'Vegetarier', types: ['Pflanze'] }, kaputt: { name: 'Kaputt', types: [] } },
+    monAbilities: { Gengar: ['schwebe', 'weg'], Bisaflor: [] },
+  };
+  assert.deepEqual(abilityList(notes).map((x) => x.key), ['schwebe', 'vegetarier']);
+  assert.deepEqual(monAbilities(notes, 'Gengar').map((x) => x.name), ['Schwebe']);
+  assert.deepEqual(immuneTypes(notes, 'Gengar'), ['Boden']);
+  assert.deepEqual(immuneTypes(notes, 'Bisaflor'), []);
+  assert.deepEqual(immuneTypes({}, 'Gengar'), []);
+  // Typ-Rechnung: Elektro/Boden-Doppeltyp mit Schwebe — Boden trifft nicht mehr.
+  assert.equal(typeMultiplier('Boden', ['Elektro']), 2);
+  assert.equal(typeMultiplier('Boden', ['Elektro'], ['Boden']), 0);
+  assert.equal(typeMultiplier('Wasser', ['Elektro'], ['Boden']), 1);
+  assert.equal(defensiveChart(['Pflanze'], ['Pflanze']).find((c) => c.type === 'Pflanze').mult, 0);
 });
 
 test('Serebii-Import: Adresse, Grundform, Formen und Mega-Entwicklungen', () => {
