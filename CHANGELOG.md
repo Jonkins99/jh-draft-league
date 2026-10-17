@@ -1,5 +1,17 @@
 # Changelog
 
+## Records, trainer history and account keys
+- **Stuck interviews.** A press appointment whose questions or article were never finished (device closed mid-generation, broken session) no longer hangs on "Die Presse nimmt Aufstellung…" on every device. After ten minutes it opens as failed with "Erneut versuchen" (same guest, same role) or "Ganz neu ansetzen"; the stage also follows changes from other devices. Requests to Gemini time out after three minutes and are retried.
+- **Gemini models.** 3.7 Flash and 3.5 Flash were shut down by Google and left the fallback chain (now 3.8 Flash, 3.6 Flash, 3 Flash Preview, 2.5 Flash, then the Lite reserve). Gemini 4 Argon is selectable for keys with billing. A stored model that no longer exists falls back to 3.8 Flash.
+- **API keys per account.** Gemini keys are stored with the account, encrypted with the password-derived key, and are available on every device after login. Keys already saved on devices are merged into the account once per device (same key with different names stays one entry).
+- **Season switcher order.** Newest season first (with its second league right below), then "Saisonübergreifend", then past seasons.
+- **Closed seasons stay closed.** No more Cava LANZ episodes or appointments for past seasons; unfinished ones from season 1 are hidden, stale articles of past seasons are no longer rewritten.
+- **Market update article.** The per-matchday market article works again from season 2 on (it looked for season 1 results and the season 1 sheet column).
+- **Clubs across leagues.** All-seasons teams show market values in every league tab; current name, trainer, roster and market value follow the club into the second league instead of freezing at its last first-league matchday. The squad value chart covers both leagues.
+- **Trainer result history.** Every trainer in the market can expand all matches of their tenures (newest first) with the three battle results.
+- **Awards boards.** Reprimands no longer count as honours: the all-seasons boards switch between honours (default), reprimands and all.
+- **More records.** Records are tagged per battle, per match/matchday, per season and overall and can be filtered. New: hat-tricks, doubles, kills without dying in a match, most dominant win, highest-scoring matchday, season kills/wins/best defence, Pokémon season bests, battle wins, match wins, leads, titles, all-time club points/wins/kills, clean sweeps and flawless battles per club.
+
 ## Tables, abilities and second-league polish
 - **Tie-breakers.** Both leagues now rank equal teams by points, kill difference, head-to-head (points, then difference among the tied teams) and finally the placing at the end of the previous season (second-league place 1 ranks behind every first-league team) instead of alphabetically.
 - **Immunity abilities.** The all-seasons Pokémon view manages abilities such as Levitate or Sap Sipper (name plus the attack types they make immune to, common ones as one-tap suggestions) and assigns them to Pokémon. Every weakness analysis (team, matchup, draft plan, Pokémon detail) counts the immunity.

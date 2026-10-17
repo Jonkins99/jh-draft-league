@@ -100,6 +100,60 @@ function stintStats(stint, slug, results) {
 }
 
 /**
+ * Die Matches einer Amtszeit — für die ausklappbare Ergebnis-Historie. Je Match die
+ * eigene Seite, der Gegner, das Ergebnis in Kampfsiegen und die einzelnen Kämpfe
+ * (Überlebende je Seite und Sieger aus Sicht des Trainers). Nur Matches mit mindestens
+ * einem fertigen Kampf; offene Kämpfe stehen als `done: false` dabei.
+ */
+export function stintMatches(stint, slug, results, league = 1) {
+  const out = [];
+  (results || []).forEach((r) => {
+    if (!r) return;
+    const side = franchiseSlug(r.home) === slug ? 'home' : franchiseSlug(r.away) === slug ? 'away' : null;
+    if (!side) return;
+    const season = seasonOfId(r.id);
+    if (!inStint(stint, season, r.day)) return;
+    const opp = side === 'home' ? 'away' : 'home';
+    let own = 0;
+    let other = 0;
+    const battles = (r.battles || []).map((b, i) => {
+      if (!b?.done) return { n: i + 1, done: false };
+      const st = battleStats(b);
+      own += st[`${side}Points`];
+      other += st[`${opp}Points`];
+      return {
+        n: i + 1,
+        done: true,
+        own: Number(b.score?.[side] ?? 0),
+        other: Number(b.score?.[opp] ?? 0),
+        outcome: st.winner === side ? 'won' : st.winner === opp ? 'lost' : 'draw',
+      };
+    });
+    if (!battles.some((b) => b.done)) return;
+    out.push({
+      id: r.id,
+      season,
+      day: r.day ?? null,
+      league,
+      teamId: r[side],
+      opponentId: r[opp],
+      home: side === 'home',
+      own,
+      other,
+      outcome: own > other ? 'won' : own < other ? 'lost' : 'draw',
+      battles,
+    });
+  });
+  return out;
+}
+
+/** Neueste zuerst: Saison, dann Spieltag, bei Gleichstand die Zweite Liga hinter der ersten. */
+export function sortMatchesNewestFirst(list) {
+  return [...(list || [])].sort((a, b) => (b.season - a.season) || ((b.day ?? 0) - (a.day ?? 0))
+    || (a.league - b.league) || String(b.id).localeCompare(String(a.id)));
+}
+
+/**
  * Das Verzeichnis aller Trainer.
  * @param {object} o
  * @param {Array}  o.teams    alle Teams aller Saisons (erste Liga)
@@ -140,6 +194,7 @@ export function trainerDirectory({ teams = [], results = [], pool = {}, teams2 =
       const teamAt = chain.find((t) => seasonOfTeam(t) === h.until.season) || latest;
       const stats = stintStats(h, slug, results);
       const stats2 = stintStats(h, slug, results2);
+      const matches = [...stintMatches(h, slug, results, 1), ...stintMatches(h, slug, results2, 2)];
       // Im Amt ist nur, wer bei einem Verein der JÜNGSTEN Saison noch amtiert — ein
       // offenes Amt bei einem abgestiegenen Verein endet mit dessen letzter Saison.
       const active = h.until.open && h.until.season === latestSeason && seasonOfTeam(latest) === latestSeason;
@@ -156,6 +211,7 @@ export function trainerDirectory({ teams = [], results = [], pool = {}, teams2 =
         period: active ? h.period : h.period.replace(/ – heute$/, ' – Saisonende'),
         stats,
         stats2,
+        matches,
       });
       h.seasons.forEach((s) => p.seasons.add(s));
       // Das Bild und die Eigenschaften der jüngsten Amtszeit gelten.
@@ -186,10 +242,15 @@ export function trainerDirectory({ teams = [], results = [], pool = {}, teams2 =
     const stints = p.stints.sort((a, b) => (b.until.season - a.until.season) || ((b.until.open ? 999 : b.until.day || 0) - (a.until.open ? 999 : a.until.day || 0)));
     const totals = finishStats(stints.reduce((acc, s) => addStats(acc, s.stats), blankStats()));
     const totals2 = finishStats(stints.reduce((acc, s) => addStats(acc, s.stats2 || {}), blankStats()));
+    // Ein Match gehört genau einer Amtszeit; über alle Stationen hinweg, neueste oben.
+    const seen = new Set();
+    const matches = sortMatchesNewestFirst(stints.flatMap((s) => s.matches || []))
+      .filter((m) => !seen.has(`${m.league}|${m.id}`) && seen.add(`${m.league}|${m.id}`));
     return {
       ...p,
       gender: p.gender || 'd',
       stints,
+      matches,
       totals,
       totals2,
       clubs: [...new Set(stints.map((s) => s.slug))].length,

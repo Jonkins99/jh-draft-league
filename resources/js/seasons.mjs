@@ -390,20 +390,38 @@ function bestAll(list, pick) {
   return { value: max, items };
 }
 
+// Wofür ein Rekord gilt: einen einzelnen Kampf, ein Match bzw. einen Spieltag, eine
+// Saison oder die gesamte Ligageschichte. Die Rekorde-Ansicht filtert danach.
+export const RECORD_SCOPES = [
+  { key: 'kampf', label: 'Je Kampf' },
+  { key: 'match', label: 'Je Match / Spieltag' },
+  { key: 'saison', label: 'Je Saison' },
+  { key: 'gesamt', label: 'Insgesamt' },
+];
+
 /**
  * Bestmarken über alle Saisons. Jeder Eintrag:
- *   { key, label, info, value, display, holders:[{ name, image, teamId, teamName, when }] }
+ *   { key, label, info, scope, value, display, holders:[{ name, image, teamId, teamName, when }] }
  * `holder`/`when` bleiben als Kurzform des ersten Halters erhalten.
  * `when` trägt Saison und Spieltag — ein Kalenderdatum führt die Liga nicht.
  */
-export function buildRecords({ teams = [], results = [], pokedex = [], eloRows = [], awardDocs = [] } = {}) {
+export function buildRecords({ teams = [], results = [], pokedex = [], eloRows = [], awardDocs = [], schedules = {} } = {}) {
   const out = [];
   // Ein Rekord wird über `holders` gepflegt; `holder`/`when` sind der erste Eintrag.
   const push = (rec) => {
     if (!rec || rec.value == null) return;
     const holders = (rec.holders || []).filter((h) => h && h.name);
     if (!holders.length) return;
-    out.push({ ...rec, holders, holder: holders[0], when: holders[0].when ?? null });
+    out.push({ scope: 'gesamt', ...rec, holders, holder: holders[0], when: holders[0].when ?? null });
+  };
+  // Ein Franchise erscheint unter seinem jüngsten Auftritt (Name, Wappen).
+  const latestOf = (slug) => {
+    const chain = franchiseTeams(teams, slug);
+    return chain[chain.length - 1] || null;
+  };
+  const clubHolder = (slug) => {
+    const t = latestOf(slug);
+    return { name: t?.name || slug, teamId: t?.id || null, when: null };
   };
 
   // --- Einzelne Kämpfe und Matches ---------------------------------------
@@ -412,29 +430,46 @@ export function buildRecords({ teams = [], results = [], pokedex = [], eloRows =
   const matchDiffRows = [];
   let perfectBattles = 0;
   const dayKills = {};
+  // Zusätzlich: Kills ohne eigenen Death im Match, Kills je Spieltag ligaweit,
+  // souveräne Siege, 3:0-Siege und makellose Kämpfe je Franchise, Doppelpacks je Pokémon.
+  const cleanMatchRows = [];
+  const dayTotals = {};
+  const soloWinRows = [];
+  const sweeps = {};
+  const perfectByClub = {};
+  const doubles = {};
+  const hattricks = {};
 
   (results || []).forEach((r) => {
     const matchKills = {};
+    const matchDeaths = {};
     (r.battles || []).forEach((b, bi) => {
       if (!b || !b.done) return;
       const s = battleStats(b);
       if (s.homeSurvivors === 4 || s.awaySurvivors === 4) perfectBattles++;
+      if (s.homeSurvivors === 4) perfectByClub[franchiseSlug(r.home)] = (perfectByClub[franchiseSlug(r.home)] || 0) + 1;
+      if (s.awaySurvivors === 4) perfectByClub[franchiseSlug(r.away)] = (perfectByClub[franchiseSlug(r.away)] || 0) + 1;
       const perMon = {};
       (b.kills || []).forEach((k) => {
+        if (k?.victim) matchDeaths[k.victim] = (matchDeaths[k.victim] || 0) + 1;
         if (!k?.killer || k.killerSide === k.victimSide) return;
         perMon[k.killer] = (perMon[k.killer] || 0) + 1;
         matchKills[k.killer] = (matchKills[k.killer] || 0) + 1;
       });
       Object.entries(perMon).forEach(([name, n]) => {
         battleKillRows.push({ name, n, result: r, battle: bi + 1 });
+        if (n >= 2) doubles[name] = (doubles[name] || 0) + 1;
+        if (n >= 3) hattricks[name] = (hattricks[name] || 0) + 1;
       });
       const side = seasonOfId(r.id);
       const key = `${side}|${dayOfResult(r)}`;
       dayKills[`${key}|${r.home}`] = (dayKills[`${key}|${r.home}`] || 0) + s.homeKills;
       dayKills[`${key}|${r.away}`] = (dayKills[`${key}|${r.away}`] || 0) + s.awayKills;
+      dayTotals[key] = (dayTotals[key] || 0) + s.homeKills + s.awayKills;
     });
     Object.entries(matchKills).forEach(([name, n]) => {
       matchKillRows.push({ name, n, result: r });
+      if (!matchDeaths[name]) cleanMatchRows.push({ name, n, result: r });
     });
     const done = (r.battles || []).filter((b) => b?.done);
     if (done.length) {
@@ -445,10 +480,16 @@ export function buildRecords({ teams = [], results = [], pokedex = [], eloRows =
       const diff = Math.abs(sum.hk - sum.ak);
       const winner = sum.hp === sum.ap ? null : sum.hp > sum.ap ? 'home' : 'away';
       if (winner) {
-        matchDiffRows.push({
-          diff, result: r, winner,
-          score: `${winner === 'home' ? sum.hp : sum.ap}:${winner === 'home' ? sum.ap : sum.hp}`,
-        });
+        const score = `${winner === 'home' ? sum.hp : sum.ap}:${winner === 'home' ? sum.ap : sum.hp}`;
+        matchDiffRows.push({ diff, result: r, winner, score });
+        // Ein vollständiges Match: wie wenig hat der Sieger dafür hergegeben?
+        if (done.length === 3) {
+          soloWinRows.push({ deaths: winner === 'home' ? sum.ak : sum.hk, result: r, winner, score });
+          if ((winner === 'home' ? sum.ap : sum.hp) === 0) {
+            const slug = franchiseSlug(r[winner]);
+            sweeps[slug] = (sweeps[slug] || 0) + 1;
+          }
+        }
       }
     }
   });
@@ -472,7 +513,7 @@ export function buildRecords({ teams = [], results = [], pokedex = [], eloRows =
   const topBattleKills = bestAll(battleKillRows, (r) => r.n);
   if (topBattleKills.value) {
     push({
-      key: 'battleKills', label: 'Meiste Kills in einem Kampf', group: 'pokemon',
+      key: 'battleKills', label: 'Meiste Kills in einem Kampf', group: 'pokemon', scope: 'kampf',
       info: 'Kills eines einzelnen Pokémon in einem einzigen Kampf. Self-Kills zählen nicht.',
       value: topBattleKills.value, display: `${topBattleKills.value} Kills`,
       holders: topBattleKills.items.map((r) => monHolder(r.name, r.result, { battle: r.battle })),
@@ -482,7 +523,7 @@ export function buildRecords({ teams = [], results = [], pokedex = [], eloRows =
   const topMatchKills = bestAll(matchKillRows, (r) => r.n);
   if (topMatchKills.value) {
     push({
-      key: 'matchKills', label: 'Meiste Kills in einem Match', group: 'pokemon',
+      key: 'matchKills', label: 'Meiste Kills in einem Match', group: 'pokemon', scope: 'match',
       info: 'Kills eines Pokémon über die drei Kämpfe eines Matches hinweg.',
       value: topMatchKills.value, display: `${topMatchKills.value} Kills`,
       holders: topMatchKills.items.map((r) => monHolder(r.name, r.result)),
@@ -492,7 +533,7 @@ export function buildRecords({ teams = [], results = [], pokedex = [], eloRows =
   const topMatchDiff = bestAll(matchDiffRows, (r) => r.diff);
   if (topMatchDiff.value) {
     push({
-      key: 'matchDiff', label: 'Höchster Sieg', group: 'team',
+      key: 'matchDiff', label: 'Höchster Sieg', group: 'team', scope: 'match',
       info: 'Größte Kill-Differenz eines gewonnenen Matches.',
       value: topMatchDiff.value,
       display: `+${topMatchDiff.value} Kills`,
@@ -512,7 +553,7 @@ export function buildRecords({ teams = [], results = [], pokedex = [], eloRows =
   const topDayKills = bestAll(dayKillRows, (r) => r.n);
   if (topDayKills.value) {
     push({
-      key: 'dayKills', label: 'Meiste Kills an einem Spieltag', group: 'team',
+      key: 'dayKills', label: 'Meiste Kills an einem Spieltag', group: 'team', scope: 'match',
       info: 'Kills eines Teams in seinem Match an einem Spieltag.',
       value: topDayKills.value, display: `${topDayKills.value} Kills`,
       holders: topDayKills.items.map((row) => ({
@@ -523,9 +564,56 @@ export function buildRecords({ teams = [], results = [], pokedex = [], eloRows =
     });
   }
 
+  const topClean = bestAll(cleanMatchRows, (r) => r.n);
+  if (topClean.value > 1) {
+    push({
+      key: 'cleanMatchKills', label: 'Meiste Kills ohne eigenen Death', group: 'pokemon', scope: 'match',
+      info: 'Kills eines Pokémon in einem Match, ohne selbst ein einziges Mal besiegt zu werden.',
+      value: topClean.value, display: `${topClean.value} Kills`,
+      holders: topClean.items.map((r) => monHolder(r.name, r.result)),
+    });
+  }
+
+  const topSolo = bestAll(soloWinRows, (r) => -r.deaths);
+  if (topSolo.value != null) {
+    const deaths = -topSolo.value;
+    push({
+      key: 'cleanWin', label: 'Souveränster Matchsieg', group: 'team', scope: 'match',
+      info: 'Gewonnenes Match über drei Kämpfe mit den wenigsten eigenen Deaths.',
+      value: deaths, display: `${deaths} ${deaths === 1 ? 'Death' : 'Deaths'}`,
+      holders: topSolo.items.map((row) => {
+        const teamId = row.result[row.winner];
+        const other = row.result[row.winner === 'home' ? 'away' : 'home'];
+        return {
+          name: teamNameOf(teams, teamId) || teamId,
+          teamId,
+          teamName: `${row.score} gegen ${teamNameOf(teams, other) || other}`,
+          when: whenOf(row.result),
+        };
+      }),
+    });
+  }
+
+  const dayTotalRows = Object.entries(dayTotals).map(([key, n]) => {
+    const [season, day] = key.split('|');
+    return { n, season: Number(season), day: Number(day) };
+  });
+  const topDayTotal = bestAll(dayTotalRows, (r) => r.n);
+  if (topDayTotal.value) {
+    push({
+      key: 'dayTotalKills', label: 'Torreichster Spieltag', group: 'liga', scope: 'match',
+      info: 'Die meisten Kills aller Partien eines Spieltags zusammen.',
+      value: topDayTotal.value, display: `${topDayTotal.value} Kills`,
+      holders: topDayTotal.items.map((row) => ({
+        name: `Spieltag ${row.day}`,
+        when: { season: row.season, day: row.day, matchId: null },
+      })),
+    });
+  }
+
   if (perfectBattles) {
     push({
-      key: 'perfectBattles', label: 'Makellose Kämpfe', group: 'liga',
+      key: 'perfectBattles', label: 'Makellose Kämpfe', group: 'liga', scope: 'kampf',
       info: 'Kämpfe, in denen eine Seite alle vier Pokémon im Feld behalten hat.',
       value: perfectBattles, display: `${perfectBattles}×`,
       holders: [{ name: 'Die Liga', when: null }],
@@ -585,11 +673,12 @@ export function buildRecords({ teams = [], results = [], pokedex = [], eloRows =
 
   // --- Saisonbestwerte ----------------------------------------------------
   const seasonRows = [];
+  const finishedSeasons = new Set();
   seasonsFrom(teams).forEach((season) => {
     const sTeams = teamsOfSeason(teams, season);
-    computeStandings(sTeams, resultsOfSeason(results, season))
-      .filter((r) => r.played)
-      .forEach((r) => seasonRows.push({ season, ...r }));
+    const table = computeStandings(sTeams, resultsOfSeason(results, season));
+    if (seasonFinished(schedules[seasonPrefix(season)], table)) finishedSeasons.add(season);
+    table.filter((r) => r.played).forEach((r) => seasonRows.push({ season, ...r }));
   });
   const seasonHolders = (items) => items.map((r) => ({
     name: r.team.name, teamId: r.team.id,
@@ -599,7 +688,7 @@ export function buildRecords({ teams = [], results = [], pokedex = [], eloRows =
   const topPoints = bestAll(seasonRows, (r) => r.points);
   if (topPoints.value != null) {
     push({
-      key: 'seasonPoints', label: 'Meiste Punkte in einer Saison', group: 'team',
+      key: 'seasonPoints', label: 'Meiste Punkte in einer Saison', group: 'team', scope: 'saison',
       info: 'Ein Punkt je gewonnenem Kampf.',
       value: topPoints.value, display: `${topPoints.value} Punkte`,
       holders: seasonHolders(topPoints.items),
@@ -608,12 +697,65 @@ export function buildRecords({ teams = [], results = [], pokedex = [], eloRows =
   const topDiff = bestAll(seasonRows, (r) => r.diff);
   if (topDiff.value != null) {
     push({
-      key: 'seasonDiff', label: 'Beste Kill-Differenz einer Saison', group: 'team',
+      key: 'seasonDiff', label: 'Beste Kill-Differenz einer Saison', group: 'team', scope: 'saison',
       info: 'Eigene Kills minus eigene Deaths über eine komplette Saison.',
       value: topDiff.value, display: `${topDiff.value > 0 ? '+' : ''}${topDiff.value}`,
       holders: seasonHolders(topDiff.items),
     });
   }
+
+  const topSeasonKills = bestAll(seasonRows, (r) => r.kills);
+  if (topSeasonKills.value) {
+    push({
+      key: 'seasonKills', label: 'Meiste Kills in einer Saison', group: 'team', scope: 'saison',
+      info: 'Kills eines Teams über eine Saison.',
+      value: topSeasonKills.value, display: `${topSeasonKills.value} Kills`,
+      holders: seasonHolders(topSeasonKills.items),
+    });
+  }
+  const topSeasonWins = bestAll(seasonRows, (r) => r.won);
+  if (topSeasonWins.value) {
+    push({
+      key: 'seasonWins', label: 'Meiste Matchsiege in einer Saison', group: 'team', scope: 'saison',
+      info: 'Gewonnene Matches eines Teams in einer Saison.',
+      value: topSeasonWins.value, display: `${topSeasonWins.value} Siege`,
+      holders: seasonHolders(topSeasonWins.items),
+    });
+  }
+  // Wenigste Deaths nur über abgeschlossene Saisons — sonst führte jede laufende.
+  const finishedRows = seasonRows.filter((r) => finishedSeasons.has(r.season));
+  const topFewDeaths = bestAll(finishedRows, (r) => -r.deaths);
+  if (topFewDeaths.value != null) {
+    push({
+      key: 'seasonFewestDeaths', label: 'Stabilste Abwehr einer Saison', group: 'team', scope: 'saison',
+      info: 'Die wenigsten eigenen Deaths über eine abgeschlossene Saison.',
+      value: -topFewDeaths.value, display: `${-topFewDeaths.value} Deaths`,
+      holders: seasonHolders(topFewDeaths.items),
+    });
+  }
+
+  // Pokémon je Saison: Statistik je Saison für sich gerechnet.
+  const seasonMons = [];
+  seasonsFrom(teams).forEach((season) => {
+    allTimePokemon(teamsOfSeason(teams, season), resultsOfSeason(results, season), pokedex)
+      .forEach((m) => seasonMons.push({ ...m, season }));
+  });
+  const seasonMonRecord = (key, label, info, pick, display, minBattles = 0) => {
+    const top = bestAll(seasonMons.filter((m) => m.battles >= minBattles), pick);
+    if (!top.value) return;
+    push({
+      key, label, group: 'pokemon', scope: 'saison', info,
+      value: top.value, display: display(top.items[0]),
+      holders: top.items.map((m) => ({
+        name: m.pokemon?.name, image: m.pokemon?.image || null,
+        teamId: m.team?.id || null, teamName: m.team?.name || null,
+        when: { season: m.season, day: null, matchId: null },
+      })),
+    });
+  };
+  seasonMonRecord('seasonMonKills', 'Meiste Kills in einer Saison', 'Kills eines Pokémon innerhalb einer Saison.', (m) => m.kills, (m) => `${m.kills} Kills`);
+  seasonMonRecord('seasonMonWins', 'Meiste Kampfsiege in einer Saison', 'Gewonnene Kämpfe, in denen das Pokémon im Feld stand.', (m) => m.battleWins, (m) => `${m.battleWins} Siege`);
+  seasonMonRecord('seasonMonKd', 'Bestes K/D einer Saison', 'Mindestens acht Kampfeinsätze in der Saison.', (m) => m.kd, (m) => m.kd.toFixed(2), 8);
 
   // --- Pokémon über alle Saisons -----------------------------------------
   const mons = allTimePokemon(teams, results, pokedex);
@@ -637,6 +779,48 @@ export function buildRecords({ teams = [], results = [], pokedex = [], eloRows =
   monRecord('bestKd', 'Bestes K/D-Verhältnis', 'Mindestens zehn Kampfeinsätze.', (s) => s.kd, (s) => s.kd.toFixed(2), 10);
   monRecord('bestSurvival', 'Höchste Überlebensrate', 'Anteil der Kämpfe ohne eigenen Death. Mindestens zehn Einsätze.', (s) => s.survivalRate, (s) => `${Math.round(s.survivalRate * 100)} %`, 10);
   monRecord('bestWinPct', 'Höchste Kampf-Siegquote', 'Mindestens zehn Kampfeinsätze.', (s) => s.battleWinPct, (s) => `${Math.round(s.battleWinPct * 100)} %`, 10);
+  monRecord('totalBattleWins', 'Meiste Kampfsiege insgesamt', 'Gewonnene Kämpfe, in denen das Pokémon im Feld stand.', (s) => s.battleWins, (s) => `${s.battleWins} Siege`);
+  monRecord('totalMatchWins', 'Meiste Matchsiege im Aufgebot', 'Gewonnene Matches, in denen das Pokémon im Aufgebot stand.', (s) => s.matchWins, (s) => `${s.matchWins} Matches`);
+  monRecord('totalLeads', 'Meiste Einsätze als Lead', 'Wie oft ein Pokémon einen Kampf eröffnet hat.', (s) => s.leads, (s) => `${s.leads}× Lead`);
+  // Mehrfach-Kills zählen Kämpfe — sie stehen deshalb bei „Je Kampf".
+  const multiRecord = (key, label, info, map) => {
+    const top = bestAll(Object.entries(map).map(([name, n]) => ({ name, n })), (x) => x.n);
+    if (!top.value) return;
+    push({
+      key, label, group: 'pokemon', scope: 'kampf', info,
+      value: top.value, display: `${top.value}×`,
+      holders: top.items.map((x) => ({ name: x.name, image: monMeta(pokedex, x.name)?.image || null, when: null })),
+    });
+  };
+  multiRecord('doubles', 'Meiste Doppelpacks', 'Kämpfe, in denen ein Pokémon mindestens zwei Gegner besiegt hat.', doubles);
+  multiRecord('hattricks', 'Meiste Hattricks', 'Kämpfe, in denen ein Pokémon drei oder mehr Gegner besiegt hat.', hattricks);
+
+  // --- Vereine über alle Saisons ------------------------------------------
+  const clubs = allTimeTable(teams, results, { schedules });
+  const clubRecord = (key, label, info, pick, display, min = 1) => {
+    const top = bestAll(clubs, pick);
+    if (top.value == null || top.value < min) return;
+    push({
+      key, label, group: 'team', info,
+      value: top.value, display: display(top.value),
+      holders: top.items.map((r) => ({ name: r.team.name, teamId: r.team.id, when: null })),
+    });
+  };
+  clubRecord('clubTitles', 'Meiste Meisterschaften', 'Titel zählen erst, wenn die Saison abgeschlossen ist.', (r) => r.titles, (v) => `${v} Titel`);
+  clubRecord('clubPoints', 'Meiste Punkte insgesamt', 'Ein Punkt je gewonnenem Kampf, über alle Saisons der ersten Liga.', (r) => r.points, (v) => `${v} Punkte`);
+  clubRecord('clubWins', 'Meiste Matchsiege insgesamt', 'Gewonnene Matches über alle Saisons der ersten Liga.', (r) => r.won, (v) => `${v} Siege`);
+  clubRecord('clubKills', 'Meiste Kills insgesamt (Verein)', 'Kills eines Vereins über alle Saisons der ersten Liga.', (r) => r.kills, (v) => `${v} Kills`);
+  const countRecord = (key, label, info, map, unit) => {
+    const top = bestAll(Object.entries(map).map(([slug, n]) => ({ slug, n })), (x) => x.n);
+    if (!top.value) return;
+    push({
+      key, label, group: 'team', info,
+      value: top.value, display: `${top.value} ${unit}`,
+      holders: top.items.map((x) => clubHolder(x.slug)),
+    });
+  };
+  countRecord('clubSweeps', 'Meiste Zu-null-Siege', 'Matches, die ein Verein mit 3:0 Kämpfen gewonnen hat.', sweeps, '× 3:0');
+  countRecord('clubPerfect', 'Meiste makellose Kämpfe', 'Kämpfe, in denen der Verein alle vier Pokémon im Feld behalten hat.', perfectByClub, 'Kämpfe');
 
   // --- Marktwerte ---------------------------------------------------------
   const rows = eloRows || [];
@@ -668,7 +852,7 @@ export function buildRecords({ teams = [], results = [], pokedex = [], eloRows =
     const jump = bestAll(steps, (e) => e.delta);
     if (jump.value > 0) {
       push({
-        key: 'marketJump', label: 'Größter Marktwertsprung', group: 'markt',
+        key: 'marketJump', label: 'Größter Marktwertsprung', group: 'markt', scope: 'match',
         info: 'Größter Zuwachs zwischen zwei Zeitpunkten des Draft-Sheets.',
         value: jump.value, display: null, money: jump.value, signed: true,
         holders: stepHolders(jump.items),
@@ -677,7 +861,7 @@ export function buildRecords({ teams = [], results = [], pokedex = [], eloRows =
     const drop = bestAll(steps, (e) => -e.delta);
     if (drop.value > 0) {
       push({
-        key: 'marketDrop', label: 'Größter Marktwertverlust', group: 'markt',
+        key: 'marketDrop', label: 'Größter Marktwertverlust', group: 'markt', scope: 'match',
         info: 'Größter Rückgang zwischen zwei Zeitpunkten des Draft-Sheets.',
         value: drop.value, display: null, money: -drop.value, signed: true,
         holders: stepHolders(drop.items),
@@ -695,7 +879,7 @@ export function buildRecords({ teams = [], results = [], pokedex = [], eloRows =
     const topSquad = bestAll(squads, (x) => x.value);
     if (topSquad.value) {
       push({
-        key: 'marketSquad', label: 'Teuerster Kader', group: 'markt',
+        key: 'marketSquad', label: 'Teuerster Kader', group: 'markt', scope: 'saison',
         info: 'Summe der Marktwerte aller zehn Kader-Pokémon.',
         value: topSquad.value, display: null, money: topSquad.value,
         holders: topSquad.items.map((x) => ({
@@ -707,22 +891,14 @@ export function buildRecords({ teams = [], results = [], pokedex = [], eloRows =
   }
 
   // --- Auszeichnungen -----------------------------------------------------
+  // Gezählt werden nur Ehrungen — eine Rüge ist keine Auszeichnung, auf die man stolz ist.
   const board = awardLeaderboard(awardDocs, pokedex, teams);
-  const topMon = bestAll(board.pokemon, (r) => r.n);
-  if (topMon.value > 1) {
-    push({
-      key: 'awardsPokemon', label: 'Meiste Auszeichnungen (Pokémon)', group: 'liga',
-      info: 'Gewonnene Awards über alle Saisons.',
-      value: topMon.value, display: `${topMon.value} Awards`,
-      holders: topMon.items.map((r) => ({ name: r.label, image: r.image || null, when: null })),
-    });
-  }
-  const topTeam = bestAll(board.team, (r) => r.n);
+  const topTeam = bestAll(board.team.filter((r) => r.positive > 0), (r) => r.positive);
   if (topTeam.value > 1) {
     push({
-      key: 'awardsTeam', label: 'Meiste Auszeichnungen (Team)', group: 'liga',
-      info: 'Gewonnene Awards über alle Saisons.',
-      value: topTeam.value, display: `${topTeam.value} Awards`,
+      key: 'awardsTeam', label: 'Meiste Ehrungen (Team)', group: 'liga',
+      info: 'Gewonnene Team-Auszeichnungen über alle Saisons, ohne Rügen.',
+      value: topTeam.value, display: `${topTeam.value} Ehrungen`,
       holders: topTeam.items.map((r) => ({ name: r.label, teamId: r.id, when: null })),
     });
   }
@@ -791,6 +967,23 @@ export function awardLeaderboard(awardDocs, pokedex = [], teams = []) {
   });
   const sort = (obj) => Object.values(obj).sort((a, b) => b.n - a.n || a.label.localeCompare(b.label));
   return { pokemon: sort(buckets.pokemon), team: sort(buckets.team), match: sort(buckets.match) };
+}
+
+/**
+ * Die Bestenliste für eine Lesart: `positive` (Standard) zählt nur Ehrungen, `negative`
+ * nur Rügen, `all` beides. Eine Rüge darf ein Pokémon nicht in der Ehrenliste nach oben
+ * schieben — deshalb wird je Lesart neu gezählt, sortiert und gefiltert. `count` ist die
+ * gezählte Zahl, `awards` nur die passenden Auszeichnungen.
+ */
+export function awardBoardFor(board, tone = 'positive') {
+  const pick = (rows) => (rows || [])
+    .map((r) => {
+      const awards = tone === 'all' ? r.awards : r.awards.filter((a) => a.tone === tone);
+      return { ...r, count: awards.length, awards };
+    })
+    .filter((r) => r.count > 0)
+    .sort((a, b) => b.count - a.count || (tone === 'positive' ? a.negative - b.negative : 0) || a.label.localeCompare(b.label));
+  return { pokemon: pick(board?.pokemon), team: pick(board?.team), match: pick(board?.match) };
 }
 
 /**

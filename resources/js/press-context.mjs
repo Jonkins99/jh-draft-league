@@ -68,7 +68,7 @@ export function marketBlock(eloRows, teams, day, opts = {}) {
     elo: `${r.fromElo} -> ${r.toElo}`,
   });
 
-  const stopKey = day != null ? stopKeyForDay(rows, day) : null;
+  const stopKey = day != null ? stopKeyForDay(rows, day, opts.season ?? null) : null;
   const diff = stopKey ? historyDiff(rows, stopKey, { limit: 8 }) : null;
 
   const stops = historyStops(rows);

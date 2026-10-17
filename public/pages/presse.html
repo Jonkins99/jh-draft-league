@@ -762,9 +762,9 @@ match /settings/{doc} { allow read, write: if true; }</code></pre>
   </div>
 
   <!-- ========================= INTERVIEW / PRESSEKONFERENZ ================== -->
-  <div popover id="press-stage" class="press-stage" @toggle="if ($event.newState === 'closed') stage = null">
+  <div popover id="press-stage" class="press-stage" @toggle="if ($event.newState === 'closed') { clearInterval(_stageTimer); stage = null }">
     <template x-if="stage">
-      <div class="relative flex min-h-full flex-col">
+      <div class="relative flex min-h-full flex-col" x-effect="session?.status; (session?.questions || []).length; syncStage()">
         <div class="press-wall pointer-events-none absolute inset-0"></div>
         <span class="press-flash pointer-events-none absolute inset-0 bg-white/70"></span>
 
@@ -1005,7 +1005,7 @@ match /settings/{doc} { allow read, write: if true; }</code></pre>
           </div>
 
           <!-- Über x-for neu aufgebaut, damit die Einblend-Animation je Frage erneut läuft. -->
-          <template x-for="q in [stageQuestion]" :key="'q-'+stage.index">
+          <template x-for="q in (stageQuestion ? [stageQuestion] : [])" :key="'q-'+stage.index">
             <div class="press-typein mx-auto max-w-3xl">
               <p class="text-center font-display text-[11px] font-bold uppercase tracking-[0.25em]"
                  :class="q.provocative ? 'text-flame-400' : 'text-mist'"
@@ -1021,7 +1021,7 @@ match /settings/{doc} { allow read, write: if true; }</code></pre>
           </template>
 
           <div class="mx-auto mt-8 grid max-w-3xl gap-3">
-            <template x-for="(o, i) in (stageQuestion.options || [])" :key="'opt-'+stage.index+'-'+i">
+            <template x-for="(o, i) in (stageQuestion?.options || [])" :key="'opt-'+stage.index+'-'+i">
               <button type="button" @click="answerWith(o)"
                       class="group rounded-2xl border p-4 text-left backdrop-blur transition-colors hover:border-flame-500/50 hover:bg-panel"
                       :class="isChosenOption(o) ? 'border-flame-500/70 bg-flame-500/10' : 'border-line bg-panel/80'">
@@ -1064,7 +1064,7 @@ match /settings/{doc} { allow read, write: if true; }</code></pre>
         <!-- Fehlschlag -->
         <div x-show="stage.phase === 'error'" class="relative flex flex-1 flex-col items-center justify-center gap-4 px-6 py-20 text-center">
           <p class="font-display text-xl font-bold tracking-wide text-flame-300">Der Termin ist geplatzt.</p>
-          <p class="press-break max-w-md text-sm text-mist" x-text="session?.error || press.lastError || 'Die Redaktion war nicht erreichbar.'"></p>
+          <p class="press-break max-w-md text-sm text-mist" x-text="stageErrorText"></p>
           <label class="flex w-full max-w-sm flex-wrap items-center justify-center gap-2 text-[11px] text-mist">
             <span class="shrink-0">Versucht mit</span>
             <select @change="setRetryModel(stage.slot.id, $event.target.value)"
@@ -1143,7 +1143,7 @@ match /settings/{doc} { allow read, write: if true; }</code></pre>
               <svg viewBox="0 0 24 24" class="size-3.5" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M12 5v14M5 12h14"/></svg>
               Weiteren Schlüssel hinzufügen
             </button>
-            <span class="mt-1.5 block text-xs leading-relaxed text-mist">Bleiben ausschließlich auf diesem Gerät (localStorage) und werden nie in die Datenbank geschrieben. Ist ein Kontingent erschöpft, wechselt die Redaktion von selbst zum nächsten Schlüssel. <span class="text-ink">Wichtig:</span> Google zählt je Projekt, nicht je Schlüssel — ein zweiter Schlüssel aus demselben Projekt bringt nichts. Sinnvoll ist z. B. je Spieler ein Schlüssel aus dem eigenen Google-Konto.</span>
+            <span class="mt-1.5 block text-xs leading-relaxed text-mist">Gehören zu deinem Konto: In der Datenbank liegen sie nur verschlüsselt mit einem Schlüssel aus deinem Passwort, auf jedem angemeldeten Gerät stehen sie automatisch bereit. Ohne Anmeldung bleiben sie auf diesem Gerät. Ist ein Kontingent erschöpft, wechselt die Redaktion von selbst zum nächsten Schlüssel. <span class="text-ink">Wichtig:</span> Google zählt je Projekt, nicht je Schlüssel — ein zweiter Schlüssel aus demselben Projekt bringt nichts. Sinnvoll ist z. B. je Spieler ein Schlüssel aus dem eigenen Google-Konto.</span>
           </div>
           <details class="fold group rounded-xl border border-line bg-elevated/40">
             <summary class="flex cursor-pointer items-center gap-2 rounded-xl px-3 py-2.5 text-sm font-semibold text-ink transition-colors hover:bg-elevated">
@@ -1179,7 +1179,7 @@ match /settings/{doc} { allow read, write: if true; }</code></pre>
           <label class="flex items-start gap-3 rounded-xl border border-line bg-elevated/40 p-3">
             <input type="checkbox" x-model="settings.fallback" class="mt-0.5 size-4 shrink-0 accent-flame-500" />
             <span class="text-sm text-ink">Automatisch ausweichen
-              <span class="mt-0.5 block text-xs leading-relaxed text-mist">Ist das Kontingent des gewählten Modells erschöpft oder das Modell überlastet, versucht die Redaktion nacheinander 3.8, 3.7, 3.6 und 3.5 Flash — jedes hat sein eigenes Tageskontingent.</span>
+              <span class="mt-0.5 block text-xs leading-relaxed text-mist">Ist das Kontingent des gewählten Modells erschöpft oder das Modell überlastet, versucht die Redaktion nacheinander 3.8 Flash, 3.6 Flash, 3 Flash (Preview) und 2.5 Flash — jedes hat sein eigenes Tageskontingent.</span>
             </span>
           </label>
           <label x-show="settings.fallback" class="flex items-start gap-3 rounded-xl border border-line bg-elevated/40 p-3">

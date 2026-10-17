@@ -1,25 +1,25 @@
 // Brücke zur Gemini Developer API (generativelanguage.googleapis.com).
 // Bewusst ohne SDK: ein einziger POST mit fetch reicht und kostet kein Bundle.
 //
-// Der API-Key liegt GERÄTELOKAL (localStorage, siehe PRESS_KEY in main.js) und wird
-// nie nach Firestore geschrieben — die Datenbank ist offen lesbar, ein Key hätte darin
-// nichts verloren. Ohne Key bleibt die Presse-Ansicht bedienbar, es entstehen nur keine
-// neuen Beiträge.
+// Die API-Schlüssel gehören zum Konto: verschlüsselt unter `private/<user>-presskeys`
+// (AES-GCM, Schlüssel aus dem Passwort), auf dem Gerät nur als Zwischenstand. In der
+// offen lesbaren Datenbank steht damit nie ein Schlüssel im Klartext. Ohne Key bleibt die
+// Presse-Ansicht bedienbar, es entstehen nur keine neuen Beiträge.
 
-// `free`: im kostenlosen Kontingent enthalten (Stand September 2026). Jedes Modell hat
+// `free`: im kostenlosen Kontingent enthalten (Stand Oktober 2026). Jedes Modell hat
 // dort seinen EIGENEN Tageszähler — die Flash-Modelle je rund 20 Anfragen, die Lite-Modelle
-// je rund 500. Deshalb lohnt der Wechsel: ist 3.8 für heute leer, hat 3.7 noch alles.
+// je rund 500. Deshalb lohnt der Wechsel: ist 3.8 für heute leer, hat 3.6 noch alles.
+// 3.7 und 3.5 Flash hat Google abgeschaltet (Nachfolger 3.8 bzw. 3.6).
 export const GEMINI_MODELS = [
   { id: 'gemini-3.8-flash', label: 'Gemini 3.8 Flash', hint: 'Aktuellstes Flash — Standard.', free: true },
-  { id: 'gemini-3.7-flash', label: 'Gemini 3.7 Flash', hint: 'Eigenes Tageskontingent, kaum schwächer.', free: true },
-  { id: 'gemini-3.6-flash', label: 'Gemini 3.6 Flash', hint: 'Eigenes Tageskontingent.', free: true },
-  { id: 'gemini-3.5-flash', label: 'Gemini 3.5 Flash', hint: 'Eigenes Tageskontingent.', free: true },
+  { id: 'gemini-3.6-flash', label: 'Gemini 3.6 Flash', hint: 'Eigenes Tageskontingent, kaum schwächer.', free: true },
   { id: 'gemini-3-flash-preview', label: 'Gemini 3 Flash (Preview)', hint: 'Vorschau, eigenes Kontingent.', free: true },
   { id: 'gemini-2.5-flash', label: 'Gemini 2.5 Flash', hint: 'Vorgänger — nur für Konten, die es schon genutzt haben.', free: true },
   { id: 'gemini-3.5-flash-lite', label: 'Gemini 3.5 Flash Lite', hint: 'Reserve: ~500 am Tag, knappere Texte.', free: true, lite: true },
   { id: 'gemini-3.1-flash-lite', label: 'Gemini 3.1 Flash Lite', hint: 'Reserve: ~500 am Tag, knappere Texte.', free: true, lite: true },
   { id: 'gemini-2.5-flash-lite', label: 'Gemini 2.5 Flash Lite', hint: 'Letzte Reserve, nur für Altkonten.', free: true, lite: true },
-  { id: 'gemini-3.1-pro-preview', label: 'Gemini 3.1 Pro (Preview)', hint: 'Nur mit Zahlungsart — stilistisch am stärksten.', free: false },
+  { id: 'gemini-4-argon', label: 'Gemini 4 Argon', hint: 'Neues Spitzenmodell — nur mit Zahlungsart.', free: false },
+  { id: 'gemini-3.1-pro-preview', label: 'Gemini 3.1 Pro (Preview)', hint: 'Nur mit Zahlungsart — stilistisch stark.', free: false },
   { id: 'gemini-2.5-pro', label: 'Gemini 2.5 Pro', hint: 'Vorgänger, nur für Altkonten.', free: true },
 ];
 
@@ -29,8 +29,7 @@ export const DEFAULT_MODEL = 'gemini-3.8-flash';
 // je eigenes Kontingent), dann die Lite-Reserve. Pro-Modelle bleiben draußen — sie sind
 // langsam und kosten im freien Kontingent entweder nichts mehr oder sind gesperrt.
 export const FALLBACK_ORDER = [
-  'gemini-3.8-flash', 'gemini-3.7-flash', 'gemini-3.6-flash', 'gemini-3.5-flash',
-  'gemini-3-flash-preview', 'gemini-2.5-flash',
+  'gemini-3.8-flash', 'gemini-3.6-flash', 'gemini-3-flash-preview', 'gemini-2.5-flash',
   'gemini-3.5-flash-lite', 'gemini-3.1-flash-lite', 'gemini-2.5-flash-lite',
 ];
 
@@ -42,7 +41,8 @@ const isLite = (id) => !!GEMINI_MODELS.find((m) => m.id === id)?.lite || /-lite$
  * `lite: false` lässt die Lite-Reserve weg (außer sie ist selbst gewählt).
  */
 export function modelChain(primary = DEFAULT_MODEL, { fallback = true, lite = true } = {}) {
-  const first = primary || DEFAULT_MODEL;
+  // Ein abgeschaltetes Modell aus einem alten Stand (Gerät, Fehlvermerk) fällt auf den Standard.
+  const first = GEMINI_MODELS.some((m) => m.id === primary) ? primary : DEFAULT_MODEL;
   if (!fallback) return [first];
   const rest = FALLBACK_ORDER.filter((id) => id !== first && (lite || !isLite(id)));
   return [first, ...rest];
@@ -52,6 +52,39 @@ export function modelChain(primary = DEFAULT_MODEL, { fallback = true, lite = tr
 export function normalizeKeys(input) {
   const list = Array.isArray(input) ? input : [input];
   return [...new Set(list.map((k) => String((k && typeof k === 'object' ? k.key : k) || '').trim()).filter(Boolean))];
+}
+
+/**
+ * Zwei Schlüssellisten ({ key, label }) zusammenführen — für den Umzug der gerätelokalen
+ * Schlüssel ans Konto. Gleich ist ein Schlüssel über seinen Wert, nicht über den Namen:
+ * derselbe Schlüssel mit zwei Namen bleibt EIN Eintrag (der Name aus `primary` geht vor,
+ * ein leerer wird ergänzt). Zwei verschiedene Schlüssel mit demselben Namen bekommen
+ * eine Nummer, damit sie in der Sperrliste unterscheidbar bleiben.
+ */
+export function mergeKeyLists(primary = [], extra = []) {
+  const out = [];
+  const byKey = new Map();
+  [...(primary || []), ...(extra || [])].forEach((k) => {
+    const key = String((k && typeof k === 'object' ? k.key : k) || '').trim();
+    if (!key) return;
+    const label = String((k && typeof k === 'object' ? k.label : '') || '').trim();
+    const have = byKey.get(key);
+    if (have) {
+      if (!have.label && label) have.label = label;
+      return;
+    }
+    const row = { key, label };
+    byKey.set(key, row);
+    out.push(row);
+  });
+  const seen = new Map();
+  out.forEach((row) => {
+    if (!row.label) return;
+    const n = (seen.get(row.label) || 0) + 1;
+    seen.set(row.label, n);
+    if (n > 1) row.label = `${row.label} (${n})`;
+  });
+  return out;
 }
 
 // Kurzes, nicht umkehrbares Kennzeichen eines Schlüssels — für die Sperrliste und die
@@ -138,7 +171,18 @@ export class QuotaBook {
 
 const ENDPOINT = 'https://generativelanguage.googleapis.com/v1beta/models';
 
-const isGen3 = (model) => /^gemini-3/.test(String(model || ''));
+// Ab der 3er-Generation (auch Gemini 4): thinkingLevel und Temperatur 1.0.
+// Eine Anfrage, die nie antwortet, ließe einen Termin ewig auf „generating" stehen.
+// Nach dieser Frist gilt sie als Netzwerkabbruch (TimeoutError) und wird wiederholt.
+export const REQUEST_TIMEOUT_MS = 180000;
+function withTimeout(signal) {
+  if (typeof AbortSignal === 'undefined' || typeof AbortSignal.timeout !== 'function') return signal;
+  const timer = AbortSignal.timeout(REQUEST_TIMEOUT_MS);
+  if (!signal) return timer;
+  return typeof AbortSignal.any === 'function' ? AbortSignal.any([signal, timer]) : signal;
+}
+
+const isGen3 = (model) => /^gemini-([3-9]|\d{2})/.test(String(model || ''));
 
 // Zwei Schlüsselformate im Umlauf: die alten `AIza…` gehören in den Header `x-goog-api-key`,
 // die neuen `AQ.…` („Authentication Key", seit 2026 das einzige, was AI Studio ausgibt)
@@ -267,13 +311,20 @@ async function attemptGenerate({
         method: 'POST',
         headers: { 'Content-Type': 'application/json', ...authHeader(apiKey, scheme) },
         body: JSON.stringify(payload),
-        signal,
+        signal: withTimeout(signal),
       });
     } catch (e) {
       if (e?.name === 'AbortError') throw e;
       throw new GeminiError('Die Redaktion ist nicht erreichbar (Netzwerkfehler).', { detail: String(e), retryable: true, model });
     }
-    if (res.ok) return { res, data: await res.json() };
+    if (res.ok) {
+      try {
+        return { res, data: await res.json() };
+      } catch (e) {
+        if (e?.name === 'AbortError') throw e;
+        throw new GeminiError('Die Antwort der Redaktion ist unterwegs abgerissen.', { detail: String(e), retryable: true, model });
+      }
+    }
     let detail = '';
     let reason = '';
     let details = [];

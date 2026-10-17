@@ -1,5 +1,5 @@
 import { initializeApp } from 'firebase/app';
-import { getFirestore } from 'firebase/firestore';
+import { initializeFirestore } from 'firebase/firestore';
 
 const firebaseConfig = {
   apiKey: 'AIzaSyC7tfkjU9iXb-cjwVQEOxYl2anNMRHMgqo',
@@ -11,4 +11,6 @@ const firebaseConfig = {
 };
 
 export const app = initializeApp(firebaseConfig);
-export const db = getFirestore(app);
+// Ein `undefined` in einem Feld ließe setDoc sonst scheitern — auch das Zurücksetzen
+// eines gescheiterten Termins, der dann für immer auf „generating" stünde.
+export const db = initializeFirestore(app, { ignoreUndefinedProperties: true });

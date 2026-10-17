@@ -62,10 +62,21 @@
         </p>
 
         <!-- Bestenlisten -->
+        <div x-show="archiveCount" class="mb-3 flex flex-wrap items-center gap-2">
+          <span class="text-xs text-mist">Bestenlisten zählen</span>
+          <div class="flex gap-1 rounded-xl border border-line bg-panel p-1" role="group" aria-label="Was die Bestenlisten zählen">
+            <template x-for="o in boardTones" :key="'bt-'+o.v">
+              <button type="button" @click="boardTone = o.v" :aria-pressed="boardTone === o.v"
+                      class="rounded-lg px-3 py-1.5 font-display text-xs font-bold uppercase tracking-wider transition-colors"
+                      :class="boardTone === o.v ? (o.v === 'negative' ? 'bg-flame-500/15 text-flame-300' : 'bg-volt-400/15 text-volt-400') : 'text-mist hover:text-ink'"
+                      x-text="o.l"></button>
+            </template>
+          </div>
+        </div>
         <div x-show="archiveCount" class="grid gap-4 lg:grid-cols-2">
           <section class="rounded-2xl border border-line bg-panel p-5">
-            <h2 class="mb-1 font-display text-lg font-bold uppercase tracking-wider text-ink">Meistgeehrte Pokémon</h2>
-            <p class="mb-4 text-xs text-mist">Gewonnene Auszeichnungen über alle Saisons.</p>
+            <h2 class="mb-1 font-display text-lg font-bold uppercase tracking-wider text-ink" x-text="boardTone === 'negative' ? 'Meistgerügte Pokémon' : 'Meistgeehrte Pokémon'"></h2>
+            <p class="mb-4 text-xs text-mist" x-text="boardTone === 'positive' ? 'Ehrungen über alle Saisons — Rügen zählen hier nicht.' : boardTone === 'negative' ? 'Rügen über alle Saisons: die Enttäuschungen.' : 'Ehrungen und Rügen über alle Saisons.'"></p>
             <div class="grid gap-2">
               <template x-for="(r, i) in awardBoard.pokemon.slice(0, 8)" :key="'abp-'+r.id">
                 <button type="button" @click="goMon(r.label)"
@@ -78,20 +89,20 @@
                     <span class="block truncate text-[11px] text-mist" x-text="r.awards.map(a => a.label).join(' · ')"></span>
                   </span>
                   <span class="flex shrink-0 items-center gap-1">
-                    <span x-show="r.positive" class="rounded-full bg-volt-400/15 px-2.5 py-1 font-display text-xs font-bold tabular-nums text-volt-400"
+                    <span x-show="r.positive && boardTone !== 'negative'" class="rounded-full bg-volt-400/15 px-2.5 py-1 font-display text-xs font-bold tabular-nums text-volt-400"
                           :title="`${r.positive} Ehrungen`" x-text="`${r.positive}×`"></span>
-                    <span x-show="r.negative" class="rounded-full bg-flame-500/15 px-2.5 py-1 font-display text-xs font-bold tabular-nums text-flame-300"
+                    <span x-show="r.negative && boardTone !== 'positive'" class="rounded-full bg-flame-500/15 px-2.5 py-1 font-display text-xs font-bold tabular-nums text-flame-300"
                           :title="`${r.negative} Rügen`" x-text="`${r.negative}×`"></span>
                   </span>
                 </button>
               </template>
             </div>
-            <p class="mt-3 text-[11px] text-mist/70"><span class="font-semibold text-volt-400">Gelb</span> zählt die Ehrungen, <span class="font-semibold text-flame-300">Rot</span> die Rügen.</p>
-            <p x-show="!awardBoard.pokemon.length" class="py-4 text-center text-sm text-mist">Noch keine Pokémon-Auszeichnung vergeben.</p>
+            <p x-show="boardTone === 'all'" class="mt-3 text-[11px] text-mist/70"><span class="font-semibold text-volt-400">Gelb</span> zählt die Ehrungen, <span class="font-semibold text-flame-300">Rot</span> die Rügen.</p>
+            <p x-show="!awardBoard.pokemon.length" class="py-4 text-center text-sm text-mist" x-text="boardTone === 'negative' ? 'Noch keine Rüge vergeben.' : 'Noch keine Pokémon-Auszeichnung vergeben.'"></p>
           </section>
 
           <section class="rounded-2xl border border-line bg-panel p-5">
-            <h2 class="mb-1 font-display text-lg font-bold uppercase tracking-wider text-ink">Meistgeehrte Teams</h2>
+            <h2 class="mb-1 font-display text-lg font-bold uppercase tracking-wider text-ink" x-text="boardTone === 'negative' ? 'Meistgerügte Teams' : 'Meistgeehrte Teams'"></h2>
             <p class="mb-4 text-xs text-mist">Team-Auszeichnungen über alle Saisons.</p>
             <div class="grid gap-2">
               <template x-for="(r, i) in awardBoard.team.slice(0, 8)" :key="'abt-'+r.id">
@@ -104,11 +115,12 @@
                     <span class="block truncate font-semibold text-ink" x-text="teamById(r.id)?.name || r.label"></span>
                     <span class="block truncate text-[11px] text-mist" x-text="r.awards.map(a => a.label).join(' · ')"></span>
                   </span>
-                  <span class="shrink-0 rounded-full bg-volt-400/15 px-2.5 py-1 font-display text-xs font-bold tabular-nums text-volt-400" x-text="`${r.n}×`"></span>
+                  <span class="shrink-0 rounded-full px-2.5 py-1 font-display text-xs font-bold tabular-nums"
+                        :class="boardTone === 'negative' ? 'bg-flame-500/15 text-flame-300' : 'bg-volt-400/15 text-volt-400'" x-text="`${r.count}×`"></span>
                 </button>
               </template>
             </div>
-            <p x-show="!awardBoard.team.length" class="py-4 text-center text-sm text-mist">Noch keine Team-Auszeichnung vergeben.</p>
+            <p x-show="!awardBoard.team.length" class="py-4 text-center text-sm text-mist" x-text="boardTone === 'negative' ? 'Noch keine Team-Rüge vergeben.' : 'Noch keine Team-Auszeichnung vergeben.'"></p>
           </section>
         </div>
 

@@ -113,6 +113,11 @@
               <span x-text="open === t.key ? 'Stationen ausblenden' : 'Stationen'"></span>
               <svg viewBox="0 0 24 24" class="size-3.5 transition-transform" :class="open === t.key && 'rotate-180'" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"><path d="m6 9 6 6 6-6"/></svg>
             </button>
+            <button type="button" x-show="t.matches.length" @click="toggleResults(t.key)" :aria-expanded="openResults === t.key"
+                    class="inline-flex items-center gap-1 rounded-lg border border-line px-2.5 py-1.5 font-display text-[11px] font-bold uppercase tracking-wider text-mist transition-colors hover:text-ink">
+              <span x-text="`Ergebnisse (${t.matches.length})`"></span>
+              <svg viewBox="0 0 24 24" class="size-3.5 transition-transform" :class="openResults === t.key && 'rotate-180'" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"><path d="m6 9 6 6 6-6"/></svg>
+            </button>
             <span x-show="t.totals.matches" class="text-[11px] tabular-nums text-mist" x-text="`Kills ${t.totals.kills} : ${t.totals.deaths} (${fmtDiff(t.totals.diff)})`"></span>
             <span class="ml-auto flex gap-1.5" x-show="canEdit && !t.stints.length">
               <button type="button" @click="openForm(t)"
@@ -122,6 +127,42 @@
                 <svg viewBox="0 0 24 24" class="size-4" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 7h16M10 11v6M14 11v6M6 7l1 13h10l1-13M9 7V4h6v3"/></svg>
               </button>
             </span>
+          </div>
+
+          <!-- Ergebnis-Historie -->
+          <div x-show="openResults === t.key" x-cloak class="border-t border-line bg-void/30 px-3 py-3 sm:px-4">
+            <ul class="grid gap-2">
+              <template x-for="m in (openResults === t.key ? shownMatches(t) : [])" :key="'tr-'+t.key+'-'+m.league+'-'+m.id">
+                <li>
+                  <button type="button" @click="openMatch(m)"
+                          class="w-full rounded-xl border border-line bg-elevated/40 p-2.5 text-left transition-colors hover:border-flame-500/40">
+                    <span class="flex min-w-0 items-center gap-2">
+                      <span class="grid size-6 shrink-0 place-items-center rounded-md border font-display text-[11px] font-bold" :class="outcomeClass(m.outcome)" x-text="outcomeLabel(m.outcome)"></span>
+                      <img x-show="teamOf(m.opponentId)?.logo" :src="logoUrl(teamOf(m.opponentId)?.logo)" alt="" loading="lazy" class="size-5 shrink-0 object-contain" />
+                      <span class="min-w-0 flex-1 truncate text-sm text-ink">
+                        <span class="text-mist" x-text="m.home ? 'gegen' : 'bei'"></span>
+                        <span class="font-semibold" x-text="teamOf(m.opponentId)?.name || m.opponentId"></span>
+                      </span>
+                      <span class="shrink-0 font-display text-sm font-bold tabular-nums text-ink" x-text="`${m.own}:${m.other}`"></span>
+                    </span>
+                    <span class="mt-1 flex flex-wrap items-center gap-x-2 gap-y-1 text-[11px] text-mist">
+                      <span x-text="`S${m.season} · Spieltag ${m.day ?? '–'}${m.league === 2 ? ' · 2. Liga' : ''} · für ${teamOf(m.teamId)?.name || m.teamId}`"></span>
+                      <span class="ml-auto flex gap-1">
+                        <template x-for="b in m.battles" :key="'trb-'+m.id+'-'+b.n">
+                          <span class="rounded border px-1.5 py-0.5 font-display text-[10px] font-bold tabular-nums"
+                                :class="b.done ? outcomeClass(b.outcome) : 'border-line text-mist/60'"
+                                :title="`Kampf ${b.n} · Überlebende`"
+                                x-text="b.done ? `${b.own}:${b.other}` : '–'"></span>
+                        </template>
+                      </span>
+                    </span>
+                  </button>
+                </li>
+              </template>
+            </ul>
+            <button type="button" x-show="t.matches.length > 10 && !allResults" @click="allResults = true"
+                    class="mt-2 w-full rounded-lg border border-line px-3 py-1.5 font-display text-[11px] font-bold uppercase tracking-wider text-mist transition-colors hover:text-ink"
+                    x-text="`Alle ${t.matches.length} Matches zeigen`"></button>
           </div>
 
           <!-- Stationen -->

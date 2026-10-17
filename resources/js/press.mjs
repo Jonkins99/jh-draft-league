@@ -806,6 +806,34 @@ export function isStalePending(a, now = Date.now()) {
   return !Number.isFinite(at) || now - at > PENDING_STALE_MS;
 }
 
+// Dasselbe für Termine (Interview/PK): Eine Sitzung steht auf `generating`, solange ein
+// Gerät die Fragen holt, und auf `writing`, solange es den Beitrag schreibt. Wird das
+// Gerät mittendrin geschlossen, bliebe sie für immer so stehen — und jedes Gerät zeigte
+// beim Öffnen nur noch „Die Presse nimmt Aufstellung…". Nach derselben Frist gilt sie
+// als abgebrochen und lässt sich neu ansetzen.
+export function isStaleSession(s, now = Date.now()) {
+  if (!s || !['generating', 'writing'].includes(s.status)) return false;
+  const at = Date.parse(s.updatedAt || s.createdAt || '');
+  return !Number.isFinite(at) || now - at > PENDING_STALE_MS;
+}
+
+/**
+ * In welcher Phase öffnet die Bühne einen Termin? `busy`: dieses Gerät arbeitet gerade
+ * selbst daran (dann ist nichts abgebrochen). Eine offene Sitzung ohne Fragen ist kaputt
+ * und landet beim Fehlschlag — dort lässt sie sich neu ansetzen, statt ewig zu warten.
+ */
+export function sessionStagePhase(s, { busy = false, now = Date.now() } = {}) {
+  if (!s) return 'role';
+  if (s.status === 'done') return 'done';
+  if (s.status === 'error') return 'error';
+  if (s.status === 'open') return (s.questions || []).length ? 'ask' : 'error';
+  if (s.status === 'generating' || s.status === 'writing') {
+    if (!busy && isStaleSession(s, now)) return 'error';
+    return s.status === 'writing' ? 'writing' : 'wait';
+  }
+  return 'role';
+}
+
 // Fehlt der Beitrag, ist er gescheitert oder abgebrochen? Dann darf er (neu) entstehen.
 export function needsRewrite(a, now = Date.now()) {
   return !a || a.status === 'error' || isStalePending(a, now);

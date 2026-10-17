@@ -13,6 +13,18 @@
         Noch keine Ergebnisse — Rekorde entstehen mit dem ersten eingetragenen Kampf.
       </p>
 
+      <div x-show="hasAny" class="-mx-4 mb-6 overflow-x-auto px-4 sm:mx-0 sm:px-0">
+        <div class="flex w-max gap-1 rounded-xl border border-line bg-panel p-1" role="group" aria-label="Wofür der Rekord gilt">
+          <template x-for="o in scopes" :key="'rs-'+o.key">
+            <button type="button" @click="setScope(o.key)" :aria-pressed="scope === o.key"
+                    class="whitespace-nowrap rounded-lg px-3 py-1.5 font-display text-xs font-bold uppercase tracking-wider transition-colors"
+                    :class="scope === o.key ? 'bg-flame-500/15 text-flame-300' : 'text-mist hover:text-ink'"
+                    x-text="o.label"></button>
+          </template>
+        </div>
+      </div>
+      <p x-show="hasAny && !hasInScope" class="rounded-2xl border border-line bg-panel p-8 text-center text-mist">Für diesen Bereich steht noch kein Rekord.</p>
+
       <template x-for="g in groups" :key="'rg-'+g.key">
         <section x-show="recordsOf(g.key).length" class="mb-8">
           <h2 class="font-display text-xl font-bold uppercase tracking-wider text-ink" x-text="g.label"></h2>
@@ -22,7 +34,10 @@
             <template x-for="r in recordsOf(g.key)" :key="'rec-'+r.key">
               <article class="group relative flex min-w-0 flex-col overflow-hidden rounded-2xl border border-line bg-panel p-4 transition-colors hover:border-flame-500/40">
                 <div class="flex items-start justify-between gap-2">
-                  <p class="min-w-0 font-display text-[11px] font-bold uppercase tracking-[0.18em] text-flame-400" x-text="r.label"></p>
+                  <div class="min-w-0">
+                    <p class="font-display text-[11px] font-bold uppercase tracking-[0.18em] text-flame-400" x-text="r.label"></p>
+                    <p x-show="scope === 'all'" class="mt-0.5 text-[10px] uppercase tracking-wider text-mist/80" x-text="scopeLabel(r.scope)"></p>
+                  </div>
                   <button type="button" @click.stop="info(r)" aria-label="Erklärung"
                           class="grid size-6 shrink-0 place-items-center rounded-full text-mist transition-colors hover:text-flame-400">
                     <svg viewBox="0 0 24 24" class="size-4" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="9"/><path d="M12 11v5" stroke-linecap="round"/><circle cx="12" cy="7.6" r="0.6" fill="currentColor"/></svg>
@@ -36,7 +51,7 @@
                    x-text="`${r.holders.length} teilen sich diesen Rekord`"></p>
 
                 <div class="mt-3 flex flex-col gap-2">
-                  <template x-for="(h, hi) in r.holders" :key="'h-'+r.key+'-'+hi">
+                  <template x-for="(h, hi) in r.holders.slice(0, 6)" :key="'h-'+r.key+'-'+hi">
                     <button type="button" @click="open(r, h)" class="flex min-w-0 items-center gap-3 text-left">
                       <img x-show="h.image" :src="h.image" :alt="h.name" loading="lazy" class="size-12 shrink-0 object-contain" />
                       <img x-show="!h.image && h.teamId" :src="logoUrl(teamById(h.teamId)?.logo)" alt="" loading="lazy" class="size-10 shrink-0 rounded-lg object-contain" />
@@ -48,6 +63,8 @@
                     </button>
                   </template>
                 </div>
+
+                <p x-show="r.holders.length > 6" class="mt-2 text-[11px] text-mist" x-text="`und ${r.holders.length - 6} weitere`"></p>
 
                 <p x-show="r.holders.length === 1" class="mt-3 border-t border-line pt-2 text-[11px] uppercase tracking-wider text-mist" x-text="whenLabel(r)"></p>
               </article>

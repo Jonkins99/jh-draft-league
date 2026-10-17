@@ -53,7 +53,7 @@ import {
   findTiles, stripTiles, normKey, findMon, findTeam, findResult,
   parsePipeRow, parsePipeTable, pipeTableHtml,
 } from '../resources/js/press-tiles.mjs';
-import { buildRecords, newcomersOfSeason, allTimePokemon, franchiseResults, franchiseAwards, pokemonOwnerOn } from '../resources/js/seasons.mjs';
+import { buildRecords, awardBoardFor, newcomersOfSeason, allTimePokemon, franchiseResults, franchiseAwards, pokemonOwnerOn } from '../resources/js/seasons.mjs';
 import { trainerDirectory, normalizePoolTrainer, trainerKey } from '../resources/js/trainer-market.mjs';
 import { buildScene, sponsorWall, clubSponsors, micLabel, pressSeats, SPONSOR_LOGOS, backSprite, seatSprite, backMissing } from '../resources/js/press-scene.mjs';
 import {
@@ -89,9 +89,9 @@ import {
 
 let passed = 0;
 import {
-  generateJson, modelChain, classifyQuota, QuotaBook, nextPacificMidnight, normalizeKeys, keyTag, FALLBACK_ORDER,
+  generateJson, modelChain, classifyQuota, QuotaBook, nextPacificMidnight, normalizeKeys, keyTag, FALLBACK_ORDER, GEMINI_MODELS, mergeKeyLists,
 } from '../resources/js/gemini.mjs';
-import { isStalePending, needsRewrite, articleViewStatus, hasArticleContent, PENDING_STALE_MS, pickPreview } from '../resources/js/press.mjs';
+import { isStalePending, isStaleSession, sessionStagePhase, needsRewrite, articleViewStatus, hasArticleContent, PENDING_STALE_MS, pickPreview } from '../resources/js/press.mjs';
 
 import { franchiseTeams, franchiseSeasons, franchisePokemon } from '../resources/js/seasons.mjs';
 import { franchiseTrainerHistory } from '../resources/js/trainers.mjs';
@@ -1237,6 +1237,8 @@ test('Zwei Momentaufnahmen ergeben Tier-Wechsel sowie Gewinner und Verlierer', (
 test('Der Sprung auf einen Spieltag kommt ohne lokale Momentaufnahme aus', () => {
   assert.equal(stopKeyForDay(eloRows, 2), 's1-md2');
   assert.equal(stopKeyForDay(eloRows, 9), null);
+  assert.equal(stopKeyForDay(eloRows, 2, 1), 's1-md2');
+  assert.equal(stopKeyForDay(eloRows, 2, 2), null);
   const diff = historyDiff(eloRows, 's1-md2');
   // Delta hat keinen Wert für MD2 und bleibt außen vor.
   assert.equal(diff.total, 3);
@@ -1532,6 +1534,44 @@ test('Einen geteilten Rekord halten alle Beteiligten', () => {
   // Die Kurzform zeigt weiterhin auf den ersten Halter.
   assert.equal(battleKills.holder, battleKills.holders[0]);
   assert.equal(battleKills.when, battleKills.holders[0].when);
+});
+
+test('Rekorde: Bereiche je Kampf, Match, Saison und insgesamt', () => {
+  const teams = [
+    { id: 's1-a', season: 1, name: 'Alpha', order: 1, player: 'Janik', pokemon: [{ name: 'Glurak' }] },
+    { id: 's1-b', season: 1, name: 'Beta', order: 2, player: 'Henrik', pokemon: [{ name: 'Turtok' }] },
+  ];
+  const kill = (killer, victim) => ({ victimSide: 'away', victim, killerSide: 'home', killer });
+  const b = (kills, home) => ({ done: true, used: { home: ['Glurak', 'Lahmus'], away: ['Turtok', 'Relaxo'] }, score: { home, away: 0 }, winner: 'home', kills });
+  const results = [{
+    id: 's1-d1-m0', home: 's1-a', away: 's1-b', day: 1,
+    squads: { home: ['Glurak', 'Lahmus'], away: ['Turtok', 'Relaxo'] },
+    battles: [b([kill('Glurak', 'Turtok'), kill('Glurak', 'Relaxo'), kill('Glurak', 'X')], 4), b([kill('Glurak', 'Turtok')], 3), b([kill('Lahmus', 'Relaxo')], 2)],
+  }];
+  const schedules = { s1: { matchdays: [{ day: 1, matches: [{ home: 's1-a', away: 's1-b' }] }] } };
+  const recs = buildRecords({ teams, results, pokedex: [{ name: 'Glurak' }, { name: 'Lahmus' }], schedules });
+  const by = Object.fromEntries(recs.map((r) => [r.key, r]));
+  assert.ok(recs.every((r) => ['kampf', 'match', 'saison', 'gesamt'].includes(r.scope)));
+  assert.equal(by.battleKills.scope, 'kampf');
+  assert.equal(by.hattricks.holders[0].name, 'Glurak');
+  assert.equal(by.cleanMatchKills.value, 4);
+  assert.equal(by.cleanWin.value, 0);
+  assert.equal(by.clubSweeps.holders[0].name, 'Alpha');
+  assert.equal(by.clubTitles.holders[0].name, 'Alpha');
+  assert.equal(by.seasonFewestDeaths.scope, 'saison');
+  assert.equal(by.seasonMonKills.value, 4);
+  assert.equal(by.clubPerfect.value, 1);
+});
+
+test('Awards: Rügen schieben niemanden in der Ehrenliste nach oben', () => {
+  const board = { pokemon: [
+    { id: 'A', label: 'A', n: 3, positive: 1, negative: 2, awards: [{ tone: 'positive' }, { tone: 'negative' }, { tone: 'negative' }] },
+    { id: 'B', label: 'B', n: 2, positive: 2, negative: 0, awards: [{ tone: 'positive' }, { tone: 'positive' }] },
+    { id: 'C', label: 'C', n: 1, positive: 0, negative: 1, awards: [{ tone: 'negative' }] },
+  ], team: [], match: [] };
+  assert.deepEqual(awardBoardFor(board).pokemon.map((r) => [r.id, r.count]), [['B', 2], ['A', 1]]);
+  assert.deepEqual(awardBoardFor(board, 'negative').pokemon.map((r) => r.id), ['A', 'C']);
+  assert.equal(awardBoardFor(board, 'all').pokemon[0].id, 'A');
 });
 
 // === Tabelle: was noch möglich ist =========================================
@@ -2178,16 +2218,46 @@ test('Formkurve, Stationen und Rivalitäten', () => {
 
 // --- Gemini: Ausweichen über Modelle und Schlüssel ---------------------------------
 test('Modellkette: gewähltes zuerst, Lite nur auf Wunsch, ohne Ausweichen nur eins', () => {
-  const chain = modelChain('gemini-3.7-flash');
-  assert.equal(chain[0], 'gemini-3.7-flash');
+  const chain = modelChain('gemini-3.6-flash');
+  assert.equal(chain[0], 'gemini-3.6-flash');
   assert.equal(new Set(chain).size, chain.length);
   assert.ok(chain.includes('gemini-3.8-flash') && chain.includes('gemini-3.5-flash-lite'));
-  assert.ok(chain.indexOf('gemini-3.5-flash') < chain.indexOf('gemini-3.5-flash-lite'));
+  assert.ok(chain.indexOf('gemini-3-flash-preview') < chain.indexOf('gemini-3.5-flash-lite'));
+  // Abgeschaltete Modelle aus alten Ständen fallen auf den Standard zurück.
+  assert.equal(modelChain('gemini-3.7-flash')[0], 'gemini-3.8-flash');
+  assert.ok(!FALLBACK_ORDER.some((id) => ['gemini-3.7-flash', 'gemini-3.5-flash'].includes(id)));
+  assert.ok(FALLBACK_ORDER.every((id) => GEMINI_MODELS.some((m) => m.id === id && m.free)));
   assert.ok(!modelChain('gemini-3.8-flash', { lite: false }).some((m) => /lite/.test(m)));
   assert.deepEqual(modelChain('gemini-3.8-flash', { fallback: false }), ['gemini-3.8-flash']);
   assert.deepEqual(normalizeKeys([' a ', { key: 'b' }, 'a', '']), ['a', 'b']);
   assert.notEqual(keyTag('a'), keyTag('b'));
   assert.ok(FALLBACK_ORDER.includes('gemini-3.6-flash'));
+});
+
+test('Schlüssel: Umzug ans Konto führt Geräte zusammen', () => {
+  const account = [{ key: 'AIza1', label: 'Janik' }, { key: 'AQ.2', label: '' }];
+  const device = [{ key: ' AIza1 ', label: 'Handy' }, { key: 'AQ.2', label: 'Laptop' }, { key: 'AIza3', label: 'Janik' }, { key: '', label: 'leer' }];
+  const merged = mergeKeyLists(account, device);
+  assert.deepEqual(merged.map((k) => k.key), ['AIza1', 'AQ.2', 'AIza3']);
+  assert.equal(merged[0].label, 'Janik');       // Name am Konto geht vor
+  assert.equal(merged[1].label, 'Laptop');      // leerer Name wird ergänzt
+  assert.equal(merged[2].label, 'Janik (2)');   // gleicher Name, anderer Schlüssel
+  assert.deepEqual(mergeKeyLists([], ['x', 'x']).map((k) => k.key), ['x']);
+});
+
+test('Termin: hängende Sitzung öffnet als Fehlschlag statt ewig zu warten', () => {
+  const now = Date.UTC(2026, 9, 17, 12, 0, 0);
+  const at = (min) => new Date(now - min * 60000).toISOString();
+  const stuck = { status: 'generating', role: { kind: 'pokemon', name: 'Azumarill' }, questions: [], updatedAt: at(60) };
+  assert.ok(isStaleSession(stuck, now));
+  assert.equal(sessionStagePhase(stuck, { now }), 'error');
+  assert.equal(sessionStagePhase(stuck, { now, busy: true }), 'wait');           // dieses Gerät arbeitet noch
+  assert.equal(sessionStagePhase({ ...stuck, updatedAt: at(2) }, { now }), 'wait'); // anderes Gerät, noch frisch
+  assert.equal(sessionStagePhase({ status: 'writing', updatedAt: at(30) }, { now }), 'error');
+  assert.equal(sessionStagePhase({ status: 'open', questions: [] }, { now }), 'error');
+  assert.equal(sessionStagePhase({ status: 'open', questions: [{ id: 'q1' }] }, { now }), 'ask');
+  assert.equal(sessionStagePhase(null, { now }), 'role');
+  assert.equal(sessionStagePhase({ status: 'generating' }, { now }), 'error');     // ohne Zeitstempel
 });
 
 test('Kontingent: Tages- und Minutenlimit werden unterschieden', () => {
@@ -2773,6 +2843,14 @@ test('Trainermarkt: Personen über Vereine und Saisons, Amt, Bilanz, Pool', () =
   assert.equal(by.perenus.office, null);
   assert.equal(by.perenus.totals.matches, 2);
   assert.ok(by.lauro.inPool && !by.lauro.stints.length && by.lauro.image === 'l.png');
+  // Ergebnis-Historie: neueste oben, je Match drei Kämpfe aus Sicht des Trainers.
+  assert.deepEqual(by.valerie.matches.map((m) => m.id), ['s2-d1-m0', 's1-d3-m0']);
+  assert.equal(by.valerie.matches[1].outcome, 'lost');
+  assert.deepEqual(by.valerie.matches[1].battles.map((b) => b.outcome), ['lost', 'lost', 'lost']);
+  assert.equal(by.valerie.matches[0].own, 3);
+  assert.deepEqual(by.perenus.matches.map((m) => m.id), ['s1-d3-m0', 's1-d1-m0']);
+  assert.equal(by.perenus.matches[1].home, false);
+  assert.equal(by.perenus.matches[1].battles[2].outcome, 'won');
   assert.equal(dir[0].office != null, true);
   assert.equal(trainerKey('Perenus  II'), 'perenus-ii');
   assert.deepEqual(normalizePoolTrainer({ name: ' Lauro ', traits: 'ruhig, klug', gender: 'männlich' }),

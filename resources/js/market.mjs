@@ -430,8 +430,13 @@ export function historyDiff(rows, stopKey, { limit = 5 } = {}) {
   return diffSnapshots(prev, next, { limit });
 }
 
-/** Der Zeitpunkt-Schlüssel eines Spieltags, sofern das Sheet ihn führt. */
-export function stopKeyForDay(rows, day) {
-  const stop = historyStops(rows).find((s) => s.kind === 'md' && s.day === Number(day));
+/**
+ * Der Zeitpunkt-Schlüssel eines Spieltags, sofern das Sheet ihn führt. Mit `season`
+ * nur in dieser Saison — das Sheet führt „S1 MD3" und „S2 MD3" in derselben Zeile.
+ */
+export function stopKeyForDay(rows, day, season = null) {
+  const n = season == null ? null : Number(season);
+  const stop = historyStops(rows).find((s) => s.kind === 'md' && s.day === Number(day)
+    && (n == null || (s.season ?? 1) === n));
   return stop ? stop.key : null;
 }

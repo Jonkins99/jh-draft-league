@@ -23,7 +23,7 @@ import {
 import {
   SEASON_ALL, seasonPrefix, seasonOfId, seasonOfTeam, franchiseSlug, seasonsFrom,
   teamsOfSeason, resultsOfSeason, allTimeTable, seasonSummaries, allTimePlayers,
-  allTimePokemon, buildRecords, awardLeaderboard, newcomersOfSeason,
+  allTimePokemon, buildRecords, RECORD_SCOPES, awardLeaderboard, awardBoardFor, newcomersOfSeason,
   franchiseTeams, franchiseSeasons, franchisePokemon, franchiseResults, franchiseAwards, pokemonOwnerOn,
 } from './seasons.mjs';
 import {
@@ -78,7 +78,7 @@ import {
   collectStorylines, sanitizeHtml, paragraphsToHtml, excerpt, readingMinutes, plainText,
   formatDate, formatDateTime, sortArticles, articleMatchesFilter, storyId, commissionLeague,
   interviewCandidates, pickInterviewGuests, matchLines,
-  isStalePending, needsRewrite, articleViewStatus, hasArticleContent, pickPreview, matchSequence, answerMentionsMeta,
+  isStalePending, isStaleSession, sessionStagePhase, needsRewrite, articleViewStatus, hasArticleContent, pickPreview, matchSequence, answerMentionsMeta,
   seededRandom, hashSeed,
 } from './press.mjs';
 import { buildContext, isReference, nextOpenDay } from './press-context.mjs';
@@ -96,7 +96,7 @@ import {
   pickStances, stanceBrief, STANCE_KEYS, STANCE_BY_KEY, marketRule, scandalPick,
 } from './press-prompts.mjs';
 import {
-  generateJson, testKey, GEMINI_MODELS, DEFAULT_MODEL, modelChain, QuotaBook, keyTag,
+  generateJson, testKey, GEMINI_MODELS, DEFAULT_MODEL, modelChain, QuotaBook, keyTag, mergeKeyLists,
 } from './gemini.mjs';
 import {
   PLAYERS as AUTH_PLAYERS, userId, playerOf, otherPlayer,
@@ -207,7 +207,7 @@ const TB_SPEEDCFG_KEY = 'jhdl-tb-speedcfg-v1';   // { open: bool }  (Kader-/Spee
 
 // Presse: Zugangsdaten der Redaktion liegen bewusst NUR auf dem Gerät. Firestore ist
 // offen lesbar — ein API-Key hätte dort nichts verloren.
-const PRESS_KEY = 'jhdl-press-key-v1';           // { key, keys: [{ key, label }], model, fallback, lite }
+const PRESS_KEY = 'jhdl-press-key-v1';           // { key, keys: [{ key, label }], model, fallback, lite, syncedFor }
 // Welcher Schlüssel ist mit welchem Modell bis wann erschöpft (QuotaBook, gemini.mjs)?
 const PRESS_QUOTA_KEY = 'jhdl-press-quota-v1';
 const PRESS_FILTER_KEY = 'jhdl-press-filter-v1'; // { category, teamId, q }
@@ -261,6 +261,7 @@ const PRESS_PAGE_STEP = 10;
 // Verlauf der Zurück-Leiste je Tab (sessionStorage), damit ein Reload ihn behält.
 const NAV_STACK_KEY = 'jhdl-nav-stack-v1';
 const VEREINE_LIGA_KEY = 'jhdl-vereine-liga-v1'; // { liga: 'l1'|'l2'|'both' }
+const RECORDS_SCOPE_KEY = 'jhdl-records-scope-v1'; // { scope: 'all'|'kampf'|'match'|'saison'|'gesamt' }
 const TABELLE_LIGA_KEY = 'jhdl-tabelle-liga-v1'; // { liga: 'l1'|'l2'|'both' }
 
 const SYNC_PREFIXES = ['jhdl-tb-', 'jhdl-speedtiers-', 'jhdl-weakness-', 'jhdl-matchup-marks-'];
@@ -270,6 +271,8 @@ const SYNC_PREFIXES = ['jhdl-tb-', 'jhdl-speedtiers-', 'jhdl-weakness-', 'jhdl-m
 const DRAFTPLAN_SCOPE = 'draftplan';
 const DRAFTPLAN_LEGACY_KEY = 'jhdl-draftplan-v1';
 const SYNC_SCOPE = 'teambuilder';
+// Gemini-Schlüssel am Konto (verschlüsselt); PRESS_KEY hält nur den Zwischenstand.
+const PRESS_KEYS_SCOPE = 'presskeys';
 const SYNC_AUTO_KEY = 'jhdl-tb-sync-v1'; // { auto: bool }
 
 function isSyncedKey(key) {
@@ -4192,10 +4195,20 @@ function recordsView() {
       { key: 'markt', label: 'Marktwerte', hint: 'Die Extremwerte aus dem Draft-Sheet.' },
       { key: 'liga', label: 'Liga', hint: 'Bestmarken, die der ganzen Liga gehören.' },
     ],
+    // Wofür ein Rekord gilt — Kampf, Match/Spieltag, Saison oder insgesamt. Gerätelokal gemerkt.
+    scope: 'all',
 
     init() {
       this.$store.elo.ensureLoaded();
+      const saved = loadJson(RECORDS_SCOPE_KEY);
+      if (saved?.scope === 'all' || RECORD_SCOPES.some((x) => x.key === saved?.scope)) this.scope = saved.scope;
     },
+    get scopes() { return [{ key: 'all', label: 'Alle' }, ...RECORD_SCOPES]; },
+    setScope(key) {
+      this.scope = key;
+      saveJson(RECORDS_SCOPE_KEY, { scope: key });
+    },
+    scopeLabel(key) { return RECORD_SCOPES.find((x) => x.key === key)?.label || ''; },
 
     get league() { return this.$store.league; },
     get loaded() {
@@ -4210,13 +4223,20 @@ function recordsView() {
         pokedex: l.pokemon,
         eloRows: this.$store.elo.rows || [],
         awardDocs: this.$store.awards?.docs || [],
+        schedules: l.allSchedules || {},
       });
     },
     recordsOf(group) {
-      return this.records.filter((r) => r.group === group);
+      const rank = (r) => RECORD_SCOPES.findIndex((x) => x.key === r.scope);
+      return this.records
+        .filter((r) => r.group === group && (this.scope === 'all' || r.scope === this.scope))
+        .sort((a, b) => rank(a) - rank(b));
     },
     get hasAny() {
       return this.records.length > 0;
+    },
+    get hasInScope() {
+      return this.scope === 'all' || this.records.some((r) => r.scope === this.scope);
     },
 
     // Der Wert eines Rekords: entweder eine fertige Beschriftung oder ein Betrag.
@@ -5559,6 +5579,27 @@ function trainerMarketView() {
       return [...list].sort(by);
     },
     toggle(key) { this.open = this.open === key ? null : key; },
+    // Ergebnis-Historie je Trainer: ausgeklappt zuerst zehn Matches, auf Wunsch alle.
+    openResults: null,
+    allResults: false,
+    toggleResults(key) {
+      this.openResults = this.openResults === key ? null : key;
+      this.allResults = false;
+    },
+    shownMatches(t) { return this.allResults ? t.matches : t.matches.slice(0, 10); },
+    teamOf(id) { return this.league.teams.find((x) => x.id === id) || this.$store.liga2.teamById(id) || null; },
+    outcomeLabel(o) { return o === 'won' ? 'S' : o === 'lost' ? 'N' : 'U'; },
+    outcomeClass(o) {
+      return o === 'won' ? 'bg-emerald-500/15 text-emerald-300 border-emerald-500/40'
+        : o === 'lost' ? 'bg-flame-500/10 text-flame-300 border-flame-500/40'
+          : 'bg-elevated text-mist border-line';
+    },
+    openMatch(m) {
+      // Der Spielplan zeigt eine Saison — für ein altes Match erst dorthin wechseln.
+      const liga = m.league === 2 ? 2 : 1;
+      this.$store.season.set(m.season, { liga });
+      this.$nextTick(() => this.$dispatch('navigate', { key: liga === 2 ? 'l2spielplan' : 'spieltag', matchId: m.id }));
+    },
     goTeam(teamId) {
       if (teamId) this.$dispatch('navigate', { key: 'vereine', teamId });
     },
@@ -5674,7 +5715,11 @@ function franchiseView() {
       return { teams: l.teams, results: l.allResults, schedules: l.allSchedules, availability: l.availability };
     },
     isL2Team(id) { return this.$store.liga2.allTeams.some((t) => t.id === id); },
-    get showMarket() { return this.liga === 'l1'; },
+    // Der heutige Stand eines Vereins (Name, Wappen, Trainer, Kader, Marktwert) hängt NICHT
+    // an der Ligawahl: ein Absteiger lebt in der Zweiten Liga weiter. Die Wahl filtert nur
+    // Tabelle, Bilanzen und Statistik.
+    allClubTeams() { return [...this.league.teams, ...this.$store.liga2.allTeams]; },
+    get showMarket() { return true; },
 
     get league() { return this.$store.league; },
     get loaded() { return this.league.teamsLoaded && this.league.resultsLoaded; },
@@ -5710,18 +5755,17 @@ function franchiseView() {
       return this._tableCache || [];
     },
     latestTeam(slug) {
-      const chain = franchiseTeams(this.src().teams, slug);
+      const chain = franchiseTeams(this.allClubTeams(), slug);
       return chain[chain.length - 1] || null;
     },
     trainerNow(slug) {
       return currentTrainer(this.latestTeam(slug)?.trainers || []);
     },
     trainerCount(slug) {
-      const chain = franchiseTeams(this.src().teams, slug);
+      const chain = franchiseTeams(this.allClubTeams(), slug);
       return new Set(chain.flatMap((t) => (t.trainers || []).map((x) => x.name))).size;
     },
     marketNow(slug) {
-      if (!this.showMarket) return 0;
       return squadMarketValue(this.latestTeam(slug)?.pokemon || [], this.$store.elo.index());
     },
     get rows() {
@@ -5795,7 +5839,7 @@ function franchiseView() {
     },
 
     // --- Detail --------------------------------------------------------------
-    get chain() { return this.slug ? franchiseTeams(this.src().teams, this.slug) : []; },
+    get chain() { return this.slug ? franchiseTeams(this.allClubTeams(), this.slug) : []; },
     get team() { return this.chain[this.chain.length - 1] || null; },
     get row() { return this.rows.find((r) => r.slug === this.slug) || null; },
     get color() { return this.team ? teamColor(this.team) : '#e3350d'; },
@@ -5968,10 +6012,13 @@ function franchiseView() {
       const index = eloIndex(rows);
       const stops = historyStops(rows);
       const l = this.league;
-      return franchiseSquadHistory(franchiseTeams(l.teams, slug), index, stops, (team) => {
+      const l2 = this.$store.liga2;
+      // Über beide Ligen: jede Saison mit dem Kader, Transfer und Spielplan ihrer Liga.
+      return franchiseSquadHistory(franchiseTeams(this.allClubTeams(), slug), index, stops, (team) => {
         const season = seasonOfTeam(team);
-        const days = (l.scheduleOf(season).matchdays || []).filter((md) => md.leg === 'hin').map((md) => md.day);
-        return { transfer: l.transferOf(season), afterDay: days.length ? Math.max(...days) : null };
+        const lg = this.isL2Team(team.id) ? l2 : l;
+        const days = ((lg.scheduleOf(season) || {}).matchdays || []).filter((md) => md.leg === 'hin').map((md) => md.day);
+        return { transfer: lg.transferOf(season), afterDay: days.length ? Math.max(...days) : null };
       });
     },
     _chartConfig(onlySlug) {
@@ -6434,8 +6481,13 @@ function awardsView() {
     fmtScore(v) {
       return (Math.round((Number(v) || 0) * 10) / 10).toFixed(1).replace('.', ',');
     },
+    // Lesart der Bestenlisten: nur Ehrungen (Standard), nur Rügen oder beides.
+    boardTone: 'positive',
+    get boardTones() {
+      return [{ v: 'positive', l: 'Ehrungen' }, { v: 'negative', l: 'Rügen' }, { v: 'all', l: 'Alle' }];
+    },
     get awardBoard() {
-      return awardLeaderboard(this.store.docs, this.league.pokemon, this.league.teams);
+      return awardBoardFor(awardLeaderboard(this.store.docs, this.league.pokemonAll || this.league.pokemon, this.league.teams), this.boardTone);
     },
     // Alle abgeschlossenen Abstimmungen, nach Saison gruppiert und darin nach
     // Spieltag sortiert. Der Sieger steht nicht im Dokument — er wird gerechnet.
@@ -7120,7 +7172,7 @@ function presseView() {
       ['fCat', 'fTeam', 'q'].forEach((key) => this.$watch(key, () => { this.shown = PRESS_PAGE_FIRST; }));
       this.speakInit();
     },
-    destroy() { this.speakDestroy(); },
+    destroy() { this.speakDestroy(); clearInterval(this._stageTimer); },
 
     get press() { return this.$store.press; },
     get league() { return this.$store.league; },
@@ -7716,8 +7768,11 @@ function presseView() {
     // regulären Terminen, hängen aber an keinem Spieltagsplan.
     talkRows(teamId) {
       const season = this.league.season;
+      // In einer abgeschlossenen Saison bleiben nur gesendete Ausgaben stehen.
+      const closed = this.press.isClosedSeasonId(`${this.league.prefix}-talk`);
       return (this.press.sessions || [])
         .filter((x) => x.type === 'talk' && x.teamId === teamId && seasonOfId(x.id) === season)
+        .filter((x) => !closed || x.status === 'done')
         .map((x) => ({ id: x.id, day: x.day, teamId, slot: 'talk', type: 'talk', open: true, session: x }))
         .sort((a, b) => (b.day || 0) - (a.day || 0));
     },
@@ -7803,7 +7858,9 @@ function presseView() {
       }
       this.stage = {
         slot: row,
-        phase: session?.status === 'open' ? 'ask' : session?.status === 'error' ? 'error' : 'role',
+        // Hängt die Sitzung (Gerät mittendrin geschlossen), öffnet der Termin beim
+        // Fehlschlag mit „Erneut versuchen" statt im ewigen Wartezustand.
+        phase: sessionStagePhase(session, { busy: !!this.press.busy[row.id] }),
         index: 0,
         answers: [],
         custom: '',
@@ -7812,13 +7869,48 @@ function presseView() {
         // Beim Öffnen einmal festgelegt, damit neue Daten die Auswahl nicht unter den Fingern tauschen.
         guests: row.type === 'pk' ? null : this.interviewGuests(row),
       };
-      if (session?.status === 'generating' || session?.status === 'writing') this.stage.phase = 'wait';
+      clearInterval(this._stageTimer);
+      this._stageTimer = setInterval(() => this.syncStage(), 20000);
       this.$nextTick(() => document.getElementById('press-stage')?.showPopover());
     },
     closeStage() {
       const el = document.getElementById('press-stage');
       if (el && el.matches(':popover-open')) el.hidePopover();
+      clearInterval(this._stageTimer);
       this.stage = null;
+    },
+    // Wartet die Bühne auf etwas, das gerade NICHT dieses Gerät erledigt (anderes Gerät,
+    // abgebrochene Sitzung), folgt sie dem Stand der Sitzung — per x-effect bei jeder
+    // Änderung und per Takt, damit auch das Ablaufen der Frist ankommt.
+    syncStage() {
+      const st = this.stage;
+      if (!st || st.slot?.slot === 'talk' || !['wait', 'writing', 'error'].includes(st.phase)) return;
+      if (this.press.busy[st.slot.id]) return;
+      const s = this.press.sessionById(st.slot.id);
+      const next = sessionStagePhase(s);
+      if (next === st.phase || next === 'role') return;
+      // Aus dem Fehlschlag heraus nur, wenn der Termin inzwischen wirklich weitergeht.
+      if (st.phase === 'error' && !['ask', 'done'].includes(next)) return;
+      if (next === 'ask') {
+        if (st.phase === 'writing') return;
+        st.index = 0;
+        st.answers = [];
+      }
+      if (next === 'done') st.articleId = s?.articleId || st.articleId;
+      st.phase = next;
+    },
+    get stageStale() {
+      return isStaleSession(this.session) && !this.press.busy[this.stage?.slot?.id];
+    },
+    get stageErrorText() {
+      const s = this.session;
+      if (this.stageStale) {
+        return s?.status === 'writing'
+          ? 'Der Beitrag wurde nie fertig – das schreibende Gerät ist mittendrin verstummt. Die Antworten sind gespeichert.'
+          : 'Die Fragen sind nie angekommen – das Gerät, das sie geholt hat, ist mittendrin verstummt.';
+      }
+      if (s?.status === 'open' && !(s.questions || []).length) return 'Der Termin hat keine Fragen bekommen.';
+      return s?.error || this.press.lastError || 'Die Redaktion war nicht erreichbar.';
     },
     get session() {
       return this.stage ? this.press.sessionById(this.stage.slot.id) : null;
@@ -7904,7 +7996,7 @@ function presseView() {
       if (!this.stage) return;
       this.stage.phase = 'wait';
       const { kind, name, image, traits } = role;
-      const id = await this.press.startSession(this.stage.slot, { kind, name, image: image || '', traits: traits || [] });
+      const id = await this.press.startSession(this.stage.slot, { kind, name, image: image || '', traits: (traits || []).filter((t) => typeof t === 'string' && t) });
       if (!this.stage) return;
       this.stage.phase = id ? 'ask' : 'error';
       this.stage.index = 0;
@@ -8017,10 +8109,10 @@ function presseView() {
       const out = await this.press.retrySession(id, model);
       if (!this.stage) return;
       const s = this.press.sessionById(id);
-      if (s?.status === 'done') {
+      if (s?.status === 'done' || (hasAnswers && out)) {
         this.stage.articleId = out || s.articleId;
         this.stage.phase = 'done';
-      } else if (s?.status === 'open') {
+      } else if (s?.status === 'open' || (!hasAnswers && out)) {
         this.stage.phase = 'ask';
         this.stage.index = 0;
         this.stage.answers = [];
@@ -8063,11 +8155,14 @@ function presseView() {
       if (el && el.matches(':popover-open')) el.hidePopover();
       this.settings = null;
     },
-    saveAccess() {
+    async saveAccess() {
       const s = this.settings;
-      this.press.saveAccess({ keys: s.keys, model: s.model, fallback: s.fallback, lite: s.lite });
-      s.testOk = true;
-      s.testMsg = `Gespeichert — ${this.press.keys.length} Schlüssel.`;
+      const synced = await this.press.saveAccess({ keys: s.keys, model: s.model, fallback: s.fallback, lite: s.lite });
+      const onAccount = !!this.$store.auth.isLoggedIn;
+      s.testOk = synced;
+      s.testMsg = !synced
+        ? `Auf diesem Gerät gespeichert — am Konto hat es nicht geklappt. Bitte erneut speichern.`
+        : `Gespeichert — ${this.press.keys.length} Schlüssel${onAccount ? ' am Konto' : ' auf diesem Gerät'}.`;
     },
     addKeyRow() {
       if (this.settings.keys.length >= 6) return;
@@ -8459,15 +8554,18 @@ Alpine.store('season', {
     if (scope === SEASON_ALL) return '∞';
     return liga === 2 ? `${scope}·2` : `S${scope}`;
   },
-  // Die Einträge des Umschalters: je Saison die erste Liga und darunter die Zweite,
-  // dann der übergreifende Bereich.
+  // Die Einträge des Umschalters: oben die jüngste Saison (erste Liga, darunter die
+  // Zweite), dann der übergreifende Bereich, danach die vergangenen Saisons absteigend.
   get options() {
+    const pair = (v) => [
+      { value: v, liga: 1, key: `${v}-1`, label: this.labelOf(v, 1) },
+      { value: v, liga: 2, key: `${v}-2`, label: this.labelOf(v, 2) },
+    ];
+    const [latest, ...older] = [...this.list].sort((a, b) => b - a);
     return [
-      ...this.list.flatMap((v) => [
-        { value: v, liga: 1, key: `${v}-1`, label: this.labelOf(v, 1) },
-        { value: v, liga: 2, key: `${v}-2`, label: this.labelOf(v, 2) },
-      ]),
+      ...(latest != null ? pair(latest) : []),
       { value: SEASON_ALL, liga: 1, key: 'all', label: this.labelOf(SEASON_ALL) },
+      ...older.flatMap(pair),
     ];
   },
   isActive(scope, liga = 1) {
@@ -9735,6 +9833,53 @@ Alpine.store('press', {
     Alpine.effect(() => this._watchPodcast());
     Alpine.effect(() => this._watchStale());
     Alpine.effect(() => this._watchLiga2());
+    Alpine.effect(() => this._watchAccountKeys());
+  },
+
+  // === Schlüssel am Konto ====================================================
+  // Die Schlüssel liegen verschlüsselt unter private/<user>-presskeys. Ein Gerät, das
+  // noch nie mit dem Konto abgeglichen hat (`syncedFor` fehlt), bringt seine bisherigen
+  // Schlüssel einmalig mit ein — so landet jeder Schlüssel jedes Geräts am Konto, auch
+  // wenn er auf zwei Geräten verschieden benannt war (mergeKeyLists). Danach ist das
+  // Konto die Quelle: ein woanders gelöschter Schlüssel kommt nicht zurück.
+  _keysFor: null,
+  _watchAccountKeys() {
+    const auth = Alpine.store('auth');
+    const player = auth?.player || null;
+    const ready = !!(player && auth.dataKey);
+    if (ready && this._keysFor !== player) {
+      this._keysFor = player;
+      this._pullAccountKeys(player);
+    } else if (!player && this._keysFor) {
+      // Abgemeldet: die Schlüssel des Kontos bleiben nicht auf dem Gerät liegen.
+      this._keysFor = null;
+      this.keys = [];
+      this._persistAccess(null);
+    }
+  },
+  async _pullAccountKeys(player) {
+    const auth = Alpine.store('auth');
+    const data = await auth.loadPrivate(PRESS_KEYS_SCOPE, null, { fresh: true });
+    // Nicht lesbar (Netz, anderes Passwort): lieber den Gerätestand behalten, als ihn zu verlieren.
+    if (auth._private[PRESS_KEYS_SCOPE]?.error || auth.player !== player) return;
+    const remote = mergeKeyLists(data?.keys || []);
+    const saved = loadJson(PRESS_KEY);
+    const migrate = !saved.syncedFor && this.keys.length > 0;
+    const next = migrate ? mergeKeyLists(remote, this.keys) : remote;
+    if (migrate && next.length !== remote.length) {
+      try {
+        await auth.savePrivate(PRESS_KEYS_SCOPE, { keys: next, updatedAt: new Date().toISOString() });
+      } catch (e) {
+        console.error('Schlüssel konnten nicht ans Konto übertragen werden:', e);
+        return;
+      }
+    }
+    if (auth.player !== player) return;
+    this.keys = next;
+    this._persistAccess(player);
+  },
+  _persistAccess(syncedFor = loadJson(PRESS_KEY).syncedFor || null) {
+    saveJson(PRESS_KEY, { key: this.apiKey, keys: this.keys, model: this.model, fallback: this.fallback, lite: this.lite, syncedFor });
   },
 
   // Beitragsleichen heilen: ein Platzhalter, dessen Gerät mittendrin geschlossen wurde,
@@ -9742,7 +9887,8 @@ Alpine.store('press', {
   _watchStale() {
     if (!this.automationLive) return;
     if (!this.articlesLoaded || !this.sessionsLoaded || !this.hasKey) return;
-    const stale = (this.articles || []).filter((a) => isStalePending(a) && !pressTriedStale.has(a.id) && this.canRetry(a));
+    const stale = (this.articles || []).filter((a) => isStalePending(a) && !this.isClosedSeasonId(a.id)
+      && !pressTriedStale.has(a.id) && this.canRetry(a));
     if (!stale.length) return;
     stale.forEach((a) => pressTriedStale.add(a.id));
     this._later(async () => {
@@ -9760,6 +9906,12 @@ Alpine.store('press', {
   },
   get automationLive() {
     return Alpine.store('league').season === this.liveSeason;
+  },
+  // Gehört ein Beitrag oder Termin zu einer vergangenen Saison? Die ist abgeschlossen:
+  // dort entsteht nichts mehr von selbst, und keine Sendung läuft dort weiter.
+  isClosedSeasonId(id) {
+    const s = seasonOfId(id);
+    return Number.isFinite(s) && s < this.liveSeason;
   },
   _later(fn, ms) {
     const season = Alpine.store('league').season;
@@ -9784,7 +9936,18 @@ Alpine.store('press', {
     this.model = model || DEFAULT_MODEL;
     this.fallback = fallback !== false;
     this.lite = lite !== false;
-    saveJson(PRESS_KEY, { key: this.apiKey, keys: this.keys, model: this.model, fallback: this.fallback, lite: this.lite });
+    const auth = Alpine.store('auth');
+    if (!(auth?.player && auth.dataKey)) {
+      this._persistAccess();
+      return Promise.resolve(true);
+    }
+    this._persistAccess(auth.player);
+    return auth.savePrivate(PRESS_KEYS_SCOPE, { keys: this.keys, updatedAt: new Date().toISOString() })
+      .then(() => true)
+      .catch((e) => {
+        console.error('Schlüssel konnten nicht am Konto gespeichert werden:', e);
+        return false;
+      });
   },
   // Die Modelle, die ein Auftrag nacheinander probiert — das gewünschte zuerst.
   modelChainFor(model = null) {
@@ -10149,6 +10312,7 @@ Alpine.store('press', {
   async generateLanz(day, { force = false, model = null, edition = 1 } = {}) {
     if (!this.hasKey || day == null) return null;
     const id = this.lanzIdFor(day, edition);
+    if (this.isClosedSeasonId(id)) return null;
     if (this.busy[id]) return null;
     const existing = this.byId(id);
     if (!force && !needsRewrite(existing)) return null;
@@ -10240,7 +10404,7 @@ Alpine.store('press', {
   // Der nächste Abschnitt der interaktiven Talkshow: bis zur nächsten Frage an den Trainer.
   async lanzNextPart(sessionId, { model = null } = {}) {
     const s = this.sessionById(sessionId);
-    if (!s || !this.hasKey || this.busy[sessionId]) return null;
+    if (!s || !this.hasKey || this.busy[sessionId] || this.isClosedSeasonId(sessionId)) return null;
     const ref = doc(db, 'pressSessions', sessionId);
     const trainer = (s.guests || []).find((g) => g.kind === 'trainer');
     const press = (s.guests || []).find((g) => g.kind === 'press');
@@ -10297,7 +10461,7 @@ Alpine.store('press', {
   async lanzAnswer(sessionId, text) {
     const s = this.sessionById(sessionId);
     const answer = String(text || '').trim();
-    if (!s || s.status !== 'open' || answer.length < 2) return null;
+    if (!s || s.status !== 'open' || answer.length < 2 || this.isClosedSeasonId(sessionId)) return null;
     const trainer = (s.guests || []).find((g) => g.kind === 'trainer');
     const given = (s.answersGiven || 0) + 1;
     await setDoc(doc(db, 'pressSessions', sessionId), {
@@ -10315,7 +10479,7 @@ Alpine.store('press', {
   // Schluss der interaktiven Talkshow: letzte Reaktionen, Abmoderation, Beitrag.
   async lanzFinish(sessionId, { model = null } = {}) {
     const s = this.sessionById(sessionId);
-    if (!s || !this.hasKey || this.busy[sessionId]) return null;
+    if (!s || !this.hasKey || this.busy[sessionId] || this.isClosedSeasonId(sessionId)) return null;
     const ref = doc(db, 'pressSessions', sessionId);
     const trainer = (s.guests || []).find((g) => g.kind === 'trainer');
     const press = (s.guests || []).find((g) => g.kind === 'press');
@@ -10367,7 +10531,7 @@ Alpine.store('press', {
   // Eine hängen gebliebene Talkshow dort fortsetzen, wo sie stand.
   async retryLanzSession(sessionId, model = null) {
     const s = this.sessionById(sessionId);
-    if (!s) return null;
+    if (!s || this.isClosedSeasonId(sessionId)) return null;
     if ((s.answersGiven || 0) >= (s.answersTarget || 3)) return this.lanzFinish(sessionId, { model });
     if (s.pendingQuestion && s.status !== 'error') return sessionId;
     if (s.pendingQuestion) {
@@ -10743,12 +10907,13 @@ Alpine.store('press', {
         const matches = md.matches || [];
         if (!matches.length) return false;
         return matches.every((_, i) => {
-          const r = (l.results || []).find((x) => x.id === matchDocId(md.day, i));
+          // Mit Saison: ohne sie suchte der Abgleich ab Saison 2 nach „s1-d…" und fand nie etwas.
+          const r = (l.results || []).find((x) => x.id === matchDocId(md.day, i, l.season));
           return r && ok(r);
         });
       })
       .map((md) => md.day)
-      .filter((day) => !!stopKeyForDay(rows, day));
+      .filter((day) => !!stopKeyForDay(rows, day, l.season));
   },
   get missingMarketUpdates() {
     return this.marketDaysReady({ released: false })
@@ -11159,7 +11324,10 @@ Alpine.store('press', {
       case 'offseason': return this.generateOffseasonArticle(src.index, opts);
       case 'commission': return this.generateCommissioned(id, opts);
       case 'newcomers': return this.generateNewcomers(src.season, opts);
-      case 'lanz': return src.sessionId && this.sessionById(src.sessionId)
+      // Sendungen einer abgeschlossenen Saison laufen nicht weiter — und ohne eigene
+      // Saison im Erzeuger landete ein Neuanlauf sonst in der aktiven.
+      case 'lanz': if (this.isClosedSeasonId(id)) return null;
+        return src.sessionId && this.sessionById(src.sessionId)
         ? this.retryLanzSession(src.sessionId, model)
         : this.generateLanz(src.day, { ...opts, edition: src.edition || 1 });
       case 'zweiblatt': return this.generatePodcast(src.day, opts);
@@ -11355,7 +11523,8 @@ Alpine.store('press', {
     } catch (e) {
       console.error('Fragen konnten nicht erzeugt werden:', e);
       this.lastError = e?.message || 'Unbekannter Fehler';
-      await setDoc(ref, { status: 'error', error: this.lastError, errorModel: this._modelOf(model), updatedAt: new Date().toISOString() }, { merge: true });
+      await setDoc(ref, { status: 'error', error: this.lastError, errorModel: this._modelOf(model), updatedAt: new Date().toISOString() }, { merge: true })
+        .catch((err) => console.error('Termin-Status nicht gespeichert:', err));
       return null;
     } finally {
       const next = { ...this.busy };
@@ -11973,7 +12142,7 @@ Alpine.store('notify', {
     const mineIds = new Set(mine.map((t) => t.id));
     // Eine Talkshow wartet auf den Trainer, solange eine Frage offen ist.
     const talks = sessions.filter((x) => x.type === 'talk' && mineIds.has(x.teamId) && seasonOfId(x.id) === l.season
-      && ['open', 'error'].includes(x.status)).length;
+      && !press.isClosedSeasonId(x.id) && ['open', 'error'].includes(x.status)).length;
     return talks + mine.reduce((sum, t) => sum
       + pressSlots(t.id, l.schedule, l.results, sessions, bonusDone)
         .filter((row) => row.open && !['done', 'writing'].includes(byId[row.id]?.status)).length, 0);
