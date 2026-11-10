@@ -836,7 +836,21 @@ Spielbericht. Ist keines hinterlegt, setzt du den Baustein NICHT.
 Die Klammer steht als reiner Text im Absatz: kein <strong>, kein <em>, kein Link darin, keine
 zweite Klammer im selben Absatz und kein Doppelpunkt hinter dem schliessenden Klammerende.`;
 
-export function buildSystem({ author, extra = '' } = {}) {
+// In der Zweiten Liga gelten andere Bausteine: Kacheln, die mit Daten der ersten Liga
+// rechnen, passen nicht zum Text (renderTiles verwirft sie dort ohnehin, LIGA2_TILE_KINDS).
+export const LIGA2_TILE_RULES = `BAUSTEINE IN DER ZWEITEN LIGA:
+Dieser Beitrag gehört zur ZWEITEN LIGA. Kacheln mit Daten der ersten Liga sind hier verboten und
+werden nicht angezeigt: keine [statistik: …], [vergleich: …], [rangliste: …], [kampf: …], [video: …]
+oder [vorschau: …]. Erlaubt sind ausschließlich, jeweils allein in ihrem Absatz und nur mit Team-Ids
+und Match-Ids der ZWEITEN Liga aus den Metadaten:
+- [team: <Team-Id>]     -> Vereinslogo und Name
+- [ergebnis: <Match-Id>] -> Ergebniskachel einer Zweitliga-Partie
+- [form: <Team-Id>]     -> die letzten Spiele und der Tabellenverlauf in der Zweiten Liga
+- [kader: <Team-Id>]    -> der Zweitliga-Kader mit Tiers
+- [tabelle2: <Saison>]  -> die Tabelle der Zweiten Liga (nur, wenn der Auftrag nicht schon eine setzt)
+Im Zweifel setzt du KEINEN Baustein.`;
+
+export function buildSystem({ author, extra = '', liga = 1 } = {}) {
   const voice = author
     ? `DEINE IDENTITÄT:\nDu bist ${author.name}, ${author.role} bei ${author.outlet}.\nSchreibweise: ${author.voice}\nRessort: ${author.beat}\nSchreibe erkennbar als diese Person — eine andere Handschrift wäre ein Fehler.`
     : '';
@@ -865,7 +879,7 @@ export function buildSystem({ author, extra = '' } = {}) {
       + 'das verbrauchteste. Such zuerst anderswo: Charaktere und ihre Eigenheiten, Rivalitäten, Taktik und Typen, '
       + 'Initiative, Serien, Kurioses, das Umfeld, Trainer und Vorstände. Kleine Skandale gibt es nur, wenn die '
       + 'Regie sie anbietet.',
-    TILE_RULES,
+    liga === 2 ? LIGA2_TILE_RULES : TILE_RULES,
     extra,
     'Antworte ausschließlich mit dem geforderten JSON-Objekt.',
   ].filter(Boolean).join('\n\n');

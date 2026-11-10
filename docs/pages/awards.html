@@ -132,7 +132,7 @@
               <template x-for="r in g.rows" :key="'arcr-'+r.id">
                 <div class="flex min-w-0 items-center gap-3 rounded-xl border border-line bg-elevated/40 p-2.5">
                   <img x-show="r.image" :src="r.image" :alt="r.winner" loading="lazy" class="size-10 shrink-0 object-contain" />
-                  <img x-show="!r.image && r.entity === 'team'" :src="logoUrl(teamById(r.winner)?.logo)" alt="" loading="lazy" class="size-10 shrink-0 rounded-lg object-contain" />
+                  <img x-show="!r.image && r.logo" :src="r.logo || null" alt="" loading="lazy" class="size-10 shrink-0 rounded-lg object-contain" />
                   <span class="min-w-0 flex-1">
                     <span class="block truncate text-[11px] font-semibold uppercase tracking-wider text-flame-400" x-text="r.day ? `${r.award} · Spieltag ${r.day}` : r.award"></span>
                     <span class="block truncate font-semibold text-ink" x-text="r.winner" :title="r.winner"></span>

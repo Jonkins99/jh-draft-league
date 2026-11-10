@@ -45,6 +45,16 @@ export const TILE_KINDS = [
   'marktwertduell', 'vergleich', 'kampf', 'artikel', 'form', 'kader', 'rangliste', 'vorschau', 'tabelle2',
 ];
 
+// Was ein Beitrag der ZWEITEN LIGA zeigen darf. Er rechnet mit den Daten der Zweiten
+// Liga (renderTiles bekommt deren Teams, Ergebnisse und Spielpläne); alles, was dort
+// keinen Sinn ergibt — Kill-Statistiken (die Zweite Liga kennt nur namenlose Kills),
+// Ranglisten, Kampfprotokolle, Videos, Vorschauen —, fällt weg statt Erstliga-Daten
+// neben einen Zweitliga-Text zu stellen.
+export const LIGA2_TILE_KINDS = [
+  'marktwert', 'verlauf', 'marktwertduell', 'team', 'trainer', 'ergebnis', 'tabelle', 'tabelle2',
+  'bild', 'artikel', 'kader', 'form', 'rivalität', 'rivalitaet',
+];
+
 const TILE_RE = new RegExp(`^\\s*\\[\\s*(${TILE_KINDS.join('|')})\\s*:\\s*([^\\]]+?)\\s*\\]\\s*$`, 'i');
 
 /**
@@ -723,7 +733,7 @@ function formTile(key, { teams, seasonTeams, results, season, logoBase }) {
 // --- 6. Der Kader eines Vereins ----------------------------------------------
 const TIER_RANK = { S: 0, A: 1, B: 2, C: 3, D: 4 };
 
-function squadTile(key, { teams, seasonTeams, results, pokedex, availability, eloIndex, logoBase, squadValue }) {
+function squadTile(key, { teams, seasonTeams, results, pokedex, availability, eloIndex, logoBase, squadValue, liga }) {
   const team = findTeam(key, { teams, seasonTeams });
   if (!team || !(team.pokemon || []).length) return null;
   const stats = pokemonStats([team], resultsOfSeason(results, seasonOf(team.id)), pokedex, { scopeTeamId: team.id, availability });
@@ -737,7 +747,7 @@ function squadTile(key, { teams, seasonTeams, results, pokedex, availability, el
       ${monImg(mon)}
       <span class="press-squad-tier is-${esc(String(p.tier || '').toLowerCase())}">${esc(p.tier || '?')}</span>
       <span class="press-squad-name">${esc(p.name)}</span>
-      <span class="press-squad-meta">${st.kills || 0} K · ${st.battles || 0} Kä${row ? ` · ${esc(formatMarket(marketValue(row.elo)))}` : ''}</span>
+      <span class="press-squad-meta">${liga === 2 ? '' : `${st.kills || 0} K · `}${st.battles || 0} Kä${row ? ` · ${esc(formatMarket(marketValue(row.elo)))}` : ''}</span>
     </span>`;
   }).join('');
   const value = typeof squadValue === 'function' ? squadValue(team) : null;
@@ -917,6 +927,7 @@ export function tileHtml(tile, src = {}) {
   if (!tile) return null;
   const build = BUILDERS[tile.kind];
   if (!build) return null;
+  if (Array.isArray(src.allowedKinds) && !src.allowedKinds.includes(tile.kind)) return null;
   try {
     return build(tile.key, { logoBase: './img/teams/', ...src }) || null;
   } catch {

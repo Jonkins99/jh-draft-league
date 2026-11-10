@@ -49,7 +49,7 @@ import {
 } from './liga2.mjs';
 import { createLiga2Store } from './liga2-store.mjs';
 import { l2StandingsView, l2ScheduleView, l2TeamsView, l2StatsView } from './liga2-views.mjs';
-import { renderTiles, TILE_MENU, normKey, imageUrlsIn, withImageTiles } from './press-tiles.mjs';
+import { renderTiles, TILE_MENU, normKey, imageUrlsIn, withImageTiles, LIGA2_TILE_KINDS } from './press-tiles.mjs';
 import { renderMarketChart } from './marketchart.mjs';
 import { runMarketShow } from './marketshow.mjs';
 import { runCeremony } from './ceremony.mjs';
@@ -72,6 +72,7 @@ import {
 import {
   PRESS_CATEGORIES, PRESS_AUTHORS, AI_CATEGORY, authorById, categoryLabel, categoryColor,
   manualCategories, categoriesOf, normalizeCategories,
+  setCustomCategories, normalizeCustomCategories, CUSTOM_CATEGORY_PALETTE,
   randomAuthor, randomAuthors, pressSlots, slotLabel, typeLabel, isMatchComplete, isPressReleased, matchDocId,
   bonusRoundComplete, bonusRoundProgress, bonusSlotsFor, bonusRoundDay, pressFromDay,
   outlookSlotFor, outlookSessionId, outlookProgress, seasonComplete, OUTLOOK_QUESTIONS,
@@ -87,7 +88,7 @@ import { trainerDirectory, normalizePoolTrainer, trainerKey } from './trainer-ma
 import {
   SHOWS, CAVALANZAS, showOf, showByline, lanzTriggerGames, lanzId, previousLanz, lanzHadTrainer, lanzAnswerTarget, lanzLineup,
   podcastReadyDays, showParagraphs, transcriptText, cleanTurns, turnsFromBody, variationNote,
-  LANZ_BRIEF, ZWEIBLATT_BRIEF, SHOW_SCHEMA, SHOW_PART_SCHEMA, PODCAST_SCHEMA, podcastRawTurns, podcastMissing,
+  LANZ_BRIEF, ZWEIBLATT_BRIEF, chelastStoryNote, SHOW_SCHEMA, SHOW_PART_SCHEMA, PODCAST_SCHEMA, podcastRawTurns, podcastMissing,
 } from './press-shows.mjs';
 import {
   DEFAULT_PROMPTS, PROMPT_DEFS, buildSystem, buildUserPrompt, buildDirection,
@@ -1306,6 +1307,7 @@ function app() {
       if (key === 'l2spielplan') return this.l2Pending.length > 0;
       if (key === 'presse') return this.$store.notify.pressAwaiting() > 0;
       if (key === 'awards') return this.$store.notify.awardsAwaiting() > 0;
+      if (key === 'stats') return this.$store.press.marketUnseenFor(this.$store.auth.player).length > 0;
       return false;
     },
 
@@ -2483,12 +2485,16 @@ function teamsView() {
         .filter((d) => d != null);
       return days.length ? Math.max(...days) : null;
     },
+    // Ernennen, Entlassen und die Stammdaten eines Trainers bleiben Sache des Teambesitzers.
+    // Die Persönlichkeit dürfen beide Angemeldeten pflegen — wie den Charakter der Pokémon.
+    get canEditTrainerTraits() { return !!this.$store.auth?.player; },
     openTrainerForm(trainer = null) {
-      if (!this.ownsSelected) return;
+      const traitsOnly = !this.ownsSelected;
+      if (traitsOnly && (!trainer || !this.canEditTrainerTraits)) return;
       const suggested = nextFromDay(this.trainers, this.latestPlayedDay);
       this.trainerForm = trainer
-        ? { id: trainer.id, name: trainer.name, image: trainer.image, gender: trainer.gender, traits: (trainer.traits || []).join(', '), fromDay: trainer.fromDay, untilDay: trainer.untilDay }
-        : { id: null, name: '', image: '', gender: 'd', traits: '', fromDay: suggested, untilDay: null };
+        ? { id: trainer.id, name: trainer.name, image: trainer.image, gender: trainer.gender, traits: (trainer.traits || []).join(', '), fromDay: trainer.fromDay, untilDay: trainer.untilDay, traitsOnly }
+        : { id: null, name: '', image: '', gender: 'd', traits: '', fromDay: suggested, untilDay: null, traitsOnly: false };
       this.$nextTick(() => document.getElementById('trainer-form')?.showPopover());
     },
     closeTrainerForm() {
@@ -2517,10 +2523,19 @@ function teamsView() {
       return (this.trainerForm?.traits || '').split(',').map((t) => t.trim()).filter(Boolean);
     },
     async saveTrainer() {
-      if (!this.trainerFormValid || this.trainerBusy || !this.selectedId || !this.ownsSelected) return;
+      if (!this.trainerFormValid || this.trainerBusy || !this.selectedId) return;
+      const traitsOnly = !this.ownsSelected;
+      if (traitsOnly && (!this.trainerForm.id || !this.canEditTrainerTraits)) return;
       this.trainerBusy = true;
       try {
-        const payload = { ...this.trainerForm };
+        let payload = { ...this.trainerForm };
+        delete payload.traitsOnly;
+        // Ohne Besitz geht nur die Persönlichkeit durch — alles andere kommt aus dem Bestand.
+        if (traitsOnly) {
+          const stored = (this.selectedTeam?.trainers || []).find((t) => t?.id === payload.id);
+          if (!stored) throw new Error('Trainer nicht gefunden');
+          payload = { ...stored, traits: payload.traits };
+        }
         if (payload.id) await this.league.updateTrainer(this.selectedId, payload);
         else await this.league.appointTrainer(this.selectedId, payload);
         window.dispatchEvent(new CustomEvent('toast', { detail: { msg: payload.id ? 'Trainer aktualisiert.' : `${payload.name} ernannt.` } }));
@@ -3541,6 +3556,10 @@ function statsView() {
       saveJson('jhdl-stats-tab-v1', { tab: t });
       if (t === 'elo') this.$store.elo.ensureLoaded();
     },
+    get marketUnseenDays() {
+      if (this.isAll) return [];
+      return this.$store.press.marketUnseenFor(this.$store.auth?.player);
+    },
 
     get league() {
       return this.$store.league;
@@ -3651,6 +3670,13 @@ function statsView() {
       const diff = this.$store.elo.lastDiff;
       const pop = document.getElementById('market-show');
       if (!pop) return;
+      // Angesehen ist angesehen: Der Presse-Beitrag zum Spieltag wartet darauf, dass
+      // beide Spieler das Update nach der Freigabe gesehen haben.
+      const player = this.$store.auth?.player;
+      if (player) {
+        const days = this.$store.press.marketDaysReady();
+        this.league.markMarketSeen(player, this.league.season, days).catch((e) => console.error('Marktwert-Update als gesehen markieren fehlgeschlagen:', e));
+      }
       this._show?.stop?.();
       pop.showPopover();
       this._show = runMarketShow(pop, {
@@ -6358,10 +6384,11 @@ function transferView() {
     },
     get orderTeams() { return this.order.map((id) => this.teamById(id)).filter(Boolean); },
 
-    // Alle aktuell gerosterten Namen (für Pool-Ausschluss).
+    // Gerosterte Namen der AKTIVEN Saison (für Pool-Ausschluss). Die Kader einer
+    // Vorsaison sind aufgelöst und sperren nichts — siehe draftedNames im Draft.
     get rosteredNames() {
       const s = new Set();
-      this.league.teams.forEach((t) => (t.pokemon || []).forEach((p) => s.add(p.name)));
+      this.league.seasonTeams.forEach((t) => (t.pokemon || []).forEach((p) => s.add(p.name)));
       return s;
     },
 
@@ -6508,6 +6535,7 @@ function awardsView() {
           award: def?.label || d.key,
           winner: winner.label || winner.id,
           image: (d.entity || 'pokemon') === 'pokemon' ? this.monImage(winner.label || winner.id) : null,
+          logo: d.entity === 'team' ? this.awardTeamLogo(winner, season) : '',
           score: winner.avg,
         });
       });
@@ -6518,6 +6546,18 @@ function awardsView() {
           season,
           rows: bySeason[season].sort((a, b) => (a.day ?? 99) - (b.day ?? 99) || a.award.localeCompare(b.award)),
         }));
+    },
+    // Der Sieger eines Team-Awards trägt die Team-Id als `id` und den Namen als `label`.
+    // Über den Namen allein fände `teamById` nichts — das Bild blieb leer. Ersatzweise
+    // zählt der Name innerhalb der Saison des Awards, dann saisonübergreifend.
+    awardTeamLogo(winner, season) {
+      const teams = this.league.teams || [];
+      const name = winner?.label || '';
+      const team = teams.find((t) => t.id === winner?.id)
+        || teams.find((t) => t.name === name && seasonOfId(t.id) === season)
+        || teams.find((t) => t.name === name)
+        || this.$store.liga2?.teamById?.(winner?.id);
+      return team?.logo ? this.logoUrl(team.logo) : '';
     },
     get archiveCount() {
       return this.awardArchive.reduce((sum, g) => sum + g.rows.length, 0);
@@ -7179,7 +7219,9 @@ function presseView() {
     get loaded() {
       return this.league.teamsLoaded && this.league.scheduleLoaded && this.league.resultsLoaded && this.press.articlesLoaded;
     },
-    get categories() { return PRESS_CATEGORIES; },
+    // `press.customCategories` wird nur gelesen, damit Alpine eine neu angelegte
+    // Rubrik bemerkt — die Liste selbst ist das (veränderte) PRESS_CATEGORIES.
+    get categories() { void this.press.customCategories; return [...PRESS_CATEGORIES]; },
     get authors() { return PRESS_AUTHORS; },
 
     teamById(id) { return this.league.teams.find((t) => t.id === id) || null; },
@@ -7242,9 +7284,9 @@ function presseView() {
       };
       return map[where]?.[kind] || '';
     },
-    catLabel(key) { return categoryLabel(key); },
-    catColor(key) { return categoryColor(key); },
-    catsOf(article) { return categoriesOf(article); },
+    catLabel(key) { void this.press.customCategories; return categoryLabel(key); },
+    catColor(key) { void this.press.customCategories; return categoryColor(key); },
+    catsOf(article) { void this.press.customCategories; return categoriesOf(article); },
     fmtDate(iso) { return formatDate(iso); },
     fmtDateTime(iso) { return formatDateTime(iso); },
     defaultTeamId() {
@@ -7315,19 +7357,39 @@ function presseView() {
     get article() { return this.openId ? this.press.byId(this.openId) : null; },
     // Der Textkörper mit aufgelösten Bausteinen. Aufgelöst wird beim Anzeigen, damit
     // eine Marktwertkachel den heutigen Stand zeigt und nicht den vom Redaktionstag.
+    // Ein Beitrag der Zweiten Liga rechnet seine Kacheln mit den Daten der Zweiten Liga und
+    // zeigt nur die Bausteine, die dort Sinn ergeben (LIGA2_TILE_KINDS) — sonst stünden
+    // Erstliga-Tabelle, -Ergebnisse oder -Statistiken neben einem Zweitliga-Text.
     get articleBody() {
       const a = this.article;
       if (!a) return '';
       const l = this.league;
+      const season = seasonOfId(a.id) || a.season || l.season;
+      const isL2 = categoriesOf(a).includes('zweite-liga') || a.source?.type === 'liga2' || a.source?.league === 'zweite';
+      const l2 = this.$store.liga2;
+      const data = isL2
+        ? {
+          liga: 2,
+          allowedKinds: LIGA2_TILE_KINDS,
+          pokedex: l2.slotDexOf(season) || l.pokemon,
+          teams: l2.allTeams,
+          seasonTeams: l2.teamsOf(season),
+          results: l2.allResults,
+          availability: l2.availability,
+          schedules: l2.allSchedules,
+        }
+        : {
+          pokedex: l.pokemon,
+          teams: l.teams,
+          seasonTeams: l.seasonTeams,
+          results: l.allResults,
+          availability: l.availability,
+          schedules: l.allSchedules,
+        };
       return renderTiles(a.body || '', {
-        pokedex: l.pokemon,
+        ...data,
         eloIndex: this.$store.elo.histIndex(),
-        teams: l.teams,
-        seasonTeams: l.seasonTeams,
-        results: l.allResults,
-        availability: l.availability,
-        season: seasonOfId(a.id),
-        schedules: l.allSchedules,
+        season,
         storylines: this.press.storylines,
         logoBase: './img/teams/',
         squadValue: (team) => squadMarketValue(team.pokemon || [], this.$store.elo.index()),
@@ -7504,6 +7566,7 @@ function presseView() {
     // Bei einem KI-Beitrag lässt sich auch der automatische Stempel „Erste Liga"
     // korrigieren — sonst bliebe ein falsch eingeordneter Beitrag falsch.
     get composerCategories() {
+      void this.press.customCategories;
       if (!this.composer?.aiEdit) return manualCategories();
       return PRESS_CATEGORIES.filter((c) => c.manual || c.key === AI_CATEGORY);
     },
@@ -8147,6 +8210,9 @@ function presseView() {
         testOk: false,
         saving: false,
         backfilling: false,
+        cats: (this.press.customCategories || []).map((c) => ({ ...c })),
+        catLabel: '',
+        catSaving: false,
       };
       this.$nextTick(() => document.getElementById('press-settings')?.showPopover());
     },
@@ -8218,6 +8284,34 @@ function presseView() {
     },
     isPromptChanged(key) {
       return (this.settings?.prompts?.[key] || '') !== DEFAULT_PROMPTS[key];
+    },
+    // --- Eigene Rubriken ---
+    get catPalette() { return CUSTOM_CATEGORY_PALETTE; },
+    addCustomCat() {
+      const s = this.settings;
+      const label = String(s?.catLabel || '').trim();
+      if (!label) return;
+      const taken = new Set(PRESS_CATEGORIES.filter((c) => !c.custom).map((c) => c.label.toLowerCase()));
+      if (taken.has(label.toLowerCase()) || s.cats.some((c) => c.label.trim().toLowerCase() === label.toLowerCase())) {
+        window.dispatchEvent(new CustomEvent('toast', { detail: { msg: 'Diese Rubrik gibt es schon.' } }));
+        return;
+      }
+      s.cats.push({ key: '', label, color: CUSTOM_CATEGORY_PALETTE[s.cats.length % CUSTOM_CATEGORY_PALETTE.length] });
+      s.catLabel = '';
+    },
+    removeCustomCat(i) { this.settings?.cats.splice(i, 1); },
+    async saveCustomCats() {
+      const s = this.settings;
+      if (!s || s.catSaving) return;
+      s.catSaving = true;
+      try {
+        await this.press.saveCategories(s.cats);
+        window.dispatchEvent(new CustomEvent('toast', { detail: { msg: 'Rubriken gespeichert.' } }));
+      } catch (e) {
+        console.error('Rubriken speichern fehlgeschlagen:', e);
+        window.dispatchEvent(new CustomEvent('toast', { detail: { msg: 'Speichern fehlgeschlagen.' } }));
+      }
+      s.catSaving = false;
     },
     async savePrompts() {
       if (!this.settings || this.settings.saving) return;
@@ -8935,6 +9029,22 @@ Alpine.store('league', {
   // freigegeben und kommt ohnehin über den drafts-Listener herein.
   get pokedexNotes() {
     return this._drafts.pokedex || {};
+  },
+  // Wer das Marktwert-Update eines Spieltags gesehen hat: `drafts/marketseen.seen` =
+  // { 's2-d4': { Janik: iso, Henrik: iso } }. Unter `drafts`, damit keine neue Regel nötig ist.
+  get marketSeen() {
+    return this._drafts.marketseen?.seen || EMPTY_POOL;
+  },
+  async markMarketSeen(player, season, days) {
+    if (!player || !season || !(days || []).length) return;
+    const at = new Date().toISOString();
+    const seen = {};
+    days.forEach((d) => {
+      if (this.marketSeen[`s${season}-d${d}`]?.[player]) return;
+      seen[`s${season}-d${d}`] = { [player]: at };
+    });
+    if (!Object.keys(seen).length) return;
+    await setDoc(doc(db, 'drafts', 'marketseen'), { seen }, { merge: true });
   },
   monTraitsFor(name, team = null) {
     const global = this.pokedexNotes.traits || {};
@@ -9766,6 +9876,7 @@ Alpine.store('press', {
   articles: [],
   sessions: [],
   config: { prompts: {} },
+  customCategories: [],
   articlesLoaded: false,
   sessionsLoaded: false,
   configLoaded: false,
@@ -9821,6 +9932,7 @@ Alpine.store('press', {
       doc(db, 'settings', 'press'),
       (snap) => {
         this.config = snap.exists() ? snap.data() : { prompts: {} };
+        this.customCategories = setCustomCategories(this.config.categories);
         this.configLoaded = true;
       },
       () => { this.configLoaded = true; },
@@ -9997,6 +10109,12 @@ Alpine.store('press', {
   },
   promptFor(key) {
     return this.prompts[key] || DEFAULT_PROMPTS[key] || '';
+  },
+  // Eigene Rubriken (Zahnrad → Rubriken). Die ganze Liste wird ersetzt; ein entfernter
+  // Schlüssel fällt an Alt-Beiträgen still weg (categoriesOf kennt ihn dann nicht mehr).
+  async saveCategories(list) {
+    const clean = normalizeCustomCategories(list).map(({ key, label, short, color }) => ({ key, label, short, color }));
+    await setDoc(doc(db, 'settings', 'press'), { categories: clean, updatedAt: new Date().toISOString() }, { merge: true });
   },
   async savePrompts(next) {
     const clean = {};
@@ -10611,6 +10729,7 @@ Alpine.store('press', {
           context: this.contextFor({ teamIds: [...new Set([...teams, ...previewTeams])], day, reviewDay: day, previewDay: nextDay }),
           addendum: [
             `DIE HOSTS: ${speakers.join(' und ')}. Venicro eröffnet.`,
+            chelastStoryNote(id),
             `SPIELTAG ${day} IST ABGESCHLOSSEN. Die Awards dieses Spieltags:\n${awardLines.join('\n')}`,
             `RÜCKBLICK — jede dieser Partien bekommt einen eigenen Abschnitt in "rueckblick":\n${listing(reviewList)}`,
             nextDay != null
@@ -10833,7 +10952,7 @@ Alpine.store('press', {
 
       const context = this._liga2DayContext(season, day);
       const data = await this._generate(model, {
-        system: buildSystem({ author }),
+        system: buildSystem({ author, liga: 2 }),
         prompt: buildUserPrompt({ task: LIGA2_REVIEW_BRIEF, context }),
         schema: LIGA2_REVIEW_SCHEMA,
         maxOutputTokens: 8192,
@@ -10896,10 +11015,17 @@ Alpine.store('press', {
   // letzten Spiel tatsächlich aktualisiert wurde.
   // `released` unterscheidet Automatik von Nachholen: die Automatik wartet auf die
   // Pressefreigabe, von Hand nachholen lässt sich jeder vollständige Spieltag.
-  marketDaysReady({ released = true } = {}) {
+  // `seen` verlangt zusätzlich, dass BEIDE Spieler das Marktwert-Update danach angesehen
+  // haben (league.marketSeen) — erst dann darf der Beitrag erscheinen.
+  marketDaysReady({ released = true, seen = false } = {}) {
     const l = Alpine.store('league');
     const rows = Alpine.store('elo')?.rows || [];
     if (!rows.length) return [];
+    if (seen) {
+      const marks = l.marketSeen;
+      return this.marketDaysReady({ released })
+        .filter((day) => AUTH_PLAYERS.every((p) => !!marks[`s${l.season}-d${day}`]?.[p]));
+    }
     const ok = released ? isPressReleased : isMatchComplete;
     return (l.schedule?.matchdays || [])
       .filter((md) => (md.day ?? 0) >= pressFromDay(l.season))
@@ -10914,6 +11040,16 @@ Alpine.store('press', {
       })
       .map((md) => md.day)
       .filter((day) => !!stopKeyForDay(rows, day, l.season));
+  },
+  // Freigegebene, im Sheet bewertete Spieltage, deren Marktwert-Update dieser Spieler
+  // noch nicht angesehen hat — der Hinweispunkt an „Statistiken".
+  marketUnseenFor(player) {
+    const l = Alpine.store('league');
+    if (!player || !this.automationLive) return [];
+    const marks = l.marketSeen;
+    return this.marketDaysReady()
+      .filter((day) => !marks[`s${l.season}-d${day}`]?.[player])
+      .filter((day) => needsRewrite(this.byId(this.marketIdFor(day))));
   },
   get missingMarketUpdates() {
     return this.marketDaysReady({ released: false })
@@ -10930,8 +11066,9 @@ Alpine.store('press', {
     // Reaktive Lesevorgänge, damit der Effekt bei neuen Sheet-Daten erneut läuft.
     void elo.rows.length;
     void elo.fetchedAt;
+    void l._drafts;
     if (!this.automationLive) return;
-    const ready = new Set(this.marketDaysReady());
+    const ready = new Set(this.marketDaysReady({ seen: true }));
     const known = pressSeenMarket.get(l.season) || null;
     pressSeenMarket.set(l.season, ready);
     if (known === null) return;
@@ -11798,7 +11935,7 @@ Alpine.store('press', {
       const league = commissionLeague(src.league, brief);
       const direction = buildDirection(this.recentArchetypes(), this.directionOpts({ scandal: false }));
       const data = await this._generate(model, {
-        system: buildSystem({ author }),
+        system: buildSystem({ author, liga: league === 'zweite' ? 2 : 1 }),
         prompt: buildUserPrompt({
           task: this.promptFor('commission'),
           direction: direction.text,

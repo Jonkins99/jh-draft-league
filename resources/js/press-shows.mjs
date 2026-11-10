@@ -121,9 +121,18 @@ export const CHELAST = {
   voice: `ROLLE & HALTUNG: Der leidenschaftliche, emotional angetriebene und detailverliebte Pokémon-Fan und Analyst an
 Venicros Seite; schwankt zwischen kindlicher Begeisterung, humorvoller Verzweiflung über einen Verein und scharfen
 taktischen Beobachtungen.
-EINSTIEGE: Steigt mit einer emotionalen Momentaufnahme, einer Liga-Frustration oder einer überspitzten Beobachtung
-von der Couch ein ("Ich saß am Wochenende auf der Couch und dachte mir: Warum tun wir uns das eigentlich an?",
-"Es ist einfach unfassbar, was da gerade passiert.").
+EINSTIEG IN DIE FOLGE: Auf Venicros Eröffnung antwortet Chelast IMMER mit einer schlechten, holprigen Überleitung
+und erzählt dann eine sehr zufällige, leicht verrückte Geschichte aus seinem eigenen Leben (siehe ANEKDOTE).
+Später in der Folge steigt er in Themen mit einer emotionalen Momentaufnahme, einer Liga-Frustration oder einer
+überspitzten Beobachtung ein ("Es ist einfach unfassbar, was da gerade passiert.").
+ANEKDOTE: Eine kleine Alltagsbegebenheit, die er erzählt, als wäre sie ein Skandal — eine winzige Ungerechtigkeit,
+ein peinlicher Moment, ein Zusammenstoß mit einer Respektsperson oder einem Kauz (der Platzwart als "eigene
+Spezies", die Frau, die sich beim Bäcker strategisch vordrängelt, das Ertapptwerden auf fremdem Gelände).
+Er erzählt atemlos und in vielen sehr konkreten, nebensächlichen Details (Uhrzeit, was jemand gerade aß, welches
+Produkt, wer dabei war), schwankt zwischen Selbstgerechtigkeit und Selbstzweifel ("ich weiß nicht, ob mein Unmut da
+zurecht war"), unterstellt Leuten gern einen ausgeklügelten Plan ("Das war kein Zufall, das war geplant"), zitiert
+Dialoge wörtlich und endet mit einer trotzigen Schlusspointe oder einem Vorsatz. Die Geschichte ist JEDES MAL neu
+erfunden und hat nichts mit der Liga zu tun.
 STILMITTEL: Emotionale Verstärker wie "Brutal", "Wahnsinn", "Komplett absurd" und das bekräftigende "Einfach".
 INTERAKTION: Lässt sich von Venicros spitzem Humor triggern, kontert emotional und holt dann weit aus, um seine
 Thesen mit Vehemenz und vielen Details zu verteidigen.
@@ -253,6 +262,24 @@ export function variationNote(hosts = [], recent = [], rand = Math.random) {
     if (parts.length) lines.push(`${h.name}: ${parts.join(' · ')}`);
   });
   return lines.join('\n');
+}
+
+// Chelasts Einstiegsgeschichte: Je Folge ein anderer Schauplatz (aus der Folgen-ID
+// geseedet), damit nicht jede Woche der Bäcker dran ist. Nur ein Anstoß — die
+// Geschichte selbst denkt sich das Modell aus.
+export const CHELAST_STORY_SETTINGS = [
+  'beim Bäcker oder auf dem Wochenmarkt', 'auf einem Sportplatz oder im Freibad', 'im Baumarkt', 'in der Waschanlage',
+  'beim Elternabend oder in der Kita', 'auf dem Wertstoffhof', 'im Wartezimmer einer Praxis', 'im Treppenhaus mit den Nachbarn',
+  'auf einem Parkplatz', 'im Fitnessstudio oder an einem Outdoor-Trainingsgerät', 'beim Kinderturnen oder auf dem Spielplatz',
+  'in der Bahn oder am Bahnsteig', 'beim Friseur', 'im Kleingarten oder Schrebergartenverein', 'an der Supermarktkasse',
+  'beim Paketboten oder in der Packstation', 'auf einer Familienfeier', 'bei einem Hobbykick in der Halle',
+];
+export function chelastStoryNote(seed = '') {
+  const list = CHELAST_STORY_SETTINGS;
+  const pick = list[Math.floor(seededFloat(hashSeed(`chelast:${seed}`)) * list.length)] || list[0];
+  return `CHELASTS GESCHICHTE IN DIESER FOLGE: spielt ${pick}. Neu erfunden, alltäglich, leicht absurd, mit einer `
+    + 'kleinen Ungerechtigkeit oder einem peinlichen Moment — und eine Schlusspointe. Kein Bezug zur Liga, keine '
+    + 'Fakten aus den Metadaten.';
 }
 
 // === Termine ===============================================================
@@ -432,7 +459,14 @@ DIE FOLGE HAT ZWEI PFLICHTTEILE, beide gleich ernst zu nehmen:
 DANEBEN, KURZ: die gerade vergebenen Awards des Spieltags und gelegentlich ein aktueller Aufreger.
 
 AUFTRAG
-- Venicro eröffnet mit genau dem vorgegebenen Satzanfang und beendet ihn mit einer neuen, wahnwitzigen These.
+- Venicro eröffnet mit genau dem vorgegebenen Satzanfang und beendet ihn mit einer neuen, wahnwitzigen These, und
+  fragt Chelast dann beiläufig, was bei ihm so los war.
+- Chelast antwortet IMMER mit einer schlechten Überleitung ("Nicht so viel, aber …", ein Satz, der zur These gar
+  nicht passt) und erzählt eine sehr zufällige oder verrückte Geschichte aus seinem Leben — neu erfunden, über
+  drei bis sechs Wortbeiträge, mit wörtlichen Dialogen und vielen nebensächlichen Details. Venicro hakt ungläubig
+  nach, kommentiert trocken und biegt dann mit einer ebenso gewollten Überleitung zum Spieltag ab ("Dann lass uns
+  doch gerade beim Thema … bleiben"). Danach läuft die Folge wie gewohnt; die Geschichte taucht höchstens noch
+  einmal als kurze Pointe auf.
 - Die beiden reiben sich aneinander, bleiben aber in der Sache präzise. Sie sind Taktik-Nerds: Sie nennen
   Pokémon beim Namen, sprechen über Typen, Initiative, Leads, Doppelkämpfe, Feldkontrolle und Wechsel.
 - Fakten kommen ausschließlich aus den Metadaten. Der Kanon gilt.
@@ -484,7 +518,7 @@ const SEGMENTS = (hint) => S.array(
 export const PODCAST_SCHEMA = schemaOf({
   dachzeile: S.string('Drei bis fünf Wörter über der Überschrift'),
   titel: S.string('Die Überschrift der Folge'),
-  eroeffnung: TURNS('Eröffnung: Venicros Satzanfang samt These, kurzer Schlagabtausch'),
+  eroeffnung: TURNS('Eröffnung: Venicros Satzanfang samt These, Chelasts schlechte Überleitung und seine verrückte Alltagsgeschichte, Venicros Überleitung zum Spieltag'),
   rueckblick: SEGMENTS('Je Partie aus spieltagRueckblick genau ein Abschnitt, in der Reihenfolge der Metadaten'),
   zwischenteil: TURNS('Kurz: Awards des Spieltags, ggf. ein Aufreger, Überleitung zur Vorschau'),
   vorschau: SEGMENTS('Je Partie aus spieltagVorschau genau ein Abschnitt (leer, wenn es keinen nächsten Spieltag gibt)'),

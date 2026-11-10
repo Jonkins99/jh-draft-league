@@ -1,5 +1,14 @@
 # Changelog
 
+## Transfer fix, own press categories and gated market article
+- **Winter transfer pool.** Pokémon that were rostered at the end of a previous season and stayed undrafted in the current one (e.g. Famieps, Dragoran, Katapuldra, Hitze-Rotom, Epitaff) are available again in the transfer pick phase. Only rosters of the active season block a pick.
+- **Own press categories.** The press settings have a "Rubriken" tab to add, rename, recolour and remove custom categories. They appear in the newsroom filter and in the article editor.
+- **Second-league articles.** Tiles in second-league articles are computed from second-league data (table, result, form, squad, crest) and tiles that only make sense in the first league (statistics, comparisons, rankings, battle details, videos, previews) are dropped. The model gets second-league tile rules for these articles.
+- **Award archive crests.** Team awards in the all-seasons archive (e.g. "Bester Draft") show the crest again instead of a broken image.
+- **Trainer personality.** Both players can edit the personality of every trainer; appointing, dismissing and the other trainer data stay with the team owner.
+- **Market update article.** The per-matchday market article waits until every match of the matchday is released for the press, the sheet has the matchday column and both players have watched the market update afterwards. A dot on "Statistiken" and a note in the market tab show who still has to watch.
+- **50 plus Zweiblatt.** Chelast answers Venicro's opener with a clumsy transition and a new, random everyday story from his life before the episode continues as before.
+
 ## Records, trainer history and account keys
 - **Stuck interviews.** A press appointment whose questions or article were never finished (device closed mid-generation, broken session) no longer hangs on "Die Presse nimmt Aufstellung…" on every device. After ten minutes it opens as failed with "Erneut versuchen" (same guest, same role) or "Ganz neu ansetzen"; the stage also follows changes from other devices. Requests to Gemini time out after three minutes and are retried.
 - **Gemini models.** 3.7 Flash and 3.5 Flash were shut down by Google and left the fallback chain (now 3.8 Flash, 3.6 Flash, 3 Flash Preview, 2.5 Flash, then the Lite reserve). Gemini 4 Argon is selectable for keys with billing. A stored model that no longer exists falls back to 3.8 Flash.

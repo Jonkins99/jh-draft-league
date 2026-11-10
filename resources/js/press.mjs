@@ -34,6 +34,55 @@ export const PRESS_CATEGORIES = [
 
 export const CATEGORY_BY_KEY = Object.fromEntries(PRESS_CATEGORIES.map((c) => [c.key, c]));
 
+// Eigene Rubriken legen die Spieler in den Presseeinstellungen an (`settings/press.categories`).
+// Sie hängen sich an dieselbe Liste und dasselbe Register — so kennen Filter, Editor,
+// Beschriftung und `categoriesOf` sie ohne Sonderweg. `custom: true` markiert sie.
+export const CUSTOM_CATEGORY_PALETTE = ['#f43f5e', '#14b8a6', '#eab308', '#6366f1', '#ec4899', '#84cc16', '#0ea5e9', '#f59e0b'];
+const BUILTIN_KEYS = new Set(PRESS_CATEGORIES.map((c) => c.key));
+
+export function categorySlug(label) {
+  return String(label || '')
+    .toLowerCase()
+    .replace(/ä/g, 'ae').replace(/ö/g, 'oe').replace(/ü/g, 'ue').replace(/ß/g, 'ss')
+    .normalize('NFD').replace(/[\u0300-\u036f]/g, '')
+    .replace(/[^a-z0-9]+/g, '-')
+    .replace(/^-+|-+$/g, '')
+    .slice(0, 40);
+}
+
+// Eingabe aus Firestore bzw. Formular bereinigen: Bezeichnung Pflicht, Schlüssel eindeutig
+// und nie ein eingebauter, Farbe nur als 6-stelliger Hex-Wert.
+export function normalizeCustomCategories(list) {
+  const out = [];
+  const seen = new Set();
+  (Array.isArray(list) ? list : []).forEach((c, i) => {
+    const label = String(c?.label || '').trim().slice(0, 40);
+    if (!label) return;
+    let key = categorySlug(c?.key || label);
+    if (!key) return;
+    if (BUILTIN_KEYS.has(key)) key = `eigen-${key}`;
+    if (seen.has(key)) return;
+    seen.add(key);
+    const color = /^#[0-9a-f]{6}$/i.test(String(c?.color || '')) ? String(c.color).toLowerCase()
+      : CUSTOM_CATEGORY_PALETTE[i % CUSTOM_CATEGORY_PALETTE.length];
+    const short = String(c?.short || '').trim().slice(0, 16) || (label.length > 14 ? `${label.slice(0, 13)}…` : label);
+    out.push({ key, label, short, color, manual: true, custom: true });
+  });
+  return out;
+}
+
+export function setCustomCategories(list) {
+  const clean = normalizeCustomCategories(list);
+  for (let i = PRESS_CATEGORIES.length - 1; i >= 0; i--) {
+    if (PRESS_CATEGORIES[i].custom) {
+      delete CATEGORY_BY_KEY[PRESS_CATEGORIES[i].key];
+      PRESS_CATEGORIES.splice(i, 1);
+    }
+  }
+  clean.forEach((c) => { PRESS_CATEGORIES.push(c); CATEGORY_BY_KEY[c.key] = c; });
+  return clean;
+}
+
 // Alles, was per KI entsteht, landet zusätzlich in der „Ersten Liga".
 export const AI_CATEGORY = 'erste-liga';
 

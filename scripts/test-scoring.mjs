@@ -91,6 +91,10 @@ let passed = 0;
 import {
   generateJson, modelChain, classifyQuota, QuotaBook, nextPacificMidnight, normalizeKeys, keyTag, FALLBACK_ORDER, GEMINI_MODELS, mergeKeyLists,
 } from '../resources/js/gemini.mjs';
+import { setCustomCategories, normalizeCustomCategories, categoriesOf as catsOfX, categoryLabel as catLabelX, PRESS_CATEGORIES as PC_X } from '../resources/js/press.mjs';
+import { tileHtml as tileHtmlX, LIGA2_TILE_KINDS } from '../resources/js/press-tiles.mjs';
+import { chelastStoryNote, CHELAST_STORY_SETTINGS, ZWEIBLATT_BRIEF as ZB_X } from '../resources/js/press-shows.mjs';
+import { LIGA2_TILE_RULES } from '../resources/js/press-prompts.mjs';
 import { isStalePending, isStaleSession, sessionStagePhase, needsRewrite, articleViewStatus, hasArticleContent, PENDING_STALE_MS, pickPreview } from '../resources/js/press.mjs';
 
 import { franchiseTeams, franchiseSeasons, franchisePokemon } from '../resources/js/seasons.mjs';
@@ -3348,6 +3352,43 @@ test('Zweite Liga: jedes Pokémon passt in jeden Slot, das Tier ist der Slot', (
   const dex = withSlotTiers([{ name: 'Mega-Gengar', tier: 'S' }, { name: 'Mew', tier: 'S' }], [{ pokemon: roster }]);
   assert.deepEqual(dex.map((p) => p.tier), ['D', 'S']);
   assert.equal(rosterSlots(Array.from({ length: 9 }, (_, i) => ({ name: `M${i}`, tier: 'B' }))).overflow.length, 1);
+});
+
+
+test('Presse: eigene Rubriken hängen sich an Register und Liste', () => {
+  const clean = normalizeCustomCategories([
+    { label: 'Hintergrund' }, { label: 'hintergrund' }, { label: '  ' }, { label: 'News' }, { label: 'Übersee', color: '#ABCDEF' },
+  ]);
+  assert.deepEqual(clean.map((c) => c.key), ['hintergrund', 'eigen-news', 'uebersee']);
+  assert.equal(clean[2].color, '#abcdef');
+  setCustomCategories(clean);
+  assert.equal(catLabelX('hintergrund'), 'Hintergrund');
+  assert.deepEqual(catsOfX({ category: 'news', categories: ['news', 'hintergrund'] }), ['news', 'hintergrund']);
+  const before = PC_X.length;
+  setCustomCategories([{ label: 'Hintergrund' }]);
+  assert.equal(PC_X.length, before - 2);
+  // Entfernte Rubrik: der Stempel fällt an Alt-Beiträgen still weg.
+  setCustomCategories([]);
+  assert.deepEqual(catsOfX({ category: 'news', categories: ['news', 'hintergrund'] }), ['news']);
+  assert.ok(PC_X.every((c) => !c.custom));
+});
+
+test('Presse: Zweitliga-Beiträge zeigen keine Erstliga-Kacheln', () => {
+  const src = { pokedex: [{ name: 'Glurak', image: 'x.png', tier: 'S' }], results: [], teams: [], eloIndex: {} };
+  assert.equal(tileHtmlX({ kind: 'statistik', key: 'Glurak' }, { ...src, allowedKinds: LIGA2_TILE_KINDS }), null);
+  assert.equal(tileHtmlX({ kind: 'rangliste', key: 'kills' }, { ...src, allowedKinds: LIGA2_TILE_KINDS }), null);
+  assert.ok(!LIGA2_TILE_KINDS.includes('vorschau') && !LIGA2_TILE_KINDS.includes('kampf'));
+  assert.ok(LIGA2_TILE_KINDS.includes('tabelle2') && LIGA2_TILE_KINDS.includes('kader'));
+  assert.ok(buildSystem({ liga: 2 }).includes(LIGA2_TILE_RULES));
+  assert.ok(!buildSystem({ liga: 2 }).includes('[rangliste: <kills'));
+});
+
+test('Zweiblatt: Chelasts Einstiegsgeschichte ist geseedet und im Auftrag verankert', () => {
+  assert.equal(chelastStoryNote('s2-zweiblatt-d4'), chelastStoryNote('s2-zweiblatt-d4'));
+  const picks = new Set(['d1', 'd2', 'd3', 'd4', 'd5', 'd6', 'd7', 'd8'].map((d) => chelastStoryNote(`s2-zweiblatt-${d}`)));
+  assert.ok(picks.size > 2);
+  assert.ok(CHELAST_STORY_SETTINGS.some((x) => chelastStoryNote('a').includes(x)));
+  assert.match(ZB_X, /schlechten Überleitung/);
 });
 
 console.log(`\n${passed} Tests bestanden.`);

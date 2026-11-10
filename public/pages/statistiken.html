@@ -18,9 +18,12 @@
     <div class="flex gap-2">
       <template x-for="t in [{v:'stats', l:'Stats'},{v:'elo', l:'Marktwerte'}]" :key="'tab-'+t.v">
         <button type="button" @click="setTab(t.v)"
-                class="rounded-xl border px-4 py-2 font-display text-sm font-semibold uppercase tracking-wider transition-colors"
-                :class="tab === t.v ? 'border-flame-500 bg-flame-500/10 text-flame-300' : 'border-line text-mist hover:text-ink'"
-                x-text="t.l"></button>
+                class="relative rounded-xl border px-4 py-2 font-display text-sm font-semibold uppercase tracking-wider transition-colors"
+                :class="tab === t.v ? 'border-flame-500 bg-flame-500/10 text-flame-300' : 'border-line text-mist hover:text-ink'">
+          <span x-text="t.l"></span>
+          <span x-show="t.v === 'elo' && marketUnseenDays.length" x-cloak class="nav-dot" aria-hidden="true"></span>
+          <span x-show="t.v === 'elo' && marketUnseenDays.length" x-cloak class="sr-only">(Update wartet auf dich)</span>
+        </button>
       </template>
     </div>
   </header>
@@ -215,6 +218,9 @@
           </p>
         </div>
         <div class="flex shrink-0 flex-col gap-2 sm:items-end">
+          <p x-show="marketUnseenDays.length" x-cloak role="status"
+             class="max-w-xs rounded-xl border border-volt-400/40 bg-volt-400/10 px-3 py-2 text-xs leading-relaxed text-volt-400"
+             x-text="`Das Marktwert-Update nach Spieltag ${marketUnseenDays.join(', ')} wartet auf dich. Der Presse-Beitrag erscheint, sobald beide es angesehen haben.`"></p>
           <button type="button" @click="startMarketUpdate()" :disabled="eloLoading"
                   class="inline-flex items-center justify-center gap-2 rounded-xl bg-flame-500 px-4 py-2.5 font-display text-sm font-bold uppercase tracking-wide text-white transition-colors hover:bg-flame-600 disabled:opacity-60">
             <svg viewBox="0 0 24 24" class="size-4" :class="eloLoading ? 'animate-spin' : ''" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M21 12a9 9 0 1 1-2.64-6.36"/><path d="M21 3v5h-5"/></svg>

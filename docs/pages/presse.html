@@ -1093,9 +1093,9 @@ match /settings/{doc} { allow read, write: if true; }</code></pre>
     <template x-if="settings">
       <div class="max-h-[88vh] overflow-y-auto p-5 sm:p-7">
         <div class="mb-5 flex items-start justify-between gap-4">
-          <div>
+          <div class="min-w-0">
             <p class="font-display text-xs font-semibold uppercase tracking-[0.3em] text-flame-400">Intern</p>
-            <h2 class="mt-1 font-display text-2xl font-bold tracking-wide text-ink">Redaktionseinstellungen</h2>
+            <h2 class="mt-1 font-display text-2xl font-bold tracking-wide text-ink break-words">Redaktions&shy;einstellungen</h2>
           </div>
           <button type="button" @click="closeSettings()" aria-label="Schließen"
                   class="grid size-9 shrink-0 place-items-center rounded-xl border border-line text-mist transition-colors hover:text-flame-400">
@@ -1104,7 +1104,7 @@ match /settings/{doc} { allow read, write: if true; }</code></pre>
         </div>
 
         <div class="mb-5 flex flex-wrap gap-2">
-          <template x-for="t in [{v:'zugang', l:'Zugang'},{v:'prompts', l:'Redaktionsaufträge'},{v:'wartung', l:'Wartung'}]" :key="'st-'+t.v">
+          <template x-for="t in [{v:'zugang', l:'Zugang'},{v:'prompts', l:'Redaktionsaufträge'},{v:'rubriken', l:'Rubriken'},{v:'wartung', l:'Wartung'}]" :key="'st-'+t.v">
             <button type="button" @click="settings.tab = t.v"
                     class="rounded-xl border px-3.5 py-2 font-display text-xs font-bold uppercase tracking-wider transition-colors"
                     :class="settings.tab === t.v ? 'border-flame-500 bg-flame-500/10 text-flame-300' : 'border-line text-mist hover:text-ink'"
@@ -1248,6 +1248,49 @@ match /settings/{doc} { allow read, write: if true; }</code></pre>
           <p class="rounded-xl border border-line bg-elevated/40 px-3 py-2.5 text-xs leading-relaxed text-mist">
             Liga-Regelwerk, Kanon-Schutz (keine eigenmächtigen Transfers, Sperren oder Trainerwechsel) und die wechselnde Tonlage stecken fest im Code – sie gelten zusätzlich zu diesem Text und müssen hier nicht wiederholt werden.
           </p>
+        </div>
+
+        <!-- Eigene Rubriken -->
+        <div x-show="settings.tab === 'rubriken'" class="grid gap-4">
+          <div>
+            <p class="font-display text-sm font-bold uppercase tracking-wider text-ink">Eigene Rubriken</p>
+            <p class="mt-1 text-xs leading-relaxed text-mist">Neue Rubriken stehen danach im Filter des Newsrooms und beim Schreiben eines Beitrags zur Auswahl. Wird eine Rubrik entfernt, verlieren ihre Beiträge nur diesen Stempel.</p>
+          </div>
+          <form class="flex flex-wrap items-end gap-2" @submit.prevent="addCustomCat()">
+            <label class="block min-w-0 flex-1 basis-48">
+              <span class="mb-1.5 block font-display text-[11px] font-bold uppercase tracking-wider text-mist">Bezeichnung</span>
+              <input type="text" x-model="settings.catLabel" maxlength="40" placeholder="z. B. Hintergrund"
+                     class="w-full rounded-lg border border-line bg-elevated px-3 py-2 text-sm text-ink placeholder:text-mist focus:border-flame-500 focus:outline-none" />
+            </label>
+            <button type="submit" :disabled="!settings.catLabel.trim()"
+                    class="rounded-xl border border-line px-4 py-2 font-display text-xs font-bold uppercase tracking-wider text-ink transition-colors hover:border-flame-500 hover:text-flame-300 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-flame-500 disabled:opacity-40">Hinzufügen</button>
+          </form>
+          <ul class="grid gap-2" x-show="settings.cats.length">
+            <template x-for="(c, i) in settings.cats" :key="'cc-set-'+i">
+              <li class="flex flex-wrap items-center gap-2 rounded-xl border border-line bg-elevated/40 p-2.5">
+                <input type="text" x-model="c.label" maxlength="40" :aria-label="`Bezeichnung der Rubrik ${i + 1}`"
+                       class="min-w-0 flex-1 basis-40 rounded-lg border border-line bg-elevated px-2.5 py-1.5 text-sm text-ink focus:border-flame-500 focus:outline-none" />
+                <div class="flex flex-wrap gap-1" role="radiogroup" :aria-label="`Farbe der Rubrik ${c.label}`">
+                  <template x-for="col in catPalette" :key="'cc-col-'+i+'-'+col">
+                    <button type="button" role="radio" @click="c.color = col" :aria-checked="c.color === col ? 'true' : 'false'" :aria-label="`Farbe ${col}`"
+                            class="size-6 rounded-full border-2 transition-transform focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-flame-500"
+                            :class="c.color === col ? 'scale-110 border-ink' : 'border-transparent'"
+                            :style="{ background: col }"></button>
+                  </template>
+                </div>
+                <button type="button" @click="removeCustomCat(i)" :aria-label="`Rubrik ${c.label} entfernen`"
+                        class="grid size-8 shrink-0 place-items-center rounded-lg border border-line text-mist transition-colors hover:text-flame-400 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-flame-500">
+                  <svg viewBox="0 0 24 24" class="size-4" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M18 6 6 18M6 6l12 12"/></svg>
+                </button>
+              </li>
+            </template>
+          </ul>
+          <p x-show="!settings.cats.length" class="rounded-xl border border-dashed border-line px-3 py-2.5 text-xs text-mist">Noch keine eigenen Rubriken.</p>
+          <div>
+            <button type="button" @click="saveCustomCats()" :disabled="settings.catSaving"
+                    class="rounded-xl bg-flame-500 px-4 py-2 font-display text-xs font-bold uppercase tracking-wider text-white transition-colors hover:bg-flame-600 disabled:opacity-40"
+                    x-text="settings.catSaving ? 'Speichere…' : 'Rubriken speichern'"></button>
+          </div>
         </div>
 
         <!-- Wartung -->
