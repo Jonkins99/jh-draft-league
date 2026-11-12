@@ -5,9 +5,6 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 ## Projekt
 
 „JH Draft League" — private Pokémon-Draft-Liga (Janik vs. Henrik, je 4 Teams). Statische Vite-SPA mit Alpine.js, Tailwind v4 und Firestore als Live-Datenbank. Deployment: GitHub Pages aus dem `docs/`-Ordner. UI-Texte und Code-Kommentare sind auf Deutsch.
-Die Kommunikation zwischen Claude und dem Nutzer findet nicht in der Konsole statt. Die zu erledigenden Aufgaben liegen in /tasks mit eindeutigen Aufträgen. Es sind alle Aufträge abzuarbeiten, die in /tasks liegen und jeweils eigene Dateien haben, welche noch nicht umgesetzt wurden. Claude soll Entscheidungen auf sinnvolle Arten und Weisen selbst treffen nachdem es den Auftrag erhalten hat, dass es loslegen soll. Nur wenn es absolut notwendig ist eine kritische Frage an den Nutzer weiterzugeben, soll eine Nachfrage gestellt werden - aber auch dann nicht über das Terminal, sondern indem die Frage am Ende der Datei mit der tasks ergänzt wird. Im Terminal sind JEDE Form von Textausgaben durch Claude ABSOLUT UNTERSAGT - auch zum Abschluss der Aufgaben. ES DÜRFEN KEIN SUBAGENTS, SUBSESSIONS ETC. GENUTZT WERDEN, ALLES BLEIBT INLINE IN EINER SESSION MIT KOMMUNIKATION ÜBER DIE TASK-DATEI.
-Tasks die fertig umgesetzt wurden sollen als Prefix in der Datei ein "z_" erhalten, damit sie nach unten sortiert werden. Neue Tasks haben kein Prefix. Aufgaben bei denen eine Frage zwingend beantwortet werden muss sollen ein a_ Prefix erhalten.
-Änderungen sind immer in der zu exportierenden zip mit steigendem Zähler zu bündeln. Erst wenn es seit 4 Stunden keine Dateiänderung mehr gab soll eine neue zip angefangen werden, ansonsten darf die letzte um neue Anpassungen ergänzt werden. Wenn es notwendig ist, das zum Erfüllen von Aufgaben ein node-Skript ausgeführt werden muss (auf dem Rechner, auf dem die zips auch entpackt und deployed werden, niemals dieses Gerät hier), dann musst du das klar in den entsprechenden tasks-Dateien vermerken.
 
 ## Commands
 
@@ -268,7 +265,7 @@ Ein `results`-Doc: `{home, away, day, squads: {home: [names], away: [names]}, ba
 
 - `docs/` ist Build-Output und wird bei jedem Build geleert — dort niemals editieren.
 - `vite.config.js` setzt `base: './'` für GitHub Pages; keine absoluten Asset-Pfade einführen.
-- Änderungen werden dem Projektinhaber als Zip nur der geänderten Quelldateien übergeben (ohne `docs/`); bei neuen npm-Abhängigkeiten `package.json` und `package-lock.json` mitgeben. Git-Operationen sind hier absolut tabu.
+- Änderungen laufen direkt über Git im Repository.
 - `CHANGELOG.md` dokumentiert Features feature-weise (Englisch) und ist die beste Quelle für die Historie einer Ansicht.
 - UI setzt native Plattform-Features ein (Popover-API, `@starting-style`, View Transitions, Container Queries) statt JS-Bibliotheken — bei neuen Overlays diesem Muster folgen.
 - Jede Umsetzung muss tadellos mobilfreundlich umgesetzt sein

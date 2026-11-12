@@ -6074,7 +6074,9 @@ function franchiseView() {
       };
     },
     mountAllChart(el) {
-      bindMarketChart(this, el, 'franchise-all', () => this._chartConfig(null));
+      // Welche Teams im Diagramm stehen, folgt der Ligawahl (`table`) — ein Wechsel
+      // muss neu zeichnen, sonst blieben die Teams der vorigen Wahl stehen.
+      bindMarketChart(this, el, 'franchise-all', () => this._chartConfig(null), { watch: ['liga'] });
     },
     mountTeamChart(el) {
       bindMarketChart(this, el, `franchise-${this.slug}`, () => this._chartConfig(this.slug));
