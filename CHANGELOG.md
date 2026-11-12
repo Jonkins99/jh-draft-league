@@ -1,5 +1,8 @@
 # Changelog
 
+## Club market chart fix
+- **Club market chart follows the league filter.** In the all-seasons team view the squad value chart redraws with the teams of "Nur 1. Liga", "Nur 2. Liga" or "1. & 2. Liga" as soon as the filter changes, instead of only after leaving and reopening the view.
+
 ## Transfer fix, own press categories and gated market article
 - **Winter transfer pool.** Pokémon that were rostered at the end of a previous season and stayed undrafted in the current one (e.g. Famieps, Dragoran, Katapuldra, Hitze-Rotom, Epitaff) are available again in the transfer pick phase. Only rosters of the active season block a pick.
 - **Own press categories.** The press settings have a "Rubriken" tab to add, rename, recolour and remove custom categories. They appear in the newsroom filter and in the article editor.
@@ -7,7 +10,6 @@
 - **Award archive crests.** Team awards in the all-seasons archive (e.g. "Bester Draft") show the crest again instead of a broken image.
 - **Trainer personality.** Both players can edit the personality of every trainer; appointing, dismissing and the other trainer data stay with the team owner.
 - **Market update article.** The per-matchday market article waits until every match of the matchday is released for the press, the sheet has the matchday column and both players have watched the market update afterwards. A dot on "Statistiken" and a note in the market tab show who still has to watch.
-- **Club market chart follows the league filter.** In the all-seasons team view the squad value chart redraws with the teams of "Nur 1. Liga", "Nur 2. Liga" or "1. & 2. Liga" as soon as the filter changes, instead of only after leaving and reopening the view.
 - **50 plus Zweiblatt.** Chelast answers Venicro's opener with a clumsy transition and a new, random everyday story from his life before the episode continues as before.
 
 ## Records, trainer history and account keys
