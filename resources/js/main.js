@@ -3387,6 +3387,19 @@ function standingsView() {
     get ligaOptions() {
       return [{ v: 'l1', l: 'Nur 1. Liga' }, { v: 'l2', l: 'Nur 2. Liga' }, { v: 'both', l: '1. & 2. Liga' }];
     },
+    // Trennlinie OBERHALB der Zeile idx (also unter Platz idx) — oder null.
+    // Saison 1 kennt nur Titel- und Abstiegslinie (ohne Beschriftung); ab
+    // Saison 2 kommen die Linien unter Platz 3 und 4 dazu, und alle vier
+    // tragen eine kleine Beschriftung in ihrer Farbe.
+    zoneLine(idx, count) {
+      const labeled = this.$store.season.current >= 2;
+      const relegation = count > 2 && idx === count - 2;
+      if (idx === 1) return { label: labeled ? 'Meister' : '', border: 'border-flame-500/70', text: 'text-flame-400' };
+      if (labeled && idx === 3 && !relegation) return { label: 'ML', border: 'border-volt-400/70', text: 'text-volt-400' };
+      if (labeled && idx === 4 && !relegation) return { label: 'JHDP 8tel', border: 'border-sky-400/70', text: 'text-sky-400' };
+      if (relegation) return { label: labeled ? 'Klassenerhalt' : '', border: 'border-flame-500/70', text: 'text-flame-400' };
+      return null;
+    },
 
     // --- Saisonübergreifend -------------------------------------------------
     get isAll() {
